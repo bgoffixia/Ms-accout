@@ -50,6 +50,7 @@ import type {
   GuestPreapplicationInput,
   GuestPreapplicationLookupInput,
   GuestPreapplicationProgressInput,
+  GuestPreapplicationRevision,
   GuestPreapplicationStatus,
   HealthStatus,
   ListAdminUsersParams,
@@ -2988,6 +2989,83 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getAddAdminApplicationNoteMutationOptions(options));
     }
+
+export const getGetAdminGuestApplicationHistoryUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/admin/applications/${applicationId}/guest-history`
+}
+
+/**
+ * @summary Retrieve saved guest application revisions for authorized reviewers
+ */
+export const getAdminGuestApplicationHistory = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationRevision[]> => {
+
+  return customFetch<GuestPreapplicationRevision[]>(getGetAdminGuestApplicationHistoryUrl(applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminGuestApplicationHistoryQueryKey = (applicationId: string,) => {
+    return [
+    `/api/admin/applications/${applicationId}/guest-history`
+    ] as const;
+    }
+
+
+export const getGetAdminGuestApplicationHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>, TError = ErrorType<unknown>>(applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminGuestApplicationHistoryQueryKey(applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>> = ({ signal }) => getAdminGuestApplicationHistory(applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminGuestApplicationHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>>
+export type GetAdminGuestApplicationHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Retrieve saved guest application revisions for authorized reviewers
+ */
+
+export function useGetAdminGuestApplicationHistory<TData = Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>, TError = ErrorType<unknown>>(
+ applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestApplicationHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminGuestApplicationHistoryQueryOptions(applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDecideApplicationUrl = (applicationId: string,) => {
 

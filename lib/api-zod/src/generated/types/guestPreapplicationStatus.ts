@@ -7,6 +7,7 @@
  */
 import type { GuestPreapplicationStatusAnswers } from './guestPreapplicationStatusAnswers';
 import type { GuestPreapplicationStatusCategoryId } from './guestPreapplicationStatusCategoryId';
+import type { GuestPreapplicationStatusReviewStatus } from './guestPreapplicationStatusReviewStatus';
 import type { GuestPreapplicationStatusSubmissionStatus } from './guestPreapplicationStatusSubmissionStatus';
 import type { GuestPreapplicationStatusValue } from './guestPreapplicationStatusValue';
 
@@ -32,4 +33,9 @@ export interface GuestPreapplicationStatus {
   answers: GuestPreapplicationStatusAnswers;
   createdAt: Date;
   updatedAt: Date;
+  /** @nullable */
+  reviewStatus: GuestPreapplicationStatusReviewStatus;
+  /** @nullable */
+  applicantFollowup: string | null;
+  outstandingRequirements: string[];
 }

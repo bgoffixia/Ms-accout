@@ -44,6 +44,8 @@ import {
   DecideApplicationResponse,
   GetAdminApplicationHistoryParams,
   GetAdminApplicationHistoryResponse,
+  GetAdminGuestApplicationHistoryParams,
+  GetAdminGuestApplicationHistoryResponse,
   GetAdminApplicationParams,
   GetAdminApplicationResponse,
   GetAdminOverviewResponse,
@@ -121,6 +123,7 @@ import {
   enrollmentApplicationsTable,
   guestPreapplicationEvidenceTable,
   guestPreapplicationsTable,
+  guestPreapplicationRevisionsTable,
   portalSettingsTable,
   supportTicketsTable,
 } from "@workspace/db";
@@ -338,6 +341,7 @@ function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
 function serializeGuestPreapplicationStatus(
   application: typeof guestPreapplicationsTable.$inferSelect,
 ) {
+  const answers = application.answers ?? {};
   return {
     id: application.id,
     reference: application.reference,
@@ -352,15 +356,46 @@ function serializeGuestPreapplicationStatus(
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
-    answers: applicantSafeAnswers(application.answers ?? {}),
+    answers: applicantSafeAnswers(answers),
+    reviewStatus: application.submissionStatus === "submitted" ? "submitted" : null,
+    applicantFollowup: null,
+    outstandingRequirements: outstandingApplicationRequirements(
+      application.categoryId,
+      answers,
+      Boolean(application.pinHash),
+    ),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
+  };
+}
+
+async function serializeGuestPreapplicationStatusWithReview(
+  application: typeof guestPreapplicationsTable.$inferSelect,
+) {
+  const status = serializeGuestPreapplicationStatus(application);
+  if (!application.linkedApplicationId) return status;
+  const [linkedApplication] = await db
+    .select()
+    .from(enrollmentApplicationsTable)
+    .where(eq(enrollmentApplicationsTable.id, application.linkedApplicationId))
+    .limit(1);
+  if (!linkedApplication) return status;
+  return {
+    ...status,
+    reviewStatus: linkedApplication.status,
+    applicantFollowup: linkedApplication.reviewNote ?? null,
+    outstandingRequirements: outstandingApplicationRequirements(
+      linkedApplication.categoryId,
+      linkedApplication.answers ?? {},
+      Boolean(linkedApplication.pinHash),
+    ),
   };
 }
 
 function serializeAdminGuestPreapplication(
   application: typeof guestPreapplicationsTable.$inferSelect,
   evidence: Array<typeof guestPreapplicationEvidenceTable.$inferSelect> = [],
+  history: Array<typeof guestPreapplicationRevisionsTable.$inferSelect> = [],
 ) {
   const uploadedEvidence = evidence.filter((item) => item.uploadedAt !== null);
   const hasIdentityFront = uploadedEvidence.some((item) => item.evidenceSlot === "identity_front");
@@ -375,6 +410,12 @@ function serializeAdminGuestPreapplication(
     reviewReady:
       application.detailsComplete && Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
     evidence: evidence.map(serializeGuestEvidence),
+    history: history.map((revision) => ({
+      id: revision.id,
+      currentStep: revision.currentStep,
+      changes: revision.changes,
+      createdAt: revision.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -386,7 +427,99 @@ async function serializeAdminGuestPreapplicationWithEvidence(
     .from(guestPreapplicationEvidenceTable)
     .where(eq(guestPreapplicationEvidenceTable.applicationId, application.id))
     .orderBy(desc(guestPreapplicationEvidenceTable.createdAt));
-  return serializeAdminGuestPreapplication(application, evidence);
+  const history = await db
+    .select()
+    .from(guestPreapplicationRevisionsTable)
+    .where(eq(guestPreapplicationRevisionsTable.applicationId, application.id))
+    .orderBy(guestPreapplicationRevisionsTable.createdAt);
+  return serializeAdminGuestPreapplication(application, evidence, history);
+}
+
+function revisionValue(value: unknown, field: string): string {
+  if (/pin|password|accountNumber|routingNumber|sortCode|iban|swift/i.test(field)) {
+    return "Private value not stored";
+  }
+  if (field.toLowerCase().endsWith("objectpath")) {
+    return value ? "Private evidence attached" : "No private evidence attached";
+  }
+  if (value === undefined || value === null || value === "") return "Not provided";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
+function collectGuestRevisionChanges(
+  before: unknown,
+  after: unknown,
+  prefix = "",
+  changes: Array<{ field: string; before: string; after: string }> = [],
+) {
+  const beforeIsRecord = before !== null && typeof before === "object" && !Array.isArray(before);
+  const afterIsRecord = after !== null && typeof after === "object" && !Array.isArray(after);
+  if (beforeIsRecord || afterIsRecord) {
+    const previous = beforeIsRecord ? before as Record<string, unknown> : {};
+    const current = afterIsRecord ? after as Record<string, unknown> : {};
+    const keys = new Set([...Object.keys(previous), ...Object.keys(current)]);
+    for (const key of keys) {
+      if (
+        key.startsWith("__") ||
+        /pin|password|accountNumber|routingNumber|sortCode|iban|swift/i.test(key)
+      ) continue;
+      collectGuestRevisionChanges(
+        previous[key],
+        current[key],
+        prefix ? `${prefix}.${key}` : key,
+        changes,
+      );
+    }
+    return changes;
+  }
+  if (JSON.stringify(before) !== JSON.stringify(after)) {
+    changes.push({
+      field: prefix || "Application",
+      before: revisionValue(before, prefix),
+      after: revisionValue(after, prefix),
+    });
+  }
+  return changes;
+}
+
+function guestRevisionChanges(
+  application: typeof guestPreapplicationsTable.$inferSelect,
+  answers: Record<string, unknown>,
+  currentStep: number,
+  hasPin: boolean,
+) {
+  const previousSnapshot = {
+    fullName: application.fullName,
+    email: application.email,
+    answers: applicantSafeAnswers(application.answers ?? {}),
+  };
+  const currentSnapshot = {
+    fullName: application.fullName,
+    email: application.email,
+    answers: applicantSafeAnswers(answers),
+  };
+  const changes = collectGuestRevisionChanges(previousSnapshot, currentSnapshot);
+  if (application.currentStep !== currentStep) {
+    changes.push({
+      field: "Saved progress step",
+      before: String(application.currentStep + 1),
+      after: String(currentStep + 1),
+    });
+  }
+  if (Boolean(application.pinHash) !== hasPin) {
+    changes.push({
+      field: "Category PIN",
+      before: application.pinHash ? "Set" : "Not set",
+      after: hasPin ? "Set (PIN value is never retained in history)" : "Not set",
+    });
+  } else if (application.pinHash && hasPin) {
+    // Do not record the PIN or its hash; only show that the applicant replaced it.
+    // The update route calls this after a successful PIN change.
+  }
+  return changes;
 }
 
 function serializeGuestEvidence(
@@ -824,6 +957,67 @@ function validateFinalApplication(
   return null;
 }
 
+function outstandingApplicationRequirements(
+  categoryId: string,
+  answers: Record<string, unknown>,
+  hasPin: boolean,
+): string[] {
+  const missing: string[] = [];
+  const sectionHas = (section: string, fields: string[]) =>
+    fields.every((field) => Boolean(nestedString(answers, section, field)));
+
+  if (!hasPin) missing.push("Create the category PIN");
+  if (
+    answers.categoryEntryComplete !== true ||
+    !hasRequiredCategoryDetails(categoryId, answers)
+  ) missing.push("Complete the category entry details");
+  if (answers.reviewDeclarationAccepted !== true) missing.push("Confirm the applicant declaration");
+  if (!sectionHas("personalInformation", [
+    "firstName", "surname", "dateOfBirth", "nationality", "phone", "email",
+    "residentialAddress", "stateRegion", "city",
+  ])) missing.push("Complete personal information");
+  if (!sectionHas("nextOfKin", [
+    "fullName", "relationship", "phone", "residentialAddress", "city", "stateRegion",
+  ])) missing.push("Complete next-of-kin information");
+  if (!sectionHas("education", [
+    "highestQualification", "institution", "courseField", "startYear",
+    "completionYear", "certificationStatus",
+  ])) missing.push("Complete education information");
+
+  const employmentStatus = nestedString(answers, "workInformation", "employmentStatus")?.toLowerCase();
+  const workComplete = employmentStatus === "employed"
+    ? sectionHas("workInformation", ["occupation", "employer", "workAddress"])
+    : employmentStatus === "self-employed"
+      ? sectionHas("workInformation", ["businessName", "workAddress"])
+      : Boolean(employmentStatus);
+  if (!workComplete) missing.push("Complete work information");
+
+  const identity = asRecord(answers.proofOfIdentity);
+  const documentType = nestedString(answers, "proofOfIdentity", "documentType");
+  const needsBack = ["National ID", "Driver license", "Passport card"].includes(documentType ?? "");
+  if (!documentType || !identity.frontObjectPath || (needsBack && !identity.backObjectPath)) {
+    missing.push("Provide the required identity document files");
+  }
+  const video = asRecord(answers.liveVideoRecording);
+  if (
+    video.consentAccepted !== true ||
+    video.durationSeconds !== 12 ||
+    typeof video.objectPath !== "string" ||
+    !video.objectPath
+  ) missing.push("Provide the 12-second verification video");
+
+  const bank = asRecord(answers.bankDetails);
+  const anyBankDetails = ["bankName", "accountHolder", "accountNumberEncrypted", "accountType"]
+    .some((field) => typeof bank[field] === "string" && String(bank[field]).trim());
+  if (
+    anyBankDetails &&
+    (!nestedString(answers, "bankDetails", "bankName") ||
+      !nestedString(answers, "bankDetails", "accountHolder") ||
+      typeof bank.accountNumberEncrypted !== "string")
+  ) missing.push("Complete the optional bank details or clear the partial entries");
+  return missing;
+}
+
 function isPrivateStorageConfigured(): boolean {
   return Boolean(
     process.env.PRIVATE_OBJECT_DIR &&
@@ -883,6 +1077,12 @@ function serializeApplication(
         ? personalInformation.email
         : null),
     reviewNote: application.reviewNote,
+    applicantFollowup: application.reviewNote,
+    outstandingRequirements: outstandingApplicationRequirements(
+      application.categoryId,
+      answers,
+      Boolean(application.pinHash),
+    ),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
     submittedAt: application.submittedAt?.toISOString() ?? null,
@@ -1078,33 +1278,44 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       const salt = randomBytes(16).toString("hex");
       pinHash = `scrypt$${salt}$${scryptSync(parsedBody.data.pin, salt, 64).toString("hex")}`;
     }
-    if (parsedBody.data.complete) {
-      if (!pinHash) {
-        res.status(400).json({ error: "Create a category PIN before completing the application details." });
-        return;
-      }
-      const validationError = validateFinalApplication(
-        application.categoryId,
-        prepared.answers,
-        true,
-      );
-      if (validationError) {
-        res.status(400).json({ error: validationError });
-        return;
-      }
+    const currentStep = parsedBody.data.currentStep;
+    const hasPin = Boolean(pinHash);
+    const changes = guestRevisionChanges(
+      application,
+      prepared.answers,
+      currentStep,
+      hasPin,
+    );
+    if (application.pinHash && pinHash && application.pinHash !== pinHash) {
+      changes.push({
+        field: "Category PIN",
+        before: "Set",
+        after: "Replaced (PIN value is never retained in history)",
+      });
     }
-
-    const [updated] = await db
-      .update(guestPreapplicationsTable)
-      .set({
-        currentStep: parsedBody.data.currentStep,
-        answers: prepared.answers,
-        detailsComplete: parsedBody.data.complete,
-        pinHash,
-        updatedAt: new Date(),
-      })
-      .where(eq(guestPreapplicationsTable.id, application.id))
-      .returning();
+    const detailsComplete =
+      validateFinalApplication(application.categoryId, prepared.answers, true) === null;
+    const updated = await db.transaction(async (transaction) => {
+      const [row] = await transaction
+        .update(guestPreapplicationsTable)
+        .set({
+          currentStep,
+          answers: prepared.answers,
+          detailsComplete,
+          pinHash,
+          updatedAt: new Date(),
+        })
+        .where(eq(guestPreapplicationsTable.id, application.id))
+        .returning();
+      if (row && changes.length) {
+        await transaction.insert(guestPreapplicationRevisionsTable).values({
+          applicationId: application.id,
+          currentStep,
+          changes,
+        });
+      }
+      return row;
+    });
     if (!updated) {
       res.status(404).json({ error: "Guest application not found." });
       return;
@@ -1140,7 +1351,7 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
 
     res.json(
       LookupGuestPreapplicationResponse.parse(
-        serializeGuestPreapplicationStatus(application),
+        await serializeGuestPreapplicationStatusWithReview(application),
       ),
     );
   } catch (error) {
@@ -1184,15 +1395,31 @@ router.patch(
         ...asRecord(answers.personalInformation),
         email,
       };
-      const [updated] = await db
-        .update(guestPreapplicationsTable)
-        .set({ email, answers, updatedAt: new Date() })
-        .where(and(
-          eq(guestPreapplicationsTable.id, application.id),
-          eq(guestPreapplicationsTable.submissionStatus, "draft"),
-          ne(guestPreapplicationsTable.status, "closed"),
-        ))
-        .returning();
+      const changes = guestRevisionChanges(
+        application,
+        answers,
+        application.currentStep,
+        Boolean(application.pinHash),
+      );
+      const updated = await db.transaction(async (transaction) => {
+        const [row] = await transaction
+          .update(guestPreapplicationsTable)
+          .set({ email, answers, updatedAt: new Date() })
+          .where(and(
+            eq(guestPreapplicationsTable.id, application.id),
+            eq(guestPreapplicationsTable.submissionStatus, "draft"),
+            ne(guestPreapplicationsTable.status, "closed"),
+          ))
+          .returning();
+        if (row && changes.length) {
+          await transaction.insert(guestPreapplicationRevisionsTable).values({
+            applicationId: application.id,
+            currentStep: application.currentStep,
+            changes,
+          });
+        }
+        return row;
+      });
       if (!updated) {
         res.status(409).json({ error: "This guest application has already been submitted or closed." });
         return;
@@ -1394,10 +1621,25 @@ router.post(
       const answers = structuredClone(application.answers ?? {});
       const section = asRecord(answers[location[0]]);
       answers[location[0]] = { ...section, [location[1]]: completed.objectPath };
-      await db
-        .update(guestPreapplicationsTable)
-        .set({ answers, updatedAt: new Date() })
-        .where(eq(guestPreapplicationsTable.id, application.id));
+      const changes = guestRevisionChanges(
+        application,
+        answers,
+        application.currentStep,
+        Boolean(application.pinHash),
+      );
+      await db.transaction(async (transaction) => {
+        await transaction
+          .update(guestPreapplicationsTable)
+          .set({ answers, updatedAt: new Date() })
+          .where(eq(guestPreapplicationsTable.id, application.id));
+        if (changes.length) {
+          await transaction.insert(guestPreapplicationRevisionsTable).values({
+            applicationId: application.id,
+            currentStep: application.currentStep,
+            changes,
+          });
+        }
+      });
       res.json(CompleteGuestApplicantEvidenceUploadResponse.parse({
         evidenceId: completed.id,
         evidenceType: completed.evidenceType,
@@ -1506,22 +1748,9 @@ router.post(
         res.status(400).json({ error: "Create a category PIN before submitting the application." });
         return;
       }
-      if (!preapplication.detailsComplete) {
-        res.status(400).json({ error: "Complete all application details and required evidence before submitting." });
-        return;
-      }
       const answers = preapplication.answers ?? {};
-      const validationError = validateFinalApplication(preapplication.categoryId, answers, true);
-      if (validationError) {
-        res.status(400).json({ error: validationError });
-        return;
-      }
       if (!(await guestEvidencePathsAreOwned(preapplication.id, answers))) {
-        res.status(400).json({ error: "Upload the required evidence through the private upload form before submitting." });
-        return;
-      }
-      if (!isPrivateStorageConfigured()) {
-        res.status(503).json({ error: "Private evidence storage is unavailable. Your saved draft remains available." });
+        res.status(400).json({ error: "One or more evidence references are not attached to this application." });
         return;
       }
 
@@ -2448,12 +2677,29 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
       group.push(evidence);
       evidenceByApplication.set(evidence.applicationId, group);
     }
+    const revisionRows = applications.length
+      ? await db
+          .select()
+          .from(guestPreapplicationRevisionsTable)
+          .where(inArray(
+            guestPreapplicationRevisionsTable.applicationId,
+            applications.map((application) => application.id),
+          ))
+          .orderBy(guestPreapplicationRevisionsTable.createdAt)
+      : [];
+    const historyByApplication = new Map<string, typeof revisionRows>();
+    for (const revision of revisionRows) {
+      const group = historyByApplication.get(revision.applicationId) ?? [];
+      group.push(revision);
+      historyByApplication.set(revision.applicationId, group);
+    }
     res.json(
       ListAdminGuestPreapplicationsResponse.parse(
         applications.map((application) =>
           serializeAdminGuestPreapplication(
             application,
             evidenceByApplication.get(application.id) ?? [],
+            historyByApplication.get(application.id) ?? [],
           ),
         ),
       ),
@@ -2463,6 +2709,50 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
     res.status(503).json({ error: "Guest pre-applications are temporarily unavailable." });
   }
 });
+
+router.get(
+  "/admin/applications/:applicationId/guest-history",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsedParams = GetAdminGuestApplicationHistoryParams.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: "Application history could not be loaded." });
+      return;
+    }
+    try {
+      const [application] = await db
+        .select()
+        .from(enrollmentApplicationsTable)
+        .where(eq(enrollmentApplicationsTable.id, parsedParams.data.applicationId))
+        .limit(1);
+      if (!application) {
+        res.status(404).json({ error: "Application not found." });
+        return;
+      }
+      if (!application.sourceGuestPreapplicationId) {
+        res.json(GetAdminGuestApplicationHistoryResponse.parse([]));
+        return;
+      }
+      const history = await db
+        .select()
+        .from(guestPreapplicationRevisionsTable)
+        .where(eq(
+          guestPreapplicationRevisionsTable.applicationId,
+          application.sourceGuestPreapplicationId,
+        ))
+        .orderBy(guestPreapplicationRevisionsTable.createdAt);
+      res.json(GetAdminGuestApplicationHistoryResponse.parse(history.map((revision) => ({
+        id: revision.id,
+        currentStep: revision.currentStep,
+        changes: revision.changes,
+        createdAt: revision.createdAt.toISOString(),
+      }))));
+    } catch (error) {
+      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to load guest application history");
+      res.status(503).json({ error: "Application history is temporarily unavailable." });
+    }
+  },
+);
 
 router.post(
   "/admin/guest-preapplications/:applicationId/evidence/upload-url",

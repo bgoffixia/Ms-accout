@@ -731,6 +731,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApplicationEvent"
+  /admin/applications/{applicationId}/guest-history:
+    get:
+      operationId: getAdminGuestApplicationHistory
+      tags: [administration]
+      summary: Retrieve saved guest application revisions for authorized reviewers
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Applicant revisions, with sensitive credentials excluded
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GuestPreapplicationRevision"
   /admin/applications/{applicationId}/decision:
     post:
       operationId: decideApplication
@@ -986,7 +1006,7 @@ components:
           format: date-time
     GuestPreapplicationStatus:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, hasPin, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, hasPin, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
       properties:
         id:
           type: string
@@ -1028,6 +1048,41 @@ components:
           type: string
           format: date-time
         updatedAt:
+          type: string
+          format: date-time
+        reviewStatus:
+          type: ["string", "null"]
+          enum: [draft, submitted, under_review, needs_information, approved, rejected, null]
+        applicantFollowup:
+          type: ["string", "null"]
+        outstandingRequirements:
+          type: array
+          items:
+            type: string
+    GuestPreapplicationRevision:
+      type: object
+      required: [id, currentStep, changes, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        currentStep:
+          type: integer
+          minimum: 0
+          maximum: 7
+        changes:
+          type: array
+          items:
+            type: object
+            required: [field, before, after]
+            properties:
+              field:
+                type: string
+              before:
+                type: string
+              after:
+                type: string
+        createdAt:
           type: string
           format: date-time
     GuestPreapplicationProgressInput:
@@ -1083,7 +1138,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/GuestPreapplicationStatus"
         - type: object
-          required: [fullName, email, phone, reviewReady, evidence]
+          required: [fullName, email, phone, reviewReady, evidence, history]
           properties:
             fullName:
               type: string
@@ -1098,6 +1153,10 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/AdminGuestPreapplicationEvidence"
+            history:
+              type: array
+              items:
+                $ref: "#/components/schemas/GuestPreapplicationRevision"
     GuestEvidenceUploadInput:
       type: object
       required: [evidenceType, fileName, contentType, sizeBytes]
@@ -1227,6 +1286,12 @@ components:
           type: ["string", "null"]
         reviewNote:
           type: ["string", "null"]
+        applicantFollowup:
+          type: ["string", "null"]
+        outstandingRequirements:
+          type: array
+          items:
+            type: string
         createdAt:
           type: string
           format: date-time

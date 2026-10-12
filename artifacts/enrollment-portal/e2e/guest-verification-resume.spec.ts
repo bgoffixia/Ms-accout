@@ -196,11 +196,22 @@ async function fillStage(page: Page, fields: Record<string, string>) {
 async function expectNoDocumentOverflow(page: Page) {
   const dimensions = await page.evaluate(() => {
     const documentScroller = document.scrollingElement ?? document.documentElement;
+    const shell = document.querySelector<HTMLElement>(".ew-shell");
+    const previewScroll = document.querySelector<HTMLElement>(".ew-preview .ew-content-scroll");
+    const geometry = (element: HTMLElement | null) => element ? {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      height: getComputedStyle(element).height,
+      overflowY: getComputedStyle(element).overflowY,
+      rectHeight: element.getBoundingClientRect().height,
+    } : null;
     return {
       clientHeight: documentScroller.clientHeight,
       scrollHeight: documentScroller.scrollHeight,
       clientWidth: documentScroller.clientWidth,
       scrollWidth: documentScroller.scrollWidth,
+      shell: geometry(shell),
+      previewScroll: geometry(previewScroll),
     };
   });
   expect(dimensions.scrollHeight, `document height overflow: ${JSON.stringify(dimensions)}`)
@@ -256,6 +267,9 @@ test("preserves the same guest application across verification failure, reload, 
   const api = new GuestApiFixture();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
+  await page.route("**/api/__clerk/v1/client/**", (route) =>
+    route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ errors: [{ message: "Test email service unavailable." }] }) }),
+  );
   await page.route("**/__test-upload/**", (route) =>
     route.fulfill({ status: 200, body: "stored" }),
   );
@@ -380,23 +394,17 @@ test("preserves the same guest application across verification failure, reload, 
   await expect(
     page.getByTestId("button-submit-enrollment"),
     `Submission readiness: ${await page.getByTestId("state-submit-readiness").innerText()}`,
-  ).toBeEnabled();
-  await page.getByTestId("button-submit-enrollment").click();
+  ).toBeDisabled();
+  await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
+  await expect(page.getByTestId("input-guest-email-otp")).toBeVisible();
+  await page.getByRole("button", { name: "Close email verification" }).click();
+  await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
 
-  await expect(page).toHaveURL(/\/sign-up\?guestApplication=1/);
   expect(api.createCount).toBe(1);
   expect(api.draft?.detailsComplete).toBe(true);
   expect(api.draft?.currentStep).toBe(7);
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
-  const storedContext = await page.evaluate(() => JSON.parse(
-    sessionStorage.getItem("guest-application-auth-context") ?? "null",
-  ));
-  expect(storedContext).toMatchObject({
-    applicationId,
-    reference,
-    email: "jordan@example.test",
-  });
-  expect(storedContext.accessKey).toBe(api.accessKey);
+  expect(api.draft?.emailVerified).toBe(false);
 
   // Returning without a verified session models a failed/cancelled verification.
   // A reload must restore the saved draft from the server, not create another one.
@@ -425,4 +433,45 @@ test("preserves the same guest application across verification failure, reload, 
   await expect(page.getByTestId("guest-application-success")).not.toContainText(reviewerOnlyNote);
   expect(api.createCount).toBe(1);
   expect(api.draft?.linkedApplicationId).toBe("7aed516d-1e70-41a9-a239-4568b8fbc7c2");
+});
+
+test("lets guests skip incomplete fields and the PIN while keeping final submission gated", async ({ page }) => {
+  const api = new GuestApiFixture();
+  await page.setViewportSize({ width: 390, height: 568 });
+  await page.route("**/api/**", (route) => api.handle(route));
+  await page.route("**/api/__clerk/v1/client/**", (route) =>
+    route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ errors: [{ message: "Test email service unavailable." }] }) }),
+  );
+
+  await page.goto("/guest/apply");
+  await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
+  await page.getByTestId("input-guest-email").fill("jordan@example.test");
+  await page.getByTestId("button-continue-guest-contact").click();
+  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.getByTestId("select-guest-category").selectOption("category-1");
+  await page.locator("form.guest-form button[type=submit]").click();
+  await page.getByTestId("button-continue-to-category-details").click();
+  await expectNoDocumentOverflow(page);
+
+  await page.locator("form button[type=submit]").click();
+  await expect(page.getByTestId("input-entry-pin")).toBeVisible();
+  await page.getByTestId("button-continue-without-pin").click();
+  await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
+  await expectNoDocumentOverflow(page);
+
+  for (let step = 0; step < 7; step += 1) {
+    await page.locator("form.ew-form button[type=submit]").click();
+    await expectNoDocumentOverflow(page);
+  }
+  await expect(page.getByTestId("section-declaration")).toBeVisible();
+  await page.getByTestId("section-declaration").locator("label").click();
+  await expect(page.getByTestId("check-declaration")).toBeChecked();
+  await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
+  await expect(page.getByTestId("button-submit-enrollment")).toBeDisabled();
+  await expectNoDocumentOverflow(page);
+
+  expect(api.draft?.currentStep).toBe(7);
+  expect(api.draft?.detailsComplete).toBe(false);
+  expect(api.draft?.hasPin).toBe(false);
+  expect(api.draft?.answers.reviewDeclarationAccepted).toBe(true);
 });

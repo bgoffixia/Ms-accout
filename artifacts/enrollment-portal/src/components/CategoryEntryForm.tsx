@@ -126,22 +126,22 @@ export function CategoryEntryForm({
     setActivePinValue(activePinValue + key);
   };
 
-  const finish = (): boolean => {
+  const finish = (continueIncomplete = false): boolean => {
     setValidationError("");
-    if (!name.trim()) {
+    if (!guestMode && !name.trim()) {
       setValidationError("Enter your name to continue.");
       return false;
     }
-    if (isCategoryOne && !nickname.trim()) {
+    if (!guestMode && isCategoryOne && !nickname.trim()) {
       setValidationError("Enter your nickname to continue.");
       return false;
     }
-    if (!isCategoryOne && !surname.trim()) {
+    if (!guestMode && !isCategoryOne && !surname.trim()) {
       setValidationError("Enter your surname to continue.");
       return false;
     }
     const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
-    if (pinRequired && !pinPattern.test(pin)) {
+    if (pinRequired && !continueIncomplete && !pinPattern.test(pin)) {
       setValidationError(`Enter exactly ${pinLength} digits.`);
       return false;
     }
@@ -149,7 +149,7 @@ export function CategoryEntryForm({
       name: name.trim(),
       ...(isCategoryOne ? { nickname: nickname.trim() } : {}),
       ...(!isCategoryOne ? { surname: surname.trim() } : {}),
-    }, pinRequired ? pin : "");
+    }, pinRequired && pinPattern.test(pin) ? pin : "");
     return true;
   };
 
@@ -343,7 +343,7 @@ export function CategoryEntryForm({
                       className="entry-line-input"
                       type="text"
                       autoComplete="given-name"
-                      required
+                      required={!guestMode}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                       placeholder={isCategoryTwo ? "Enter your login" : "Enter your name"}
@@ -359,7 +359,7 @@ export function CategoryEntryForm({
                       className="entry-line-input"
                       type="text"
                       autoComplete="nickname"
-                      required
+                      required={!guestMode}
                       value={nickname}
                       onChange={(event) => setNickname(event.target.value)}
                       placeholder="Enter your nickname"
@@ -375,7 +375,7 @@ export function CategoryEntryForm({
                       className="entry-line-input"
                       type="text"
                       autoComplete="family-name"
-                      required
+                      required={!guestMode}
                       value={surname}
                       onChange={(event) => setSurname(event.target.value)}
                       placeholder="Enter your surname"
@@ -443,7 +443,7 @@ export function CategoryEntryForm({
                     autoComplete="new-password"
                     pattern={`[0-9]{${pinLength}}`}
                     maxLength={pinLength}
-                    required
+                    required={!guestMode}
                     value={activePinValue}
                     aria-label={`Enter your ${pinLength}-digit PIN`}
                     aria-describedby="pin-entry-help"
@@ -514,6 +514,9 @@ export function CategoryEntryForm({
                     ✓
                   </button>
                 </div>
+                {guestMode && <button type="button" className="text-action pin-entry-skip" onClick={() => finish(true)} disabled={isSaving} data-testid="button-continue-without-pin">
+                  Continue without a PIN
+                </button>}
               </section>
             )}
 
@@ -573,7 +576,7 @@ export function CategoryEntryForm({
           <details className="category-two-reference-privacy">
             <summary>Privacy Policy</summary>
             <p>{guestMode
-              ? "Your application details are saved for authorized reviewers. No account or PIN is needed; provide only information requested for enrollment."
+              ? "Your application details are saved for authorized reviewers without an account. You can add a category PIN later; it is required only when submitting."
               : "Your application is available to authorized enrollment staff. Keep your PIN private and only provide information needed to review your enrollment."}</p>
           </details>
           <span className="category-two-reference-version">Secure enrollment</span>

@@ -19,6 +19,7 @@ const mockState = vi.hoisted(() => ({
     return {
       guestPreapplicationsTable: makeTable("guest_preapplications"),
       guestPreapplicationEvidenceTable: makeTable("guest_preapplication_evidence"),
+      guestPreapplicationRevisionsTable: makeTable("guest_preapplication_revisions"),
       enrollmentApplicationsTable: makeTable("enrollment_applications"),
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
@@ -149,6 +150,24 @@ function makeDatabase() {
       const tableName = source.__tableName;
       let values: Record<string, unknown> = {};
       let ignoreConflict = false;
+      const run = () => {
+        const rows = tableRows(tableName);
+        const uniqueFields: Record<string, string[]> = {
+          guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
+          enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
+          guest_preapplication_evidence: ["objectPath"],
+        };
+        const conflict = (uniqueFields[tableName] ?? []).some((field) =>
+          values[field] != null && rows.some((row) => row[field] === values[field]),
+        );
+        if (conflict) {
+          if (ignoreConflict) return [];
+          throw new Error("unique constraint");
+        }
+        const row = newRow(tableName, values);
+        rows.push(row);
+        return [row];
+      };
       const builder: any = {
         values(input: Record<string, unknown>) {
           values = input;
@@ -159,19 +178,10 @@ function makeDatabase() {
           return builder;
         },
         returning() {
-          const rows = tableRows(tableName);
-          const uniqueFields: Record<string, string[]> = {
-            guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
-            enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
-            guest_preapplication_evidence: ["objectPath"],
-          };
-          const conflict = (uniqueFields[tableName] ?? []).some((field) =>
-            values[field] != null && rows.some((row) => row[field] === values[field]),
-          );
-          if (conflict) return Promise.resolve(ignoreConflict ? [] : (() => { throw new Error("unique constraint"); })());
-          const row = newRow(tableName, values);
-          rows.push(row);
-          return Promise.resolve([row]);
+          return Promise.resolve(run());
+        },
+        then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+          return Promise.resolve(run()).then(resolve, reject);
         },
       };
       return builder;
@@ -342,6 +352,7 @@ describe("guest application verification and persistence", () => {
     for (const name of [
       "guest_preapplications",
       "guest_preapplication_evidence",
+      "guest_preapplication_revisions",
       "enrollment_applications",
       "application_events",
       "portal_settings",
@@ -734,6 +745,107 @@ describe("guest application verification and persistence", () => {
     const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(finalReviewerList.response.status).toBe(200);
     expect(finalReviewerList.body).toHaveLength(0);
+  });
+
+  it("allows partial guest submission after verified email while keeping the category PIN mandatory", async () => {
+    const created = await request("/guest/preapplications", {
+      method: "POST",
+      body: JSON.stringify({
+        submissionId: crypto.randomUUID(),
+        accessKey,
+        categoryId: "category-2",
+        fullName: "Partial Applicant",
+        email: contactEmail,
+      }),
+    });
+    expect(created.response.status).toBe(201);
+    const { id: applicationId, reference } = created.body as { id: string; reference: string };
+    const submitBody = JSON.stringify({ reference, accessKey });
+
+    const missingPin = await request(
+      `/guest/preapplications/${applicationId}/submit`,
+      { method: "POST", body: submitBody },
+      "applicant-verified",
+    );
+    expect(missingPin.response.status).toBe(400);
+    expect(missingPin.body.error).toContain("category PIN");
+
+    const initialProgress = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 1,
+        complete: false,
+        answers: {
+          personalInformation: { firstName: "Initial", email: contactEmail },
+        },
+        pin: "739102",
+      }),
+    });
+    expect(initialProgress.response.status).toBe(200);
+    expect(initialProgress.body.detailsComplete).toBe(false);
+    expect(initialProgress.body.hasPin).toBe(true);
+
+    const savedPartial = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 1,
+        complete: false,
+        answers: {
+          personalInformation: { firstName: "Partial", email: contactEmail },
+        },
+      }),
+    });
+    expect(savedPartial.response.status).toBe(200);
+    expect(savedPartial.body.detailsComplete).toBe(false);
+    expect(savedPartial.body.hasPin).toBe(true);
+    expect(JSON.stringify(savedPartial.body)).not.toContain("739102");
+
+    const submitted = await request(
+      `/guest/preapplications/${applicationId}/submit`,
+      { method: "POST", body: submitBody },
+      "applicant-verified",
+    );
+    expect(submitted.response.status).toBe(200);
+    expect(submitted.body.status).toBe("submitted");
+    expect(submitted.body.outstandingRequirements.length).toBeGreaterThan(0);
+
+    const savedRevisionRows = mockState.rows.get("guest_preapplication_revisions") ?? [];
+    expect(savedRevisionRows.length).toBeGreaterThan(0);
+    expect(JSON.stringify(savedRevisionRows)).not.toContain("739102");
+    const reviewerHistory = await request(
+      `/admin/applications/${submitted.body.id}/guest-history`,
+      {},
+      "reviewer",
+    );
+    expect(reviewerHistory.response.status).toBe(200);
+    expect(JSON.stringify(reviewerHistory.body)).not.toContain("739102");
+    expect(JSON.stringify(reviewerHistory.body)).toContain('"field":"Saved progress step"');
+    expect(reviewerHistory.body.some((revision: any) =>
+      revision.changes.some((change: any) => change.after === "Partial"),
+    )).toBe(true);
+
+    const unprivilegedHistory = await request(
+      `/admin/applications/${submitted.body.id}/guest-history`,
+      {},
+      "applicant-unverified",
+    );
+    expect(unprivilegedHistory.response.status).toBe(403);
+
+    const tracked = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, accessKey }),
+    });
+    expect(tracked.response.status).toBe(200);
+    expect(tracked.body).toMatchObject({
+      submissionStatus: "submitted",
+      emailVerified: true,
+      reviewStatus: "submitted",
+    });
+    expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
   });
 
   it("cleans expired guest evidence but preserves evidence linked to submitted applications", async () => {

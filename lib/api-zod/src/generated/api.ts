@@ -44,6 +44,8 @@ export const ListMyApplicationsResponseItem = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -90,6 +92,8 @@ export const SubmitNewApplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -115,6 +119,8 @@ export const CreateApplicationDraftResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -140,6 +146,8 @@ export const GetApplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -180,6 +188,8 @@ export const UpdateApplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -216,6 +226,8 @@ export const SubmitApplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -315,7 +327,10 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
 })
 
 
@@ -366,7 +381,10 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
 })
 
 
@@ -412,7 +430,10 @@ export const UpdateGuestPreapplicationEmailResponse = zod.object({
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
 })
 
 
@@ -512,6 +533,8 @@ export const SubmitGuestPreapplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -549,6 +572,9 @@ export const ClaimAllowlistedStaffAccessResponse = zod.object({
 export const listAdminGuestPreapplicationsResponseOneCurrentStepMin = 0;
 export const listAdminGuestPreapplicationsResponseOneCurrentStepMax = 7;
 
+export const listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMin = 0;
+export const listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMax = 7;
+
 
 
 export const ListAdminGuestPreapplicationsResponseItem = zod.object({
@@ -567,7 +593,10 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
 }).and(zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
@@ -582,6 +611,16 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "sizeBytes": zod.number().int(),
   "uploadedAt": zod.coerce.date().nullable(),
   "downloadUrl": zod.string().nullable()
+})),
+  "history": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMin).max(listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMax),
+  "changes": zod.array(zod.object({
+  "field": zod.string(),
+  "before": zod.string(),
+  "after": zod.string()
+})),
+  "createdAt": zod.coerce.date()
 }))
 }))
 export const ListAdminGuestPreapplicationsResponse = zod.array(ListAdminGuestPreapplicationsResponseItem)
@@ -601,6 +640,9 @@ export const UpdateAdminGuestPreapplicationBody = zod.object({
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMin = 0;
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMax = 7;
 
+export const updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMin = 0;
+export const updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMax = 7;
+
 
 
 export const UpdateAdminGuestPreapplicationResponse = zod.object({
@@ -619,7 +661,10 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
 }).and(zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
@@ -634,6 +679,16 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "sizeBytes": zod.number().int(),
   "uploadedAt": zod.coerce.date().nullable(),
   "downloadUrl": zod.string().nullable()
+})),
+  "history": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMin).max(updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMax),
+  "changes": zod.array(zod.object({
+  "field": zod.string(),
+  "before": zod.string(),
+  "after": zod.string()
+})),
+  "createdAt": zod.coerce.date()
 }))
 }))
 
@@ -718,6 +773,8 @@ export const ListApplicationsForReviewResponseItem = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -741,6 +798,8 @@ export const GetAdminApplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -1078,6 +1137,31 @@ export const AddAdminApplicationNoteResponse = zod.object({
 
 
 /**
+ * @summary Retrieve saved guest application revisions for authorized reviewers
+ */
+export const GetAdminGuestApplicationHistoryParams = zod.object({
+  "applicationId": zod.coerce.string()
+})
+
+export const getAdminGuestApplicationHistoryResponseCurrentStepMin = 0;
+export const getAdminGuestApplicationHistoryResponseCurrentStepMax = 7;
+
+
+
+export const GetAdminGuestApplicationHistoryResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "currentStep": zod.number().int().min(getAdminGuestApplicationHistoryResponseCurrentStepMin).max(getAdminGuestApplicationHistoryResponseCurrentStepMax),
+  "changes": zod.array(zod.object({
+  "field": zod.string(),
+  "before": zod.string(),
+  "after": zod.string()
+})),
+  "createdAt": zod.coerce.date()
+})
+export const GetAdminGuestApplicationHistoryResponse = zod.array(GetAdminGuestApplicationHistoryResponseItem)
+
+
+/**
  * @summary Approve, reject, or request more information
  */
 export const DecideApplicationParams = zod.object({
@@ -1111,6 +1195,8 @@ export const DecideApplicationResponse = zod.object({
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
+  "applicantFollowup": zod.string().nullish(),
+  "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()

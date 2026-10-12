@@ -125,6 +125,29 @@ export const guestPreapplicationEvidenceTable = pgTable(
     ),
   ],
 );
+export const guestPreapplicationRevisionsTable = pgTable(
+  "guest_preapplication_revisions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => guestPreapplicationsTable.id, { onDelete: "cascade" }),
+    currentStep: integer("current_step").notNull(),
+    changes: jsonb("changes")
+      .$type<Array<{ field: string; before: string; after: string }>>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("guest_preapplication_revisions_application_idx").on(
+      table.applicationId,
+      table.createdAt,
+    ),
+  ],
+);
 export const enrollmentApplicationsTable = pgTable(
   "enrollment_applications",
   {

@@ -975,6 +975,17 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .success-reference > span { color: #8595a0; font: 8px var(--app-font-mono); letter-spacing: .08em; }
 .success-dialog .button { margin-inline: auto; }
 .modal-close { position: absolute; top: 13px; right: 13px; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; color: #607789; background: #f1f4f6; font-size: 20px; cursor: pointer; }
+.otp-dialog-backdrop { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 18px; background: rgb(12 31 46 / 68%); }
+.otp-dialog { max-height: min(92dvh, 680px); overflow-y: auto; text-align: left; }
+.otp-dialog h2 { margin-top: 12px; }
+.otp-dialog > p { max-width: none; margin: 10px 0 20px; }
+.otp-dialog > p strong { color: #19384f; overflow-wrap: anywhere; }
+.otp-entry-form { display: grid; gap: 10px; }
+.otp-entry-form .field-label { margin: 0; }
+.otp-entry-input { width: 100%; min-height: 48px; font-size: 20px; letter-spacing: .22em; text-align: center; }
+.otp-entry-form .button { width: 100%; justify-content: center; margin: 4px 0 0; }
+.otp-resend { display: block; margin: 16px auto 0; }
+.pin-entry-skip { display: block; margin: 12px auto 0; }
 .form-card-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; }
 .form-card-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; color: #276c82; background: #eaf3f5; }
 .form-card-heading h2, .decision-head h2 { margin: 1px 0 4px; color: #234159; font-size: 13px; font-weight: 700; }

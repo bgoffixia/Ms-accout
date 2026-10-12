@@ -131,6 +131,21 @@ export const GuestPreapplicationStatusSubmissionStatus = {
 
 export type GuestPreapplicationStatusAnswers = { [key: string]: unknown };
 
+/**
+ * @nullable
+ */
+export type GuestPreapplicationStatusReviewStatus = typeof GuestPreapplicationStatusReviewStatus[keyof typeof GuestPreapplicationStatusReviewStatus] | null;
+
+
+export const GuestPreapplicationStatusReviewStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  under_review: 'under_review',
+  needs_information: 'needs_information',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
 export interface GuestPreapplicationStatus {
   id: string;
   reference: string;
@@ -153,6 +168,28 @@ export interface GuestPreapplicationStatus {
   answers: GuestPreapplicationStatusAnswers;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  reviewStatus: GuestPreapplicationStatusReviewStatus;
+  /** @nullable */
+  applicantFollowup: string | null;
+  outstandingRequirements: string[];
+}
+
+export type GuestPreapplicationRevisionChangesItem = {
+  field: string;
+  before: string;
+  after: string;
+};
+
+export interface GuestPreapplicationRevision {
+  id: string;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  changes: GuestPreapplicationRevisionChangesItem[];
+  createdAt: string;
 }
 
 export type GuestPreapplicationProgressInputAnswers = { [key: string]: unknown };
@@ -238,6 +275,7 @@ export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   phone: string | null;
   reviewReady: boolean;
   evidence: AdminGuestPreapplicationEvidence[];
+  history: GuestPreapplicationRevision[];
 });
 
 export type GuestEvidenceUploadInputEvidenceType = typeof GuestEvidenceUploadInputEvidenceType[keyof typeof GuestEvidenceUploadInputEvidenceType];
@@ -382,6 +420,9 @@ export interface EnrollmentApplication {
   applicantEmail?: string | null;
   /** @nullable */
   reviewNote?: string | null;
+  /** @nullable */
+  applicantFollowup?: string | null;
+  outstandingRequirements?: string[];
   createdAt: string;
   updatedAt: string;
   /** @nullable */

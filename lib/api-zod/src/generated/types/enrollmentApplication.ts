@@ -24,6 +24,9 @@ export interface EnrollmentApplication {
   applicantEmail?: string | null;
   /** @nullable */
   reviewNote?: string | null;
+  /** @nullable */
+  applicantFollowup?: string | null;
+  outstandingRequirements?: string[];
   createdAt: Date;
   updatedAt: Date;
   /** @nullable */

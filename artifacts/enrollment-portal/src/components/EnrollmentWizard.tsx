@@ -28,6 +28,8 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
+  emailVerified?: boolean;
+  onDeclarationChange?: (accepted: boolean, answers: Record<string, unknown>) => void;
   uploadEvidence?: (
     file: File,
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
@@ -231,6 +233,7 @@ export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, saveStep, submit, onChangeCategory,
   onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
+  emailVerified = false, onDeclarationChange,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -295,6 +298,7 @@ export function EnrollmentWizard({
   const documentType = watch('proofOfIdentity.documentType');
   const isBackRequired = ['National ID', 'Driver license', 'Passport card'].includes(String(documentType));
   const declarationAccepted = Boolean(watch('reviewDeclarationAccepted'));
+  const declarationRegistration = register('reviewDeclarationAccepted');
 
   useEffect(() => {
     const safeSaved = { ...saved };
@@ -631,7 +635,9 @@ export function EnrollmentWizard({
     if (!storageAvailable) missing.push('storage-backed references (secure storage unavailable)');
     return missing;
   }, [answers, application.hasPin, evidenceLater, isBackRequired, storageAvailable]);
-  const readyToSubmit = application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
+  const readyToSubmit = privateTrackingKey
+    ? application.hasPin && declarationAccepted && emailVerified
+    : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -951,17 +957,27 @@ export function EnrollmentWizard({
               </section>}
               <section className="ew-declaration" data-testid="section-declaration">
                 <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>Applicant declaration</b><p>I confirm that the information above is complete and accurate to the best of my knowledge.</p></div></div>
-                <label className="ew-consent-check"><input type="checkbox" {...register('reviewDeclarationAccepted')} data-testid="check-declaration" />
+                <label className="ew-consent-check"><input type="checkbox" {...declarationRegistration}
+                  onChange={(event) => {
+                    void declarationRegistration.onChange(event);
+                    const accepted = event.currentTarget.checked;
+                    const merged = { ...answers, ...getValues(), reviewDeclarationAccepted: accepted };
+                    setAnswers(merged);
+                    onDeclarationChange?.(accepted, merged);
+                  }}
+                  data-testid="check-declaration" />
                   <span className="ew-checkmark" /><span>I have reviewed my information and agree to this declaration.</span></label>
                 {errorFor('reviewDeclarationAccepted') && <span className="ew-field-error" role="alert" data-testid="error-reviewDeclarationAccepted">{errorFor('reviewDeclarationAccepted')}</span>}
               </section>
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
-                <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
+                  <div><b>{readyToSubmit ? 'Ready to submit' : privateTrackingKey && declarationAccepted && !emailVerified ? 'Verify your email to continue' : 'A few required items are still missing'}</b>
                   <p>{privateTrackingKey
                     ? readyToSubmit
-                      ? 'Your details, PIN, and private evidence are saved. Continue to verify your email and submit; a verification failure does not remove this draft.'
-                      : `Complete the remaining items: ${missingUploads.join(', ') || 'required details and the declaration'}.`
+                      ? 'Your email is verified and your category PIN is saved. Submit now; any incomplete details or evidence remain visible to reviewers.'
+                      : declarationAccepted && !emailVerified
+                        ? 'A one-time code is being sent to your contact email. Enter it in the verification window; your saved application remains available if verification fails.'
+                        : `Email verification and your category PIN are required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length
@@ -976,7 +992,7 @@ export function EnrollmentWizard({
               <span className="ew-save-note">You can edit any section before submitting.</span>
               <button type="button" className="ew-button ew-button-primary" onClick={() => void beginSubmit()}
                 disabled={!readyToSubmit || isSaving || isSubmitting || readOnly} data-testid="button-submit-enrollment">
-                {isSubmitting ? 'Submitting…' : copyForStep(7).buttonLabel || (privateTrackingKey ? 'Verify email & submit' : 'Submit Enrollment')} <ArrowRight size={15} /></button>
+                {isSubmitting ? 'Submitting…' : privateTrackingKey && !emailVerified ? 'Verify email to unlock submit' : copyForStep(7).buttonLabel || 'Submit Enrollment'} <ArrowRight size={15} /></button>
             </footer>
           </div>}
       </section>
