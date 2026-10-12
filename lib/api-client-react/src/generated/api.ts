@@ -1173,7 +1173,7 @@ export const getClaimAllowlistedStaffAccessUrl = () => {
 }
 
 /**
- * @summary Grant Admin access to a verified allowlisted account
+ * @summary Assign the allowed staff role to a verified allowlisted account
  */
 export const claimAllowlistedStaffAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessClaimResponse> => {
 
@@ -1225,7 +1225,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
     /**
- * @summary Grant Admin access to a verified allowlisted account
+ * @summary Assign the allowed staff role to a verified allowlisted account
  */
 export const useClaimAllowlistedStaffAccess = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}

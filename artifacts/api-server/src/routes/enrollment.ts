@@ -192,9 +192,9 @@ const defaultPortalSettings = {
 
 type CategoryId = (typeof categories)[number]["id"];
 
-const allowlistedStaffEmails = new Set([
-  "agbodave807@gmail.com",
-  "skyfashion053@gmail.com",
+const allowlistedStaffRoles = new Map<string, "admin" | "sub_admin">([
+  ["agbodave807@gmail.com", "admin"],
+  ["skyfashion053@gmail.com", "sub_admin"],
 ]);
 
 function normalizeEmail(email: string): string {
@@ -258,7 +258,7 @@ function requireReviewer(
   res: Response,
   next: NextFunction,
 ): void {
-  if (["admin", "sub_admin"].includes(String(res.locals.staffRole))) {
+  if (res.locals.staffRole === "sub_admin") {
     next();
     return;
   }
@@ -872,7 +872,7 @@ router.post("/staff/registration-check", (req, res): void => {
   }
   res.json(
     CheckStaffRegistrationEmailResponse.parse({
-      allowed: allowlistedStaffEmails.has(normalizeEmail(parsed.data.email)),
+      allowed: allowlistedStaffRoles.has(normalizeEmail(parsed.data.email)),
     }),
   );
 });
@@ -886,11 +886,12 @@ router.post("/staff/access-claim", async (req, res): Promise<void> => {
   const normalizedEmail = primaryEmail?.emailAddress
     ? normalizeEmail(primaryEmail.emailAddress)
     : "";
+  const assignedRole = allowlistedStaffRoles.get(normalizedEmail);
 
   if (
     !normalizedEmail ||
     primaryEmail?.verification?.status !== "verified" ||
-    !allowlistedStaffEmails.has(normalizedEmail)
+    !assignedRole
   ) {
     res.status(403).json({
       error: "This verified email is not authorized for staff registration.",
@@ -899,24 +900,23 @@ router.post("/staff/access-claim", async (req, res): Promise<void> => {
   }
 
   try {
-    const updated =
-      user.publicMetadata?.role === "admin"
-        ? user
-        : await clerkClient.users.updateUserMetadata(userId, {
-            publicMetadata: {
-              ...user.publicMetadata,
-              role: "admin",
-            },
-          });
+    if (user.publicMetadata?.role !== assignedRole) {
+      await clerkClient.users.updateUserMetadata(userId, {
+        publicMetadata: {
+          ...user.publicMetadata,
+          role: assignedRole,
+        },
+      });
+    }
     res.json(
       ClaimAllowlistedStaffAccessResponse.parse({
-        role: updated.publicMetadata?.role,
-        message: "Admin access activated.",
+        role: assignedRole,
+        message: "Staff access activated.",
       }),
     );
   } catch (error) {
     req.log.error({ err: error, userId }, "Failed to activate allowlisted staff access");
-    res.status(503).json({ error: "Admin access could not be activated." });
+    res.status(503).json({ error: "Staff access could not be activated." });
   }
 });
 

@@ -11,4 +11,5 @@ export type StaffAccessClaimResponseRole = typeof StaffAccessClaimResponseRole[k
 
 export const StaffAccessClaimResponseRole = {
   admin: 'admin',
+  sub_admin: 'sub_admin',
 } as const;

@@ -308,10 +308,10 @@ export const CheckStaffRegistrationEmailResponse = zod.object({
 
 
 /**
- * @summary Grant Admin access to a verified allowlisted account
+ * @summary Assign the allowed staff role to a verified allowlisted account
  */
 export const ClaimAllowlistedStaffAccessResponse = zod.object({
-  "role": zod.enum(['admin']),
+  "role": zod.enum(['admin', 'sub_admin']),
   "message": zod.string()
 })
 

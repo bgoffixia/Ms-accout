@@ -243,10 +243,10 @@ paths:
     post:
       operationId: claimAllowlistedStaffAccess
       tags: [administration]
-      summary: Grant Admin access to a verified allowlisted account
+      summary: Assign the allowed staff role to a verified allowlisted account
       responses:
         "200":
-          description: Admin access activated
+          description: The role assigned to the verified account
           content:
             application/json:
               schema:
@@ -997,7 +997,7 @@ components:
       type: object
       required: [role, message]
       properties:
-        role: { type: string, enum: [admin] }
+        role: { type: string, enum: [admin, sub_admin] }
         message: { type: string }
     AdminUserInvitationInput:
       type: object

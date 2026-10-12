@@ -737,13 +737,13 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 
 @layer base {
   * { @apply border-border; }
-  html, body, #root { width: 100%; min-height: 100%; height: 100%; }
+  html, body, #root { width: 100%; min-height: 0; height: 100%; overflow: hidden; }
   body { @apply font-sans antialiased bg-background text-foreground; overflow: hidden; }
   button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
   :focus-visible { outline: 3px solid hsl(var(--ring) / .42); outline-offset: 3px; }
 }
 
-.portal-frame { min-height: 100dvh; height: 100dvh; overflow: hidden; }
+.portal-frame { min-height: 0; height: 100dvh; overflow: hidden; }
 .portal-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #c8d3df transparent; }
 .portal-scroll::-webkit-scrollbar { width: 7px; }
 .portal-scroll::-webkit-scrollbar-thumb { background: #c8d3df; border-radius: 99px; }
@@ -773,7 +773,7 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .page-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin: 0 0 26px; }
 .page-heading h1 { color: #19344f; font-family: var(--app-font-serif); font-size: clamp(33px, 3.5vw, 44px); font-weight: 500; letter-spacing: -.045em; line-height: 1.04; margin: 11px 0 9px; }
 .page-heading p { color: #61768a; font-size: 13px; margin: 0; line-height: 1.55; }
-.landing { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(420px, .98fr); background: #fff; }
+.landing { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(420px, .98fr); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: #fff; }
 .landing-copy { display: flex; min-width: 0; flex-direction: column; justify-content: space-between; padding: clamp(24px, 4vw, 58px) clamp(32px, 7vw, 104px); }
 .landing-content { max-width: 610px; margin: 0 auto; padding: 3vh 0 4vh; }
 .landing-content .eyebrow { display: flex; align-items: center; gap: 10px; color: #537489; }
@@ -816,7 +816,7 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .journey-step small { margin-top: 4px; color: #8799a4; font-size: 10px; }
 .journey-card-foot { display: flex; align-items: center; gap: 8px; padding-top: 15px; border-top: 1px solid #e2e9eb; color: #667f8d; font-size: 10px; }
 .journey-card-foot svg { color: #2b8867; }
-.auth-page { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 35px 22px; background: radial-gradient(ellipse at 50% 5%, #f1f6f7 0, transparent 55%), #f4f7f9; }
+.auth-page { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 35px 22px; background: radial-gradient(ellipse at 50% 5%, #f1f6f7 0, transparent 55%), #f4f7f9; }
 .auth-brand { position: absolute; top: 32px; left: 4.5vw; display: flex; align-items: center; gap: 18px; }
 .auth-brand > span { color: #8092a0; font: 9px var(--app-font-mono); letter-spacing: .1em; }
 .auth-canvas { display: grid; grid-template-columns: minmax(220px, 330px) 440px; align-items: center; gap: clamp(40px, 7vw, 100px); width: min(900px, 100%); }
@@ -824,7 +824,7 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .auth-intro p { max-width: 330px; color: #697d8e; font-size: 13px; line-height: 1.7; }
 .auth-security { display: flex; align-items: center; gap: 9px; margin-top: 28px; color: #547465; font-size: 11px; }
 .auth-widget { width: 440px; max-width: 100%; }
-.signedout-page, .not-found { display: flex; align-items: center; justify-content: center; padding: 26px; background: #f4f7f9; }
+.signedout-page, .not-found { display: flex; align-items: center; justify-content: center; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 26px; background: #f4f7f9; }
 .signedout-page > .portal-wordmark { position: absolute; top: 28px; left: 32px; }
 .signedout-card, .not-found-card { display: flex; flex-direction: column; align-items: flex-start; width: min(430px, 100%); padding: 38px; border: 1px solid #e2e9ef; border-radius: 20px; background: #fff; box-shadow: var(--shadow-card); }
 .signedout-card h1, .not-found-card h1 { margin: 13px 0 9px; font: 500 36px/1.05 var(--app-font-serif); letter-spacing: -.04em; }
@@ -1342,7 +1342,7 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
   .entry-keypad { width: min(100%, 270px); margin-top: 13px; }
   .entry-key { min-height: 41px; }
   .entry-actions { margin-top: 17px; }
-  .landing { grid-template-columns: 1fr; grid-template-rows: 1fr; overflow: hidden; }
+  .landing { grid-template-columns: 1fr; grid-template-rows: 1fr; overflow-x: hidden; overflow-y: auto; }
   .landing-copy { min-height: 0; padding: 22px 28px 18px; }
   .landing-content { margin: auto 0; padding: 35px 0; }
   .landing-content h1 { font-size: clamp(42px, 10vw, 60px); }
@@ -3239,15 +3239,14 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 }
 
 /* Guest pre-application: the same marine-and-sage language, with a quieter public intake canvas. */
-.landing-staff-link { display: inline-flex; align-items: center; gap: 6px; color: #567184; font-size: 12px; font-weight: 700; text-decoration: none; }
-.landing-staff-link:hover { color: #174d80; }
-.guest-page { position: relative; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; padding: 0 clamp(22px, 6.2vw, 92px); background: radial-gradient(ellipse at 86% 0%, #e8f1ee 0, transparent 33%), #f4f7f8; }
+.landing-secondary-link { display: inline-flex; align-items: center; gap: 6px; color: #567184; font-size: 12px; font-weight: 700; text-decoration: none; }
+.landing-secondary-link:hover { color: #174d80; }
+.guest-page { position: relative; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 0 clamp(22px, 6.2vw, 92px); background: radial-gradient(ellipse at 86% 0%, #e8f1ee 0, transparent 33%), #f4f7f8; }
 .guest-public-header { display: flex; min-height: 83px; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #e0e8eb; }
 .guest-brand-link { color: inherit; text-decoration: none; }
 .guest-public-header nav { display: flex; align-items: center; gap: clamp(14px, 3vw, 34px); }
-.guest-header-link, .guest-header-staff { display: inline-flex; align-items: center; gap: 7px; color: #49677b; font-size: 11px; font-weight: 700; text-decoration: none; }
-.guest-header-link:hover, .guest-header-staff:hover { color: #174d80; }
-.guest-header-staff { padding: 10px 14px; border: 1px solid #d6e0e5; border-radius: 9px; }
+.guest-header-link { display: inline-flex; align-items: center; gap: 7px; color: #49677b; font-size: 11px; font-weight: 700; text-decoration: none; }
+.guest-header-link:hover { color: #174d80; }
 .guest-page-grid { display: grid; width: min(1120px, 100%); flex: 1; align-self: center; grid-template-columns: minmax(0, .95fr) minmax(390px, .85fr); align-items: center; gap: clamp(45px, 8vw, 116px); padding: 54px 0 45px; }
 .guest-intro { max-width: 495px; }
 .guest-intro h1, .guest-track-heading h1 { margin: 18px 0 15px; color: #19344f; font: 500 clamp(40px, 4.7vw, 58px)/1.02 var(--app-font-serif); letter-spacing: -.05em; }
@@ -3354,12 +3353,11 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .guest-admin-actions { justify-content: flex-start; }
 }
 @media (max-width: 680px) {
-  .guest-page { min-height: 100dvh; height: auto; overflow: auto; padding-inline: 19px; }
+  .guest-page { min-height: 0; height: 100dvh; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding-inline: 19px; }
   .guest-public-header { min-height: 69px; }
   .guest-public-header .portal-wordmark-primary { font-size: 12px; }
   .guest-public-header .portal-wordmark-secondary { font-size: 8px; }
   .guest-header-link { font-size: 10px; }
-  .guest-header-staff { padding: 8px 10px; font-size: 10px; }
   .guest-page-grid { grid-template-columns: 1fr; gap: 29px; padding: 37px 0 30px; }
   .guest-intro { max-width: 560px; }
   .guest-intro h1 { max-width: 390px; font-size: 43px; }

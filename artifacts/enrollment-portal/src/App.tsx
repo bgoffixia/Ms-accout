@@ -238,10 +238,7 @@ function PublicLanding() {
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
             </Link>
-            <Link href="/sign-in" className="landing-staff-link" data-testid="link-staff-sign-in">
-              Staff sign in <ArrowUpRight size={15} />
-            </Link>
-            <Link href="/guest/track" className="landing-staff-link" data-testid="link-track-application">
+            <Link href="/guest/track" className="landing-secondary-link" data-testid="link-track-application">
               Track an application <ArrowRight size={15} />
             </Link>
           </div>
@@ -277,8 +274,8 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
   return <main className="auth-page portal-frame">
     <div className="auth-brand"><PortalWordmark /><span>SECURE ACCESS</span></div>
     <div className="auth-canvas">
-      <div className="auth-intro"><div className="eyebrow">{mode === 'staff' ? directStaffRegistration ? 'AUTHORIZED ADMIN ACCESS' : 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'staff' ? directStaffRegistration ? 'Your admin account.' : 'Your team account.' : 'Let’s get started.'}</h1>
-        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Admin access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
+      <div className="auth-intro"><div className="eyebrow">{mode === 'staff' ? directStaffRegistration ? 'AUTHORIZED STAFF ACCESS' : 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'staff' ? directStaffRegistration ? 'Your staff account.' : 'Your team account.' : 'Let’s get started.'}</h1>
+        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
         {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={staffSignInRegistration ? `${basePath}/staff/sign-up` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
@@ -309,7 +306,7 @@ function AllowlistedStaffSignUp() {
         if (result.allowed) {
           setAllowlistedEmail(normalizedEmail);
         } else {
-          setError('This email is not authorized for Admin registration.');
+          setError('This email is not authorized for staff registration.');
         }
       },
       onError: () => setError('Staff registration could not be checked. Please try again.'),
@@ -322,9 +319,9 @@ function AllowlistedStaffSignUp() {
     <PortalWordmark />
     <div className="signedout-card">
       <span className="state-icon"><LockKeyhole size={21} /></span>
-      <div className="eyebrow">AUTHORIZED ADMIN ACCESS</div>
-      <h1>Admin registration</h1>
-      <p>Enter an approved email address to continue. Admin access is granted only after that email is verified.</p>
+      <div className="eyebrow">AUTHORIZED STAFF ACCESS</div>
+      <h1>Staff registration</h1>
+      <p>Enter an approved email address to continue. Your role is assigned only after that email is verified.</p>
       <form className="staff-registration-form" onSubmit={submit}>
         <label className="field-label" htmlFor="staff-registration-email">Email address</label>
         <input
@@ -368,7 +365,7 @@ function AuthComplete() {
       claimStarted.current = true;
       claimStaffAccess.mutate(undefined, {
         onSuccess: () => window.location.replace(`${basePath}/admin`),
-        onError: () => setClaimError('This verified email could not be authorized for Admin access.'),
+        onError: () => setClaimError('This verified email could not be authorized for the assigned staff role.'),
       });
       return;
     }
@@ -380,7 +377,7 @@ function AuthComplete() {
     <div className="signedout-card">
       <span className="state-icon"><LockKeyhole size={21} /></span>
       <div className="eyebrow">STAFF ACCESS CHECK</div>
-      <h1>Admin access wasn’t activated.</h1>
+      <h1>Staff access wasn’t activated.</h1>
       <p>{claimError} You can continue with a regular applicant account or retry the verification.</p>
       <Link href="/dashboard" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>
       <button className="text-action" type="button" onClick={() => window.location.reload()}>Retry verification</button>
@@ -982,14 +979,16 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [menuOpen]);
-  const canReview = ['admin', 'sub_admin'].includes(String(role));
+  const canReview = role === 'sub_admin';
+  const canManage = role === 'admin';
   const navLinks = [
     ...(canReview ? [
       { href: '/admin', key: 'overview', label: 'Overview', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/review', key: 'review', label: 'Review queue', icon: FileCheck2, testId: 'link-admin-review' },
       { href: '/admin/pre-applications', key: 'preapplications', label: 'Guest follow-up', icon: MessageCircle, testId: 'link-admin-preapplications' },
     ] : []),
-    ...(role === 'admin' ? [
+    ...(canManage ? [
+      { href: '/admin', key: 'overview', label: 'Admin home', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
       { href: '/admin/settings', key: 'settings', label: 'Portal settings', icon: Settings, testId: 'link-admin-settings' },
     ] : []),
@@ -1027,9 +1026,48 @@ function AdminGate({ children }: { children: ReactNode }) {
   if (!isSignedIn) return <SignedOutNotice />;
   const role = user?.publicMetadata?.role;
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
+  const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
+  if (role === 'admin' && reviewerOnlyRoute) return <AdminReviewRestricted />;
   if (role === 'moderator' && location !== '/admin/support') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><Headphones size={21} /></span><div className="eyebrow">SUPPORT STAFF</div><h1>Support workspace</h1><p>Moderator access is limited to support requests.</p><Link href="/admin/support" className="button button-primary" data-testid="link-moderator-support">Open support inbox <ArrowRight size={15} /></Link></div></main>;
   if (role === 'sub_admin' && (location === '/admin/users' || location === '/admin/settings')) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>Your staff role does not include user or portal settings management.</p><Link href="/admin/review" className="button button-primary" data-testid="link-subadmin-review">Open review queue <ArrowRight size={15} /></Link></div></main>;
   return <>{children}</>;
+}
+
+function AdminReviewRestricted() {
+  return <main className="signedout-page portal-frame" data-testid="admin-review-restricted">
+    <PortalWordmark />
+    <div className="signedout-card">
+      <span className="state-icon"><LockKeyhole size={21} /></span>
+      <div className="eyebrow">REVIEW ACCESS RESTRICTED</div>
+      <h1>Enrollment review is unavailable.</h1>
+      <p>Your Admin access includes staff and portal management. Enrollment review is reserved for Sub-admin reviewers.</p>
+      <Link href="/admin" className="button button-primary" data-testid="link-admin-management-home">Open Admin home <ArrowRight size={15} /></Link>
+    </div>
+  </main>;
+}
+
+function AdminManagementHome() {
+  return <AdminShell active="overview">
+    <div className="admin-page">
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff." />
+      <section className="admin-overview-actions" aria-label="Administration actions">
+        <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-admin-home-users">
+          <span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} />
+        </Link>
+        <Link href="/admin/settings" className="detail-card admin-overview-link" data-testid="link-admin-home-settings">
+          <span className="admin-action-icon"><Settings size={18} /></span><b>Portal settings</b><span>Update enrollment content and presentation.</span><strong>Admin only</strong><ArrowRight size={16} />
+        </Link>
+        <Link href="/admin/support" className="detail-card admin-overview-link" data-testid="link-admin-home-support">
+          <span className="admin-action-icon"><Headphones size={18} /></span><b>Support inbox</b><span>Respond to applicant conversations and track resolution.</span><strong>Staff access</strong><ArrowRight size={16} />
+        </Link>
+      </section>
+    </div>
+  </AdminShell>;
+}
+
+function AdminLanding() {
+  const { user } = useUser();
+  return user?.publicMetadata?.role === 'admin' ? <AdminManagementHome /> : <AdminOverview />;
 }
 
 function draftProgressLabel(application: {
@@ -1080,7 +1118,7 @@ function AdminOverview() {
   const recentQuery = useListApplicationsForReview();
   const { user } = useUser();
   const role = user?.publicMetadata?.role;
-  const canReview = ['admin', 'sub_admin'].includes(String(role));
+  const canReview = role === 'sub_admin';
   const canEditPortal = user?.publicMetadata?.role === 'admin';
   if (overview.isError) return <AdminShell><AccessError retry={() => void overview.refetch()} /></AdminShell>;
   const metrics = [
@@ -1883,7 +1921,6 @@ function GuestPublicHeader() {
     </Link>
     <nav aria-label="Public navigation">
       <Link href="/guest/track" className="guest-header-link" data-testid="link-guest-track">Track an application <ArrowRight size={14} /></Link>
-      <Link href="/sign-in" className="guest-header-staff" data-testid="link-guest-staff-sign-in">Staff sign in</Link>
     </nav>
   </header>;
 }
@@ -2145,7 +2182,7 @@ function GuestFollowupPage() {
   const applications = useListAdminGuestPreapplications();
   const update = useUpdateAdminGuestPreapplication();
   const role = String(user?.publicMetadata?.role);
-  const canReview = ['admin', 'sub_admin'].includes(role);
+  const canReview = role === 'sub_admin';
   const [feedback, setFeedback] = useState('');
 
   const setApplicationStatus = (application: AdminGuestPreapplication, nextStatus: 'contacted' | 'closed') => {
@@ -2235,7 +2272,7 @@ function RoutedPages() {
     <Route path="/apply/:applicationId" component={() => <AuthGate><DraftApplication /></AuthGate>} />
     <Route path="/applications/:applicationId" component={() => <AuthGate><ApplicationDetail /></AuthGate>} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
-    <Route path="/admin" component={() => <AdminGate><AdminOverview /></AdminGate>} />
+    <Route path="/admin" component={() => <AdminGate><AdminLanding /></AdminGate>} />
     <Route path="/admin/review" component={() => <AdminGate><AdminQueue /></AdminGate>} />
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
