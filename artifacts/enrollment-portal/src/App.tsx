@@ -1910,6 +1910,20 @@ const guestApplicationSchema = guestContactSchema.extend({
   categoryId: z.string().min(1, 'Choose an enrollment category.'),
 });
 type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
+const guestDashboardStartSchema = guestApplicationSchema;
+const GUEST_DASHBOARD_CONTACT_KEY = 'guest-dashboard-contact';
+const GUEST_DASHBOARD_START_KEY = 'guest-dashboard-start';
+
+function readGuestDashboardContact() {
+  try {
+    const stored = window.sessionStorage.getItem(GUEST_DASHBOARD_CONTACT_KEY);
+    if (!stored) return null;
+    const contact = guestContactSchema.safeParse(JSON.parse(stored));
+    return contact.success ? contact.data : null;
+  } catch {
+    return null;
+  }
+}
 
 const guestLookupSchema = z.object({
   reference: z.string().trim().min(8, 'Enter the reference from your confirmation.').max(32),
@@ -1928,6 +1942,104 @@ function GuestPublicHeader() {
   </header>;
 }
 
+function PublicApplicantDashboard() {
+  const categories = useListEnrollmentCategories();
+  const portalSettings = useGetPortalSettings();
+  const [, setLocation] = useLocation();
+  const [contact] = useState(readGuestDashboardContact);
+  const [startError, setStartError] = useState('');
+  const palette = ['#0EAD46', '#0C4DA1', '#0072AE', '#FFFFFF'];
+  const iconColors = ['#168341', '#244fc7', '#087eaf', '#174d80'];
+  const orderedCategories = useMemo(() => {
+    const items = (categories.data ?? []).slice(0, 4);
+    const order = portalSettings.data?.cards;
+    if (!order?.length) return items;
+    return items.sort((left, right) => {
+      const leftOrder = order.findIndex((card) => card.id === left.id);
+      const rightOrder = order.findIndex((card) => card.id === right.id);
+      return (leftOrder < 0 ? Number.MAX_SAFE_INTEGER : leftOrder)
+        - (rightOrder < 0 ? Number.MAX_SAFE_INTEGER : rightOrder);
+    });
+  }, [categories.data, portalSettings.data?.cards]);
+
+  const chooseCategory = (categoryId: string) => {
+    setStartError('');
+    if (!contact) {
+      setLocation('/guest/apply');
+      return;
+    }
+    const start = guestDashboardStartSchema.safeParse({ ...contact, categoryId });
+    if (!start.success) {
+      setStartError('Your contact details need to be re-entered before starting an application.');
+      setLocation('/guest/apply');
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(GUEST_DASHBOARD_START_KEY, JSON.stringify(start.data));
+      setLocation('/guest/apply?dashboardStart=1');
+    } catch {
+      setStartError('Your details could not be saved in this browser. Enable session storage and try again.');
+    }
+  };
+
+  const changeContact = () => {
+    try {
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+    } catch {
+      setStartError('Contact details could not be cleared in this browser.');
+      return;
+    }
+    setLocation('/guest/apply');
+  };
+
+  return <main className="guest-page portal-frame guest-dashboard-page">
+    <GuestPublicHeader />
+    <section className="guest-dashboard-shell">
+      <div className="guest-dashboard-heading">
+        <div className="eyebrow"><span className="eyebrow-rule" />APPLICANT DASHBOARD</div>
+        <h1>Choose an enrollment category.</h1>
+        <p>Start or continue your application without creating an account. Identity files and verification video are collected later.</p>
+      </div>
+      {contact ? <div className="guest-dashboard-contact">
+        <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
+        <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">Change details</button>
+      </div> : <p className="guest-dashboard-contact-hint">You can browse categories now. Enter your name and email when you’re ready to start.</p>}
+      {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
+      {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
+        categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
+          <p>Enrollment categories could not be loaded.</p>
+          <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
+        </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No enrollment categories are available right now.</div> :
+          <div className="category-grid guest-dashboard-grid">
+            {orderedCategories.map((category, index) => {
+              const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
+              const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
+              return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
+                className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
+                aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
+                <span className="category-number">0{index + 1}</span>
+                {cardSettings?.logoDataUrl
+                  ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" />
+                  : category.id === 'category-1'
+                    ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" />
+                    : category.id === 'category-2'
+                      ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" />
+                      : category.id === 'category-3'
+                        ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" />
+                        : category.id === 'category-4'
+                          ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" />
+                          : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
+                <span className="category-title">{cardSettings?.title ?? category.name}</span>
+                <span className="category-select">{contact ? 'Start application' : 'Enter contact details'} <ArrowUpRight size={15} /></span>
+              </button>;
+            })}
+          </div>}
+    </section>
+    <footer className="guest-footer"><span>SECURE ENROLLMENT PORTAL</span><Link href="/guest/track" data-testid="link-dashboard-track">Already started? Track your application</Link></footer>
+  </main>;
+}
+
 function GuestApplicationPage() {
   const categories = useListEnrollmentCategories();
   const createGuest = useCreateGuestPreapplication();
@@ -1939,10 +2051,13 @@ function GuestApplicationPage() {
   const [copied, setCopied] = useState(false);
   const [stage, setStage] = useState<'contact' | 'category' | 'key' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
   const [isContinuing, setIsContinuing] = useState(false);
+  const [contactSaveError, setContactSaveError] = useState('');
+  const [startedFromDashboard, setStartedFromDashboard] = useState(false);
   const [progressError, setProgressError] = useState('');
   const [resumeError, setResumeError] = useState('');
   const [resumeLoading, setResumeLoading] = useState(false);
   const resumeStarted = useRef(false);
+  const dashboardStartStarted = useRef(false);
   const [pendingSubmission, setPendingSubmission] = useState<{
     fingerprint: string;
     input: GuestPreapplicationInput;
@@ -1993,6 +2108,26 @@ function GuestApplicationPage() {
     }).finally(() => setResumeLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (dashboardStartStarted.current) return;
+    if (new URLSearchParams(window.location.search).get('dashboardStart') !== '1') return;
+    dashboardStartStarted.current = true;
+    let storedStart: unknown;
+    try {
+      storedStart = JSON.parse(window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? 'null');
+    } catch {
+      storedStart = null;
+    }
+    const start = guestDashboardStartSchema.safeParse(storedStart);
+    if (!start.success) {
+      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
+      return;
+    }
+    form.reset(start.data);
+    setStartedFromDashboard(true);
+    setStage('category');
+  }, []);
+
   const saveGuestProgress = async (
     answers: Record<string, unknown>,
     currentStep: number,
@@ -2041,8 +2176,16 @@ function GuestApplicationPage() {
       setIsContinuing(false);
       return;
     }
+    try {
+      window.sessionStorage.setItem(GUEST_DASHBOARD_CONTACT_KEY, JSON.stringify(contactDetails.data));
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+    } catch {
+      setContactSaveError('Your details could not be saved in this browser. Enable session storage and try again.');
+      setIsContinuing(false);
+      return;
+    }
     setIsContinuing(false);
-    setStage('category');
+    setLocation('/dashboard');
   };
 
   const onSubmit = async (values: GuestApplicationValues) => {
@@ -2077,6 +2220,8 @@ function GuestApplicationPage() {
 
     try {
       const application = await createGuest.mutateAsync({ data: input });
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
       setCreated({ application, accessKey });
       setApplicationAnswers({});
       setStage('key');
@@ -2235,7 +2380,8 @@ function GuestApplicationPage() {
           <div className="guest-form-topline"><span>APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 4' : 'STEP 2 OF 4'}</span></div>
           {stage === 'contact' ? <>
             <h2 id="guest-apply-heading">Your contact details</h2>
-            <p className="guest-form-subtitle">Start with only your name and email. You’ll choose an enrollment category next.</p>
+            <p className="guest-form-subtitle">Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.</p>
+            {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
                 event.preventDefault();
@@ -2254,8 +2400,10 @@ function GuestApplicationPage() {
               </form>
             </Form>
           </> : <>
-            <h2 id="guest-apply-heading">Choose your category</h2>
-            <p className="guest-form-subtitle">Select the enrollment category, then continue to your account-free application details.</p>
+            <h2 id="guest-apply-heading">{startedFromDashboard ? 'Confirm your category' : 'Choose your category'}</h2>
+            <p className="guest-form-subtitle">{startedFromDashboard
+              ? 'Confirm the category you chose on the applicant dashboard to start your account-free application.'
+              : 'Select the enrollment category, then continue to your account-free application details.'}</p>
             {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
               categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
                 <p>Enrollment categories could not be loaded.</p>
@@ -2292,7 +2440,7 @@ function GuestApplicationPage() {
                   <div className="guest-step-actions">
                     <button type="button" className="button button-quiet" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back</button>
                     <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-submit-guest-application">
-                      {createGuest.isPending ? 'Starting your application…' : createGuest.isError ? 'Retry application setup' : 'Continue to category details'} <ArrowRight size={16} />
+                      {createGuest.isPending ? 'Starting your application…' : createGuest.isError ? 'Retry application setup' : startedFromDashboard ? 'Start account-free application' : 'Continue to category details'} <ArrowRight size={16} />
                     </button>
                   </div>
                   <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
