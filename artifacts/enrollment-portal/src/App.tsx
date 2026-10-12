@@ -1984,10 +1984,9 @@ function PublicApplicantDashboard() {
 
   const changeContact = () => {
     try {
-      window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
       window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
     } catch {
-      setStartError('Contact details could not be cleared in this browser.');
+      setStartError('Your category selection could not be cleared in this browser.');
       return;
     }
     setLocation('/guest/apply');
@@ -2040,6 +2039,12 @@ function PublicApplicantDashboard() {
   </main>;
 }
 
+function ApplicantDashboardRoute() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the applicant dashboard" /></main>;
+  return isSignedIn ? <Dashboard /> : <PublicApplicantDashboard />;
+}
+
 function GuestApplicationPage() {
   const categories = useListEnrollmentCategories();
   const createGuest = useCreateGuestPreapplication();
@@ -2065,7 +2070,11 @@ function GuestApplicationPage() {
   const [retryMismatch, setRetryMismatch] = useState(false);
   const form = useForm<GuestApplicationValues>({
     resolver: zodResolver(guestApplicationSchema),
-    defaultValues: { categoryId: '', fullName: '', email: '' },
+    defaultValues: {
+      categoryId: '',
+      fullName: readGuestDashboardContact()?.fullName ?? '',
+      email: readGuestDashboardContact()?.email ?? '',
+    },
   });
 
   useEffect(() => {
@@ -2184,6 +2193,7 @@ function GuestApplicationPage() {
       setIsContinuing(false);
       return;
     }
+    setContactSaveError('');
     setIsContinuing(false);
     setLocation('/dashboard');
   };
@@ -2220,8 +2230,12 @@ function GuestApplicationPage() {
 
     try {
       const application = await createGuest.mutateAsync({ data: input });
-      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
-      window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
+      try {
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
+      } catch {
+        // Keep the successful application visible even if browser storage cleanup fails.
+      }
       setCreated({ application, accessKey });
       setApplicationAnswers({});
       setStage('key');
@@ -2394,7 +2408,7 @@ function GuestApplicationPage() {
                   <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : 'Continue to category selection'} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : 'Continue to dashboard'} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
@@ -2762,7 +2776,7 @@ function RoutedPages() {
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
-    <Route path="/dashboard" component={() => <AuthGate><Dashboard /></AuthGate>} />
+    <Route path="/dashboard" component={ApplicantDashboardRoute} />
     <Route path="/apply/:applicationId" component={() => <AuthGate><DraftApplication /></AuthGate>} />
     <Route path="/applications/:applicationId" component={() => <AuthGate><ApplicationDetail /></AuthGate>} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
