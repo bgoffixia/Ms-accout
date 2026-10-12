@@ -1,10 +1,10 @@
 ---
 name: Guest applicant path
-description: Product requirements for account-free guest applications and later evidence collection.
+description: Product requirements for account-free enrollment, evidence collection, and email verification.
 ---
 
-Guest applicants complete the non-evidence application details without creating an account or PIN. The first screen collects only full name and email, then continues to a separate category-selection screen. Identity files and verification video are collected later by staff before a full review.
+Applicants can complete all enrollment details, the category PIN, and required private identity evidence/video without creating an account. The first screen collects only full name and email, then continues to a separate category-selection screen. Clerk email verification of that same contact email is required only for final submission and account linking; failure to verify must leave the saved draft and evidence available to authorized reviewers.
 
-**Why:** The user chose account-free applications with full details submitted before identity evidence, and specified that the first screen contain only full name and email before category selection.
+**Why:** The user asked applicants to complete the enrollment and evidence before Clerk OTP verification, while ensuring verification failure does not block saving other details to authorized review.
 
-**How to apply:** Save guest answers and progress server-side, protect resume access with the private tracking key, never ask guests for account credentials, and keep evidence required before staff review. Do not add category, phone, or evidence fields to the first contact screen.
+**How to apply:** Save each guest step and private evidence server-side before routing to Clerk. Link only a verified primary email matching the contact email; keep drafts reviewer-visible if verification fails. Protect resume access with the private tracking key, never store PIN plaintext, and do not add category, phone, or evidence fields to the first contact screen.

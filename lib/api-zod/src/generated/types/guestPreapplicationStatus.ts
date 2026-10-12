@@ -7,6 +7,7 @@
  */
 import type { GuestPreapplicationStatusAnswers } from './guestPreapplicationStatusAnswers';
 import type { GuestPreapplicationStatusCategoryId } from './guestPreapplicationStatusCategoryId';
+import type { GuestPreapplicationStatusSubmissionStatus } from './guestPreapplicationStatusSubmissionStatus';
 import type { GuestPreapplicationStatusValue } from './guestPreapplicationStatusValue';
 
 export interface GuestPreapplicationStatus {
@@ -17,6 +18,11 @@ export interface GuestPreapplicationStatus {
   fullName: string;
   email: string;
   status: GuestPreapplicationStatusValue;
+  submissionStatus: GuestPreapplicationStatusSubmissionStatus;
+  emailVerified: boolean;
+  hasPin: boolean;
+  /** @nullable */
+  linkedApplicationId: string | null;
   /**
      * @minimum 0
      * @maximum 7

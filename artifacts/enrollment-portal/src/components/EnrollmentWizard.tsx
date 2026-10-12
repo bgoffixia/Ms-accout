@@ -28,6 +28,10 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
+  uploadEvidence?: (
+    file: File,
+    evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
+  ) => Promise<{ objectPath: string; fileName: string }>;
   saveStep: (answers: Record<string, unknown>, currentStep: number) => Promise<boolean>;
   submit: (answers: Record<string, unknown>) => Promise<boolean>;
   onChangeCategory: (categoryId: string) => void;
@@ -225,7 +229,7 @@ type LocalImage = { file: File; url: string };
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, saveStep, submit, onChangeCategory,
-  onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey,
+  onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -263,16 +267,18 @@ export function EnrollmentWizard({
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberProvided, setAccountNumberProvided] = useState(() => Boolean(section(saved, 'bankDetails').accountNumberMasked));
   const [submitError, setSubmitError] = useState('');
+  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
   const [keyCopied, setKeyCopied] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingUrlRef = useRef('');
+  const recordingBlobRef = useRef<Blob | null>(null);
   const timerRef = useRef<number | null>(null);
   const imageUrlsRef = useRef<string[]>([]);
   const reopenedSignature = reopenedSections.join(',');
   const allowedSections = reopenedSections.length > 0 ? new Set(reopenedSections) : null;
-  const readOnly = !evidenceLater && status !== 'draft' && reopenedSections.length === 0;
+  const readOnly = !evidenceLater && !privateTrackingKey && status !== 'draft' && reopenedSections.length === 0;
   const canEditSection = (sectionIndex: number) => !readOnly && (!allowedSections || allowedSections.has(sectionIndex));
   const category = categories.find((item) => item.id === application.categoryId);
   const form = useForm<WizardAnswers>({
@@ -317,34 +323,61 @@ export function EnrollmentWizard({
   const updateLocalImage = (key: string, file?: File) => {
     setLocalImages((current) => {
       const prior = current[key];
-      if (prior) URL.revokeObjectURL(prior.url);
+      if (prior?.url) URL.revokeObjectURL(prior.url);
       if (!file) {
         const next = { ...current };
         delete next[key];
         return next;
       }
-      const url = URL.createObjectURL(file);
-      imageUrlsRef.current.push(url);
+      const url = file.type.startsWith('image/') ? URL.createObjectURL(file) : '';
+      if (url) imageUrlsRef.current.push(url);
       return { ...current, [key]: { file, url } };
     });
   };
 
-  const onImageChange = (key: string) => (event: ChangeEvent<HTMLInputElement>) => {
+  const onImageChange = (key: string) => async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > maxUploadBytes) {
-      setSubmitError(`That image is larger than the displayed ${Math.round(maxUploadBytes / 1024 / 1024)} MiB limit.`);
+      setSubmitError(`That file is larger than the displayed ${Math.round(maxUploadBytes / 1024 / 1024)} MiB limit.`);
       event.target.value = '';
       return;
     }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setSubmitError('Choose a JPEG, PNG, or WebP image to preview.');
+    if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setSubmitError('Choose a PDF, JPEG, PNG, or WebP document.');
       event.target.value = '';
       return;
     }
     setSubmitError('');
-    updateLocalImage(key, file);
     event.target.value = '';
+    const locations: Record<string, [string, string, 'identity_front' | 'identity_back' | 'education_certificate']> = {
+      educationCertificate: ['education', 'certificateObjectPath', 'education_certificate'],
+      identityFront: ['proofOfIdentity', 'frontObjectPath', 'identity_front'],
+      identityBack: ['proofOfIdentity', 'backObjectPath', 'identity_back'],
+    };
+    const location = locations[key];
+    if (!uploadEvidence || !location) {
+      updateLocalImage(key, file);
+      return;
+    }
+    setEvidenceBusy(key);
+    try {
+      const uploaded = await uploadEvidence(file, location[2]);
+      const currentValues = getValues();
+      const nextAnswers = {
+        ...currentValues,
+        [location[0]]: { ...section(currentValues, location[0]), [location[1]]: uploaded.objectPath },
+      };
+      setAnswers(nextAnswers);
+      reset(nextAnswers);
+      updateLocalImage(key, file);
+      const saved = await saveStep(nextAnswers, step);
+      if (!saved) setSubmitError('The file is securely uploaded. Your other application details remain saved; continue to retry saving this section.');
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'The file could not be uploaded securely. Please try again.');
+    } finally {
+      setEvidenceBusy(null);
+    }
   };
 
   const stopCamera = () => {
@@ -387,6 +420,7 @@ export function EnrollmentWizard({
       recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+        recordingBlobRef.current = blob;
         const url = URL.createObjectURL(blob);
         if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
         recordingUrlRef.current = url;
@@ -417,16 +451,43 @@ export function EnrollmentWizard({
     if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
     if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
     recordingUrlRef.current = '';
+    recordingBlobRef.current = null;
     setRecordingUrl('');
     setRecordingConfirmed(false);
     setRecordingSeconds(0);
     setCameraError('');
+    setValue('liveVideoRecording.objectPath' as never, '' as never);
+    setAnswers((current) => ({
+      ...current,
+      liveVideoRecording: { ...section(current, 'liveVideoRecording'), objectPath: '' },
+    }));
     void requestCamera();
   };
 
   const persistStage = async (data: WizardAnswers) => {
     const sectionKey = sectionKeys[step];
-    const values = { ...section(data, sectionKey) };
+    let values = { ...section(data, sectionKey) };
+    if (step === 5 && recordingUrl && recordingConfirmed && uploadEvidence && !values.objectPath) {
+      const recording = recordingBlobRef.current;
+      if (!recording) {
+        setSubmitError('The recording is no longer available. Record it again before continuing.');
+        return;
+      }
+      setEvidenceBusy('verificationVideo');
+      try {
+        const contentType = recording.type.split(';')[0]?.trim().toLowerCase() || 'video/webm';
+        const extension = contentType === 'video/mp4' ? 'mp4' : 'webm';
+        const file = new File([recording], `verification-recording.${extension}`, { type: contentType });
+        const uploaded = await uploadEvidence(file, 'verification_video');
+        values = { ...values, durationSeconds: 12, objectPath: uploaded.objectPath };
+      } catch (error) {
+        setSubmitError(error instanceof Error ? error.message : 'The verification video could not be uploaded securely.');
+        setEvidenceBusy(null);
+        return;
+      } finally {
+        setEvidenceBusy(null);
+      }
+    }
     const outgoing = { ...answers, [sectionKey]: values };
     if (step === 5 && recordingUrl && recordingConfirmed) outgoing.liveVideoRecording = { ...values, durationSeconds: 12 };
     if (step === 6) {
@@ -542,13 +603,14 @@ export function EnrollmentWizard({
   const missingUploads = useMemo(() => {
     if (evidenceLater) return [];
     const missing: string[] = [];
+    if (!application.hasPin) missing.push('category PIN');
     if (!answer(answers, 'proofOfIdentity', 'frontObjectPath')) missing.push('identity document front');
     if (isBackRequired && !answer(answers, 'proofOfIdentity', 'backObjectPath')) missing.push('identity document back');
     if (!answer(answers, 'liveVideoRecording', 'objectPath')) missing.push('video reference');
     if (!storageAvailable) missing.push('storage-backed references (secure storage unavailable)');
     return missing;
-  }, [answers, evidenceLater, isBackRequired, storageAvailable]);
-  const readyToSubmit = activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
+  }, [answers, application.hasPin, evidenceLater, isBackRequired, storageAvailable]);
+  const readyToSubmit = application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -569,21 +631,22 @@ export function EnrollmentWizard({
     const completedReference = Boolean(reference);
     return <div className="ew-upload-block" data-testid={`state-upload-${key}`}>
       <div className="ew-upload-heading"><span className="ew-upload-icon"><FileImage size={17} /></span>
-        <div><b>{label}</b><small>{completedReference ? 'A stored file reference is on this application.' : 'No file has been uploaded to secure storage.'}</small></div>
+        <div><b>{label}</b><small>{completedReference ? 'Uploaded privately and attached to this application.' : uploadEvidence ? 'No private file uploaded yet.' : 'No file has been uploaded to secure storage.'}</small></div>
       </div>
       {local && <div className="ew-image-preview">
-        <img src={local.url} alt={`Local preview of ${label.toLowerCase()}`} data-testid={`preview-${key}`} />
-        <div><b>{local.file.name}</b><small>Local preview only · not uploaded</small></div>
-        <button type="button" className="ew-icon-button" onClick={() => updateLocalImage(key)} aria-label={`Remove ${label.toLowerCase()} preview`} data-testid={`button-remove-${key}`}><X size={16} /></button>
+        {local.url && <img src={local.url} alt={`Preview of ${label.toLowerCase()}`} data-testid={`preview-${key}`} />}
+        <div><b>{local.file.name}</b><small>{completedReference ? 'Private upload verified' : 'Local preview only · not uploaded'}</small></div>
+        {!completedReference && <button type="button" className="ew-icon-button" onClick={() => updateLocalImage(key)} aria-label={`Remove ${label.toLowerCase()} preview`} data-testid={`button-remove-${key}`}><X size={16} /></button>}
       </div>}
       <div className="ew-upload-controls">
         <label className={`ew-file-button ${!canEditSection(sectionIndex) ? 'is-disabled' : ''}`}>
-          <Upload size={15} /> {local ? 'Replace local preview' : 'Choose image for preview'}
-          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={!canEditSection(sectionIndex)} onChange={onImageChange(key)} data-testid={`input-file-${key}`} />
+          <Upload size={15} /> {evidenceBusy === key ? 'Uploading privately…' : completedReference ? 'Replace uploaded file' : uploadEvidence ? 'Choose file and upload privately' : 'Choose file for preview'}
+          <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" disabled={!canEditSection(sectionIndex) || evidenceBusy !== null} onChange={onImageChange(key)} data-testid={`input-file-${key}`} />
         </label>
-        <span className="ew-size-note">Images · up to {Math.round(maxUploadBytes / 1024 / 1024)} MiB</span>
+        <span className="ew-size-note">PDF or image · up to {Math.round(maxUploadBytes / 1024 / 1024)} MiB</span>
       </div>
-      {!storageAvailable && <p className="ew-inline-notice" data-testid={`notice-storage-${key}`}><LockKeyhole size={14} /> Secure file storage is unavailable. This local preview will not be saved or submitted.</p>}
+      {!storageAvailable && !uploadEvidence && <p className="ew-inline-notice" data-testid={`notice-storage-${key}`}><LockKeyhole size={14} /> Secure file storage is unavailable. This local preview will not be saved or submitted.</p>}
+      {uploadEvidence && evidenceBusy === key && <p className="ew-inline-notice" role="status">Uploading and verifying the private file…</p>}
     </div>;
   };
 
@@ -727,8 +790,11 @@ export function EnrollmentWizard({
               </div>
               <div className="ew-upload-grid">{renderFileUploader('identityFront', fieldLabel(4, 'proofOfIdentity.frontObjectPath', 'Document front'), 4)}
                 {isBackRequired && renderFileUploader('identityBack', fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), 4)}</div>
-              <div className="ew-storage-banner" data-testid="state-identity-incomplete"><CircleAlert size={17} /><div><b>Identity images are not yet attached</b>
-                <p>Your previews stay on this device. Secure upload is currently unavailable, so they cannot be included with your application.</p></div></div>
+              {!storageAvailable && !uploadEvidence
+                ? <div className="ew-storage-banner" data-testid="state-identity-incomplete"><CircleAlert size={17} /><div><b>Identity files cannot be attached</b>
+                  <p>Your previews stay on this device. Secure upload is unavailable, so they cannot be included with your application.</p></div></div>
+                : <div className="ew-inline-notice" data-testid="state-identity-incomplete"><LockKeyhole size={14} />
+                  {answer(answers, 'proofOfIdentity', 'frontObjectPath') ? 'Identity file saved in private storage.' : 'Upload the required identity document files to continue.'}</div>}
             </>}
             {step === 5 && !evidenceLater && <>{heading(step, titleForStep(step), copyForStep(step).description || "A short recording can be made here, but it is not an identity or liveness check.", copyForStep(step).sectionIdLabel)}
               <div className="ew-video-consent">
@@ -753,11 +819,14 @@ export function EnrollmentWizard({
                       onClick={() => setRecordingConfirmed(true)} data-testid="button-confirm-recording">
                       {recordingConfirmed ? <><Check size={15} /> Recording selected</> : 'Confirm recording'}
                     </button>
-                    <span className="ew-local-tag"><FileVideo2 size={14} /> Local preview only</span></>}
+                    <span className="ew-local-tag"><FileVideo2 size={14} /> {answer(answers, 'liveVideoRecording', 'objectPath') ? 'Saved privately' : 'Not uploaded yet'}</span></>}
                 </div>
               </div>
-              <div className="ew-storage-banner" data-testid="state-video-incomplete"><CircleAlert size={17} /><div><b>Recording is not saved to your application</b>
-                <p>This recording remains in memory and will be cleared when you leave this page. Video storage is unavailable, so a saved video reference is still required.</p></div></div>
+              {!storageAvailable && !uploadEvidence
+                ? <div className="ew-storage-banner" data-testid="state-video-incomplete"><CircleAlert size={17} /><div><b>Recording cannot be attached</b>
+                  <p>This recording remains in memory and will be cleared when you leave this page. Video storage is unavailable.</p></div></div>
+                : <div className="ew-inline-notice" data-testid="state-video-incomplete"><LockKeyhole size={14} />
+                  {answer(answers, 'liveVideoRecording', 'objectPath') ? 'Verification video saved in private storage.' : 'Confirm the recording and continue to upload it securely.'}</div>}
             </>}
             {step === 6 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Only provide bank details if they are genuinely needed for your enrollment.", copyForStep(step).sectionIdLabel)}
               <p className="ew-inline-notice">This section is optional. If payment details are not required for your enrollment, leave it blank and continue.</p>
@@ -795,7 +864,9 @@ export function EnrollmentWizard({
           <div className="ew-preview" data-testid="enrollment-preview">
             <div className="ew-content-scroll">
               <div className="ew-progress-line"><span style={{ width: '100%' }} /></div>
-              {heading(7, titleForStep(7), copyForStep(7).description || (evidenceLater
+              {heading(7, titleForStep(7), copyForStep(7).description || (privateTrackingKey
+                ? 'Review your details and uploaded evidence. An email code is required to submit; if verification fails, this saved draft remains available to authorized reviewers.'
+                : evidenceLater
                 ? "Review your details. Staff will arrange the required identity files and verification video later."
                 : "Check your details carefully. Incomplete secure uploads must be attached before you can submit."),
                 copyForStep(7).sectionIdLabel)}
@@ -848,11 +919,15 @@ export function EnrollmentWizard({
               </section>
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
-                <div><b>{readyToSubmit ? 'Ready for your review' : 'A few required items are still missing'}</b>
-                  <p>{evidenceLater
+                <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
+                  <p>{privateTrackingKey
+                    ? readyToSubmit
+                      ? 'Your details, PIN, and private evidence are saved. Continue to verify your email and submit; a verification failure does not remove this draft.'
+                      : `Complete the remaining items: ${missingUploads.join(', ') || 'required details and the declaration'}.`
+                    : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length
-                      ? `Secure storage is unavailable. Required references still missing: ${missingUploads.join(', ')}.`
+                      ? `${storageAvailable ? 'Required items still missing' : 'Secure storage is unavailable; required references are missing'}: ${missingUploads.join(', ')}.`
                       : 'Complete the declaration and all required details before submitting.'}</p>
                 </div>
               </div>
@@ -863,7 +938,7 @@ export function EnrollmentWizard({
               <span className="ew-save-note">You can edit any section before submitting.</span>
               <button type="button" className="ew-button ew-button-primary" onClick={() => void beginSubmit()}
                 disabled={!readyToSubmit || isSaving || isSubmitting || readOnly} data-testid="button-submit-enrollment">
-                {isSubmitting ? 'Submitting…' : copyForStep(7).buttonLabel || 'Submit Enrollment'} <ArrowRight size={15} /></button>
+                {isSubmitting ? 'Submitting…' : copyForStep(7).buttonLabel || (privateTrackingKey ? 'Verify email & submit' : 'Submit Enrollment')} <ArrowRight size={15} /></button>
             </footer>
           </div>}
       </section>

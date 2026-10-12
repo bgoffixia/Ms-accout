@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
@@ -38,6 +39,12 @@ export const guestPreapplicationStatus = pgEnum("guest_preapplication_status", [
 export const guestEvidenceType = pgEnum("guest_evidence_type", [
   "identity_document",
   "verification_video",
+  "education_certificate",
+]);
+
+export const guestSubmissionStatus = pgEnum("guest_submission_status", [
+  "draft",
+  "submitted",
 ]);
 export const guestPreapplicationsTable = pgTable(
   "guest_preapplications",
@@ -57,6 +64,11 @@ export const guestPreapplicationsTable = pgTable(
       .default({}),
     detailsComplete: boolean("details_complete").notNull().default(false),
     status: guestPreapplicationStatus("status").notNull().default("received"),
+    submissionStatus: guestSubmissionStatus("submission_status").notNull().default("draft"),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    clerkUserId: text("clerk_user_id"),
+    linkedApplicationId: uuid("linked_application_id"),
+    pinHash: text("pin_hash"),
     updatedByUserId: text("updated_by_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -67,7 +79,9 @@ export const guestPreapplicationsTable = pgTable(
   },
   (table) => [
     index("guest_preapplications_status_idx").on(table.status),
+    index("guest_preapplications_submission_status_idx").on(table.submissionStatus),
     index("guest_preapplications_created_idx").on(table.createdAt),
+    uniqueIndex("guest_preapplications_linked_application_idx").on(table.linkedApplicationId),
   ],
 );
 
@@ -79,11 +93,12 @@ export const guestPreapplicationEvidenceTable = pgTable(
       .notNull()
       .references(() => guestPreapplicationsTable.id, { onDelete: "cascade" }),
     evidenceType: guestEvidenceType("evidence_type").notNull(),
+    evidenceSlot: text("evidence_slot").notNull().default("identity_document"),
     fileName: text("file_name").notNull(),
     contentType: text("content_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     objectPath: text("object_path").notNull().unique(),
-    uploadedByUserId: text("uploaded_by_user_id").notNull(),
+    uploadedByUserId: text("uploaded_by_user_id"),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -105,6 +120,8 @@ export const enrollmentApplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     reference: text("reference").notNull().unique(),
     clerkUserId: text("clerk_user_id").notNull(),
+    sourceGuestPreapplicationId: uuid("source_guest_preapplication_id")
+      .references(() => guestPreapplicationsTable.id, { onDelete: "set null" }),
     categoryId: text("category_id").notNull(),
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
@@ -127,6 +144,7 @@ export const enrollmentApplicationsTable = pgTable(
     index("enrollment_applications_owner_idx").on(table.clerkUserId),
     index("enrollment_applications_status_idx").on(table.status),
     index("enrollment_applications_category_idx").on(table.categoryId),
+    uniqueIndex("enrollment_applications_guest_source_idx").on(table.sourceGuestPreapplicationId),
   ],
 );
 

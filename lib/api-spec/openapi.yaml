@@ -248,6 +248,95 @@ paths:
           description: Application reference and private key could not be verified
         "409":
           description: Application is closed
+  /guest/preapplications/{applicationId}/evidence/upload-url:
+    post:
+      operationId: requestGuestApplicantEvidenceUpload
+      tags: [enrollment]
+      summary: Prepare a private applicant evidence upload
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestApplicantEvidenceUploadInput"
+      responses:
+        "200":
+          description: Private upload URL prepared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestEvidenceUploadUrl"
+        "404":
+          description: Application reference and private key could not be verified
+  /guest/preapplications/{applicationId}/evidence/{evidenceId}/complete:
+    post:
+      operationId: completeGuestApplicantEvidenceUpload
+      tags: [enrollment]
+      summary: Verify a private evidence upload and attach it to the guest application
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestApplicationAccessInput"
+      responses:
+        "200":
+          description: Evidence uploaded and verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestApplicantEvidenceUploaded"
+        "404":
+          description: Application reference and private key could not be verified
+  /guest/preapplications/{applicationId}/submit:
+    post:
+      operationId: submitGuestPreapplication
+      tags: [enrollment]
+      summary: Verify the signed-in applicant email and submit the saved guest application
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestApplicationAccessInput"
+      responses:
+        "200":
+          description: Verified guest application submitted and linked to the applicant account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollmentApplication"
+        "403":
+          description: The signed-in primary email is not verified or does not match the application
+        "404":
+          description: Application reference and private key could not be verified
   /staff/registration-check:
     post:
       operationId: checkStaffRegistrationEmail
@@ -824,7 +913,7 @@ components:
           pattern: "^[A-Za-z0-9_-]{43}$"
     GuestPreapplicationCreated:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, currentStep, detailsComplete, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, hasPin, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -843,6 +932,17 @@ components:
           format: email
         status:
           $ref: "#/components/schemas/GuestPreapplicationStatusValue"
+        submissionStatus:
+          type: string
+          enum: [draft, submitted]
+        emailVerified:
+          type: boolean
+        hasPin:
+          type: boolean
+        linkedApplicationId:
+          type: string
+          format: uuid
+          nullable: true
         currentStep:
           type: integer
           minimum: 0
@@ -857,7 +957,7 @@ components:
           format: date-time
     GuestPreapplicationStatus:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, currentStep, detailsComplete, answers, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, hasPin, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -876,6 +976,16 @@ components:
           format: email
         status:
           $ref: "#/components/schemas/GuestPreapplicationStatusValue"
+        submissionStatus:
+          type: string
+          enum: [draft, submitted]
+        emailVerified:
+          type: boolean
+        hasPin:
+          type: boolean
+        linkedApplicationId:
+          type: ["string", "null"]
+          format: uuid
         currentStep:
           type: integer
           minimum: 0
@@ -911,6 +1021,20 @@ components:
           additionalProperties: true
         complete:
           type: boolean
+        pin:
+          type: string
+          pattern: "^[0-9]{4,6}$"
+    GuestApplicationAccessInput:
+      type: object
+      required: [reference, accessKey]
+      properties:
+        reference:
+          type: string
+          minLength: 8
+          maxLength: 32
+        accessKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
     AdminGuestPreapplication:
       allOf:
         - $ref: "#/components/schemas/GuestPreapplicationStatus"
@@ -936,7 +1060,10 @@ components:
       properties:
         evidenceType:
           type: string
-          enum: [identity_document, verification_video]
+          enum: [identity_document, verification_video, education_certificate]
+        evidenceSlot:
+          type: string
+          enum: [identity_front, identity_back, verification_video, education_certificate, identity_document]
         fileName:
           type: string
           minLength: 1
@@ -948,6 +1075,22 @@ components:
           type: integer
           minimum: 1
           maximum: 209715200
+    GuestApplicantEvidenceUploadInput:
+      allOf:
+        - $ref: "#/components/schemas/GuestEvidenceUploadInput"
+        - type: object
+          required: [reference, accessKey, evidenceSlot]
+          properties:
+            reference:
+              type: string
+              minLength: 8
+              maxLength: 32
+            accessKey:
+              type: string
+              pattern: "^[A-Za-z0-9_-]{43}$"
+            evidenceSlot:
+              type: string
+              enum: [identity_front, identity_back, verification_video, education_certificate]
     GuestEvidenceUploadUrl:
       type: object
       required: [evidenceId, uploadUrl]
@@ -960,14 +1103,17 @@ components:
           format: uri
     AdminGuestPreapplicationEvidence:
       type: object
-      required: [id, evidenceType, fileName, contentType, sizeBytes, uploadedAt, downloadUrl]
+      required: [id, evidenceType, evidenceSlot, fileName, contentType, sizeBytes, uploadedAt, downloadUrl]
       properties:
         id:
           type: string
           format: uuid
         evidenceType:
           type: string
-          enum: [identity_document, verification_video]
+          enum: [identity_document, verification_video, education_certificate]
+        evidenceSlot:
+          type: string
+          enum: [identity_front, identity_back, verification_video, education_certificate, identity_document]
         fileName:
           type: string
         contentType:
@@ -979,6 +1125,26 @@ components:
           format: date-time
         downloadUrl:
           type: ["string", "null"]
+    GuestApplicantEvidenceUploaded:
+      type: object
+      required: [evidenceId, evidenceType, evidenceSlot, fileName, objectPath, uploadedAt]
+      properties:
+        evidenceId:
+          type: string
+          format: uuid
+        evidenceType:
+          type: string
+          enum: [identity_document, verification_video, education_certificate]
+        evidenceSlot:
+          type: string
+          enum: [identity_front, identity_back, verification_video, education_certificate]
+        fileName:
+          type: string
+        objectPath:
+          type: string
+        uploadedAt:
+          type: string
+          format: date-time
     AdminGuestPreapplicationStatusUpdate:
       type: object
       required: [status]

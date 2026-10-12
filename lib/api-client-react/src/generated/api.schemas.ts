@@ -81,6 +81,14 @@ export const GuestPreapplicationCreatedCategoryId = {
   'category-4': 'category-4',
 } as const;
 
+export type GuestPreapplicationCreatedSubmissionStatus = typeof GuestPreapplicationCreatedSubmissionStatus[keyof typeof GuestPreapplicationCreatedSubmissionStatus];
+
+
+export const GuestPreapplicationCreatedSubmissionStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+} as const;
+
 export interface GuestPreapplicationCreated {
   id: string;
   reference: string;
@@ -89,6 +97,10 @@ export interface GuestPreapplicationCreated {
   fullName: string;
   email: string;
   status: GuestPreapplicationStatusValue;
+  submissionStatus: GuestPreapplicationCreatedSubmissionStatus;
+  emailVerified: boolean;
+  hasPin: boolean;
+  linkedApplicationId: string | null;
   /**
      * @minimum 0
      * @maximum 7
@@ -109,6 +121,14 @@ export const GuestPreapplicationStatusCategoryId = {
   'category-4': 'category-4',
 } as const;
 
+export type GuestPreapplicationStatusSubmissionStatus = typeof GuestPreapplicationStatusSubmissionStatus[keyof typeof GuestPreapplicationStatusSubmissionStatus];
+
+
+export const GuestPreapplicationStatusSubmissionStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+} as const;
+
 export type GuestPreapplicationStatusAnswers = { [key: string]: unknown };
 
 export interface GuestPreapplicationStatus {
@@ -119,6 +139,11 @@ export interface GuestPreapplicationStatus {
   fullName: string;
   email: string;
   status: GuestPreapplicationStatusValue;
+  submissionStatus: GuestPreapplicationStatusSubmissionStatus;
+  emailVerified: boolean;
+  hasPin: boolean;
+  /** @nullable */
+  linkedApplicationId: string | null;
   /**
      * @minimum 0
      * @maximum 7
@@ -147,9 +172,52 @@ export interface GuestPreapplicationProgressInput {
   currentStep: number;
   answers: GuestPreapplicationProgressInputAnswers;
   complete: boolean;
+  /** @pattern ^[0-9]{4,6}$ */
+  pin?: string;
+}
+
+export interface GuestApplicationAccessInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  accessKey: string;
 }
 
 export type AdminGuestPreapplicationEvidenceEvidenceType = typeof AdminGuestPreapplicationEvidenceEvidenceType[keyof typeof AdminGuestPreapplicationEvidenceEvidenceType];
+
+
+export const AdminGuestPreapplicationEvidenceEvidenceType = {
+  identity_document: 'identity_document',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+} as const;
+
+export type AdminGuestPreapplicationEvidenceEvidenceSlot = typeof AdminGuestPreapplicationEvidenceEvidenceSlot[keyof typeof AdminGuestPreapplicationEvidenceEvidenceSlot];
+
+
+export const AdminGuestPreapplicationEvidenceEvidenceSlot = {
+  identity_front: 'identity_front',
+  identity_back: 'identity_back',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+  identity_document: 'identity_document',
+} as const;
+
+export interface AdminGuestPreapplicationEvidence {
+  id: string;
+  evidenceType: AdminGuestPreapplicationEvidenceEvidenceType;
+  evidenceSlot: AdminGuestPreapplicationEvidenceEvidenceSlot;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  /** @nullable */
+  uploadedAt: string | null;
+  /** @nullable */
+  downloadUrl: string | null;
+}
 
 export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   fullName: string;
@@ -161,6 +229,96 @@ export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
 });
 
 export type GuestEvidenceUploadInputEvidenceType = typeof GuestEvidenceUploadInputEvidenceType[keyof typeof GuestEvidenceUploadInputEvidenceType];
+
+
+export const GuestEvidenceUploadInputEvidenceType = {
+  identity_document: 'identity_document',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+} as const;
+
+export type GuestEvidenceUploadInputEvidenceSlot = typeof GuestEvidenceUploadInputEvidenceSlot[keyof typeof GuestEvidenceUploadInputEvidenceSlot];
+
+
+export const GuestEvidenceUploadInputEvidenceSlot = {
+  identity_front: 'identity_front',
+  identity_back: 'identity_back',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+  identity_document: 'identity_document',
+} as const;
+
+export interface GuestEvidenceUploadInput {
+  evidenceType: GuestEvidenceUploadInputEvidenceType;
+  evidenceSlot?: GuestEvidenceUploadInputEvidenceSlot;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  fileName: string;
+  /** @maxLength 100 */
+  contentType: string;
+  /**
+     * @minimum 1
+     * @maximum 209715200
+     */
+  sizeBytes: number;
+}
+
+export type GuestApplicantEvidenceUploadInputEvidenceSlot = typeof GuestApplicantEvidenceUploadInputEvidenceSlot[keyof typeof GuestApplicantEvidenceUploadInputEvidenceSlot];
+
+
+export const GuestApplicantEvidenceUploadInputEvidenceSlot = {
+  identity_front: 'identity_front',
+  identity_back: 'identity_back',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+} as const;
+
+export type GuestApplicantEvidenceUploadInput = GuestEvidenceUploadInput & {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  accessKey: string;
+  evidenceSlot: GuestApplicantEvidenceUploadInputEvidenceSlot;
+};
+
+export interface GuestEvidenceUploadUrl {
+  evidenceId: string;
+  uploadUrl: string;
+}
+
+export type GuestApplicantEvidenceUploadedEvidenceType = typeof GuestApplicantEvidenceUploadedEvidenceType[keyof typeof GuestApplicantEvidenceUploadedEvidenceType];
+
+
+export const GuestApplicantEvidenceUploadedEvidenceType = {
+  identity_document: 'identity_document',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+} as const;
+
+export type GuestApplicantEvidenceUploadedEvidenceSlot = typeof GuestApplicantEvidenceUploadedEvidenceSlot[keyof typeof GuestApplicantEvidenceUploadedEvidenceSlot];
+
+
+export const GuestApplicantEvidenceUploadedEvidenceSlot = {
+  identity_front: 'identity_front',
+  identity_back: 'identity_back',
+  verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
+} as const;
+
+export interface GuestApplicantEvidenceUploaded {
+  evidenceId: string;
+  evidenceType: GuestApplicantEvidenceUploadedEvidenceType;
+  evidenceSlot: GuestApplicantEvidenceUploadedEvidenceSlot;
+  fileName: string;
+  objectPath: string;
+  uploadedAt: string;
+}
+
 export type AdminGuestPreapplicationStatusUpdateStatus = typeof AdminGuestPreapplicationStatusUpdateStatus[keyof typeof AdminGuestPreapplicationStatusUpdateStatus];
 
 
@@ -766,46 +924,3 @@ export const ListSupportTicketsForAdminStatus = {
   resolved: 'resolved',
 } as const;
 
-
-export const AdminGuestPreapplicationEvidenceEvidenceType = {
-  identity_document: 'identity_document',
-  verification_video: 'verification_video',
-} as const;
-
-export interface AdminGuestPreapplicationEvidence {
-  id: string;
-  evidenceType: AdminGuestPreapplicationEvidenceEvidenceType;
-  fileName: string;
-  contentType: string;
-  sizeBytes: number;
-  /** @nullable */
-  uploadedAt: string | null;
-  /** @nullable */
-  downloadUrl: string | null;
-}
-
-export const GuestEvidenceUploadInputEvidenceType = {
-  identity_document: 'identity_document',
-  verification_video: 'verification_video',
-} as const;
-
-export interface GuestEvidenceUploadInput {
-  evidenceType: GuestEvidenceUploadInputEvidenceType;
-  /**
-     * @minLength 1
-     * @maxLength 160
-     */
-  fileName: string;
-  /** @maxLength 100 */
-  contentType: string;
-  /**
-     * @minimum 1
-     * @maximum 209715200
-     */
-  sizeBytes: number;
-}
-
-export interface GuestEvidenceUploadUrl {
-  evidenceId: string;
-  uploadUrl: string;
-}

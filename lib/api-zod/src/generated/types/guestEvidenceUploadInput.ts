@@ -5,10 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GuestEvidenceUploadInputEvidenceSlot } from './guestEvidenceUploadInputEvidenceSlot';
 import type { GuestEvidenceUploadInputEvidenceType } from './guestEvidenceUploadInputEvidenceType';
 
 export interface GuestEvidenceUploadInput {
   evidenceType: GuestEvidenceUploadInputEvidenceType;
+  evidenceSlot?: GuestEvidenceUploadInputEvidenceSlot;
   /**
      * @minLength 1
      * @maxLength 160

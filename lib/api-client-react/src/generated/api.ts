@@ -40,6 +40,9 @@ import type {
   EnrollmentApplication,
   EnrollmentCategory,
   ExistingApplicationSubmissionInput,
+  GuestApplicantEvidenceUploadInput,
+  GuestApplicantEvidenceUploaded,
+  GuestApplicationAccessInput,
   GuestEvidenceUploadInput,
   GuestEvidenceUploadUrl,
   GuestPreapplicationCreated,
@@ -74,6 +77,7 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
+
 const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
   const result = { queryKey } as T & { queryKey: K };
   for (const key of Object.keys(query)) {
@@ -90,6 +94,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 export const getHealthCheckUrl = () => {
+
+
 
 
   return `/api/healthz`
@@ -111,6 +117,9 @@ export const healthCheck = async ( options?: Parameters<typeof customFetch>[1]):
 );}
 
 
+
+
+
 export const getHealthCheckQueryKey = () => {
     return [
     `/api/healthz`
@@ -126,7 +135,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getHealthCheckQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof healthCheck>>> = ({ signal }) => healthCheck({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData> & { queryKey: QueryKey }
@@ -153,7 +166,14 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 }
 
 
+
+
+
+
+
 export const getListEnrollmentCategoriesUrl = () => {
+
+
 
 
   return `/api/enrollment/categories`
@@ -174,6 +194,9 @@ export const listEnrollmentCategories = async ( options?: Parameters<typeof cust
 );}
 
 
+
+
+
 export const getListEnrollmentCategoriesQueryKey = () => {
     return [
     `/api/enrollment/categories`
@@ -189,7 +212,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListEnrollmentCategoriesQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listEnrollmentCategories>>> = ({ signal }) => listEnrollmentCategories({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEnrollmentCategories>>, TError, TData> & { queryKey: QueryKey }
@@ -216,7 +243,14 @@ export function useListEnrollmentCategories<TData = Awaited<ReturnType<typeof li
 }
 
 
+
+
+
+
+
 export const getListMyApplicationsUrl = () => {
+
+
 
 
   return `/api/me/applications`
@@ -237,6 +271,9 @@ export const listMyApplications = async ( options?: Parameters<typeof customFetc
 );}
 
 
+
+
+
 export const getListMyApplicationsQueryKey = () => {
     return [
     `/api/me/applications`
@@ -252,7 +289,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListMyApplicationsQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApplications>>> = ({ signal }) => listMyApplications({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyApplications>>, TError, TData> & { queryKey: QueryKey }
@@ -279,7 +320,14 @@ export function useListMyApplications<TData = Awaited<ReturnType<typeof listMyAp
 }
 
 
+
+
+
+
+
 export const getDeleteMyDraftsUrl = () => {
+
+
 
 
   return `/api/me/drafts`
@@ -300,6 +348,9 @@ export const deleteMyDrafts = async ( options?: Parameters<typeof customFetch>[1
 );}
 
 
+
+
+
 export const getDeleteMyDraftsMutationKey = () => ['deleteMyDrafts'] as const;
 
 export const getDeleteMyDraftsMutationOptions = <TError = ErrorType<unknown>,
@@ -314,11 +365,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyDrafts>>, void> = () => {
 
 
           return  deleteMyDrafts(requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -343,6 +400,8 @@ export const useDeleteMyDrafts = <TError = ErrorType<unknown>,
     }
 
 export const getSubmitNewApplicationUrl = () => {
+
+
 
 
   return `/api/applications/submit`
@@ -377,6 +436,9 @@ return customFetch<EnrollmentApplication>(getSubmitNewApplicationUrl(),
 );}
 
 
+
+
+
 export const getSubmitNewApplicationMutationKey = () => ['submitNewApplication'] as const;
 
 export const getSubmitNewApplicationMutationOptions = <TError = ErrorType<unknown>,
@@ -391,11 +453,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitNewApplication>>, SubmitNewApplicationMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  submitNewApplication(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -420,6 +488,8 @@ export const useSubmitNewApplication = <TError = ErrorType<unknown>,
     }
 
 export const getCreateApplicationDraftUrl = () => {
+
+
 
 
   return `/api/applications/drafts`
@@ -454,6 +524,9 @@ return customFetch<EnrollmentApplication>(getCreateApplicationDraftUrl(),
 );}
 
 
+
+
+
 export const getCreateApplicationDraftMutationKey = () => ['createApplicationDraft'] as const;
 
 export const getCreateApplicationDraftMutationOptions = <TError = ErrorType<unknown>,
@@ -468,11 +541,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createApplicationDraft>>, CreateApplicationDraftMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  createApplicationDraft(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -499,6 +578,8 @@ export const useCreateApplicationDraft = <TError = ErrorType<unknown>,
 export const getGetApplicationUrl = (applicationId: string,) => {
 
 
+
+
   return `/api/applications/${applicationId}`
 }
 
@@ -517,6 +598,9 @@ export const getApplication = async (applicationId: string, options?: Parameters
 );}
 
 
+
+
+
 export const getGetApplicationQueryKey = (applicationId: string,) => {
     return [
     `/api/applications/${applicationId}`
@@ -532,7 +616,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getGetApplicationQueryKey(applicationId);
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplication>>> = ({ signal }) => getApplication(applicationId, { signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApplication>>, TError, TData> & { queryKey: QueryKey }
@@ -559,7 +647,14 @@ export function useGetApplication<TData = Awaited<ReturnType<typeof getApplicati
 }
 
 
+
+
+
+
+
 export const getUpdateApplicationUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/applications/${applicationId}`
@@ -595,6 +690,9 @@ return customFetch<EnrollmentApplication>(getUpdateApplicationUrl(applicationId)
 );}
 
 
+
+
+
 export const getUpdateApplicationMutationKey = () => ['updateApplication'] as const;
 
 export const getUpdateApplicationMutationOptions = <TError = ErrorType<unknown>,
@@ -609,11 +707,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateApplication>>, UpdateApplicationMutationVariables> = (props) => {
           const {applicationId,data} = props ?? {};
 
           return  updateApplication(applicationId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -638,6 +742,8 @@ export const useUpdateApplication = <TError = ErrorType<unknown>,
     }
 
 export const getSubmitApplicationUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/applications/${applicationId}/submit`
@@ -673,6 +779,9 @@ return customFetch<EnrollmentApplication>(getSubmitApplicationUrl(applicationId)
 );}
 
 
+
+
+
 export const getSubmitApplicationMutationKey = () => ['submitApplication'] as const;
 
 export const getSubmitApplicationMutationOptions = <TError = ErrorType<unknown>,
@@ -687,11 +796,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitApplication>>, SubmitApplicationMutationVariables> = (props) => {
           const {applicationId,data} = props ?? {};
 
           return  submitApplication(applicationId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -718,6 +833,8 @@ export const useSubmitApplication = <TError = ErrorType<unknown>,
 export const getGetApplicantSummaryUrl = () => {
 
 
+
+
   return `/api/dashboard/summary`
 }
 
@@ -736,6 +853,9 @@ export const getApplicantSummary = async ( options?: Parameters<typeof customFet
 );}
 
 
+
+
+
 export const getGetApplicantSummaryQueryKey = () => {
     return [
     `/api/dashboard/summary`
@@ -751,7 +871,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getGetApplicantSummaryQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplicantSummary>>> = ({ signal }) => getApplicantSummary({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApplicantSummary>>, TError, TData> & { queryKey: QueryKey }
@@ -778,7 +902,14 @@ export function useGetApplicantSummary<TData = Awaited<ReturnType<typeof getAppl
 }
 
 
+
+
+
+
+
 export const getCreateGuestPreapplicationUrl = () => {
+
+
 
 
   return `/api/guest/preapplications`
@@ -813,6 +944,9 @@ return customFetch<GuestPreapplicationCreated>(getCreateGuestPreapplicationUrl()
 );}
 
 
+
+
+
 export const getCreateGuestPreapplicationMutationKey = () => ['createGuestPreapplication'] as const;
 
 export const getCreateGuestPreapplicationMutationOptions = <TError = ErrorType<unknown>,
@@ -827,11 +961,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuestPreapplication>>, CreateGuestPreapplicationMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  createGuestPreapplication(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -856,6 +996,8 @@ export const useCreateGuestPreapplication = <TError = ErrorType<unknown>,
     }
 
 export const getLookupGuestPreapplicationUrl = () => {
+
+
 
 
   return `/api/guest/preapplications/lookup`
@@ -890,6 +1032,9 @@ return customFetch<GuestPreapplicationStatus>(getLookupGuestPreapplicationUrl(),
 );}
 
 
+
+
+
 export const getLookupGuestPreapplicationMutationKey = () => ['lookupGuestPreapplication'] as const;
 
 export const getLookupGuestPreapplicationMutationOptions = <TError = ErrorType<void>,
@@ -904,11 +1049,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupGuestPreapplication>>, LookupGuestPreapplicationMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  lookupGuestPreapplication(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -933,6 +1084,8 @@ export const useLookupGuestPreapplication = <TError = ErrorType<void>,
     }
 
 export const getUpdateGuestPreapplicationProgressUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/guest/preapplications/${applicationId}`
@@ -968,6 +1121,9 @@ return customFetch<GuestPreapplicationStatus>(getUpdateGuestPreapplicationProgre
 );}
 
 
+
+
+
 export const getUpdateGuestPreapplicationProgressMutationKey = () => ['updateGuestPreapplicationProgress'] as const;
 
 export const getUpdateGuestPreapplicationProgressMutationOptions = <TError = ErrorType<void>,
@@ -982,11 +1138,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, UpdateGuestPreapplicationProgressMutationVariables> = (props) => {
           const {applicationId,data} = props ?? {};
 
           return  updateGuestPreapplicationProgress(applicationId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1010,7 +1172,278 @@ export const useUpdateGuestPreapplicationProgress = <TError = ErrorType<void>,
       return useMutation(getUpdateGuestPreapplicationProgressMutationOptions(options));
     }
 
+export const getRequestGuestApplicantEvidenceUploadUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/guest/preapplications/${applicationId}/evidence/upload-url`
+}
+
+/**
+ * @summary Prepare a private applicant evidence upload
+ */
+export const requestGuestApplicantEvidenceUpload = async (applicationId: string,
+    guestApplicantEvidenceUploadInput: GuestApplicantEvidenceUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestEvidenceUploadUrl> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestEvidenceUploadUrl>(getRequestGuestApplicantEvidenceUploadUrl(applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestApplicantEvidenceUploadInput)
+  }
+);}
+
+
+
+
+
+export const getRequestGuestApplicantEvidenceUploadMutationKey = () => ['requestGuestApplicantEvidenceUpload'] as const;
+
+export const getRequestGuestApplicantEvidenceUploadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestGuestApplicantEvidenceUpload>>, TError,RequestGuestApplicantEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestGuestApplicantEvidenceUpload>>, TError,RequestGuestApplicantEvidenceUploadMutationVariables, TContext> => {
+
+const mutationKey = getRequestGuestApplicantEvidenceUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestGuestApplicantEvidenceUpload>>, RequestGuestApplicantEvidenceUploadMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  requestGuestApplicantEvidenceUpload(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestGuestApplicantEvidenceUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestGuestApplicantEvidenceUpload>>>
+    export type RequestGuestApplicantEvidenceUploadMutationBody = BodyType<GuestApplicantEvidenceUploadInput>
+    export type RequestGuestApplicantEvidenceUploadMutationError = ErrorType<void>
+    export type RequestGuestApplicantEvidenceUploadMutationVariables = {applicationId: string;data: BodyType<GuestApplicantEvidenceUploadInput>}
+
+    /**
+ * @summary Prepare a private applicant evidence upload
+ */
+export const useRequestGuestApplicantEvidenceUpload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestGuestApplicantEvidenceUpload>>, TError,RequestGuestApplicantEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestGuestApplicantEvidenceUpload>>,
+        TError,
+        RequestGuestApplicantEvidenceUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestGuestApplicantEvidenceUploadMutationOptions(options));
+    }
+
+export const getCompleteGuestApplicantEvidenceUploadUrl = (applicationId: string,
+    evidenceId: string,) => {
+
+
+
+
+  return `/api/guest/preapplications/${applicationId}/evidence/${evidenceId}/complete`
+}
+
+/**
+ * @summary Verify a private evidence upload and attach it to the guest application
+ */
+export const completeGuestApplicantEvidenceUpload = async (applicationId: string,
+    evidenceId: string,
+    guestApplicationAccessInput: GuestApplicationAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestApplicantEvidenceUploaded> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestApplicantEvidenceUploaded>(getCompleteGuestApplicantEvidenceUploadUrl(applicationId,evidenceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestApplicationAccessInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteGuestApplicantEvidenceUploadMutationKey = () => ['completeGuestApplicantEvidenceUpload'] as const;
+
+export const getCompleteGuestApplicantEvidenceUploadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGuestApplicantEvidenceUpload>>, TError,CompleteGuestApplicantEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeGuestApplicantEvidenceUpload>>, TError,CompleteGuestApplicantEvidenceUploadMutationVariables, TContext> => {
+
+const mutationKey = getCompleteGuestApplicantEvidenceUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeGuestApplicantEvidenceUpload>>, CompleteGuestApplicantEvidenceUploadMutationVariables> = (props) => {
+          const {applicationId,evidenceId,data} = props ?? {};
+
+          return  completeGuestApplicantEvidenceUpload(applicationId,evidenceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteGuestApplicantEvidenceUploadMutationResult = NonNullable<Awaited<ReturnType<typeof completeGuestApplicantEvidenceUpload>>>
+    export type CompleteGuestApplicantEvidenceUploadMutationBody = BodyType<GuestApplicationAccessInput>
+    export type CompleteGuestApplicantEvidenceUploadMutationError = ErrorType<void>
+    export type CompleteGuestApplicantEvidenceUploadMutationVariables = {applicationId: string;evidenceId: string;data: BodyType<GuestApplicationAccessInput>}
+
+    /**
+ * @summary Verify a private evidence upload and attach it to the guest application
+ */
+export const useCompleteGuestApplicantEvidenceUpload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGuestApplicantEvidenceUpload>>, TError,CompleteGuestApplicantEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeGuestApplicantEvidenceUpload>>,
+        TError,
+        CompleteGuestApplicantEvidenceUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCompleteGuestApplicantEvidenceUploadMutationOptions(options));
+    }
+
+export const getSubmitGuestPreapplicationUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/guest/preapplications/${applicationId}/submit`
+}
+
+/**
+ * @summary Verify the signed-in applicant email and submit the saved guest application
+ */
+export const submitGuestPreapplication = async (applicationId: string,
+    guestApplicationAccessInput: GuestApplicationAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<EnrollmentApplication> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EnrollmentApplication>(getSubmitGuestPreapplicationUrl(applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestApplicationAccessInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitGuestPreapplicationMutationKey = () => ['submitGuestPreapplication'] as const;
+
+export const getSubmitGuestPreapplicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGuestPreapplication>>, TError,SubmitGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitGuestPreapplication>>, TError,SubmitGuestPreapplicationMutationVariables, TContext> => {
+
+const mutationKey = getSubmitGuestPreapplicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitGuestPreapplication>>, SubmitGuestPreapplicationMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  submitGuestPreapplication(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitGuestPreapplicationMutationResult = NonNullable<Awaited<ReturnType<typeof submitGuestPreapplication>>>
+    export type SubmitGuestPreapplicationMutationBody = BodyType<GuestApplicationAccessInput>
+    export type SubmitGuestPreapplicationMutationError = ErrorType<void>
+    export type SubmitGuestPreapplicationMutationVariables = {applicationId: string;data: BodyType<GuestApplicationAccessInput>}
+
+    /**
+ * @summary Verify the signed-in applicant email and submit the saved guest application
+ */
+export const useSubmitGuestPreapplication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGuestPreapplication>>, TError,SubmitGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitGuestPreapplication>>,
+        TError,
+        SubmitGuestPreapplicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitGuestPreapplicationMutationOptions(options));
+    }
+
 export const getCheckStaffRegistrationEmailUrl = () => {
+
+
 
 
   return `/api/staff/registration-check`
@@ -1045,6 +1478,9 @@ return customFetch<StaffRegistrationCheckResponse>(getCheckStaffRegistrationEmai
 );}
 
 
+
+
+
 export const getCheckStaffRegistrationEmailMutationKey = () => ['checkStaffRegistrationEmail'] as const;
 
 export const getCheckStaffRegistrationEmailMutationOptions = <TError = ErrorType<void>,
@@ -1059,11 +1495,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkStaffRegistrationEmail>>, CheckStaffRegistrationEmailMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  checkStaffRegistrationEmail(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1090,6 +1532,8 @@ export const useCheckStaffRegistrationEmail = <TError = ErrorType<void>,
 export const getClaimAllowlistedStaffAccessUrl = () => {
 
 
+
+
   return `/api/staff/access-claim`
 }
 
@@ -1108,6 +1552,9 @@ export const claimAllowlistedStaffAccess = async ( options?: Parameters<typeof c
 );}
 
 
+
+
+
 export const getClaimAllowlistedStaffAccessMutationKey = () => ['claimAllowlistedStaffAccess'] as const;
 
 export const getClaimAllowlistedStaffAccessMutationOptions = <TError = ErrorType<void>,
@@ -1122,11 +1569,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, void> = () => {
 
 
           return  claimAllowlistedStaffAccess(requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1153,6 +1606,8 @@ export const useClaimAllowlistedStaffAccess = <TError = ErrorType<void>,
 export const getListAdminGuestPreapplicationsUrl = () => {
 
 
+
+
   return `/api/admin/guest-preapplications`
 }
 
@@ -1171,6 +1626,9 @@ export const listAdminGuestPreapplications = async ( options?: Parameters<typeof
 );}
 
 
+
+
+
 export const getListAdminGuestPreapplicationsQueryKey = () => {
     return [
     `/api/admin/guest-preapplications`
@@ -1186,7 +1644,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListAdminGuestPreapplicationsQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminGuestPreapplications>>> = ({ signal }) => listAdminGuestPreapplications({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminGuestPreapplications>>, TError, TData> & { queryKey: QueryKey }
@@ -1213,7 +1675,14 @@ export function useListAdminGuestPreapplications<TData = Awaited<ReturnType<type
 }
 
 
+
+
+
+
+
 export const getUpdateAdminGuestPreapplicationUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/admin/guest-preapplications/${applicationId}`
@@ -1249,6 +1718,9 @@ return customFetch<AdminGuestPreapplication>(getUpdateAdminGuestPreapplicationUr
 );}
 
 
+
+
+
 export const getUpdateAdminGuestPreapplicationMutationKey = () => ['updateAdminGuestPreapplication'] as const;
 
 export const getUpdateAdminGuestPreapplicationMutationOptions = <TError = ErrorType<unknown>,
@@ -1263,11 +1735,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminGuestPreapplication>>, UpdateAdminGuestPreapplicationMutationVariables> = (props) => {
           const {applicationId,data} = props ?? {};
 
           return  updateAdminGuestPreapplication(applicationId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1294,8 +1772,250 @@ export const useUpdateAdminGuestPreapplication = <TError = ErrorType<unknown>,
 export const getRequestGuestPreapplicationEvidenceUploadUrl = (applicationId: string,) => {
 
 
+
+
   return `/api/admin/guest-preapplications/${applicationId}/evidence/upload-url`
 }
+
+/**
+ * @summary Request a private upload URL for guest application evidence
+ */
+export const requestGuestPreapplicationEvidenceUpload = async (applicationId: string,
+    guestEvidenceUploadInput: GuestEvidenceUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestEvidenceUploadUrl> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestEvidenceUploadUrl>(getRequestGuestPreapplicationEvidenceUploadUrl(applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestEvidenceUploadInput)
+  }
+);}
+
+
+
+
+
+export const getRequestGuestPreapplicationEvidenceUploadMutationKey = () => ['requestGuestPreapplicationEvidenceUpload'] as const;
+
+export const getRequestGuestPreapplicationEvidenceUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, TError,RequestGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, TError,RequestGuestPreapplicationEvidenceUploadMutationVariables, TContext> => {
+
+const mutationKey = getRequestGuestPreapplicationEvidenceUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, RequestGuestPreapplicationEvidenceUploadMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  requestGuestPreapplicationEvidenceUpload(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestGuestPreapplicationEvidenceUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>>
+    export type RequestGuestPreapplicationEvidenceUploadMutationBody = BodyType<GuestEvidenceUploadInput>
+    export type RequestGuestPreapplicationEvidenceUploadMutationError = ErrorType<unknown>
+    export type RequestGuestPreapplicationEvidenceUploadMutationVariables = {applicationId: string;data: BodyType<GuestEvidenceUploadInput>}
+
+    /**
+ * @summary Request a private upload URL for guest application evidence
+ */
+export const useRequestGuestPreapplicationEvidenceUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, TError,RequestGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>,
+        TError,
+        RequestGuestPreapplicationEvidenceUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestGuestPreapplicationEvidenceUploadMutationOptions(options));
+    }
+
+export const getCompleteGuestPreapplicationEvidenceUploadUrl = (applicationId: string,
+    evidenceId: string,) => {
+
+
+
+
+  return `/api/admin/guest-preapplications/${applicationId}/evidence/${evidenceId}/complete`
+}
+
+/**
+ * @summary Verify and record an uploaded guest evidence file
+ */
+export const completeGuestPreapplicationEvidenceUpload = async (applicationId: string,
+    evidenceId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminGuestPreapplicationEvidence> => {
+
+  return customFetch<AdminGuestPreapplicationEvidence>(getCompleteGuestPreapplicationEvidenceUploadUrl(applicationId,evidenceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteGuestPreapplicationEvidenceUploadMutationKey = () => ['completeGuestPreapplicationEvidenceUpload'] as const;
+
+export const getCompleteGuestPreapplicationEvidenceUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, TError,CompleteGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, TError,CompleteGuestPreapplicationEvidenceUploadMutationVariables, TContext> => {
+
+const mutationKey = getCompleteGuestPreapplicationEvidenceUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, CompleteGuestPreapplicationEvidenceUploadMutationVariables> = (props) => {
+          const {applicationId,evidenceId} = props ?? {};
+
+          return  completeGuestPreapplicationEvidenceUpload(applicationId,evidenceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteGuestPreapplicationEvidenceUploadMutationResult = NonNullable<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>>
+
+    export type CompleteGuestPreapplicationEvidenceUploadMutationError = ErrorType<unknown>
+    export type CompleteGuestPreapplicationEvidenceUploadMutationVariables = {applicationId: string;evidenceId: string}
+
+    /**
+ * @summary Verify and record an uploaded guest evidence file
+ */
+export const useCompleteGuestPreapplicationEvidenceUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, TError,CompleteGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>,
+        TError,
+        CompleteGuestPreapplicationEvidenceUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCompleteGuestPreapplicationEvidenceUploadMutationOptions(options));
+    }
+
+export const getDownloadGuestPreapplicationEvidenceUrl = (applicationId: string,
+    evidenceId: string,) => {
+
+
+
+
+  return `/api/admin/guest-preapplications/${applicationId}/evidence/${evidenceId}/file`
+}
+
+/**
+ * @summary Download private guest application evidence
+ */
+export const downloadGuestPreapplicationEvidence = async (applicationId: string,
+    evidenceId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadGuestPreapplicationEvidenceUrl(applicationId,evidenceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadGuestPreapplicationEvidenceQueryKey = (applicationId: string,
+    evidenceId: string,) => {
+    return [
+    `/api/admin/guest-preapplications/${applicationId}/evidence/${evidenceId}/file`
+    ] as const;
+    }
+
+
+export const getDownloadGuestPreapplicationEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError = ErrorType<void>>(applicationId: string,
+    evidenceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadGuestPreapplicationEvidenceQueryKey(applicationId,evidenceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>> = ({ signal }) => downloadGuestPreapplicationEvidence(applicationId,evidenceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined && evidenceId !== null && evidenceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadGuestPreapplicationEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>>
+export type DownloadGuestPreapplicationEvidenceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download private guest application evidence
+ */
+
+export function useDownloadGuestPreapplicationEvidence<TData = Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError = ErrorType<void>>(
+ applicationId: string,
+    evidenceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadGuestPreapplicationEvidenceQueryOptions(applicationId,evidenceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListApplicationsForReviewUrl = (params?: ListApplicationsForReviewParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1326,6 +2046,9 @@ export const listApplicationsForReview = async (params?: ListApplicationsForRevi
 );}
 
 
+
+
+
 export const getListApplicationsForReviewQueryKey = (params?: ListApplicationsForReviewParams,) => {
     return [
     `/api/admin/applications`, ...(params ? [params] : [])
@@ -1341,7 +2064,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListApplicationsForReviewQueryKey(params);
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listApplicationsForReview>>> = ({ signal }) => listApplicationsForReview(params, { signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApplicationsForReview>>, TError, TData> & { queryKey: QueryKey }
@@ -1368,7 +2095,14 @@ export function useListApplicationsForReview<TData = Awaited<ReturnType<typeof l
 }
 
 
+
+
+
+
+
 export const getGetAdminApplicationUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/admin/applications/${applicationId}`
@@ -1386,6 +2120,9 @@ export const getAdminApplication = async (applicationId: string, options?: Param
 );}
 
 
+
+
+
 export const getGetAdminApplicationQueryKey = (applicationId: string,) => {
     return [
     `/api/admin/applications/${applicationId}`
@@ -1401,7 +2138,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getGetAdminApplicationQueryKey(applicationId);
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminApplication>>> = ({ signal }) => getAdminApplication(applicationId, { signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminApplication>>, TError, TData> & { queryKey: QueryKey }
@@ -1409,6 +2150,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 export type GetAdminApplicationQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminApplication>>>
 export type GetAdminApplicationQueryError = ErrorType<unknown>
+
 
 
 export function useGetAdminApplication<TData = Awaited<ReturnType<typeof getAdminApplication>>, TError = ErrorType<unknown>>(
@@ -1424,7 +2166,14 @@ export function useGetAdminApplication<TData = Awaited<ReturnType<typeof getAdmi
 }
 
 
+
+
+
+
+
 export const getGetAdminOverviewUrl = () => {
+
+
 
 
   return `/api/admin/overview`
@@ -1445,6 +2194,9 @@ export const getAdminOverview = async ( options?: Parameters<typeof customFetch>
 );}
 
 
+
+
+
 export const getGetAdminOverviewQueryKey = () => {
     return [
     `/api/admin/overview`
@@ -1460,7 +2212,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getGetAdminOverviewQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminOverview>>> = ({ signal }) => getAdminOverview({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData> & { queryKey: QueryKey }
@@ -1485,6 +2241,11 @@ export function useGetAdminOverview<TData = Awaited<ReturnType<typeof getAdminOv
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
 
 
 export const getListAdminUsersUrl = (params?: ListAdminUsersParams,) => {
@@ -1517,6 +2278,9 @@ export const listAdminUsers = async (params?: ListAdminUsersParams, options?: Pa
 );}
 
 
+
+
+
 export const getListAdminUsersQueryKey = (params?: ListAdminUsersParams,) => {
     return [
     `/api/admin/users`, ...(params ? [params] : [])
@@ -1532,7 +2296,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListAdminUsersQueryKey(params);
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminUsers>>> = ({ signal }) => listAdminUsers(params, { signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData> & { queryKey: QueryKey }
@@ -1559,7 +2327,14 @@ export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUse
 }
 
 
+
+
+
+
+
 export const getCreateAdminUserInvitationUrl = () => {
+
+
 
 
   return `/api/admin/users/invitations`
@@ -1594,6 +2369,9 @@ return customFetch<AdminUserInvitationResponse>(getCreateAdminUserInvitationUrl(
 );}
 
 
+
+
+
 export const getCreateAdminUserInvitationMutationKey = () => ['createAdminUserInvitation'] as const;
 
 export const getCreateAdminUserInvitationMutationOptions = <TError = ErrorType<void>,
@@ -1608,11 +2386,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminUserInvitation>>, CreateAdminUserInvitationMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  createAdminUserInvitation(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1637,6 +2421,8 @@ export const useCreateAdminUserInvitation = <TError = ErrorType<void>,
     }
 
 export const getUpdateAdminUserStatusUrl = (userId: string,) => {
+
+
 
 
   return `/api/admin/users/${userId}/status`
@@ -1669,6 +2455,9 @@ return customFetch<AdminUser>(getUpdateAdminUserStatusUrl(userId),
 );}
 
 
+
+
+
 export const getUpdateAdminUserStatusMutationKey = () => ['updateAdminUserStatus'] as const;
 
 export const getUpdateAdminUserStatusMutationOptions = <TError = ErrorType<unknown>,
@@ -1683,11 +2472,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminUserStatus>>, UpdateAdminUserStatusMutationVariables> = (props) => {
           const {userId,data} = props ?? {};
 
           return  updateAdminUserStatus(userId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1709,6 +2504,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     }
 
 export const getUpdateAdminUserRoleUrl = (userId: string,) => {
+
+
 
 
   return `/api/admin/users/${userId}/role`
@@ -1741,6 +2538,9 @@ return customFetch<AdminUser>(getUpdateAdminUserRoleUrl(userId),
 );}
 
 
+
+
+
 export const getUpdateAdminUserRoleMutationKey = () => ['updateAdminUserRole'] as const;
 
 export const getUpdateAdminUserRoleMutationOptions = <TError = ErrorType<unknown>,
@@ -1755,11 +2555,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminUserRole>>, UpdateAdminUserRoleMutationVariables> = (props) => {
           const {userId,data} = props ?? {};
 
           return  updateAdminUserRole(userId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1783,6 +2589,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 export const getGetPortalSettingsUrl = () => {
 
 
+
+
   return `/api/portal/settings`
 }
 
@@ -1801,6 +2609,9 @@ export const getPortalSettings = async ( options?: Parameters<typeof customFetch
 );}
 
 
+
+
+
 export const getGetPortalSettingsQueryKey = () => {
     return [
     `/api/portal/settings`
@@ -1816,7 +2627,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getGetPortalSettingsQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalSettings>>> = ({ signal }) => getPortalSettings({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalSettings>>, TError, TData> & { queryKey: QueryKey }
@@ -1843,7 +2658,14 @@ export function useGetPortalSettings<TData = Awaited<ReturnType<typeof getPortal
 }
 
 
+
+
+
+
+
 export const getUpdatePortalSettingsUrl = () => {
+
+
 
 
   return `/api/admin/settings`
@@ -1875,6 +2697,9 @@ return customFetch<PortalSettings>(getUpdatePortalSettingsUrl(),
 );}
 
 
+
+
+
 export const getUpdatePortalSettingsMutationKey = () => ['updatePortalSettings'] as const;
 
 export const getUpdatePortalSettingsMutationOptions = <TError = ErrorType<unknown>,
@@ -1889,11 +2714,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePortalSettings>>, UpdatePortalSettingsMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  updatePortalSettings(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -1917,6 +2748,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 export const getGetAdminApplicationHistoryUrl = (applicationId: string,) => {
 
 
+
+
   return `/api/admin/applications/${applicationId}/history`
 }
 
@@ -1930,6 +2763,9 @@ export const getAdminApplicationHistory = async (applicationId: string, options?
 
   }
 );}
+
+
+
 
 
 export const getGetAdminApplicationHistoryQueryKey = (applicationId: string,) => {
@@ -1947,7 +2783,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getGetAdminApplicationHistoryQueryKey(applicationId);
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminApplicationHistory>>> = ({ signal }) => getAdminApplicationHistory(applicationId, { signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationHistory>>, TError, TData> & { queryKey: QueryKey }
@@ -1955,6 +2795,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 export type GetAdminApplicationHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminApplicationHistory>>>
 export type GetAdminApplicationHistoryQueryError = ErrorType<unknown>
+
 
 
 export function useGetAdminApplicationHistory<TData = Awaited<ReturnType<typeof getAdminApplicationHistory>>, TError = ErrorType<unknown>>(
@@ -1970,7 +2811,14 @@ export function useGetAdminApplicationHistory<TData = Awaited<ReturnType<typeof 
 }
 
 
+
+
+
+
+
 export const getAddAdminApplicationNoteUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/admin/applications/${applicationId}/notes`
@@ -2003,6 +2851,9 @@ return customFetch<ApplicationEvent>(getAddAdminApplicationNoteUrl(applicationId
 );}
 
 
+
+
+
 export const getAddAdminApplicationNoteMutationKey = () => ['addAdminApplicationNote'] as const;
 
 export const getAddAdminApplicationNoteMutationOptions = <TError = ErrorType<unknown>,
@@ -2017,11 +2868,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof addAdminApplicationNote>>, AddAdminApplicationNoteMutationVariables> = (props) => {
           const {applicationId,data} = props ?? {};
 
           return  addAdminApplicationNote(applicationId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2043,6 +2900,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     }
 
 export const getDecideApplicationUrl = (applicationId: string,) => {
+
+
 
 
   return `/api/admin/applications/${applicationId}/decision`
@@ -2078,6 +2937,9 @@ return customFetch<EnrollmentApplication>(getDecideApplicationUrl(applicationId)
 );}
 
 
+
+
+
 export const getDecideApplicationMutationKey = () => ['decideApplication'] as const;
 
 export const getDecideApplicationMutationOptions = <TError = ErrorType<unknown>,
@@ -2092,11 +2954,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideApplication>>, DecideApplicationMutationVariables> = (props) => {
           const {applicationId,data} = props ?? {};
 
           return  decideApplication(applicationId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2123,6 +2991,8 @@ export const useDecideApplication = <TError = ErrorType<unknown>,
 export const getListMySupportTicketsUrl = () => {
 
 
+
+
   return `/api/support/tickets`
 }
 
@@ -2141,6 +3011,9 @@ export const listMySupportTickets = async ( options?: Parameters<typeof customFe
 );}
 
 
+
+
+
 export const getListMySupportTicketsQueryKey = () => {
     return [
     `/api/support/tickets`
@@ -2156,7 +3029,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListMySupportTicketsQueryKey();
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listMySupportTickets>>> = ({ signal }) => listMySupportTickets({ signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMySupportTickets>>, TError, TData> & { queryKey: QueryKey }
@@ -2183,7 +3060,14 @@ export function useListMySupportTickets<TData = Awaited<ReturnType<typeof listMy
 }
 
 
+
+
+
+
+
 export const getCreateSupportTicketUrl = () => {
+
+
 
 
   return `/api/support/tickets`
@@ -2218,6 +3102,9 @@ return customFetch<SupportTicket>(getCreateSupportTicketUrl(),
 );}
 
 
+
+
+
 export const getCreateSupportTicketMutationKey = () => ['createSupportTicket'] as const;
 
 export const getCreateSupportTicketMutationOptions = <TError = ErrorType<unknown>,
@@ -2232,11 +3119,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupportTicket>>, CreateSupportTicketMutationVariables> = (props) => {
           const {data} = props ?? {};
 
           return  createSupportTicket(data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2261,6 +3154,8 @@ export const useCreateSupportTicket = <TError = ErrorType<unknown>,
     }
 
 export const getAddApplicantSupportMessageUrl = (ticketId: string,) => {
+
+
 
 
   return `/api/support/tickets/${ticketId}/messages`
@@ -2293,6 +3188,9 @@ return customFetch<SupportTicket>(getAddApplicantSupportMessageUrl(ticketId),
 );}
 
 
+
+
+
 export const getAddApplicantSupportMessageMutationKey = () => ['addApplicantSupportMessage'] as const;
 
 export const getAddApplicantSupportMessageMutationOptions = <TError = ErrorType<unknown>,
@@ -2307,11 +3205,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof addApplicantSupportMessage>>, AddApplicantSupportMessageMutationVariables> = (props) => {
           const {ticketId,data} = props ?? {};
 
           return  addApplicantSupportMessage(ticketId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2362,6 +3266,9 @@ export const listSupportTicketsForAdmin = async (params?: ListSupportTicketsForA
 );}
 
 
+
+
+
 export const getListSupportTicketsForAdminQueryKey = (params?: ListSupportTicketsForAdminParams,) => {
     return [
     `/api/admin/support/tickets`, ...(params ? [params] : [])
@@ -2377,7 +3284,11 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
   const queryKey =  queryOptions?.queryKey ?? getListSupportTicketsForAdminQueryKey(params);
 
 
+
     const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupportTicketsForAdmin>>> = ({ signal }) => listSupportTicketsForAdmin(params, { signal, ...requestOptions });
+
+
+
 
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupportTicketsForAdmin>>, TError, TData> & { queryKey: QueryKey }
@@ -2404,7 +3315,14 @@ export function useListSupportTicketsForAdmin<TData = Awaited<ReturnType<typeof 
 }
 
 
+
+
+
+
+
 export const getReplyToSupportTicketUrl = (ticketId: string,) => {
+
+
 
 
   return `/api/admin/support/tickets/${ticketId}/reply`
@@ -2440,6 +3358,9 @@ return customFetch<SupportTicket>(getReplyToSupportTicketUrl(ticketId),
 );}
 
 
+
+
+
 export const getReplyToSupportTicketMutationKey = () => ['replyToSupportTicket'] as const;
 
 export const getReplyToSupportTicketMutationOptions = <TError = ErrorType<unknown>,
@@ -2454,11 +3375,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof replyToSupportTicket>>, ReplyToSupportTicketMutationVariables> = (props) => {
           const {ticketId,data} = props ?? {};
 
           return  replyToSupportTicket(ticketId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2483,6 +3410,8 @@ export const useReplyToSupportTicket = <TError = ErrorType<unknown>,
     }
 
 export const getAssignSupportTicketUrl = (ticketId: string,) => {
+
+
 
 
   return `/api/admin/support/tickets/${ticketId}/assignment`
@@ -2515,6 +3444,9 @@ return customFetch<SupportTicket>(getAssignSupportTicketUrl(ticketId),
 );}
 
 
+
+
+
 export const getAssignSupportTicketMutationKey = () => ['assignSupportTicket'] as const;
 
 export const getAssignSupportTicketMutationOptions = <TError = ErrorType<unknown>,
@@ -2529,11 +3461,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {mutation: { mutationKey, }, request: undefined};
 
 
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignSupportTicket>>, AssignSupportTicketMutationVariables> = (props) => {
           const {ticketId,data} = props ?? {};
 
           return  assignSupportTicket(ticketId,data,requestOptions)
         }
+
+
+
+
 
 
   return  { mutationFn, ...mutationOptions }}
@@ -2554,207 +3492,3 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getAssignSupportTicketMutationOptions(options));
     }
 
-
-/**
- * @summary Download private guest application evidence
- */
-
-export function useDownloadGuestPreapplicationEvidence<TData = Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError = ErrorType<void>>(
- applicationId: string,
-    evidenceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getDownloadGuestPreapplicationEvidenceQueryOptions(applicationId,evidenceId,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-    export type CompleteGuestPreapplicationEvidenceUploadMutationResult = NonNullable<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>>
-
-export const getDownloadGuestPreapplicationEvidenceUrl = (applicationId: string,
-    evidenceId: string,) => {
-
-
-  return `/api/admin/guest-preapplications/${applicationId}/evidence/${evidenceId}/file`
-}
-
-/**
- * @summary Download private guest application evidence
- */
-export const downloadGuestPreapplicationEvidence = async (applicationId: string,
-    evidenceId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
-
-  return customFetch<Blob>(getDownloadGuestPreapplicationEvidenceUrl(applicationId,evidenceId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-export const getDownloadGuestPreapplicationEvidenceQueryKey = (applicationId: string,
-    evidenceId: string,) => {
-    return [
-    `/api/admin/guest-preapplications/${applicationId}/evidence/${evidenceId}/file`
-    ] as const;
-    }
-
-export const getCompleteGuestPreapplicationEvidenceUploadMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, TError,CompleteGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, TError,CompleteGuestPreapplicationEvidenceUploadMutationVariables, TContext> => {
-
-const mutationKey = getCompleteGuestPreapplicationEvidenceUploadMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, CompleteGuestPreapplicationEvidenceUploadMutationVariables> = (props) => {
-          const {applicationId,evidenceId} = props ?? {};
-
-          return  completeGuestPreapplicationEvidenceUpload(applicationId,evidenceId,requestOptions)
-        }
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CompleteGuestPreapplicationEvidenceUploadMutationVariables = {applicationId: string;evidenceId: string}
-
-/**
- * @summary Verify and record an uploaded guest evidence file
- */
-export const completeGuestPreapplicationEvidenceUpload = async (applicationId: string,
-    evidenceId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminGuestPreapplicationEvidence> => {
-
-  return customFetch<AdminGuestPreapplicationEvidence>(getCompleteGuestPreapplicationEvidenceUploadUrl(applicationId,evidenceId),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-    export type RequestGuestPreapplicationEvidenceUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>>
-
-    /**
- * @summary Request a private upload URL for guest application evidence
- */
-export const useRequestGuestPreapplicationEvidenceUpload = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, TError,RequestGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>,
-        TError,
-        RequestGuestPreapplicationEvidenceUploadMutationVariables,
-        TContext
-      > => {
-      return useMutation(getRequestGuestPreapplicationEvidenceUploadMutationOptions(options));
-    }
-
-    export type CompleteGuestPreapplicationEvidenceUploadMutationError = ErrorType<unknown>
-
-/**
- * @summary Request a private upload URL for guest application evidence
- */
-export const requestGuestPreapplicationEvidenceUpload = async (applicationId: string,
-    guestEvidenceUploadInput: GuestEvidenceUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestEvidenceUploadUrl> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return customFetch<GuestEvidenceUploadUrl>(getRequestGuestPreapplicationEvidenceUploadUrl(applicationId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(guestEvidenceUploadInput)
-  }
-);}
-
-    /**
- * @summary Verify and record an uploaded guest evidence file
- */
-export const useCompleteGuestPreapplicationEvidenceUpload = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>, TError,CompleteGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof completeGuestPreapplicationEvidenceUpload>>,
-        TError,
-        CompleteGuestPreapplicationEvidenceUploadMutationVariables,
-        TContext
-      > => {
-      return useMutation(getCompleteGuestPreapplicationEvidenceUploadMutationOptions(options));
-    }
-
-export const getRequestGuestPreapplicationEvidenceUploadMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, TError,RequestGuestPreapplicationEvidenceUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, TError,RequestGuestPreapplicationEvidenceUploadMutationVariables, TContext> => {
-
-const mutationKey = getRequestGuestPreapplicationEvidenceUploadMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestGuestPreapplicationEvidenceUpload>>, RequestGuestPreapplicationEvidenceUploadMutationVariables> = (props) => {
-          const {applicationId,data} = props ?? {};
-
-          return  requestGuestPreapplicationEvidenceUpload(applicationId,data,requestOptions)
-        }
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RequestGuestPreapplicationEvidenceUploadMutationError = ErrorType<unknown>
-
-export const getRequestGuestPreapplicationEvidenceUploadMutationKey = () => ['requestGuestPreapplicationEvidenceUpload'] as const;
-
-export const getDownloadGuestPreapplicationEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError = ErrorType<void>>(applicationId: string,
-    evidenceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getDownloadGuestPreapplicationEvidenceQueryKey(applicationId,evidenceId);
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>> = ({ signal }) => downloadGuestPreapplicationEvidence(applicationId,evidenceId, { signal, ...requestOptions });
-
-
-   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined && evidenceId !== null && evidenceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type DownloadGuestPreapplicationEvidenceQueryError = ErrorType<void>
-
-    export type RequestGuestPreapplicationEvidenceUploadMutationBody = BodyType<GuestEvidenceUploadInput>
-
-    export type RequestGuestPreapplicationEvidenceUploadMutationVariables = {applicationId: string;data: BodyType<GuestEvidenceUploadInput>}
-
-export const getCompleteGuestPreapplicationEvidenceUploadMutationKey = () => ['completeGuestPreapplicationEvidenceUpload'] as const;
-
-export const getCompleteGuestPreapplicationEvidenceUploadUrl = (applicationId: string,
-    evidenceId: string,) => {
-
-
-  return `/api/admin/guest-preapplications/${applicationId}/evidence/${evidenceId}/complete`
-}
-
-export type DownloadGuestPreapplicationEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadGuestPreapplicationEvidence>>>

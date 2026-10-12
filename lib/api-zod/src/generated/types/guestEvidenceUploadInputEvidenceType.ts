@@ -12,4 +12,5 @@ export type GuestEvidenceUploadInputEvidenceType = typeof GuestEvidenceUploadInp
 export const GuestEvidenceUploadInputEvidenceType = {
   identity_document: 'identity_document',
   verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
 } as const;

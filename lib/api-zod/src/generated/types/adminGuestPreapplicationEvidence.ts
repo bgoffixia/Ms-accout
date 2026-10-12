@@ -5,11 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminGuestPreapplicationEvidenceEvidenceSlot } from './adminGuestPreapplicationEvidenceEvidenceSlot';
 import type { AdminGuestPreapplicationEvidenceEvidenceType } from './adminGuestPreapplicationEvidenceEvidenceType';
 
 export interface AdminGuestPreapplicationEvidence {
   id: string;
   evidenceType: AdminGuestPreapplicationEvidenceEvidenceType;
+  evidenceSlot: AdminGuestPreapplicationEvidenceEvidenceSlot;
   fileName: string;
   contentType: string;
   sizeBytes: number;

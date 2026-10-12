@@ -20,6 +20,8 @@ import {
   useAddAdminApplicationNote, useAddApplicantSupportMessage, useAssignSupportTicket,
   useCreateGuestPreapplication, useLookupGuestPreapplication, useListAdminGuestPreapplications,
   useUpdateGuestPreapplicationProgress,
+  useRequestGuestApplicantEvidenceUpload, useCompleteGuestApplicantEvidenceUpload,
+  useSubmitGuestPreapplication,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminOverview,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
@@ -265,14 +267,22 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
   const directStaffRegistration = mode === 'staff' && !!allowlistedEmail;
   const staffSignInRegistration = mode === 'in' && new URLSearchParams(window.location.search).get('staffRegistration') === '1';
   const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration;
+  const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
+  const guestAuthContext = guestSubmissionIntent ? readGuestAuthContext() : null;
   const completionUrl = staffRegistrationIntent
     ? `${basePath}/auth/complete?staffRegistration=1`
-    : `${basePath}/auth/complete`;
+    : guestSubmissionIntent
+      ? `${basePath}/auth/complete?guestApplication=1`
+      : `${basePath}/auth/complete`;
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      setLocation(staffRegistrationIntent ? '/auth/complete?staffRegistration=1' : '/auth/complete', { replace: true });
+      setLocation(staffRegistrationIntent
+        ? '/auth/complete?staffRegistration=1'
+        : guestSubmissionIntent
+          ? '/auth/complete?guestApplication=1'
+          : '/auth/complete', { replace: true });
     }
-  }, [isLoaded, isSignedIn, staffRegistrationIntent, setLocation]);
+  }, [isLoaded, isSignedIn, staffRegistrationIntent, guestSubmissionIntent, setLocation]);
   if (isLoaded && isSignedIn) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your secure workspace" /></main>;
   return <main className="auth-page portal-frame">
     <div className="auth-brand"><PortalWordmark /><span>SECURE ACCESS</span></div>
@@ -281,8 +291,8 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
         <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={staffSignInRegistration ? `${basePath}/staff/sign-up` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
-          <SignUp routing="path" path={`${basePath}${mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}/sign-in?staffRegistration=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
+        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} initialValues={guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} /> :
+          <SignUp routing="path" path={`${basePath}${mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}/sign-in?staffRegistration=1` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} />}
       </div>
     </div>
   </main>;
@@ -351,16 +361,44 @@ function AllowlistedStaffSignUp() {
 function AuthComplete() {
   const { isLoaded, isSignedIn } = useAuth();
   const { isLoaded: userLoaded, user } = useUser();
+  const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const claimStaffAccess = useClaimAllowlistedStaffAccess();
+  const submitGuest = useSubmitGuestPreapplication();
   const claimStarted = useRef(false);
   const [claimError, setClaimError] = useState('');
   const isStaffRegistration = new URLSearchParams(window.location.search).get('staffRegistration') === '1';
+  const isGuestSubmission = new URLSearchParams(window.location.search).get('guestApplication') === '1';
 
   useEffect(() => {
     if (!isLoaded || !userLoaded) return;
     if (!isSignedIn) {
-      setLocation('/sign-in', { replace: true });
+      setLocation(isGuestSubmission ? '/sign-in?guestApplication=1' : '/sign-in', { replace: true });
+      return;
+    }
+    if (isGuestSubmission) {
+      if (claimStarted.current) return;
+      const guestContext = readGuestAuthContext();
+      if (!guestContext) {
+        setClaimError('The saved guest application context is unavailable. Your draft can still be restored with its reference and private key.');
+        return;
+      }
+      claimStarted.current = true;
+      submitGuest.mutate({
+        applicationId: guestContext.applicationId,
+        data: { reference: guestContext.reference, accessKey: guestContext.accessKey },
+      }, {
+        onSuccess: (application) => {
+          try {
+            window.sessionStorage.removeItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY);
+            window.sessionStorage.removeItem(GUEST_APPLICATION_RESUME_KEY);
+          } catch {
+            // Keep the submitted record visible even if session cleanup fails.
+          }
+          setLocation(`/applications/${application.id}`, { replace: true });
+        },
+        onError: () => setClaimError('Email verification or submission could not be completed. Your saved draft and evidence remain available to the authorized reviewer.'),
+      });
       return;
     }
     if (isStaffRegistration) {
@@ -373,17 +411,22 @@ function AuthComplete() {
       return;
     }
     setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard', { replace: true });
-  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, claimStaffAccess.mutate]);
+  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isGuestSubmission, claimStaffAccess.mutate, submitGuest.mutate]);
 
-  if (claimError) return <main className="signedout-page portal-frame" data-testid="staff-claim-error">
+  if (claimError) return <main className="signedout-page portal-frame" data-testid={isGuestSubmission ? 'guest-submit-error' : 'staff-claim-error'}>
     <PortalWordmark />
     <div className="signedout-card">
       <span className="state-icon"><LockKeyhole size={21} /></span>
-      <div className="eyebrow">STAFF ACCESS CHECK</div>
-      <h1>Staff access wasn’t activated.</h1>
-      <p>{claimError} You can continue with a regular applicant account or retry the verification.</p>
-      <Link href="/dashboard" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>
-      <button className="text-action" type="button" onClick={() => window.location.reload()}>Retry verification</button>
+      <div className="eyebrow">{isGuestSubmission ? 'APPLICATION SUBMISSION' : 'STAFF ACCESS CHECK'}</div>
+      <h1>{isGuestSubmission ? 'Your application is still saved.' : 'Staff access wasn’t activated.'}</h1>
+      <p>{claimError}</p>
+      {isGuestSubmission
+        ? <>
+          <Link href="/guest/apply?resume=1" className="button button-primary">Return to saved application <ArrowRight size={15} /></Link>
+          <button className="text-action" type="button" onClick={() => void signOut({ redirectUrl: `${basePath}/sign-in?guestApplication=1` })}>Switch account</button>
+        </>
+        : <Link href="/dashboard" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>}
+      <button className="text-action" type="button" onClick={() => window.location.reload()}>Retry</button>
     </div>
   </main>;
 
@@ -1913,6 +1956,37 @@ type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
 const guestDashboardStartSchema = guestApplicationSchema;
 const GUEST_DASHBOARD_CONTACT_KEY = 'guest-dashboard-contact';
 const GUEST_DASHBOARD_START_KEY = 'guest-dashboard-start';
+const GUEST_APPLICATION_RESUME_KEY = 'guest-application-resume';
+const GUEST_APPLICATION_AUTH_CONTEXT_KEY = 'guest-application-auth-context';
+const guestAuthContextSchema = z.object({
+  applicationId: z.string().uuid(),
+  reference: z.string().min(8).max(32),
+  accessKey: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  email: z.string().email(),
+});
+
+function readGuestAuthContext() {
+  try {
+    const stored = window.sessionStorage.getItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY);
+    if (!stored) return null;
+    const context = guestAuthContextSchema.safeParse(JSON.parse(stored));
+    return context.success ? context.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveGuestResume(reference: string, accessKey: string) {
+  window.sessionStorage.setItem(GUEST_APPLICATION_RESUME_KEY, JSON.stringify({ reference, accessKey }));
+}
+
+function saveGuestAuthContext(context: z.infer<typeof guestAuthContextSchema>) {
+  window.sessionStorage.setItem(GUEST_APPLICATION_RESUME_KEY, JSON.stringify({
+    reference: context.reference,
+    accessKey: context.accessKey,
+  }));
+  window.sessionStorage.setItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY, JSON.stringify(context));
+}
 
 function readGuestDashboardContact() {
   try {
@@ -2056,6 +2130,10 @@ function GuestApplicationPage() {
   const createGuest = useCreateGuestPreapplication();
   const updateGuest = useUpdateGuestPreapplicationProgress();
   const lookupGuest = useLookupGuestPreapplication();
+  const requestEvidenceUpload = useRequestGuestApplicantEvidenceUpload();
+  const completeEvidenceUpload = useCompleteGuestApplicantEvidenceUpload();
+  const submitGuest = useSubmitGuestPreapplication();
+  const { isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
   const [applicationAnswers, setApplicationAnswers] = useState<Record<string, unknown>>({});
@@ -2110,14 +2188,16 @@ function GuestApplicationPage() {
     }).then((application) => {
       setCreated({ application, accessKey: credentials.accessKey as string });
       setApplicationAnswers(application.answers);
-      setStage(application.status === 'closed'
+      saveGuestResume(application.reference, credentials.accessKey as string);
+      setStage(application.submissionStatus === 'submitted'
+        ? 'complete'
+        : application.status === 'closed'
         ? 'closed'
         : application.detailsComplete
-          ? 'complete'
+          ? 'application'
           : application.answers.categoryEntryComplete === true
             ? 'application'
             : 'categoryEntry');
-      window.sessionStorage.removeItem('guest-application-resume');
     }).catch(() => {
       setResumeError('The reference and private key could not be verified. Return to status lookup and try again.');
     }).finally(() => setResumeLoading(false));
@@ -2147,6 +2227,7 @@ function GuestApplicationPage() {
     answers: Record<string, unknown>,
     currentStep: number,
     complete = false,
+    pin?: string,
   ): Promise<boolean> => {
     if (!created) return false;
     setProgressError('');
@@ -2159,6 +2240,7 @@ function GuestApplicationPage() {
           currentStep,
           answers,
           complete,
+          ...(pin ? { pin } : {}),
         },
       });
       setCreated((current) => current ? {
@@ -2166,13 +2248,16 @@ function GuestApplicationPage() {
         application: {
           ...current.application,
           status: saved.status,
+          submissionStatus: saved.submissionStatus,
+          emailVerified: saved.emailVerified,
+          hasPin: saved.hasPin,
+          linkedApplicationId: saved.linkedApplicationId,
           currentStep: saved.currentStep,
           detailsComplete: saved.detailsComplete,
           updatedAt: saved.updatedAt,
         },
       } : current);
       setApplicationAnswers(saved.answers);
-      if (complete) setStage('complete');
       return true;
     } catch {
       setProgressError('Your progress could not be saved. Check your connection and try again.');
@@ -2243,11 +2328,87 @@ function GuestApplicationPage() {
         // Keep the successful application visible even if browser storage cleanup fails.
       }
       setCreated({ application, accessKey });
+      try {
+        saveGuestResume(application.reference, accessKey);
+      } catch {
+        setProgressError('Your private key could not be saved for this session. Copy it before continuing.');
+      }
       setApplicationAnswers({});
       setStage('key');
       setPendingSubmission(null);
     } catch {
       // Keep the same key and submission ID in memory so a retry is idempotent.
+    }
+  };
+
+  const uploadGuestEvidence = async (
+    file: File,
+    evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
+  ): Promise<{ objectPath: string; fileName: string }> => {
+    if (!created) throw new Error('Your application session could not be restored.');
+    const contentType = file.type.split(';')[0]?.trim().toLowerCase() ?? '';
+    const evidenceType = evidenceSlot === 'verification_video'
+      ? 'verification_video'
+      : evidenceSlot === 'education_certificate'
+        ? 'education_certificate'
+        : 'identity_document';
+    if (!contentType) throw new Error('The selected file type could not be identified. Choose a PDF, JPEG, PNG, WebP, MP4, or WebM file.');
+    const { evidenceId, uploadUrl } = await requestEvidenceUpload.mutateAsync({
+      applicationId: created.application.id,
+      data: {
+        reference: created.application.reference,
+        accessKey: created.accessKey,
+        evidenceType,
+        evidenceSlot,
+        fileName: file.name,
+        contentType,
+        sizeBytes: file.size,
+      },
+    });
+    const put = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: file,
+    });
+    if (!put.ok) throw new Error('The selected file could not be stored securely.');
+    const uploaded = await completeEvidenceUpload.mutateAsync({
+      applicationId: created.application.id,
+      evidenceId,
+      data: { reference: created.application.reference, accessKey: created.accessKey },
+    });
+    return { objectPath: uploaded.objectPath, fileName: uploaded.fileName };
+  };
+
+  const submitGuestApplication = async (answers: Record<string, unknown>): Promise<boolean> => {
+    if (!created || !(await saveGuestProgress(answers, 7, true))) return false;
+    try {
+      saveGuestAuthContext({
+        applicationId: created.application.id,
+        reference: created.application.reference,
+        accessKey: created.accessKey,
+        email: created.application.email,
+      });
+    } catch {
+      setProgressError('Your application is saved, but this browser could not keep the verification session. Save your private key and resume from the tracking page.');
+      return false;
+    }
+
+    if (!isSignedIn) {
+      setLocation('/sign-up?guestApplication=1');
+      return true;
+    }
+    try {
+      const submitted = await submitGuest.mutateAsync({
+        applicationId: created.application.id,
+        data: { reference: created.application.reference, accessKey: created.accessKey },
+      });
+      window.sessionStorage.removeItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY);
+      window.sessionStorage.removeItem(GUEST_APPLICATION_RESUME_KEY);
+      setLocation(`/applications/${submitted.id}`, { replace: true });
+      return true;
+    } catch {
+      setLocation('/auth/complete?guestApplication=1');
+      return true;
     }
   };
 
@@ -2269,7 +2430,7 @@ function GuestApplicationPage() {
       categoryName: created.application.categoryName,
       status: 'draft',
       currentStep: created.application.currentStep,
-      hasPin: false,
+      hasPin: created.application.hasPin,
       answers: applicationAnswers,
       applicantName: created.application.fullName,
       applicantEmail: created.application.email,
@@ -2282,16 +2443,16 @@ function GuestApplicationPage() {
       application={wizardApplication}
       categories={categories.data ?? []}
       status={created.application.status}
-      storageAvailable={false}
-      maxUploadBytes={5 * 1024 * 1024}
-      isSaving={updateGuest.isPending}
-      isSubmitting={updateGuest.isPending}
+      storageAvailable
+      maxUploadBytes={20 * 1024 * 1024}
+      isSaving={updateGuest.isPending || requestEvidenceUpload.isPending || completeEvidenceUpload.isPending}
+      isSubmitting={updateGuest.isPending || submitGuest.isPending}
       error={progressError}
       reopenedSections={[]}
-      evidenceLater
       privateTrackingKey={created.accessKey}
+      uploadEvidence={uploadGuestEvidence}
       saveStep={(answers, currentStep) => saveGuestProgress(answers, currentStep)}
-      submit={(answers) => saveGuestProgress(answers, 7, true)}
+      submit={submitGuestApplication}
       onChangeCategory={() => undefined}
       onBackToCategoryEntry={(answers) => saveGuestProgress(answers, 0).then((saved) => {
         if (saved) setStage('categoryEntry');
@@ -2306,14 +2467,14 @@ function GuestApplicationPage() {
       <section className="guest-intro rise">
         <div className="eyebrow"><span className="eyebrow-rule" />START WITHOUT AN ACCOUNT</div>
         <h1>Apply without an account.</h1>
-        <p>Enter your name and email, choose a category, then complete the application online. Identity files and video are collected later.</p>
+        <p>Enter your name and email, choose a category, then complete the application online. Upload your evidence and verify your email before submission.</p>
         <div className="guest-process">
           <div className="guest-process-step"><span>01</span><div><b>Share your contact details</b><small>Start with your name and email address.</small></div></div>
           <div className="guest-process-step"><span>02</span><div><b>Choose an enrollment category</b><small>Select the category that matches your application.</small></div></div>
           <div className="guest-process-step"><span>03</span><div><b>Complete your details</b><small>Your answers save as you move through each section.</small></div></div>
-          <div className="guest-process-step"><span>04</span><div><b>Provide evidence later</b><small>Staff will arrange identity files and a video before review.</small></div></div>
+          <div className="guest-process-step"><span>04</span><div><b>Upload evidence and verify email</b><small>Submit your PIN, private identity files, and video; an email code links your application to your account.</small></div></div>
         </div>
-        <div className="guest-intro-note"><LockKeyhole size={16} /><span>No account or PIN is needed. Keep your private tracking key to resume.</span></div>
+        <div className="guest-intro-note"><LockKeyhole size={16} /><span>You can complete every application step before creating an account. Keep your private tracking key to resume.</span></div>
       </section>
 
       <section className="guest-form-card rise-delay" aria-labelledby="guest-apply-heading">
@@ -2321,9 +2482,11 @@ function GuestApplicationPage() {
         {resumeError && <p className="guest-inline-error" role="alert" data-testid="guest-resume-error">{resumeError}</p>}
         {stage === 'complete' && created ? <div className="guest-success" data-testid="guest-application-success">
           <span className="guest-success-mark"><Check size={22} /></span>
-          <div className="eyebrow">APPLICATION DETAILS RECEIVED</div>
-          <h2 id="guest-apply-heading">Your details are saved.</h2>
-          <p>Staff will contact you to arrange the required identity files and verification video. Review begins after that evidence is received.</p>
+          <div className="eyebrow">{created.application.submissionStatus === 'submitted' ? 'APPLICATION SUBMITTED' : 'APPLICATION DRAFT SAVED'}</div>
+          <h2 id="guest-apply-heading">{created.application.submissionStatus === 'submitted' ? 'Your application was submitted.' : 'Your details are saved.'}</h2>
+          <p>{created.application.submissionStatus === 'submitted'
+            ? 'Your verified account is linked to this application. You can follow its review status from your dashboard.'
+            : 'Your saved draft is available to authorized reviewers. Resume it later to complete your details, evidence, and email verification.'}</p>
           <div className="guest-reference-box">
             <span>APPLICATION REFERENCE</span>
             <strong data-testid="text-guest-reference">{created.application.reference}</strong>
@@ -2372,8 +2535,8 @@ function GuestApplicationPage() {
             error={progressError}
             guestMode
             onComplete={async (entryAnswers, pin) => {
-              if (pin) {
-                setProgressError('A PIN is not used for guest applications.');
+              if (!pin) {
+                setProgressError('Create a category PIN before continuing.');
                 return;
               }
               const personal = applicationAnswers.personalInformation &&
@@ -2393,7 +2556,7 @@ function GuestApplicationPage() {
                   email: personal.email || created.application.email,
                 },
               };
-              if (await saveGuestProgress(nextAnswers, 0)) setStage('application');
+              if (await saveGuestProgress(nextAnswers, 0, false, pin)) setStage('application');
             }}
           />
         </> : <>
@@ -2528,26 +2691,21 @@ function GuestTrackingPage() {
         </div>
         <div className="guest-status-next"><ShieldCheck size={17} /><p>{status.status === 'closed'
           ? 'This application is closed. Contact the enrollment team if you need help.'
-          : status.status === 'contacted'
-            ? status.detailsComplete
-              ? 'Your application details are saved. Our team has reached out to arrange the required identity files and verification video before review.'
-              : 'Our team has reached out. Continue your saved application details, then arrange the required identity files and verification video before review.'
+          : status.submissionStatus === 'submitted'
+            ? 'Your verified application has been submitted. Sign in to your applicant dashboard to follow review progress.'
             : status.detailsComplete
-              ? 'Your application details are saved. Staff will arrange identity files and a verification video before review.'
-              : 'Your progress is saved. Continue the application details; identity files and a verification video will be provided later.'}</p></div>
-        {!status.detailsComplete && status.status !== 'closed' && <button type="button" className="button button-primary guest-submit"
+              ? 'Your full details, PIN, and evidence are saved. Email verification is still required before the application can be submitted.'
+              : 'Your progress is saved as an unsubmitted draft. Continue the application details and upload the required identity files and video.'}</p></div>
+        {status.submissionStatus !== 'submitted' && status.status !== 'closed' && <button type="button" className="button button-primary guest-submit"
           disabled={!lastAccessKey} onClick={() => {
             if (!lastAccessKey) {
               setLookupError('Look up the application again to continue it.');
               return;
             }
-            window.sessionStorage.setItem('guest-application-resume', JSON.stringify({
-              reference: status.reference,
-              accessKey: lastAccessKey,
-            }));
+            saveGuestResume(status.reference, lastAccessKey);
             setLocation('/guest/apply?resume=1');
           }} data-testid="button-resume-guest-application">
-          Continue application <ArrowRight size={16} />
+          {status.detailsComplete ? 'Review and submit' : 'Continue application'} <ArrowRight size={16} />
         </button>}
       </section>}
       <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">Need to start an application? <span>Begin here <ArrowRight size={14} /></span></Link></p>
@@ -2576,18 +2734,19 @@ function GuestFollowupPage() {
     7: 'Application review',
   };
   const progressLabel = (application: AdminGuestPreapplication) => {
-    if (application.reviewReady) return 'Ready for full review';
-    if (!application.detailsComplete) {
-      return `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
-    }
     const uploaded = application.evidence.filter((item) => item.uploadedAt);
-    const hasIdentity = uploaded.some((item) => item.evidenceType === 'identity_document');
-    const hasVideo = uploaded.some((item) => item.evidenceType === 'verification_video');
-    if (!hasIdentity && !hasVideo) return 'Details complete · identity evidence outstanding';
-    return `Details complete · missing ${[
-      !hasIdentity && 'an identity file',
-      !hasVideo && 'a verification video',
-    ].filter(Boolean).join(' and ')}`;
+    const hasFront = uploaded.some((item) => item.evidenceSlot === 'identity_front');
+    const hasVideo = uploaded.some((item) => item.evidenceSlot === 'verification_video');
+    if (application.reviewReady) return 'Ready for review · applicant has not submitted';
+    const missing = [
+      !application.hasPin && 'category PIN',
+      !hasFront && 'identity front',
+      !hasVideo && 'verification video',
+    ].filter(Boolean);
+    const detailStatus = application.detailsComplete
+      ? 'Details complete'
+      : `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
+    return `${detailStatus} · email not verified · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
   };
 
   const uploadEvidence = async (
@@ -2603,6 +2762,7 @@ function GuestFollowupPage() {
         applicationId: application.id,
         data: {
           evidenceType,
+          evidenceSlot: evidenceType === 'verification_video' ? 'verification_video' : 'identity_front',
           fileName: file.name,
           contentType: file.type,
           sizeBytes: file.size,
@@ -2666,8 +2826,8 @@ function GuestFollowupPage() {
 
   return <AdminShell active="preapplications">
     <div className="admin-page guest-admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest applications" detail="Review saved details from applicants who applied without accounts." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
-      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Evidence stays in the private staff workspace</b><p>For each complete application, record at least one identity document and one verification video. Applicants’ public tracking links never expose these files.</p></div></div>
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest applications" detail="Review unsubmitted drafts, including details saved before email verification." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Unverified drafts remain reviewable</b><p>Applicants can save all details and private evidence before account verification. Files are available only through this reviewer workspace.</p></div></div>
       {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-admin-feedback">{feedback}</p>}
       {applications.isLoading ? <div className="guest-admin-loading" data-testid="guest-admin-loading"><div /><div /><div /></div> :
         applications.isError ? <section className="state-card" role="alert" data-testid="guest-admin-error">
@@ -2683,7 +2843,7 @@ function GuestFollowupPage() {
                 ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
                 : <small>No phone provided</small>}</div>
               <div className="guest-admin-category"><strong>{application.categoryName}</strong><small>{application.reference}</small></div>
-              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>{progressLabel(application)}</small></div>
+              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>NOT SUBMITTED · EMAIL NOT VERIFIED</small><small>{progressLabel(application)}</small></div>
               <div className="guest-admin-actions">
                 {application.status === 'received' && <button type="button" className="button button-primary guest-admin-action" onClick={() => setApplicationStatus(application, 'contacted')} disabled={update.isPending} data-testid={`button-guest-contacted-${application.id}`}>Mark contacted</button>}
                 {application.status !== 'closed' && <button type="button" className="guest-admin-close" onClick={() => setApplicationStatus(application, 'closed')} disabled={update.isPending} data-testid={`button-guest-close-${application.id}`}>Close</button>}
@@ -2698,7 +2858,7 @@ function GuestFollowupPage() {
                       <span>{application.reviewReady ? 'Ready for full review' : 'Not ready for full review'}</span>
                       <small>
                         {application.detailsComplete ? 'Application details are complete.' : 'Complete application details first.'}
-                        {' '}Required: one identity file and one verification video.
+                        {' '}Required before submission: PIN, identity front, and 12-second video.
                       </small>
                     </div>
                     <div className="guest-evidence-upload-actions">
@@ -2720,7 +2880,7 @@ function GuestFollowupPage() {
                     {application.evidence.length > 0 && <ul className="guest-evidence-list" aria-label="Private evidence files">
                       {application.evidence.map((item) => <li key={item.id}>
                         <span>
-                          <b>{item.evidenceType === 'identity_document' ? 'Identity document' : 'Verification video'}</b>
+                          <b>{item.evidenceSlot === 'identity_front' ? 'Identity document front' : item.evidenceSlot === 'identity_back' ? 'Identity document back' : item.evidenceSlot === 'education_certificate' ? 'Education certificate' : item.evidenceSlot === 'verification_video' ? 'Verification video' : 'Identity document'}</b>
                           <small>{item.fileName} · {item.uploadedAt ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : 'Upload pending verification'}</small>
                         </span>
                         {item.downloadUrl && <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-guest-evidence-download-${item.id}`}>Download</a>}

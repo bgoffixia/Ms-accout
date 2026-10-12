@@ -22,4 +22,6 @@ export interface GuestPreapplicationProgressInput {
   currentStep: number;
   answers: GuestPreapplicationProgressInputAnswers;
   complete: boolean;
+  /** @pattern ^[0-9]{4,6}$ */
+  pin?: string;
 }

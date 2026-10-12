@@ -12,4 +12,5 @@ export type AdminGuestPreapplicationEvidenceEvidenceType = typeof AdminGuestPrea
 export const AdminGuestPreapplicationEvidenceEvidenceType = {
   identity_document: 'identity_document',
   verification_video: 'verification_video',
+  education_certificate: 'education_certificate',
 } as const;

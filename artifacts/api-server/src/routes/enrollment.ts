@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   inArray,
+  isNull,
   ne,
 } from "drizzle-orm";
 import {
@@ -70,6 +71,15 @@ import {
   SubmitNewApplicationResponse,
   LookupGuestPreapplicationBody,
   LookupGuestPreapplicationResponse,
+  RequestGuestApplicantEvidenceUploadBody,
+  RequestGuestApplicantEvidenceUploadParams,
+  RequestGuestApplicantEvidenceUploadResponse,
+  CompleteGuestApplicantEvidenceUploadBody,
+  CompleteGuestApplicantEvidenceUploadParams,
+  CompleteGuestApplicantEvidenceUploadResponse,
+  SubmitGuestPreapplicationBody,
+  SubmitGuestPreapplicationParams,
+  SubmitGuestPreapplicationResponse,
   RequestGuestPreapplicationEvidenceUploadBody,
   RequestGuestPreapplicationEvidenceUploadParams,
   RequestGuestPreapplicationEvidenceUploadResponse,
@@ -332,6 +342,10 @@ function serializeGuestPreapplicationStatus(
     fullName: application.fullName,
     email: application.email,
     status: application.status,
+    submissionStatus: application.submissionStatus,
+    emailVerified: application.emailVerified,
+    hasPin: Boolean(application.pinHash),
+    linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
     answers: applicantSafeAnswers(application.answers ?? {}),
@@ -345,11 +359,9 @@ function serializeAdminGuestPreapplication(
   evidence: Array<typeof guestPreapplicationEvidenceTable.$inferSelect> = [],
 ) {
   const uploadedEvidence = evidence.filter((item) => item.uploadedAt !== null);
-  const hasIdentityDocument = uploadedEvidence.some(
-    (item) => item.evidenceType === "identity_document",
-  );
+  const hasIdentityFront = uploadedEvidence.some((item) => item.evidenceSlot === "identity_front");
   const hasVerificationVideo = uploadedEvidence.some(
-    (item) => item.evidenceType === "verification_video",
+    (item) => item.evidenceSlot === "verification_video",
   );
   return {
     ...serializeGuestPreapplicationStatus(application),
@@ -357,7 +369,7 @@ function serializeAdminGuestPreapplication(
     email: application.email,
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
     reviewReady:
-      application.detailsComplete && hasIdentityDocument && hasVerificationVideo,
+      application.detailsComplete && Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
     evidence: evidence.map(serializeGuestEvidence),
   };
 }
@@ -379,6 +391,7 @@ function serializeGuestEvidence(
   return {
     id: evidence.id,
     evidenceType: evidence.evidenceType,
+    evidenceSlot: evidence.evidenceSlot as AdminGuestPreapplicationEvidence["evidenceSlot"],
     fileName: evidence.fileName,
     contentType: evidence.contentType,
     sizeBytes: evidence.sizeBytes,
@@ -394,11 +407,11 @@ function safeEvidenceFileName(fileName: string): string {
 }
 
 function isAllowedEvidenceType(
-  evidenceType: "identity_document" | "verification_video",
+  evidenceType: "identity_document" | "verification_video" | "education_certificate",
   contentType: string,
   sizeBytes: number,
 ): boolean {
-  if (evidenceType === "identity_document") {
+  if (evidenceType === "identity_document" || evidenceType === "education_certificate") {
     return (
       sizeBytes <= 20 * 1024 * 1024 &&
       ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(contentType)
@@ -459,14 +472,33 @@ function containsCredentialAnswerKey(value: unknown): boolean {
   });
 }
 
-function containsGuestEvidence(answers: Record<string, unknown>): boolean {
-  const identity = asRecord(answers.proofOfIdentity);
-  const video = asRecord(answers.liveVideoRecording);
-  const education = asRecord(answers.education);
-  return Object.keys(identity).length > 0 ||
-    Object.keys(video).length > 0 ||
-    (typeof education.certificateObjectPath === "string" &&
-      education.certificateObjectPath.trim().length > 0);
+async function guestEvidencePathsAreOwned(
+  applicationId: string,
+  answers: Record<string, unknown>,
+): Promise<boolean> {
+  const evidence = await db
+    .select({
+      objectPath: guestPreapplicationEvidenceTable.objectPath,
+      evidenceSlot: guestPreapplicationEvidenceTable.evidenceSlot,
+      uploadedAt: guestPreapplicationEvidenceTable.uploadedAt,
+    })
+    .from(guestPreapplicationEvidenceTable)
+    .where(eq(guestPreapplicationEvidenceTable.applicationId, applicationId));
+  const slots: Array<[string, string, string]> = [
+    ["proofOfIdentity", "frontObjectPath", "identity_front"],
+    ["proofOfIdentity", "backObjectPath", "identity_back"],
+    ["liveVideoRecording", "objectPath", "verification_video"],
+    ["education", "certificateObjectPath", "education_certificate"],
+  ];
+  return slots.every(([section, key, evidenceSlot]) => {
+    const value = asRecord(answers[section])[key];
+    if (value === undefined || value === null || value === "") return true;
+    return typeof value === "string" && evidence.some(
+      (item) => item.uploadedAt !== null &&
+        item.evidenceSlot === evidenceSlot &&
+        item.objectPath === value,
+    );
+  });
 }
 
 function nestedString(
@@ -734,12 +766,19 @@ function validateFinalApplication(
 
   if (requireEvidence) {
     const identity = asRecord(answers.proofOfIdentity);
+    const documentType = nestedString(answers, "proofOfIdentity", "documentType");
     if (
-      !nestedString(answers, "proofOfIdentity", "documentType") ||
+      !documentType ||
       typeof identity.frontObjectPath !== "string" ||
       !identity.frontObjectPath
     ) {
       return "Complete the private proof-of-identity upload.";
+    }
+    if (
+      ["National ID", "Driver license", "Passport card"].includes(documentType) &&
+      (typeof identity.backObjectPath !== "string" || !identity.backObjectPath)
+    ) {
+      return "Upload the back of the selected identity document.";
     }
     const video = asRecord(answers.liveVideoRecording);
     if (
@@ -771,8 +810,10 @@ function validateFinalApplication(
 }
 
 function isPrivateStorageConfigured(): boolean {
-  // No private upload provider is connected; never trust browser-only objects or URLs.
-  return false;
+  return Boolean(
+    process.env.PRIVATE_OBJECT_DIR &&
+    process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID,
+  );
 }
 
 function categoryPinLength(categoryId: string): number {
@@ -989,16 +1030,16 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(404).json({ error: "The application reference and private key could not be verified." });
       return;
     }
-    if (application.status === "closed") {
-      res.status(409).json({ error: "This guest application is closed." });
+    if (application.status === "closed" || application.submissionStatus === "submitted") {
+      res.status(409).json({ error: "This guest application has already been submitted or closed." });
       return;
     }
     if (containsCredentialAnswerKey(parsedBody.data.answers)) {
       res.status(400).json({ error: "PINs and passwords cannot be saved as application answers." });
       return;
     }
-    if (containsGuestEvidence(parsedBody.data.answers)) {
-      res.status(400).json({ error: "Identity evidence must be collected through the later staff follow-up." });
+    if (!(await guestEvidencePathsAreOwned(application.id, parsedBody.data.answers))) {
+      res.status(400).json({ error: "Attach evidence using the private upload form before saving its reference." });
       return;
     }
 
@@ -1010,11 +1051,27 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(400).json({ error: prepared.error });
       return;
     }
+    let pinHash = application.pinHash;
+    if (parsedBody.data.pin) {
+      const requiredLength = categoryPinLength(application.categoryId);
+      if (parsedBody.data.pin.length !== requiredLength) {
+        res.status(400).json({
+          error: `This category requires an exactly ${requiredLength}-digit PIN.`,
+        });
+        return;
+      }
+      const salt = randomBytes(16).toString("hex");
+      pinHash = `scrypt$${salt}$${scryptSync(parsedBody.data.pin, salt, 64).toString("hex")}`;
+    }
     if (parsedBody.data.complete) {
+      if (!pinHash) {
+        res.status(400).json({ error: "Create a category PIN before completing the application details." });
+        return;
+      }
       const validationError = validateFinalApplication(
         application.categoryId,
         prepared.answers,
-        false,
+        true,
       );
       if (validationError) {
         res.status(400).json({ error: validationError });
@@ -1028,6 +1085,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
         currentStep: parsedBody.data.currentStep,
         answers: prepared.answers,
         detailsComplete: parsedBody.data.complete,
+        pinHash,
         updatedAt: new Date(),
       })
       .where(eq(guestPreapplicationsTable.id, application.id))
@@ -1076,6 +1134,212 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
   }
 });
 
+router.post(
+  "/guest/preapplications/:applicationId/evidence/upload-url",
+  async (req, res): Promise<void> => {
+    const parsedParams = RequestGuestApplicantEvidenceUploadParams.safeParse(req.params);
+    const parsedBody = RequestGuestApplicantEvidenceUploadBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "Choose a supported evidence file and try again." });
+      return;
+    }
+    const { evidenceType, evidenceSlot, contentType, sizeBytes } = parsedBody.data;
+    const expectedType = evidenceSlot === "verification_video"
+      ? "verification_video"
+      : evidenceSlot === "education_certificate"
+        ? "education_certificate"
+        : "identity_document";
+    if (evidenceType !== expectedType || !isAllowedEvidenceType(evidenceType, contentType, sizeBytes)) {
+      res.status(400).json({
+        error: evidenceType === "verification_video"
+          ? "Verification videos must be MP4 or WebM files no larger than 200 MB."
+          : "Documents must be PDF, JPEG, PNG, or WebP files no larger than 20 MB.",
+      });
+      return;
+    }
+
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .limit(1);
+      if (
+        !application ||
+        application.reference !== parsedBody.data.reference.trim().toUpperCase() ||
+        !matchesGuestAccessKey(application.accessKeyHash, parsedBody.data.accessKey)
+      ) {
+        res.status(404).json({ error: "The application reference and private key could not be verified." });
+        return;
+      }
+      if (application.status === "closed" || application.submissionStatus === "submitted") {
+        res.status(409).json({ error: "Evidence cannot be added to a submitted or closed application." });
+        return;
+      }
+      if (!isPrivateStorageConfigured()) {
+        res.status(503).json({ error: "Private evidence storage is unavailable." });
+        return;
+      }
+
+      const existingEvidence = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(eq(guestPreapplicationEvidenceTable.applicationId, application.id));
+      const evidenceCount = existingEvidence.filter((item) =>
+        item.evidenceType === evidenceType,
+      ).length;
+      if (evidenceCount >= 5) {
+        res.status(409).json({ error: "The evidence upload limit has been reached for this application." });
+        return;
+      }
+
+      const uploadUrl = await objectStorage.getObjectEntityUploadURL();
+      const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
+      if (!objectPath.startsWith("/objects/")) {
+        throw new Error("Storage returned an invalid private object path.");
+      }
+      const [record] = await db
+        .insert(guestPreapplicationEvidenceTable)
+        .values({
+          applicationId: application.id,
+          evidenceType,
+          evidenceSlot,
+          fileName: safeEvidenceFileName(parsedBody.data.fileName),
+          contentType,
+          sizeBytes,
+          objectPath,
+          uploadedByUserId: null,
+        })
+        .returning();
+      if (!record) throw new Error("Evidence upload record could not be created.");
+      res.json(RequestGuestApplicantEvidenceUploadResponse.parse({
+        evidenceId: record.id,
+        uploadUrl,
+      }));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to prepare private applicant evidence upload");
+      res.status(503).json({ error: "A secure evidence upload could not be prepared." });
+    }
+  },
+);
+
+router.post(
+  "/guest/preapplications/:applicationId/evidence/:evidenceId/complete",
+  async (req, res): Promise<void> => {
+    const parsedParams = CompleteGuestApplicantEvidenceUploadParams.safeParse(req.params);
+    const parsedBody = CompleteGuestApplicantEvidenceUploadBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "Evidence could not be verified." });
+      return;
+    }
+    const { applicationId, evidenceId } = parsedParams.data;
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, applicationId))
+        .limit(1);
+      if (
+        !application ||
+        application.reference !== parsedBody.data.reference.trim().toUpperCase() ||
+        !matchesGuestAccessKey(application.accessKeyHash, parsedBody.data.accessKey)
+      ) {
+        res.status(404).json({ error: "The application reference and private key could not be verified." });
+        return;
+      }
+      if (application.status === "closed" || application.submissionStatus === "submitted") {
+        res.status(409).json({ error: "Evidence cannot be added to a submitted or closed application." });
+        return;
+      }
+      const [evidence] = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(and(
+          eq(guestPreapplicationEvidenceTable.id, evidenceId),
+          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+          isNull(guestPreapplicationEvidenceTable.uploadedByUserId),
+        ))
+        .limit(1);
+      if (!evidence) {
+        res.status(404).json({ error: "Evidence upload not found." });
+        return;
+      }
+      if (!matchesGuestAccessKey(application.accessKeyHash, parsedBody.data.accessKey)) {
+        res.status(404).json({ error: "The application reference and private key could not be verified." });
+        return;
+      }
+
+      let completed = evidence;
+      if (!evidence.uploadedAt) {
+        const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+        const [metadata] = await objectFile.getMetadata();
+        if (Number(metadata.size) !== evidence.sizeBytes || metadata.contentType !== evidence.contentType) {
+          await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+          await db.delete(guestPreapplicationEvidenceTable)
+            .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
+          res.status(400).json({ error: "The uploaded file did not match its declared type or size." });
+          return;
+        }
+        const [signatureBytes] = await objectFile.download({
+          start: 0,
+          end: Math.min(evidence.sizeBytes - 1, 31),
+        });
+        if (!evidenceSignatureMatches(evidence.contentType, signatureBytes)) {
+          await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+          await db.delete(guestPreapplicationEvidenceTable)
+            .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
+          res.status(400).json({ error: "The uploaded file content is not a supported evidence format." });
+          return;
+        }
+        const [updatedEvidence] = await db
+          .update(guestPreapplicationEvidenceTable)
+          .set({ uploadedAt: new Date() })
+          .where(eq(guestPreapplicationEvidenceTable.id, evidence.id))
+          .returning();
+        if (!updatedEvidence) {
+          res.status(404).json({ error: "Evidence upload not found." });
+          return;
+        }
+        completed = updatedEvidence;
+      }
+
+      const answerLocation: Partial<Record<string, [string, string]>> = {
+        identity_front: ["proofOfIdentity", "frontObjectPath"],
+        identity_back: ["proofOfIdentity", "backObjectPath"],
+        verification_video: ["liveVideoRecording", "objectPath"],
+        education_certificate: ["education", "certificateObjectPath"],
+      };
+      const location = answerLocation[completed.evidenceSlot];
+      if (!location) {
+        res.status(400).json({ error: "The evidence is not linked to a supported application field." });
+        return;
+      }
+      const answers = structuredClone(application.answers ?? {});
+      const section = asRecord(answers[location[0]]);
+      answers[location[0]] = { ...section, [location[1]]: completed.objectPath };
+      await db
+        .update(guestPreapplicationsTable)
+        .set({ answers, updatedAt: new Date() })
+        .where(eq(guestPreapplicationsTable.id, application.id));
+      res.json(CompleteGuestApplicantEvidenceUploadResponse.parse({
+        evidenceId: completed.id,
+        evidenceType: completed.evidenceType,
+        evidenceSlot: completed.evidenceSlot,
+        fileName: completed.fileName,
+        objectPath: completed.objectPath,
+        uploadedAt: completed.uploadedAt,
+      }));
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(409).json({ error: "Upload the selected file before recording it." });
+        return;
+      }
+      req.log.error({ err: error, applicationId, evidenceId }, "Failed to verify applicant evidence upload");
+      res.status(503).json({ error: "The evidence file could not be verified." });
+    }
+  },
+);
+
 router.post("/staff/registration-check", (req, res): void => {
   const parsed = CheckStaffRegistrationEmailBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1090,6 +1354,166 @@ router.post("/staff/registration-check", (req, res): void => {
 });
 
 router.use(authenticate);
+
+router.post(
+  "/guest/preapplications/:applicationId/submit",
+  async (req, res): Promise<void> => {
+    const parsedParams = SubmitGuestPreapplicationParams.safeParse(req.params);
+    const parsedBody = SubmitGuestPreapplicationBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "The saved application could not be submitted." });
+      return;
+    }
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ error: "Verify your email and sign in to submit." });
+      return;
+    }
+
+    try {
+      const user = res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
+      const primaryEmail = user.primaryEmailAddress;
+      const normalizedEmail = primaryEmail?.emailAddress
+        ? normalizeEmail(primaryEmail.emailAddress)
+        : "";
+      if (!normalizedEmail || primaryEmail?.verification?.status !== "verified") {
+        res.status(403).json({ error: "Verify your email address before submitting this application." });
+        return;
+      }
+
+      const [preapplication] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .limit(1);
+      if (
+        !preapplication ||
+        preapplication.reference !== parsedBody.data.reference.trim().toUpperCase() ||
+        !matchesGuestAccessKey(preapplication.accessKeyHash, parsedBody.data.accessKey)
+      ) {
+        res.status(404).json({ error: "The application reference and private key could not be verified." });
+        return;
+      }
+      if (preapplication.email !== normalizedEmail) {
+        res.status(403).json({ error: "Sign in with the verified email address used to start this application." });
+        return;
+      }
+      if (preapplication.status === "closed") {
+        res.status(409).json({ error: "This application was closed and cannot be submitted." });
+        return;
+      }
+
+      if (preapplication.submissionStatus === "submitted") {
+        if (
+          preapplication.emailVerified &&
+          preapplication.clerkUserId === userId &&
+          preapplication.linkedApplicationId
+        ) {
+          const [existingApplication] = await db
+            .select()
+            .from(enrollmentApplicationsTable)
+            .where(and(
+              eq(enrollmentApplicationsTable.id, preapplication.linkedApplicationId),
+              eq(enrollmentApplicationsTable.clerkUserId, userId),
+            ))
+            .limit(1);
+          if (existingApplication) {
+            res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(existingApplication)));
+            return;
+          }
+        }
+        res.status(409).json({ error: "This application has already been submitted by another account." });
+        return;
+      }
+      if (!preapplication.pinHash) {
+        res.status(400).json({ error: "Create a category PIN before submitting the application." });
+        return;
+      }
+      if (!preapplication.detailsComplete) {
+        res.status(400).json({ error: "Complete all application details and required evidence before submitting." });
+        return;
+      }
+      const answers = preapplication.answers ?? {};
+      const validationError = validateFinalApplication(preapplication.categoryId, answers, true);
+      if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+      }
+      if (!(await guestEvidencePathsAreOwned(preapplication.id, answers))) {
+        res.status(400).json({ error: "Upload the required evidence through the private upload form before submitting." });
+        return;
+      }
+      if (!isPrivateStorageConfigured()) {
+        res.status(503).json({ error: "Private evidence storage is unavailable. Your saved draft remains available." });
+        return;
+      }
+
+      const now = new Date();
+      const submitted = await db.transaction(async (transaction) => {
+        const [created] = await transaction
+          .insert(enrollmentApplicationsTable)
+          .values({
+            reference: preapplication.reference,
+            clerkUserId: userId,
+            sourceGuestPreapplicationId: preapplication.id,
+            categoryId: preapplication.categoryId,
+            status: "submitted",
+            currentStep: 7,
+            pinHash: preapplication.pinHash,
+            answers: { ...answers, __requestedSections: [] },
+            submittedAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoNothing({ target: enrollmentApplicationsTable.sourceGuestPreapplicationId })
+          .returning();
+
+        let application = created;
+        if (!application) {
+          const [existing] = await transaction
+            .select()
+            .from(enrollmentApplicationsTable)
+            .where(eq(enrollmentApplicationsTable.sourceGuestPreapplicationId, preapplication.id))
+            .limit(1);
+          if (!existing || existing.clerkUserId !== userId) return null;
+          application = existing;
+        } else {
+          await transaction.insert(applicationEventsTable).values({
+            applicationId: application.id,
+            actorUserId: userId,
+            eventType: "guest_application_submitted",
+            note: "Applicant email verified and guest application submitted.",
+          });
+        }
+
+        await transaction
+          .update(guestPreapplicationsTable)
+          .set({
+            submissionStatus: "submitted",
+            emailVerified: true,
+            clerkUserId: userId,
+            linkedApplicationId: application.id,
+            updatedByUserId: userId,
+            updatedAt: now,
+          })
+          .where(and(
+            eq(guestPreapplicationsTable.id, preapplication.id),
+            eq(guestPreapplicationsTable.submissionStatus, "draft"),
+            isNull(guestPreapplicationsTable.linkedApplicationId),
+          ));
+        return application;
+      });
+
+      if (!submitted) {
+        res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
+        return;
+      }
+      res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(submitted)));
+    } catch (error) {
+      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit verified guest application");
+      res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
+    }
+  },
+);
 
 router.post("/staff/access-claim", async (req, res): Promise<void> => {
   const userId = res.locals.userId as string;
@@ -1905,6 +2329,7 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
     const applications = await db
       .select()
       .from(guestPreapplicationsTable)
+      .where(eq(guestPreapplicationsTable.submissionStatus, "draft"))
       .orderBy(desc(guestPreapplicationsTable.createdAt))
       .limit(300);
     const evidenceRows = applications.length
@@ -1950,6 +2375,12 @@ router.post(
       return;
     }
     const { evidenceType, contentType, sizeBytes } = parsedBody.data;
+    const evidenceSlot = parsedBody.data.evidenceSlot ??
+      (evidenceType === "verification_video"
+        ? "verification_video"
+        : evidenceType === "education_certificate"
+          ? "education_certificate"
+          : "identity_front");
     if (!isAllowedEvidenceType(evidenceType, contentType, sizeBytes)) {
       res.status(400).json({
         error: evidenceType === "identity_document"
@@ -2005,6 +2436,7 @@ router.post(
         .values({
           applicationId: application.id,
           evidenceType,
+          evidenceSlot,
           fileName: safeEvidenceFileName(parsedBody.data.fileName),
           contentType,
           sizeBytes,

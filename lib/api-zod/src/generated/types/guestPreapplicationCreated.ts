@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GuestPreapplicationCreatedCategoryId } from './guestPreapplicationCreatedCategoryId';
+import type { GuestPreapplicationCreatedSubmissionStatus } from './guestPreapplicationCreatedSubmissionStatus';
 import type { GuestPreapplicationStatusValue } from './guestPreapplicationStatusValue';
 
 export interface GuestPreapplicationCreated {
@@ -16,6 +17,10 @@ export interface GuestPreapplicationCreated {
   fullName: string;
   email: string;
   status: GuestPreapplicationStatusValue;
+  submissionStatus: GuestPreapplicationCreatedSubmissionStatus;
+  emailVerified: boolean;
+  hasPin: boolean;
+  linkedApplicationId: string | null;
   /**
      * @minimum 0
      * @maximum 7

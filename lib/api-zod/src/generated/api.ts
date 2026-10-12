@@ -57,6 +57,7 @@ export const ListMyApplicationsResponse = zod.array(ListMyApplicationsResponseIt
 export const deleteMyDraftsResponseDeletedCountMin = 0;
 
 
+
 export const DeleteMyDraftsResponse = zod.object({
   "deletedCount": zod.number().int().min(deleteMyDraftsResponseDeletedCountMin)
 })
@@ -245,6 +246,7 @@ export const createGuestPreapplicationBodyEmailMax = 320;
 export const createGuestPreapplicationBodyPhoneMax = 40;
 
 
+
 export const CreateGuestPreapplicationBody = zod.object({
   "submissionId": zod.string().uuid(),
   "accessKey": zod.string().regex(createGuestPreapplicationBodyAccessKeyRegExp),
@@ -258,6 +260,7 @@ export const createGuestPreapplicationResponseCurrentStepMin = 0;
 export const createGuestPreapplicationResponseCurrentStepMax = 7;
 
 
+
 export const CreateGuestPreapplicationResponse = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
@@ -266,6 +269,10 @@ export const CreateGuestPreapplicationResponse = zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(createGuestPreapplicationResponseCurrentStepMin).max(createGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
   "createdAt": zod.coerce.date(),
@@ -291,6 +298,7 @@ export const lookupGuestPreapplicationResponseCurrentStepMin = 0;
 export const lookupGuestPreapplicationResponseCurrentStepMax = 7;
 
 
+
 export const LookupGuestPreapplicationResponse = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
@@ -299,6 +307,10 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(lookupGuestPreapplicationResponseCurrentStepMin).max(lookupGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
@@ -321,17 +333,21 @@ export const updateGuestPreapplicationProgressBodyAccessKeyRegExp = new RegExp('
 export const updateGuestPreapplicationProgressBodyCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressBodyCurrentStepMax = 7;
 
+export const updateGuestPreapplicationProgressBodyPinRegExp = new RegExp('^[0-9]{4,6}$');
+
 
 export const UpdateGuestPreapplicationProgressBody = zod.object({
   "reference": zod.string().min(updateGuestPreapplicationProgressBodyReferenceMin).max(updateGuestPreapplicationProgressBodyReferenceMax),
   "accessKey": zod.string().regex(updateGuestPreapplicationProgressBodyAccessKeyRegExp),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressBodyCurrentStepMin).max(updateGuestPreapplicationProgressBodyCurrentStepMax),
   "answers": zod.record(zod.string(), zod.unknown()),
-  "complete": zod.boolean()
+  "complete": zod.boolean(),
+  "pin": zod.string().regex(updateGuestPreapplicationProgressBodyPinRegExp).optional()
 })
 
 export const updateGuestPreapplicationProgressResponseCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressResponseCurrentStepMax = 7;
+
 
 
 export const UpdateGuestPreapplicationProgressResponse = zod.object({
@@ -342,6 +358,10 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressResponseCurrentStepMin).max(updateGuestPreapplicationProgressResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
@@ -351,9 +371,112 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
 
 
 /**
+ * @summary Prepare a private applicant evidence upload
+ */
+export const RequestGuestApplicantEvidenceUploadParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const requestGuestApplicantEvidenceUploadBodyOneFileNameMax = 160;
+
+export const requestGuestApplicantEvidenceUploadBodyOneContentTypeMax = 100;
+
+export const requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax = 209715200;
+
+export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMin = 8;
+export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMax = 32;
+
+export const requestGuestApplicantEvidenceUploadBodyTwoAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+
+
+export const RequestGuestApplicantEvidenceUploadBody = zod.object({
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string().min(1).max(requestGuestApplicantEvidenceUploadBodyOneFileNameMax),
+  "contentType": zod.string().max(requestGuestApplicantEvidenceUploadBodyOneContentTypeMax),
+  "sizeBytes": zod.number().int().min(1).max(requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax)
+}).and(zod.object({
+  "reference": zod.string().min(requestGuestApplicantEvidenceUploadBodyTwoReferenceMin).max(requestGuestApplicantEvidenceUploadBodyTwoReferenceMax),
+  "accessKey": zod.string().regex(requestGuestApplicantEvidenceUploadBodyTwoAccessKeyRegExp),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate'])
+}))
+
+export const RequestGuestApplicantEvidenceUploadResponse = zod.object({
+  "evidenceId": zod.string().uuid(),
+  "uploadUrl": zod.string().url()
+})
+
+
+/**
+ * @summary Verify a private evidence upload and attach it to the guest application
+ */
+export const CompleteGuestApplicantEvidenceUploadParams = zod.object({
+  "applicationId": zod.coerce.string().uuid(),
+  "evidenceId": zod.coerce.string().uuid()
+})
+
+export const completeGuestApplicantEvidenceUploadBodyReferenceMin = 8;
+export const completeGuestApplicantEvidenceUploadBodyReferenceMax = 32;
+
+export const completeGuestApplicantEvidenceUploadBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+
+
+export const CompleteGuestApplicantEvidenceUploadBody = zod.object({
+  "reference": zod.string().min(completeGuestApplicantEvidenceUploadBodyReferenceMin).max(completeGuestApplicantEvidenceUploadBodyReferenceMax),
+  "accessKey": zod.string().regex(completeGuestApplicantEvidenceUploadBodyAccessKeyRegExp)
+})
+
+export const CompleteGuestApplicantEvidenceUploadResponse = zod.object({
+  "evidenceId": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate']),
+  "fileName": zod.string(),
+  "objectPath": zod.string(),
+  "uploadedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Verify the signed-in applicant email and submit the saved guest application
+ */
+export const SubmitGuestPreapplicationParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const submitGuestPreapplicationBodyReferenceMin = 8;
+export const submitGuestPreapplicationBodyReferenceMax = 32;
+
+export const submitGuestPreapplicationBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+
+
+export const SubmitGuestPreapplicationBody = zod.object({
+  "reference": zod.string().min(submitGuestPreapplicationBodyReferenceMin).max(submitGuestPreapplicationBodyReferenceMax),
+  "accessKey": zod.string().regex(submitGuestPreapplicationBodyAccessKeyRegExp)
+})
+
+export const SubmitGuestPreapplicationResponse = zod.object({
+  "id": zod.string(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
+  "currentStep": zod.number().int(),
+  "hasPin": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "applicantName": zod.string().nullish(),
+  "applicantEmail": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish()
+})
+
+
+/**
  * @summary Check whether an email is allowed to use staff registration
  */
 export const checkStaffRegistrationEmailBodyEmailMax = 320;
+
 
 
 export const CheckStaffRegistrationEmailBody = zod.object({
@@ -381,6 +504,7 @@ export const listAdminGuestPreapplicationsResponseOneCurrentStepMin = 0;
 export const listAdminGuestPreapplicationsResponseOneCurrentStepMax = 7;
 
 
+
 export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
@@ -389,6 +513,10 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseOneCurrentStepMin).max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
@@ -401,7 +529,8 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "reviewReady": zod.boolean(),
   "evidence": zod.array(zod.object({
   "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video']),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
   "fileName": zod.string(),
   "contentType": zod.string(),
   "sizeBytes": zod.number().int(),
@@ -427,6 +556,7 @@ export const updateAdminGuestPreapplicationResponseOneCurrentStepMin = 0;
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMax = 7;
 
 
+
 export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
@@ -435,6 +565,10 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseOneCurrentStepMin).max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
   "detailsComplete": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
@@ -447,7 +581,8 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "reviewReady": zod.boolean(),
   "evidence": zod.array(zod.object({
   "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video']),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
   "fileName": zod.string(),
   "contentType": zod.string(),
   "sizeBytes": zod.number().int(),
@@ -456,12 +591,67 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
 }))
 }))
 
+
 /**
  * @summary Request a private upload URL for guest application evidence
  */
 export const RequestGuestPreapplicationEvidenceUploadParams = zod.object({
   "applicationId": zod.coerce.string().uuid()
 })
+
+export const requestGuestPreapplicationEvidenceUploadBodyFileNameMax = 160;
+
+export const requestGuestPreapplicationEvidenceUploadBodyContentTypeMax = 100;
+
+export const requestGuestPreapplicationEvidenceUploadBodySizeBytesMax = 209715200;
+
+
+
+export const RequestGuestPreapplicationEvidenceUploadBody = zod.object({
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']).optional(),
+  "fileName": zod.string().min(1).max(requestGuestPreapplicationEvidenceUploadBodyFileNameMax),
+  "contentType": zod.string().max(requestGuestPreapplicationEvidenceUploadBodyContentTypeMax),
+  "sizeBytes": zod.number().int().min(1).max(requestGuestPreapplicationEvidenceUploadBodySizeBytesMax)
+})
+
+export const RequestGuestPreapplicationEvidenceUploadResponse = zod.object({
+  "evidenceId": zod.string().uuid(),
+  "uploadUrl": zod.string().url()
+})
+
+
+/**
+ * @summary Verify and record an uploaded guest evidence file
+ */
+export const CompleteGuestPreapplicationEvidenceUploadParams = zod.object({
+  "applicationId": zod.coerce.string().uuid(),
+  "evidenceId": zod.coerce.string().uuid()
+})
+
+export const CompleteGuestPreapplicationEvidenceUploadResponse = zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})
+
+
+/**
+ * @summary Download private guest application evidence
+ */
+export const DownloadGuestPreapplicationEvidenceParams = zod.object({
+  "applicationId": zod.coerce.string().uuid(),
+  "evidenceId": zod.coerce.string().uuid()
+})
+
+export const DownloadGuestPreapplicationEvidenceResponse = zod.unknown()
+
+
 /**
  * @summary List applications for authorized administrators
  */
@@ -559,6 +749,7 @@ export const ListAdminUsersResponse = zod.object({
 export const createAdminUserInvitationBodyEmailMax = 320;
 
 
+
 export const CreateAdminUserInvitationBody = zod.object({
   "email": zod.string().email().max(createAdminUserInvitationBodyEmailMax),
   "role": zod.enum(['admin', 'sub_admin', 'moderator'])
@@ -652,6 +843,7 @@ export const getPortalSettingsResponsePageThemesAngleMin = 0;
 export const getPortalSettingsResponsePageThemesAngleMax = 360;
 
 
+
 export const GetPortalSettingsResponse = zod.object({
   "hero": zod.object({
   "title": zod.string().max(getPortalSettingsResponseHeroTitleMax),
@@ -710,6 +902,7 @@ export const updatePortalSettingsBodyPageThemesColorRegExp = new RegExp('^#[0-9A
 export const updatePortalSettingsBodyPageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyPageThemesAngleMin = 0;
 export const updatePortalSettingsBodyPageThemesAngleMax = 360;
+
 
 
 export const UpdatePortalSettingsBody = zod.object({
@@ -771,6 +964,7 @@ export const updatePortalSettingsResponsePageThemesAngleMin = 0;
 export const updatePortalSettingsResponsePageThemesAngleMax = 360;
 
 
+
 export const UpdatePortalSettingsResponse = zod.object({
   "hero": zod.object({
   "title": zod.string().max(updatePortalSettingsResponseHeroTitleMax),
@@ -823,6 +1017,7 @@ export const AddAdminApplicationNoteParams = zod.object({
 export const addAdminApplicationNoteBodyNoteMax = 4000;
 
 
+
 export const AddAdminApplicationNoteBody = zod.object({
   "note": zod.string().min(1).max(addAdminApplicationNoteBodyNoteMax)
 })
@@ -849,6 +1044,7 @@ export const decideApplicationBodyReopenSectionsItemMin = 0;
 export const decideApplicationBodyReopenSectionsItemMax = 6;
 
 export const decideApplicationBodyReopenSectionsMax = 7;
+
 
 
 export const DecideApplicationBody = zod.object({
@@ -912,6 +1108,7 @@ export const createSupportTicketBodyMessageMin = 5;
 export const createSupportTicketBodyMessageMax = 5000;
 
 
+
 export const CreateSupportTicketBody = zod.object({
   "applicationId": zod.string().nullish(),
   "subject": zod.string().min(createSupportTicketBodySubjectMin).max(createSupportTicketBodySubjectMax),
@@ -947,6 +1144,7 @@ export const AddApplicantSupportMessageParams = zod.object({
 })
 
 export const addApplicantSupportMessageBodyMessageMax = 5000;
+
 
 
 export const AddApplicantSupportMessageBody = zod.object({
@@ -1018,6 +1216,7 @@ export const ReplyToSupportTicketParams = zod.object({
 export const replyToSupportTicketBodyResponseMax = 5000;
 
 
+
 export const ReplyToSupportTicketBody = zod.object({
   "response": zod.string().min(1).max(replyToSupportTicketBodyResponseMax),
   "status": zod.enum(['open', 'in_progress', 'resolved'])
@@ -1077,48 +1276,3 @@ export const AssignSupportTicketResponse = zod.object({
 })
 
 
-export const DownloadGuestPreapplicationEvidenceResponse = zod.unknown()
-
-export const CompleteGuestPreapplicationEvidenceUploadResponse = zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})
-
-/**
- * @summary Download private guest application evidence
- */
-export const DownloadGuestPreapplicationEvidenceParams = zod.object({
-  "applicationId": zod.coerce.string().uuid(),
-  "evidenceId": zod.coerce.string().uuid()
-})
-
-export const requestGuestPreapplicationEvidenceUploadBodyFileNameMax = 160;
-
-/**
- * @summary Verify and record an uploaded guest evidence file
- */
-export const CompleteGuestPreapplicationEvidenceUploadParams = zod.object({
-  "applicationId": zod.coerce.string().uuid(),
-  "evidenceId": zod.coerce.string().uuid()
-})
-
-export const requestGuestPreapplicationEvidenceUploadBodyContentTypeMax = 100;
-
-export const RequestGuestPreapplicationEvidenceUploadResponse = zod.object({
-  "evidenceId": zod.string().uuid(),
-  "uploadUrl": zod.string().url()
-})
-
-export const requestGuestPreapplicationEvidenceUploadBodySizeBytesMax = 209715200;
-
-export const RequestGuestPreapplicationEvidenceUploadBody = zod.object({
-  "evidenceType": zod.enum(['identity_document', 'verification_video']),
-  "fileName": zod.string().min(1).max(requestGuestPreapplicationEvidenceUploadBodyFileNameMax),
-  "contentType": zod.string().max(requestGuestPreapplicationEvidenceUploadBodyContentTypeMax),
-  "sizeBytes": zod.number().int().min(1).max(requestGuestPreapplicationEvidenceUploadBodySizeBytesMax)
-})
