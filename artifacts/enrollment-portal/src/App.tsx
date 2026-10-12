@@ -549,10 +549,7 @@ function DraftApplication() {
     setShowSuccess(new URLSearchParams(window.location.search).get('submitted') === '1');
   }, [id, user?.id]);
   const sessionApplication = sessionState.routeId === id ? sessionState.application : null;
-  const savedDraft = app.data?.status === 'draft' && user?.id
-    ? adoptSavedDraft(app.data, user.id)
-    : undefined;
-  const application = sessionApplication ?? savedDraft?.application ?? app.data;
+  const application = sessionApplication ?? app.data;
   const showLoading = !userLoaded || (!application && !sessionOnlyRoute && app.isLoading);
   const setSessionApplication = (next: EnrollmentApplication | null) =>
     setSessionState({ routeId: id, application: next });
@@ -584,7 +581,7 @@ function DraftApplication() {
   </AppFrame>;
   const saveStep = async (answers: Record<string, unknown>, currentStep: number) => {
     setFeedback('');
-    if (application.status === 'draft') {
+    if (sessionOnlyRoute) {
       if (!user?.id) return false;
       const saved = updateSessionDraft(application.id, user.id, { answers, currentStep });
       if (!saved) {
@@ -613,22 +610,36 @@ function DraftApplication() {
       setLocation('/dashboard');
       return true;
     }
-    if (!user?.id) return false;
-    const saved = updateSessionDraft(application.id, user.id, {
-      answers: { ...answers, categoryEntryComplete: false },
-      currentStep: 0,
-    });
-    if (!saved) {
-      setFeedback('This session-only application is no longer available. Start a new application.');
+    const entryAnswers = { ...answers, categoryEntryComplete: false };
+    if (sessionOnlyRoute) {
+      if (!user?.id) return false;
+      const saved = updateSessionDraft(application.id, user.id, {
+        answers: entryAnswers,
+        currentStep: 0,
+      });
+      if (!saved) {
+        setFeedback('This session-only application is no longer available. Start a new application.');
+        return false;
+      }
+      setSessionApplication(saved.application);
+      return true;
+    }
+    try {
+      const saved = await update.mutateAsync({
+        applicationId: id,
+        data: { answers: entryAnswers, currentStep: 0 },
+      });
+      queryClient.setQueryData(getGetApplicationQueryKey(id), saved);
+      return true;
+    } catch {
+      setFeedback('We could not save your changes. Please try again.');
       return false;
     }
-    setSessionApplication(saved.application);
-    return true;
   };
   const submitDraft = async (answers: Record<string, unknown>) => {
     try {
       let saved: EnrollmentApplication;
-      if (application.status === 'draft') {
+      if (sessionOnlyRoute) {
         if (!user?.id) throw new Error('The signed-in account could not be confirmed.');
         const record = getSessionDraft(application.id, user.id);
         if (!record) throw new Error('This session-only application is no longer available.');
@@ -665,7 +676,7 @@ function DraftApplication() {
       categoryId={application.categoryId}
       reference={application.reference}
       savedAnswers={application.answers ?? {}}
-      isSaving={application.status !== 'draft' && update.isPending}
+      isSaving={!sessionOnlyRoute && update.isPending}
       error={feedback}
       pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
       categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
@@ -676,7 +687,7 @@ function DraftApplication() {
       entryLogoVerticalOffset={categoryEntryCopy.entryLogoVerticalOffset}
       onComplete={(entryAnswers: CategoryEntryAnswers, entryPin: string) => {
         setFeedback('');
-        if (application.status === 'draft') {
+        if (sessionOnlyRoute) {
           if (!user?.id) {
             setFeedback('The signed-in account could not be confirmed.');
             return;
@@ -719,14 +730,20 @@ function DraftApplication() {
     const next = categories.data?.find((category) => category.id === categoryId);
     if (!next || next.id === application.categoryId || application.status !== 'draft') return;
     if (!window.confirm(`Change to ${next.name}? This resets the current details and PIN.`)) return;
-    if (!user?.id) return;
-    const record = getSessionDraft(application.id, user.id);
-    if (!record) {
-      setFeedback('This session-only application is no longer available.');
+    if (sessionOnlyRoute) {
+      if (!user?.id) return;
+      const changed = changeSessionDraftCategory(application.id, user.id, next);
+      if (changed) setSessionApplication(changed.application);
       return;
     }
-    const changed = changeSessionDraftCategory(application.id, user.id, next);
-    if (changed) setSessionApplication(changed.application);
+    update.mutate({ applicationId: id, data: { categoryId: next.id } }, {
+      onSuccess: (saved) => {
+        queryClient.setQueryData(getGetApplicationQueryKey(id), saved);
+        void queryClient.invalidateQueries({ queryKey: getListMyApplicationsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetApplicantSummaryQueryKey() });
+      },
+      onError: () => setFeedback('The enrollment category could not be changed. Please try again.'),
+    });
   };
   return <EnrollmentWizard
     application={application}
@@ -734,7 +751,7 @@ function DraftApplication() {
     status={application.status}
     storageAvailable={false}
     maxUploadBytes={10 * 1024 * 1024}
-    isSaving={application.status !== 'draft' && update.isPending}
+    isSaving={!sessionOnlyRoute && update.isPending}
     isSubmitting={submitExisting.isPending || submitNew.isPending}
     error={feedback}
     reopenedSections={reopenedSections}
@@ -934,28 +951,37 @@ function AdminGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function draftProgressLabel(application: {
+  currentStep: number;
+  answers?: Record<string, unknown> | null;
+}) {
+  if (application.answers?.categoryEntryComplete !== true) return 'Category details not saved yet';
+  if (application.currentStep === 0) return 'Category details saved · wizard step 1 next';
+  return `Saved through step ${Math.min(application.currentStep, 8)} of 8`;
+}
+
 function AdminQueue() {
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
-  const filters = useMemo(() => ({ ...(status ? { status: status as 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' } : {}), ...(search.trim() ? { search: search.trim() } : {}) }), [status, search]);
+  const filters = useMemo(() => ({ ...(status ? { status: status as 'draft' | 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' } : {}), ...(search.trim() ? { search: search.trim() } : {}) }), [status, search]);
   const review = useListApplicationsForReview(filters);
   const records = review.data ?? [];
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   return <AdminShell active="review">
     <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Review queue" detail="Review submitted applications and record a decision." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Review queue" detail="See saved applicant progress and review applications when they are submitted." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reference or applicant" aria-label="Search applications" data-testid="input-review-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter by status</span><select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-review-status">
-          <option value="">All statuses</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="needs_information">Needs information</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+          <option value="">All statuses</option><option value="draft">In progress</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="needs_information">Needs information</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
         </select><ChevronDown size={15} /></label>
       </div>
       <section className="queue-card">
         <div className="queue-card-head"><div><b>Applications</b><span>Authorized review records</span></div><span className="queue-count" data-testid="text-review-count">{review.isLoading ? '…' : records.length}</span></div>
         {review.isLoading ? <LoadingPanel label="Loading review applications" /> : records.length === 0 ?
-          <EmptyPanel title={search || status ? 'No matching applications' : 'The review queue is clear'} message={search || status ? 'Try adjusting your search or status filter.' : 'New submitted applications will appear here.'} /> :
+          <EmptyPanel title={search || status ? 'No matching applications' : 'The review queue is clear'} message={search || status ? 'Try adjusting your search or status filter.' : 'New and in-progress applications will appear here.'} /> :
           <div className="queue-list">{records.map((application) => <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-review-${application.id}`}>
-            <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.categoryName}</b><small>{application.applicantName || 'Applicant'} · {application.reference} · {formatDate(application.submittedAt)}</small></span>
+            <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.categoryName}</b><small>{application.applicantName || 'Applicant'} · {application.reference} · {application.status === 'draft' ? draftProgressLabel(application) : formatDate(application.submittedAt)}</small></span>
             <StatusPill status={application.status} testId={`status-review-${application.id}`} /><ArrowRight size={16} className="row-arrow" />
           </Link>)}</div>}
       </section>
@@ -1623,11 +1649,12 @@ function AdminApplicationReview() {
             <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
           <div className="review-field"><span>Created</span><b>{formatDate(application.createdAt)}</b></div>
           <div className="review-field"><span>Submitted</span><b>{formatDate(application.submittedAt)}</b></div>
+          {application.status === 'draft' && <div className="review-field" data-testid="text-draft-progress"><span>Saved progress</span><b>{draftProgressLabel(application)}</b></div>}
           <div className="review-field review-context"><span>Additional context</span><b>{String(application.answers?.additionalContext ?? 'No additional context provided')}</b></div>
           {application.reviewNote && <div className="review-note"><b>Previous review note</b><p>{application.reviewNote}</p></div>}
         </section>
         <section className="decision-card">
-          <div className="decision-head"><span className="decision-icon"><BadgeCheck size={19} /></span><div><h2>Record a decision</h2><p>This update will be visible to the applicant.</p></div></div>
+          <div className="decision-head"><span className="decision-icon"><BadgeCheck size={19} /></span><div><h2>Record a decision</h2><p>{application.status === 'draft' ? 'This application is still in progress. Saved answers are available for review; decisions unlock after submission.' : 'This update will be visible to the applicant.'}</p></div></div>
           <label className="field-label" htmlFor="decision-note">Applicant-facing reason or instructions <span>Required for rejection or additional information</span></label>
           <textarea id="decision-note" className="text-input form-textarea decision-note" rows={4} maxLength={4000} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Explain the decision or specify exactly what the applicant should correct." data-testid="input-decision-note" />
           <fieldset className="requested-sections"><legend>Sections to reopen for additional information</legend>

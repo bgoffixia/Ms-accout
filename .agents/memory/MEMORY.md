@@ -1,2 +1,3 @@
 - [Guest applicant path](guest-applicants.md) — Applicants may start without accounts; staff collect verification evidence before full review.
 - [Staff access](staff-access.md) — Staff registration must remain invitation-only, with roles granted from server-controlled invitations.
+- [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.
