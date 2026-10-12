@@ -32,6 +32,9 @@ function matches(row: Record<string, unknown>, expression: any): boolean {
   if (expression.type === "and") {
     return expression.expressions.every((item: any) => matches(row, item));
   }
+  if (expression.type === "or") {
+    return expression.expressions.some((item: any) => matches(row, item));
+  }
   const value = expression.left?.name
     ? row[expression.left.name]
     : undefined;
@@ -42,8 +45,12 @@ function matches(row: Record<string, unknown>, expression: any): boolean {
       return value !== expression.right;
     case "isNull":
       return value == null;
+    case "isNotNull":
+      return value != null;
     case "inArray":
       return expression.right.includes(value);
+    case "lt":
+      return value instanceof Date && value < expression.right;
     default:
       return false;
   }
@@ -120,6 +127,9 @@ function makeDatabase() {
         },
         where(value: any) {
           condition = value;
+          return query;
+        },
+        for() {
           return query;
         },
         orderBy() {
@@ -201,6 +211,12 @@ function makeDatabase() {
           condition = input;
           return builder;
         },
+        returning(shape?: Record<string, any>) {
+          const rows = tableRows(tableName);
+          const removed = rows.filter((row) => matches(row, condition));
+          mockState.rows.set(tableName, rows.filter((row) => !matches(row, condition)));
+          return Promise.resolve(removed.map((row) => selected(row, shape)));
+        },
         then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
           const rows = tableRows(tableName);
           const removed = rows.filter((row) => matches(row, condition));
@@ -222,8 +238,11 @@ vi.mock("drizzle-orm", () => ({
   desc: (column: unknown) => column,
   eq: (left: unknown, right: unknown) => ({ type: "eq", left, right }),
   inArray: (left: unknown, right: unknown[]) => ({ type: "inArray", left, right }),
+  isNotNull: (left: unknown) => ({ type: "isNotNull", left }),
   isNull: (left: unknown) => ({ type: "isNull", left }),
+  lt: (left: unknown, right: unknown) => ({ type: "lt", left, right }),
   ne: (left: unknown, right: unknown) => ({ type: "ne", left, right }),
+  or: (...expressions: any[]) => ({ type: "or", expressions }),
 }));
 
 vi.mock("@workspace/db", () => ({
@@ -272,7 +291,9 @@ vi.mock("../lib/objectStorage", () => ({
         download: async ({ start, end }: { start: number; end: number }) => [
           object.bytes.subarray(start, end + 1),
         ],
-        delete: async () => undefined,
+        delete: async () => {
+          mockState.storageObjects.delete(path);
+        },
         createReadStream: () => stream,
       };
     }
@@ -281,6 +302,7 @@ vi.mock("../lib/objectStorage", () => ({
 
 import express from "express";
 import router from "./enrollment";
+import { cleanupExpiredGuestEvidence } from "../lib/guestEvidenceCleanup";
 
 const accessKey = "a".repeat(43);
 const contactEmail = "applicant@example.test";
@@ -606,5 +628,121 @@ describe("guest application verification and persistence", () => {
     const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(finalReviewerList.response.status).toBe(200);
     expect(finalReviewerList.body).toHaveLength(0);
+  });
+
+  it("cleans expired guest evidence but preserves evidence linked to submitted applications", async () => {
+    const now = new Date("2026-10-12T12:00:00.000Z");
+    const old = new Date(now.getTime() - 100 * 24 * 60 * 60 * 1000);
+    const expiredAt = new Date(now.getTime() - 60 * 60 * 1000);
+    const uploadDraft = newRow("guest_preapplications", {
+      id: "upload-draft",
+      submissionStatus: "draft",
+      linkedApplicationId: null,
+      updatedAt: now,
+    });
+    const inactiveDraft = newRow("guest_preapplications", {
+      id: "inactive-draft",
+      submissionStatus: "draft",
+      linkedApplicationId: null,
+      updatedAt: old,
+      answers: { proofOfIdentity: { frontObjectPath: "/objects/test/old-complete" } },
+    }) as Record<string, unknown>;
+    const activeDraft = newRow("guest_preapplications", {
+      id: "active-draft",
+      submissionStatus: "draft",
+      linkedApplicationId: null,
+      updatedAt: now,
+      answers: { proofOfIdentity: { frontObjectPath: "/objects/test/current-file" } },
+    });
+    const submittedApplication = newRow("guest_preapplications", {
+      id: "submitted-draft",
+      submissionStatus: "submitted",
+      linkedApplicationId: "enrollment-application",
+      updatedAt: old,
+      answers: { proofOfIdentity: { frontObjectPath: "/objects/test/submitted-file" } },
+    });
+    mockState.rows.set("guest_preapplications", [
+      uploadDraft,
+      inactiveDraft,
+      activeDraft,
+      submittedApplication,
+    ]);
+
+    const pendingUpload = newRow("guest_preapplication_evidence", {
+      id: "expired-upload",
+      applicationId: uploadDraft.id,
+      objectPath: "/objects/test/expired-upload",
+      createdAt: old,
+      uploadExpiresAt: expiredAt,
+      uploadedAt: null,
+    });
+    const completeEvidence = newRow("guest_preapplication_evidence", {
+      id: "expired-complete",
+      applicationId: inactiveDraft.id,
+      evidenceSlot: "identity_front",
+      objectPath: "/objects/test/old-complete",
+      createdAt: old,
+      uploadExpiresAt: null,
+      uploadedAt: old,
+    });
+    const submittedEvidence = newRow("guest_preapplication_evidence", {
+      id: "active-submitted-evidence",
+      applicationId: submittedApplication.id,
+      evidenceSlot: "identity_front",
+      objectPath: "/objects/test/submitted-file",
+      createdAt: old,
+      uploadExpiresAt: null,
+      uploadedAt: old,
+    });
+    const replacedEvidence = newRow("guest_preapplication_evidence", {
+      id: "replaced-guest-evidence",
+      applicationId: activeDraft.id,
+      evidenceSlot: "identity_front",
+      objectPath: "/objects/test/replaced-file",
+      createdAt: old,
+      uploadExpiresAt: null,
+      uploadedAt: old,
+    });
+    const currentEvidence = newRow("guest_preapplication_evidence", {
+      id: "active-guest-evidence",
+      applicationId: activeDraft.id,
+      evidenceSlot: "identity_front",
+      objectPath: "/objects/test/current-file",
+      createdAt: now,
+      uploadExpiresAt: null,
+      uploadedAt: now,
+    });
+    mockState.rows.set("guest_preapplication_evidence", [
+      pendingUpload,
+      completeEvidence,
+      replacedEvidence,
+      currentEvidence,
+      submittedEvidence,
+    ]);
+    for (const path of [
+      "/objects/test/expired-upload",
+      "/objects/test/old-complete",
+      "/objects/test/replaced-file",
+      "/objects/test/current-file",
+      "/objects/test/submitted-file",
+    ]) {
+      mockState.storageObjects.set(path, {
+        contentType: "image/png",
+        bytes: privatePng,
+      });
+    }
+
+    await cleanupExpiredGuestEvidence(now);
+
+    expect(mockState.rows.get("guest_preapplication_evidence")).toEqual([
+      currentEvidence,
+      submittedEvidence,
+    ]);
+    expect(mockState.storageObjects.has("/objects/test/expired-upload")).toBe(false);
+    expect(mockState.storageObjects.has("/objects/test/old-complete")).toBe(false);
+    expect(mockState.storageObjects.has("/objects/test/replaced-file")).toBe(false);
+    expect(mockState.storageObjects.has("/objects/test/current-file")).toBe(true);
+    expect(mockState.storageObjects.has("/objects/test/submitted-file")).toBe(true);
+    expect(inactiveDraft.answers).toEqual({ proofOfIdentity: {} });
   });
 });

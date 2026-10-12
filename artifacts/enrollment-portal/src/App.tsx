@@ -2467,7 +2467,7 @@ function GuestApplicationPage() {
       <section className="guest-intro rise">
         <div className="eyebrow"><span className="eyebrow-rule" />START WITHOUT AN ACCOUNT</div>
         <h1>Apply without an account.</h1>
-        <p>Enter your name and email, choose a category, then complete the application online. Upload your evidence and verify your email before submission.</p>
+        <p>Enter your name and email, choose a category, then complete the application online. Upload your evidence and verify your email before submission. Unfinished and replaced uploads are removed within 24 hours. Saved evidence is kept for 90 days after the last activity on an unsubmitted draft.</p>
         <div className="guest-process">
           <div className="guest-process-step"><span>01</span><div><b>Share your contact details</b><small>Start with your name and email address.</small></div></div>
           <div className="guest-process-step"><span>02</span><div><b>Choose an enrollment category</b><small>Select the category that matches your application.</small></div></div>

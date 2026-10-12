@@ -81,6 +81,11 @@ export const guestPreapplicationsTable = pgTable(
     index("guest_preapplications_status_idx").on(table.status),
     index("guest_preapplications_submission_status_idx").on(table.submissionStatus),
     index("guest_preapplications_created_idx").on(table.createdAt),
+    index("guest_preapplications_evidence_cleanup_idx").on(
+      table.submissionStatus,
+      table.linkedApplicationId,
+      table.updatedAt,
+    ),
     uniqueIndex("guest_preapplications_linked_application_idx").on(table.linkedApplicationId),
   ],
 );
@@ -100,6 +105,7 @@ export const guestPreapplicationEvidenceTable = pgTable(
     objectPath: text("object_path").notNull().unique(),
     uploadedByUserId: text("uploaded_by_user_id"),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+    uploadExpiresAt: timestamp("upload_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -111,6 +117,11 @@ export const guestPreapplicationEvidenceTable = pgTable(
     index("guest_preapplication_evidence_type_idx").on(
       table.applicationId,
       table.evidenceType,
+    ),
+    index("guest_preapplication_evidence_upload_expiry_idx").on(
+      table.uploadedAt,
+      table.uploadExpiresAt,
+      table.createdAt,
     ),
   ],
 );

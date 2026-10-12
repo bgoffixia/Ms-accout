@@ -125,6 +125,7 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
+import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
 
 type ApplicationStatus =
   | "draft"
@@ -484,6 +485,17 @@ async function guestEvidencePathsAreOwned(
     })
     .from(guestPreapplicationEvidenceTable)
     .where(eq(guestPreapplicationEvidenceTable.applicationId, applicationId));
+  return evidenceRowsOwnAnswers(evidence, answers);
+}
+
+function evidenceRowsOwnAnswers(
+  evidence: Array<{
+    objectPath: string;
+    evidenceSlot: string;
+    uploadedAt: Date | null;
+  }>,
+  answers: Record<string, unknown>,
+): boolean {
   const slots: Array<[string, string, string]> = [
     ["proofOfIdentity", "frontObjectPath", "identity_front"],
     ["proofOfIdentity", "backObjectPath", "identity_back"],
@@ -1198,6 +1210,7 @@ router.post(
       if (!objectPath.startsWith("/objects/")) {
         throw new Error("Storage returned an invalid private object path.");
       }
+      const uploadExpiresAt = new Date(Date.now() + INCOMPLETE_GUEST_UPLOAD_RETENTION_MS);
       const [record] = await db
         .insert(guestPreapplicationEvidenceTable)
         .values({
@@ -1209,6 +1222,7 @@ router.post(
           sizeBytes,
           objectPath,
           uploadedByUserId: null,
+          uploadExpiresAt,
         })
         .returning();
       if (!record) throw new Error("Evidence upload record could not be created.");
@@ -1293,7 +1307,7 @@ router.post(
         }
         const [updatedEvidence] = await db
           .update(guestPreapplicationEvidenceTable)
-          .set({ uploadedAt: new Date() })
+          .set({ uploadedAt: new Date(), uploadExpiresAt: null })
           .where(eq(guestPreapplicationEvidenceTable.id, evidence.id))
           .returning();
         if (!updatedEvidence) {
@@ -1450,6 +1464,28 @@ router.post(
 
       const now = new Date();
       const submitted = await db.transaction(async (transaction) => {
+        const [currentPreapplication] = await transaction
+          .select()
+          .from(guestPreapplicationsTable)
+          .where(eq(guestPreapplicationsTable.id, preapplication.id))
+          .for("update")
+          .limit(1);
+        if (
+          !currentPreapplication ||
+          currentPreapplication.submissionStatus !== "draft" ||
+          currentPreapplication.linkedApplicationId
+        ) return null;
+
+        const currentEvidence = await transaction
+          .select({
+            objectPath: guestPreapplicationEvidenceTable.objectPath,
+            evidenceSlot: guestPreapplicationEvidenceTable.evidenceSlot,
+            uploadedAt: guestPreapplicationEvidenceTable.uploadedAt,
+          })
+          .from(guestPreapplicationEvidenceTable)
+          .where(eq(guestPreapplicationEvidenceTable.applicationId, preapplication.id));
+        if (!evidenceRowsOwnAnswers(currentEvidence, answers)) return null;
+
         const [created] = await transaction
           .insert(enrollmentApplicationsTable)
           .values({
@@ -2431,6 +2467,7 @@ router.post(
       if (!objectPath.startsWith("/objects/")) {
         throw new Error("Storage returned an invalid private object path.");
       }
+      const uploadExpiresAt = new Date(Date.now() + INCOMPLETE_GUEST_UPLOAD_RETENTION_MS);
       const [record] = await db
         .insert(guestPreapplicationEvidenceTable)
         .values({
@@ -2442,6 +2479,7 @@ router.post(
           sizeBytes,
           objectPath,
           uploadedByUserId: res.locals.userId as string,
+          uploadExpiresAt,
         })
         .returning();
       if (!record) throw new Error("Evidence upload record could not be created.");
@@ -2511,7 +2549,7 @@ router.post(
 
       const [completed] = await db
         .update(guestPreapplicationEvidenceTable)
-        .set({ uploadedAt: new Date() })
+        .set({ uploadedAt: new Date(), uploadExpiresAt: null })
         .where(and(
           eq(guestPreapplicationEvidenceTable.id, evidence.id),
           eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
