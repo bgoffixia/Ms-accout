@@ -10,10 +10,12 @@ import {
 import {
   createCipheriv,
   createDecipheriv,
+  createHash,
   createHmac,
   randomBytes,
   randomUUID,
   scryptSync,
+  timingSafeEqual,
 } from "node:crypto";
 import {
   type NextFunction,
@@ -25,6 +27,8 @@ import {
 import {
   CreateSupportTicketBody,
   CreateSupportTicketResponse,
+  CreateGuestPreapplicationBody,
+  CreateGuestPreapplicationResponse,
   AddAdminApplicationNoteBody,
   AddAdminApplicationNoteParams,
   AddAdminApplicationNoteResponse,
@@ -51,6 +55,7 @@ import {
   ListAdminUsersResponse,
   ListApplicationsForReviewQueryParams,
   ListApplicationsForReviewResponse,
+  ListAdminGuestPreapplicationsResponse,
   ListEnrollmentCategoriesResponse,
   ListMyApplicationsResponse,
   ListMySupportTicketsResponse,
@@ -63,6 +68,11 @@ import {
   SubmitApplicationBody,
   SubmitNewApplicationBody,
   SubmitNewApplicationResponse,
+  LookupGuestPreapplicationBody,
+  LookupGuestPreapplicationResponse,
+  UpdateAdminGuestPreapplicationBody,
+  UpdateAdminGuestPreapplicationParams,
+  UpdateAdminGuestPreapplicationResponse,
   UpdateApplicationBody,
   UpdateApplicationParams,
   UpdateApplicationResponse,
@@ -72,6 +82,10 @@ import {
   UpdateAdminUserRoleBody,
   UpdateAdminUserRoleParams,
   UpdateAdminUserRoleResponse,
+  CreateApplicationDraftBody,
+  CreateApplicationDraftResponse,
+  CreateAdminUserInvitationBody,
+  CreateAdminUserInvitationResponse,
   UpdatePortalSettingsBody,
   UpdatePortalSettingsResponse,
 } from "@workspace/api-zod";
@@ -79,6 +93,7 @@ import {
   applicationEventsTable,
   db,
   enrollmentApplicationsTable,
+  guestPreapplicationsTable,
   portalSettingsTable,
   supportTicketsTable,
 } from "@workspace/db";
@@ -266,6 +281,41 @@ function validatePublicImageDataUrl(value: string | null): boolean {
 
 function categoryName(categoryId: string): string {
   return categories.find((category) => category.id === categoryId)?.name ?? "Enrollment";
+}
+
+function hashGuestAccessKey(accessKey: string): string {
+  return createHash("sha256").update(accessKey, "utf8").digest("hex");
+}
+
+function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
+  const stored = Buffer.from(storedHash, "hex");
+  const candidate = Buffer.from(hashGuestAccessKey(accessKey), "hex");
+  return stored.length === candidate.length && timingSafeEqual(stored, candidate);
+}
+
+function serializeGuestPreapplicationStatus(
+  application: typeof guestPreapplicationsTable.$inferSelect,
+) {
+  return {
+    id: application.id,
+    reference: application.reference,
+    categoryId: application.categoryId,
+    categoryName: categoryName(application.categoryId),
+    status: application.status,
+    createdAt: application.createdAt.toISOString(),
+    updatedAt: application.updatedAt.toISOString(),
+  };
+}
+
+function serializeAdminGuestPreapplication(
+  application: typeof guestPreapplicationsTable.$inferSelect,
+) {
+  return {
+    ...serializeGuestPreapplicationStatus(application),
+    fullName: application.fullName,
+    email: application.email,
+    phone: application.phone,
+  };
 }
 
 function answerString(answers: Record<string, unknown>, key: string): string | null {
@@ -683,7 +733,169 @@ router.get("/enrollment/categories", (_req, res): void => {
   res.json(ListEnrollmentCategoriesResponse.parse(categories));
 });
 
+router.post("/guest/preapplications", async (req, res): Promise<void> => {
+  const parsed = CreateGuestPreapplicationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Check the application details and try again." });
+    return;
+  }
+
+  const input = {
+    ...parsed.data,
+    fullName: parsed.data.fullName.trim(),
+    email: parsed.data.email.trim().toLowerCase(),
+    phone: parsed.data.phone?.trim() || null,
+  };
+  if (input.fullName.length < 2) {
+    res.status(400).json({ error: "Enter your full name." });
+    return;
+  }
+
+  const accessKeyHash = hashGuestAccessKey(input.accessKey);
+  const matchesRequest = (
+    existing: typeof guestPreapplicationsTable.$inferSelect,
+  ) =>
+    matchesGuestAccessKey(existing.accessKeyHash, input.accessKey) &&
+    existing.categoryId === input.categoryId &&
+    existing.fullName === input.fullName &&
+    existing.email === input.email &&
+    existing.phone === input.phone;
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(guestPreapplicationsTable)
+      .where(eq(guestPreapplicationsTable.submissionId, input.submissionId))
+      .limit(1);
+    if (existing) {
+      if (!matchesRequest(existing)) {
+        res.status(409).json({ error: "This submission request has already been used." });
+        return;
+      }
+      res.status(200).json(
+        CreateGuestPreapplicationResponse.parse(
+          serializeGuestPreapplicationStatus(existing),
+        ),
+      );
+      return;
+    }
+
+    const [created] = await db
+      .insert(guestPreapplicationsTable)
+      .values({
+        submissionId: input.submissionId,
+        reference: `PRE-${randomBytes(6).toString("hex").toUpperCase()}`,
+        accessKeyHash,
+        categoryId: input.categoryId,
+        fullName: input.fullName,
+        email: input.email,
+        phone: input.phone,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (!created) {
+      const [concurrentSubmission] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.submissionId, input.submissionId))
+        .limit(1);
+      if (concurrentSubmission && matchesRequest(concurrentSubmission)) {
+        res.status(200).json(
+          CreateGuestPreapplicationResponse.parse(
+            serializeGuestPreapplicationStatus(concurrentSubmission),
+          ),
+        );
+        return;
+      }
+      res.status(409).json({ error: "This submission request has already been used." });
+      return;
+    }
+
+    res.status(201).json(
+      CreateGuestPreapplicationResponse.parse(
+        serializeGuestPreapplicationStatus(created),
+      ),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to create guest pre-application");
+    res.status(503).json({ error: "Guest applications are temporarily unavailable." });
+  }
+});
+
+router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => {
+  const parsed = LookupGuestPreapplicationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(404).json({ error: "The reference and access key could not be verified." });
+    return;
+  }
+
+  try {
+    const [application] = await db
+      .select()
+      .from(guestPreapplicationsTable)
+      .where(eq(guestPreapplicationsTable.reference, parsed.data.reference.trim().toUpperCase()))
+      .limit(1);
+    if (!application || !matchesGuestAccessKey(application.accessKeyHash, parsed.data.accessKey)) {
+      res.status(404).json({ error: "The reference and access key could not be verified." });
+      return;
+    }
+
+    res.json(
+      LookupGuestPreapplicationResponse.parse(
+        serializeGuestPreapplicationStatus(application),
+      ),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to look up guest pre-application");
+    res.status(503).json({ error: "Guest status is temporarily unavailable." });
+  }
+});
+
 router.use(authenticate);
+
+router.post("/applications/drafts", async (req, res): Promise<void> => {
+  const parsed = CreateApplicationDraftBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const reference = `ENR-${randomBytes(8).toString("hex").toUpperCase()}`;
+  try {
+    const created = await db.transaction(async (transaction) => {
+      const [application] = await transaction
+        .insert(enrollmentApplicationsTable)
+        .values({
+          clerkUserId: res.locals.userId,
+          categoryId: parsed.data.categoryId,
+          reference,
+          status: "draft",
+          currentStep: 0,
+          answers: {},
+        })
+        .returning();
+      if (!application) return undefined;
+      await transaction.insert(applicationEventsTable).values({
+        applicationId: application.id,
+        actorUserId: res.locals.userId,
+        eventType: "applicant_draft_created",
+        note: "Application draft created.",
+      });
+      return application;
+    });
+    if (!created) {
+      res.status(500).json({ error: "The application draft could not be created." });
+      return;
+    }
+    res.status(201).json(
+      CreateApplicationDraftResponse.parse(serializeApplication(created)),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to create application draft");
+    res.status(503).json({ error: "The application draft could not be created." });
+  }
+});
 
 router.get("/me/applications", async (req, res): Promise<void> => {
   const applications = await db
@@ -886,13 +1098,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     res.status(404).json({ error: "Application not found." });
     return;
   }
-  if (application.status === "draft") {
-    res.status(409).json({
-      error: "Draft details are kept only in your current session. Submit the application to save it.",
-    });
-    return;
-  }
-  if (application.status !== "needs_information") {
+  if (!["draft", "needs_information"].includes(application.status)) {
     res.status(409).json({ error: "This application is locked against ordinary edits." });
     return;
   }
@@ -1041,34 +1247,55 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
         return `scrypt$${salt}$${scryptSync(parsed.data.pin, salt, 64).toString("hex")}`;
       })()
     : undefined;
-  const [updated] = await db
-    .update(enrollmentApplicationsTable)
-    .set({
-      ...(parsed.data.currentStep !== undefined
-        ? { currentStep: parsed.data.currentStep }
-        : {}),
-      ...(categoryChanged
-        ? { categoryId: nextCategoryId, answers: {}, currentStep: 0, pinHash: null }
-        : {}),
-      ...(!categoryChanged && submittedAnswers !== undefined
-        ? { answers: submittedAnswers }
-        : {}),
-      ...(pinHash ? { pinHash } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
-    .returning();
+  const updated = await db.transaction(async (transaction) => {
+    const [applicationRow] = await transaction
+      .update(enrollmentApplicationsTable)
+      .set({
+        ...(parsed.data.currentStep !== undefined
+          ? { currentStep: parsed.data.currentStep }
+          : {}),
+        ...(categoryChanged
+          ? { categoryId: nextCategoryId, answers: {}, currentStep: 0, pinHash: null }
+          : {}),
+        ...(!categoryChanged && submittedAnswers !== undefined
+          ? { answers: submittedAnswers }
+          : {}),
+        ...(pinHash ? { pinHash } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
+      .returning();
+    if (!applicationRow) return undefined;
+    if (categoryChanged && nextCategoryId) {
+      await transaction.insert(applicationEventsTable).values({
+        applicationId: applicationRow.id,
+        actorUserId: res.locals.userId,
+        eventType: "category_changed",
+        note: `${categoryName(application.categoryId)} → ${categoryName(nextCategoryId)}`,
+      });
+    } else if (
+      parsed.data.answers !== undefined ||
+      parsed.data.currentStep !== undefined
+    ) {
+      const savedPosition = parsed.data.currentStep ?? application.currentStep;
+      const note =
+        submittedAnswers?.categoryEntryComplete === true && savedPosition === 0
+          ? "Category details and enrollment PIN saved."
+          : savedPosition === 7 && nextAnswers.reviewDeclarationAccepted === true
+            ? "Final review and declaration saved."
+            : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
+      await transaction.insert(applicationEventsTable).values({
+        applicationId: applicationRow.id,
+        actorUserId: res.locals.userId,
+        eventType: "applicant_step_saved",
+        note,
+      });
+    }
+    return applicationRow;
+  });
   if (!updated) {
     res.status(500).json({ error: "The application could not be saved." });
     return;
-  }
-  if (categoryChanged && nextCategoryId) {
-    await db.insert(applicationEventsTable).values({
-      applicationId: updated.id,
-      actorUserId: res.locals.userId,
-      eventType: "category_changed",
-      note: `${categoryName(application.categoryId)} → ${categoryName(nextCategoryId)}`,
-    });
   }
   res.json(UpdateApplicationResponse.parse(serializeApplication(updated)));
 });
@@ -1395,6 +1622,57 @@ router.post(
 );
 router.use("/admin", requireAdmin);
 
+router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Promise<void> => {
+  try {
+    const applications = await db
+      .select()
+      .from(guestPreapplicationsTable)
+      .orderBy(desc(guestPreapplicationsTable.createdAt))
+      .limit(300);
+    res.json(
+      ListAdminGuestPreapplicationsResponse.parse(
+        applications.map(serializeAdminGuestPreapplication),
+      ),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to list guest pre-applications");
+    res.status(503).json({ error: "Guest pre-applications are temporarily unavailable." });
+  }
+});
+
+router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, async (req, res): Promise<void> => {
+  const parsedParams = UpdateAdminGuestPreapplicationParams.safeParse(req.params);
+  const parsedBody = UpdateAdminGuestPreapplicationBody.safeParse(req.body);
+  if (!parsedParams.success || !parsedBody.success) {
+    res.status(400).json({ error: "Choose a valid follow-up status." });
+    return;
+  }
+
+  try {
+    const [updated] = await db
+      .update(guestPreapplicationsTable)
+      .set({
+        status: parsedBody.data.status,
+        updatedByUserId: res.locals.userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Guest pre-application not found." });
+      return;
+    }
+    res.json(
+      UpdateAdminGuestPreapplicationResponse.parse(
+        serializeAdminGuestPreapplication(updated),
+      ),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to update guest pre-application");
+    res.status(503).json({ error: "Guest pre-application could not be updated." });
+  }
+});
+
 router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
   const parsed = UpdatePortalSettingsBody.safeParse(req.body);
   if (!parsed.success) {
@@ -1576,6 +1854,86 @@ router.get("/admin/users", requirePrimaryAdmin, async (req, res): Promise<void> 
   } catch (error) {
     req.log.error({ err: error }, "Failed to load administrator user list");
     res.status(503).json({ error: "User accounts are temporarily unavailable." });
+  }
+});
+
+router.post("/admin/users/invitations", requirePrimaryAdmin, async (req, res): Promise<void> => {
+  const parsed = CreateAdminUserInvitationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const originHeader = req.get("origin");
+  const rawForwardedHost = req.headers["x-forwarded-host"];
+  const forwardedHost = Array.isArray(rawForwardedHost)
+    ? rawForwardedHost[0]
+    : rawForwardedHost;
+  const requestHost = forwardedHost?.split(",")[0]?.trim() || req.get("host");
+  const rawForwardedProto = req.headers["x-forwarded-proto"];
+  const forwardedProto = Array.isArray(rawForwardedProto)
+    ? rawForwardedProto[0]
+    : rawForwardedProto;
+  let trustedOrigin: URL | null = null;
+
+  try {
+    if (originHeader && requestHost) {
+      const origin = new URL(originHeader);
+      const requestOrigin = new URL(
+        `${origin.protocol}//${requestHost}`,
+      );
+      const requestProtocol = forwardedProto?.split(",")[0]?.trim();
+      if (
+        ["http:", "https:"].includes(origin.protocol) &&
+        origin.host.toLowerCase() === requestOrigin.host.toLowerCase() &&
+        (!requestProtocol || `${requestProtocol}:` === origin.protocol)
+      ) {
+        trustedOrigin = origin;
+      }
+    }
+  } catch {
+    trustedOrigin = null;
+  }
+
+  if (!trustedOrigin) {
+    res.status(403).json({ error: "Staff invitations must be sent from the portal." });
+    return;
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const redirectUrl = new URL("/staff/sign-up", trustedOrigin).toString();
+  try {
+    const invitation = await clerkClient.invitations.createInvitation({
+      emailAddress: email,
+      expiresInDays: 7,
+      notify: true,
+      redirectUrl,
+      publicMetadata: { role: parsed.data.role },
+    });
+    res.status(201).json(
+      CreateAdminUserInvitationResponse.parse({
+        invitationId: invitation.id,
+        email: invitation.emailAddress,
+        role: parsed.data.role,
+        message: `Invitation email sent to ${invitation.emailAddress}.`,
+      }),
+    );
+  } catch (error) {
+    const errorStatus =
+      typeof error === "object" && error !== null && "status" in error
+        ? Number((error as { status?: unknown }).status)
+        : Number.NaN;
+    if ([400, 409, 422].includes(errorStatus)) {
+      res.status(409).json({
+        error: "This email already has an account or an active invitation.",
+      });
+      return;
+    }
+    req.log.error(
+      { clerkStatus: Number.isFinite(errorStatus) ? errorStatus : undefined },
+      "Failed to send staff invitation",
+    );
+    res.status(503).json({ error: "The staff invitation could not be sent." });
   }
 });
 
@@ -1779,8 +2137,6 @@ router.get("/admin/applications", requireReviewer, async (req, res): Promise<voi
     filters.push(
       eq(enrollmentApplicationsTable.status, parsed.data.status as ApplicationStatus),
     );
-  } else {
-    filters.push(ne(enrollmentApplicationsTable.status, "draft"));
   }
   const applications = await db
     .select()

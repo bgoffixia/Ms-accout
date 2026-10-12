@@ -15,8 +15,10 @@ import {
   getGetAdminOverviewQueryKey,
   getGetPortalSettingsQueryKey,
   getListApplicationsForReviewQueryKey, getListMyApplicationsQueryKey,
+  getListAdminGuestPreapplicationsQueryKey,
   getListAdminUsersQueryKey, getListMySupportTicketsQueryKey, getListSupportTicketsForAdminQueryKey,
   useAddAdminApplicationNote, useAddApplicantSupportMessage, useAssignSupportTicket,
+  useCreateGuestPreapplication, useLookupGuestPreapplication, useListAdminGuestPreapplications,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminOverview,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
@@ -24,10 +26,19 @@ import {
   useListSupportTicketsForAdmin, useReplyToSupportTicket, useSubmitApplication, useSubmitNewApplication,
   useUpdateAdminUserStatus, useUpdateApplication,
   useUpdateAdminUserRole, useGetPortalSettings, useUpdatePortalSettings,
+  useUpdateAdminGuestPreapplication,
+  useCreateAdminUserInvitation,
+  useCreateApplicationDraft,
 } from '@workspace/api-client-react';
 import type {
-  AdminUser, ApplicationDecision, ApplicationEvent, EnrollmentApplication, EnrollmentCategory, PortalPageTheme, PortalSettings, SupportTicket,
+  AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, EnrollmentApplication, EnrollmentCategory,
+  GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, SupportTicket,
 } from '@workspace/api-client-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { CategoryEntryForm, type CategoryEntryAnswers } from './components/CategoryEntryForm';
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
@@ -38,8 +49,8 @@ import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
 import categoryThreeLogo from './assets/category-three-anz-logo.jpg';
 import categoryFourLogo from './assets/category-four-bsp-logo.jpg';
 import {
-  adoptSavedDraft, changeSessionDraftCategory, clearSessionDrafts,
-  createSessionDraft, getSessionDraft, isSessionDraftId, listSessionDrafts,
+  changeSessionDraftCategory, clearSessionDrafts,
+  getSessionDraft, isSessionDraftId, listSessionDrafts,
   removeSessionDraft, updateSessionDraft,
 } from './sessionDraftStore';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
@@ -132,6 +143,8 @@ function StatusPill({ status, testId }: { status: string; testId?: string }) {
     needs_information: 'Additional Information Required',
     approved: 'Approved',
     rejected: 'Rejected',
+    received: 'Received',
+    contacted: 'Contacted',
     open: 'Open',
     answered: 'In Progress',
     closed: 'Resolved',
@@ -221,8 +234,14 @@ function PublicLanding() {
           <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to Our Enrollment Portal')}</h1>
           <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.')}</p>
           <div className="landing-actions">
-            <Link href="/dashboard" className="button button-primary" data-testid="link-get-started">
+            <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
+            </Link>
+            <Link href="/sign-in" className="landing-staff-link" data-testid="link-staff-sign-in">
+              Staff sign in <ArrowUpRight size={15} />
+            </Link>
+            <Link href="/guest/track" className="landing-staff-link" data-testid="link-track-application">
+              Track an application <ArrowRight size={15} />
             </Link>
           </div>
           <div className="landing-assurances">
@@ -239,7 +258,7 @@ function PublicLanding() {
   );
 }
 
-function AuthPage({ mode }: { mode: 'in' | 'up' }) {
+function AuthPage({ mode }: { mode: 'in' | 'up' | 'staff' }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
   useEffect(() => {
@@ -249,13 +268,28 @@ function AuthPage({ mode }: { mode: 'in' | 'up' }) {
   return <main className="auth-page portal-frame">
     <div className="auth-brand"><PortalWordmark /><span>SECURE ACCESS</span></div>
     <div className="auth-canvas">
-      <div className="auth-intro"><div className="eyebrow">A thoughtful process starts here</div><h1>{mode === 'in' ? 'Welcome back.' : 'Let’s get started.'}</h1>
-        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
+      <div className="auth-intro"><div className="eyebrow">{mode === 'staff' ? 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'staff' ? 'Your team account.' : 'Let’s get started.'}</h1>
+        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
         {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} forceRedirectUrl={`${basePath}/auth/complete`} /> :
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/auth/complete`} />}
+          <SignUp routing="path" path={`${basePath}${mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/auth/complete`} />}
       </div>
+    </div>
+  </main>;
+}
+
+function StaffSignUpPage() {
+  const invitationTicket = new URLSearchParams(window.location.search).get('__clerk_ticket');
+  if (invitationTicket) return <AuthPage mode="staff" />;
+  return <main className="signedout-page portal-frame" data-testid="staff-invitation-required">
+    <PortalWordmark />
+    <div className="signedout-card">
+      <span className="state-icon"><LockKeyhole size={21} /></span>
+      <div className="eyebrow">INVITATION REQUIRED</div>
+      <h1>Staff registration is invitation-only.</h1>
+      <p>Open the invitation email from your portal administrator to create a staff account. If your invitation expired, ask an administrator to send a new one.</p>
+      <Link href="/sign-in" className="button button-primary" data-testid="link-staff-invitation-sign-in">Staff sign in <ArrowRight size={15} /></Link>
     </div>
   </main>;
 }
@@ -296,32 +330,12 @@ function Dashboard() {
   const categories = useListEnrollmentCategories();
   const portalSettings = useGetPortalSettings();
   const deleteDrafts = useDeleteMyDrafts();
-  const clearSavedDrafts = deleteDrafts.mutateAsync;
+  const createDraft = useCreateApplicationDraft();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [sessionRevision, setSessionRevision] = useState(0);
   const [startingCategoryId, setStartingCategoryId] = useState<string | null>(null);
   const [draftFeedback, setDraftFeedback] = useState('');
-  const [legacyCleanupCompleteFor, setLegacyCleanupCompleteFor] = useState<string | null>(null);
-  const legacyCleanupStartedFor = useRef<string | null>(null);
-  useEffect(() => {
-    const ownerId = user?.id;
-    if (!userLoaded || !ownerId || legacyCleanupStartedFor.current === ownerId) return;
-    legacyCleanupStartedFor.current = ownerId;
-    void clearSavedDrafts().then(async ({ deletedCount }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: getListMyApplicationsQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: getGetApplicantSummaryQueryKey() }),
-      ]);
-      setLegacyCleanupCompleteFor(ownerId);
-      if (deletedCount > 0) {
-        setDraftFeedback(`Removed ${deletedCount} previously saved unfinished application${deletedCount === 1 ? '' : 's'}.`);
-      }
-    }).catch(() => {
-      setLegacyCleanupCompleteFor(ownerId);
-      setDraftFeedback('Previously saved drafts could not be cleared. Use Clear all drafts to retry.');
-    });
-  }, [userLoaded, user?.id, clearSavedDrafts, queryClient]);
   const sessionRecords = useMemo(
     () => user?.id ? listSessionDrafts(user.id) : [],
     [user?.id, sessionRevision],
@@ -358,11 +372,19 @@ function Dashboard() {
     });
   }, [categories.data, portalSettings.data?.cards]);
 
-  const begin = (category: EnrollmentCategory) => {
+  const begin = async (category: EnrollmentCategory) => {
     if (!user?.id || startingCategoryId) return;
     setStartingCategoryId(category.id);
-    const draft = createSessionDraft(user.id, category);
-    setLocation(`/apply/${draft.application.id}`);
+    setDraftFeedback('');
+    try {
+      const draft = await createDraft.mutateAsync({ data: { categoryId: category.id } });
+      void queryClient.invalidateQueries({ queryKey: getListMyApplicationsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetApplicantSummaryQueryKey() });
+      setLocation(`/apply/${draft.id}`);
+    } catch {
+      setStartingCategoryId(null);
+      setDraftFeedback('A secure application draft could not be opened. Please try again.');
+    }
   };
   const clearDrafts = () => {
     if (!user?.id || deleteDrafts.isPending || !window.confirm(
@@ -379,7 +401,7 @@ function Dashboard() {
       onError: () => setDraftFeedback('Unfinished applications could not be cleared. Please try again.'),
     });
   };
-  const busy = summary.isLoading || applications.isLoading || categories.isLoading || legacyCleanupCompleteFor !== user?.id;
+  const busy = !userLoaded || summary.isLoading || applications.isLoading || categories.isLoading;
   const failure = summary.isError || applications.isError || categories.isError;
   return <AppFrame active="dashboard" fitDashboard>
     <div className="dashboard-layout">
@@ -437,7 +459,7 @@ function Dashboard() {
             </section>
             <section className="recent-section">
               <div className="section-line">
-                <div><h2>Your applications</h2><p>Unsubmitted details stay in this browser session only and are lost if you leave or refresh.</p></div>
+                <div><h2>Your applications</h2><p>Each saved step is stored securely so you can return later. Authorized enrollment reviewers can see your progress.</p></div>
                 <div className="section-line-actions">
                   <span className="step-indicator">{allApplications.length} total</span>
                   {allApplications.some((application) => application.status === 'draft') && <button type="button" className="text-action" onClick={clearDrafts} disabled={deleteDrafts.isPending} data-testid="button-clear-drafts">{deleteDrafts.isPending ? 'Clearing…' : 'Clear all drafts'}</button>}
@@ -867,6 +889,7 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
     ...(canReview ? [
       { href: '/admin', key: 'overview', label: 'Overview', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/review', key: 'review', label: 'Review queue', icon: FileCheck2, testId: 'link-admin-review' },
+      { href: '/admin/pre-applications', key: 'preapplications', label: 'Guest follow-up', icon: MessageCircle, testId: 'link-admin-preapplications' },
     ] : []),
     ...(role === 'admin' ? [
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
@@ -1006,9 +1029,29 @@ function AdminUsers() {
   const users = useListAdminUsers(params);
   const updateStatus = useUpdateAdminUserStatus();
   const updateRole = useUpdateAdminUserRole();
+  const createInvitation = useCreateAdminUserInvitation();
   const queryClient = useQueryClient();
   const { user } = useUser();
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<AdminUserInvitationInput['role']>('sub_admin');
+  const [inviteFeedback, setInviteFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const records = users.data?.users ?? [];
+  const sendInvitation = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setInviteFeedback(null);
+    createInvitation.mutate({ data: { email: inviteEmail.trim(), role: inviteRole } }, {
+      onSuccess: (invitation) => {
+        setInviteEmail('');
+        setInviteFeedback({ message: invitation.message, error: false });
+      },
+      onError: (error) => setInviteFeedback({
+        message: error.status === 409
+          ? 'This email already has an account or a pending invitation.'
+          : 'The invitation could not be sent. Check the email address and try again.',
+        error: true,
+      }),
+    });
+  };
   const changeStatus = (record: AdminUser) => {
     const next = record.accountStatus === 'suspended' ? 'active' : 'suspended';
     const verb = next === 'suspended' ? 'suspend' : 'reactivate';
@@ -1035,6 +1078,27 @@ function AdminUsers() {
   if (users.isError) return <AdminShell active="users"><AccessError retry={() => void users.refetch()} /></AdminShell>;
   return <AdminShell active="users"><div className="admin-page">
     <PageHeading eyebrow="ACCOUNT MANAGEMENT" title="Users and roles" detail="Manage applicant accounts and assign authorized staff roles." />
+    <section className="detail-card admin-staff-invite" data-testid="panel-staff-invitation">
+      <div className="detail-card-title"><ShieldCheck size={17} /><h2>Invite staff</h2></div>
+      <p>Invitations expire after 7 days. The selected role is applied only after the recipient accepts the emailed invitation on the separate <code>/staff/sign-up</code> page.</p>
+      <form className="admin-staff-invite-form" onSubmit={sendInvitation}>
+        <label className="admin-staff-invite-field"><span className="field-label">Staff email</span>
+          <input className="text-input" type="email" autoComplete="email" required maxLength={320} value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="colleague@example.com" data-testid="input-staff-invitation-email" />
+        </label>
+        <label className="admin-staff-invite-field"><span className="field-label">Role after acceptance</span>
+          <select className="text-input" value={inviteRole} onChange={(event) => setInviteRole(event.target.value as AdminUserInvitationInput['role'])} data-testid="select-staff-invitation-role">
+            <option value="sub_admin">Sub admin — review enrollment</option>
+            <option value="moderator">Moderator — support requests</option>
+            <option value="admin">Admin — manage staff and settings</option>
+          </select>
+        </label>
+        <button type="submit" className="button button-primary" disabled={createInvitation.isPending} data-testid="button-send-staff-invitation">
+          {createInvitation.isPending ? 'Sending invitation…' : 'Send invitation'} <ArrowRight size={15} />
+        </button>
+      </form>
+      {inviteFeedback && <p className={inviteFeedback.error ? 'inline-error' : 'success-message'} role="status" data-testid="text-staff-invitation-feedback">{inviteFeedback.message}</p>}
+      <p className="admin-staff-invite-warning">Only invite people you trust with the selected level of access. Admins can assign staff roles and edit portal settings.</p>
+    </section>
     <div className="admin-toolbar">
       <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, user ID, or reference" aria-label="Search user accounts" data-testid="input-admin-user-search" /></label>
       <label className="filter-select"><span className="sr-only">Filter by account status</span><select value={accountStatus} onChange={(event) => setAccountStatus(event.target.value)} data-testid="select-account-status"><option value="">All account statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select><ChevronDown size={15} /></label>
@@ -1689,6 +1753,299 @@ function AdminSupport() {
   </AdminShell>;
 }
 
+const guestApplicationSchema = z.object({
+  categoryId: z.string().min(1, 'Choose an enrollment category.'),
+  fullName: z.string().trim().min(2, 'Enter your full name.').max(160, 'Name must be 160 characters or fewer.'),
+  email: z.string().trim().email('Enter a valid email address.').max(320),
+  phone: z.string().trim().max(40, 'Phone number must be 40 characters or fewer.').optional(),
+});
+type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
+
+const guestLookupSchema = z.object({
+  reference: z.string().trim().min(8, 'Enter the reference from your confirmation.').max(32),
+  accessKey: z.string().min(1, 'Enter your private tracking key.'),
+});
+type GuestLookupValues = z.infer<typeof guestLookupSchema>;
+
+function GuestPublicHeader() {
+  return <header className="guest-public-header">
+    <Link href="/" className="guest-brand-link" aria-label="Enrollment portal home" data-testid="link-guest-home">
+      <PortalWordmark />
+    </Link>
+    <nav aria-label="Public navigation">
+      <Link href="/guest/track" className="guest-header-link" data-testid="link-guest-track">Track an application <ArrowRight size={14} /></Link>
+      <Link href="/sign-in" className="guest-header-staff" data-testid="link-guest-staff-sign-in">Staff sign in</Link>
+    </nav>
+  </header>;
+}
+
+function GuestApplicationPage() {
+  const categories = useListEnrollmentCategories();
+  const createGuest = useCreateGuestPreapplication();
+  const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<{
+    fingerprint: string;
+    input: GuestPreapplicationInput;
+  } | null>(null);
+  const [retryMismatch, setRetryMismatch] = useState(false);
+  const form = useForm<GuestApplicationValues>({
+    resolver: zodResolver(guestApplicationSchema),
+    defaultValues: { categoryId: '', fullName: '', email: '', phone: '' },
+  });
+
+  const onSubmit = async (values: GuestApplicationValues) => {
+    const details = {
+      categoryId: values.categoryId as GuestPreapplicationInput['categoryId'],
+      fullName: values.fullName.trim(),
+      email: values.email.trim(),
+      phone: values.phone?.trim() ?? '',
+    };
+    const fingerprint = JSON.stringify(details);
+    if (pendingSubmission && pendingSubmission.fingerprint !== fingerprint) {
+      setRetryMismatch(true);
+      return;
+    }
+
+    setRetryMismatch(false);
+    let input = pendingSubmission?.input;
+    let accessKey = input?.accessKey;
+    if (!input || !accessKey) {
+      const bytes = new Uint8Array(32);
+      window.crypto.getRandomValues(bytes);
+      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+      accessKey = window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+      input = {
+        submissionId: window.crypto.randomUUID(),
+        accessKey,
+        categoryId: details.categoryId,
+        fullName: details.fullName,
+        email: details.email,
+        ...(details.phone ? { phone: details.phone } : {}),
+      };
+      setPendingSubmission({ fingerprint, input });
+    }
+
+    try {
+      const application = await createGuest.mutateAsync({ data: input });
+      setCreated({ application, accessKey });
+      setPendingSubmission(null);
+    } catch {
+      // Keep the same key and submission ID in memory so a retry is idempotent.
+    }
+  };
+
+  const copyKey = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created.accessKey);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return <main className="guest-page portal-frame">
+    <GuestPublicHeader />
+    <div className="guest-page-grid">
+      <section className="guest-intro rise">
+        <div className="eyebrow"><span className="eyebrow-rule" />START WITHOUT AN ACCOUNT</div>
+        <h1>Begin with the essentials.</h1>
+        <p>Share your contact details so our enrollment team can help you complete the application. No account or identity files are needed for this first step.</p>
+        <div className="guest-process">
+          <div className="guest-process-step"><span>01</span><div><b>Tell us how to reach you</b><small>Choose a category and enter your contact details.</small></div></div>
+          <div className="guest-process-step"><span>02</span><div><b>We’ll follow up privately</b><small>Staff will collect the remaining application details and identity evidence.</small></div></div>
+          <div className="guest-process-step"><span>03</span><div><b>Full review starts when complete</b><small>Identity files and video are required before review begins.</small></div></div>
+        </div>
+        <div className="guest-intro-note"><LockKeyhole size={16} /><span>Your tracking key is private and is never sent by email.</span></div>
+      </section>
+
+      <section className="guest-form-card rise-delay" aria-labelledby="guest-apply-heading">
+        {created ? <div className="guest-success" data-testid="guest-application-success">
+          <span className="guest-success-mark"><Check size={22} /></span>
+          <div className="eyebrow">PRE-APPLICATION RECEIVED</div>
+          <h2 id="guest-apply-heading">We’ll be in touch.</h2>
+          <p>Our staff will contact you to collect your identity files and video, and help complete the remaining application details before full review.</p>
+          <div className="guest-reference-box">
+            <span>APPLICATION REFERENCE</span>
+            <strong data-testid="text-guest-reference">{created.application.reference}</strong>
+          </div>
+          <div className="guest-key-box">
+            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
+            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
+            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
+              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
+            </button>
+          </div>
+          <p className="guest-key-warning">Save this key now. It is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
+          <Link href="/guest/track" className="button button-primary guest-success-track" data-testid="link-track-created-application">Track application status <ArrowRight size={16} /></Link>
+        </div> : <>
+          <div className="guest-form-topline"><span>PRE-APPLICATION</span><span>ABOUT 2 MINUTES</span></div>
+          <h2 id="guest-apply-heading">Your first details</h2>
+          <p className="guest-form-subtitle">A member of our team will use these details to follow up.</p>
+          {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
+            categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
+              <p>Enrollment categories could not be loaded.</p>
+              <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-categories">Try again <ArrowRight size={14} /></button>
+            </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status" data-testid="guest-category-empty">No enrollment categories are available right now.</div> :
+            <Form {...form}>
+              <form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+                <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Enrollment category</FormLabel>
+                  <FormControl><select {...field} id="guest-category" className="guest-select" data-testid="select-guest-category">
+                    <option value="">Select a category</option>
+                    {(categories.data ?? []).map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
+                  </select></FormControl><FormMessage />
+                </FormItem>} />
+                <FormField control={form.control} name="fullName" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Full name</FormLabel><FormControl><Input {...field} autoComplete="name" placeholder="As shown on your identity document" data-testid="input-guest-full-name" /></FormControl><FormMessage />
+                </FormItem>} />
+                <FormField control={form.control} name="email" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
+                </FormItem>} />
+                <FormField control={form.control} name="phone" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Phone number <span className="guest-optional">OPTIONAL</span></FormLabel><FormControl><Input {...field} type="tel" autoComplete="tel" placeholder="Include country code if outside Vanuatu" data-testid="input-guest-phone" /></FormControl><FormMessage />
+                </FormItem>} />
+                {createGuest.isError && <div className="guest-inline-error" role="alert" data-testid="guest-submit-error">
+                  <p>We couldn’t confirm receipt. Retry with the same details to safely reuse this submission attempt.</p>
+                  <button type="button" className="text-action" onClick={() => {
+                    if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate pre-application. Continue?')) return;
+                    setPendingSubmission(null);
+                    setRetryMismatch(false);
+                    createGuest.reset();
+                  }} data-testid="button-reset-guest-attempt">Start over with different details</button>
+                </div>}
+                {retryMismatch && <p className="guest-inline-error" role="alert" data-testid="guest-retry-mismatch">This request may already have been received. Restore the same details to retry safely, or use “Start over” if you accept that a duplicate may be created.</p>}
+                <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending || !categories.data?.length} data-testid="button-submit-guest-application">
+                  {createGuest.isPending ? 'Sending your details…' : createGuest.isError ? 'Retry pre-application' : 'Send pre-application'} <ArrowRight size={16} />
+                </button>
+                <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
+              </form>
+            </Form>}
+        </>}
+      </section>
+    </div>
+    <footer className="guest-footer"><span>SECURE ENROLLMENT PORTAL</span><Link href="/guest/track" data-testid="link-guest-footer-track">Already started? Track your application</Link></footer>
+  </main>;
+}
+
+function GuestTrackingPage() {
+  const lookup = useLookupGuestPreapplication();
+  const [status, setStatus] = useState<GuestPreapplicationStatus | null>(null);
+  const [lookupError, setLookupError] = useState('');
+  const form = useForm<GuestLookupValues>({
+    resolver: zodResolver(guestLookupSchema),
+    defaultValues: { reference: '', accessKey: '' },
+  });
+  const onSubmit = async (values: GuestLookupValues) => {
+    setLookupError('');
+    setStatus(null);
+    try {
+      const result = await lookup.mutateAsync({ data: { reference: values.reference.trim(), accessKey: values.accessKey } });
+      setStatus(result);
+      form.reset({ reference: values.reference.trim(), accessKey: '' });
+    } catch {
+      setLookupError('We couldn’t find a matching application with those details. Check your reference and private key, then try again.');
+    }
+  };
+  return <main className="guest-page guest-track-page portal-frame">
+    <GuestPublicHeader />
+    <div className="guest-track-wrap">
+      <div className="guest-track-heading rise">
+        <div className="eyebrow"><span className="eyebrow-rule" />PRIVATE STATUS LOOKUP</div>
+        <h1>Your progress, clearly.</h1>
+        <p>Use the reference and private tracking key you received when you started. Your key is sent securely for this lookup only.</p>
+      </div>
+      <section className="guest-track-card rise-delay">
+        <Form {...form}><form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          <FormField control={form.control} name="reference" render={({ field }) => <FormItem className="guest-field">
+            <FormLabel>Application reference</FormLabel><FormControl><Input {...field} autoComplete="off" placeholder="PRE-..." data-testid="input-track-reference" /></FormControl><FormMessage />
+          </FormItem>} />
+          <FormField control={form.control} name="accessKey" render={({ field }) => <FormItem className="guest-field">
+            <FormLabel>Private tracking key</FormLabel><FormControl><Input {...field} type="password" autoComplete="new-password" placeholder="Paste the key you saved" data-testid="input-track-key" /></FormControl><FormMessage />
+          </FormItem>} />
+          {lookupError && <p className="guest-inline-error" role="alert" data-testid="track-lookup-error">{lookupError}</p>}
+          <button type="submit" className="button button-primary guest-submit" disabled={lookup.isPending} data-testid="button-lookup-guest-status">
+            {lookup.isPending ? 'Checking status…' : 'Look up status'} <ArrowRight size={16} />
+          </button>
+        </form></Form>
+        <p className="guest-track-security"><LockKeyhole size={14} /> Your private key is never included in a link or saved on this device.</p>
+      </section>
+      {status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
+        <div className="guest-status-head"><div><span className="eyebrow">APPLICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.status} testId="status-guest-application" /></div>
+        <div className="guest-status-details">
+          <div><span>Enrollment category</span><strong>{status.categoryName}</strong></div>
+          <div><span>Current status</span><strong className="guest-status-capitalize">{status.status.replaceAll('_', ' ')}</strong></div>
+          <div><span>Last updated</span><strong>{formatDate(status.updatedAt)}</strong></div>
+        </div>
+        <div className="guest-status-next"><ShieldCheck size={17} /><p>{status.status === 'closed'
+          ? 'This pre-application is closed. Contact the enrollment team if you need help.'
+          : status.status === 'contacted'
+            ? 'Our team has reached out. Identity evidence and remaining application details are still outstanding before full review.'
+            : 'Your details are received. Staff will contact you to collect identity evidence and the remaining application details before full review.'}</p></div>
+      </section>}
+      <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">Need to start a pre-application? <span>Begin here <ArrowRight size={14} /></span></Link></p>
+    </div>
+  </main>;
+}
+
+function GuestFollowupPage() {
+  const { user } = useUser();
+  const queryClient = useQueryClient();
+  const applications = useListAdminGuestPreapplications();
+  const update = useUpdateAdminGuestPreapplication();
+  const role = String(user?.publicMetadata?.role);
+  const canReview = ['admin', 'sub_admin'].includes(role);
+  const [feedback, setFeedback] = useState('');
+
+  const setApplicationStatus = (application: AdminGuestPreapplication, nextStatus: 'contacted' | 'closed') => {
+    setFeedback('');
+    update.mutate({ applicationId: application.id, data: { status: nextStatus } }, {
+      onSuccess: () => {
+        setFeedback(`${application.reference} marked ${nextStatus}.`);
+        void queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
+      },
+      onError: () => setFeedback(`The status for ${application.reference} could not be updated. Please try again.`),
+    });
+  };
+
+  if (!canReview) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card">
+    <span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div>
+    <h1>Reviewer access required</h1><p>Guest pre-application follow-up is available to administrators and sub-administrators.</p>
+    <Link href="/admin/support" className="button button-primary" data-testid="link-guest-followup-return">Return to staff workspace <ArrowRight size={15} /></Link>
+  </div></main>;
+
+  return <AdminShell active="preapplications">
+    <div className="admin-page guest-admin-page">
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest pre-applications" detail="Follow up with applicants who began without an account." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Evidence is still outstanding</b><p>These are pre-applications only. Staff must contact applicants to collect identity files and video before full review can begin.</p></div></div>
+      {feedback && <p className={update.isError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-admin-feedback">{feedback}</p>}
+      {applications.isLoading ? <div className="guest-admin-loading" data-testid="guest-admin-loading"><div /><div /><div /></div> :
+        applications.isError ? <section className="state-card" role="alert" data-testid="guest-admin-error">
+          <span className="state-icon error-icon"><Activity size={19} /></span><h2>Follow-up list unavailable</h2>
+          <p>Guest pre-applications could not be loaded. Your access has not changed.</p>
+          <button className="text-action" type="button" onClick={() => void applications.refetch()} data-testid="button-retry-guest-admin">Try again <ArrowRight size={15} /></button>
+        </section> : (applications.data ?? []).length === 0 ? <EmptyPanel title="No guest pre-applications yet" message="New public pre-applications will appear here for staff follow-up." /> :
+          <section className="guest-admin-list" aria-label="Guest pre-application follow-up list" data-testid="guest-admin-list">
+            <div className="guest-admin-list-head"><span>APPLICANT</span><span>CONTACT</span><span>CATEGORY / REFERENCE</span><span>STATUS</span><span>FOLLOW-UP</span></div>
+            {(applications.data ?? []).map((application) => <article className="guest-admin-row" key={application.id} data-testid={`row-guest-preapplication-${application.id}`}>
+              <div className="guest-admin-name"><strong>{application.fullName}</strong><small>Received {formatDate(application.createdAt)}</small></div>
+              <div className="guest-admin-contact"><a href={`mailto:${application.email}`} data-testid={`link-guest-email-${application.id}`}>{application.email}</a>{application.phone
+                ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
+                : <small>No phone provided</small>}</div>
+              <div className="guest-admin-category"><strong>{application.categoryName}</strong><small>{application.reference}</small></div>
+              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>Evidence outstanding</small></div>
+              <div className="guest-admin-actions">
+                {application.status === 'received' && <button type="button" className="button button-primary guest-admin-action" onClick={() => setApplicationStatus(application, 'contacted')} disabled={update.isPending} data-testid={`button-guest-contacted-${application.id}`}>Mark contacted</button>}
+                {application.status !== 'closed' && <button type="button" className="guest-admin-close" onClick={() => setApplicationStatus(application, 'closed')} disabled={update.isPending} data-testid={`button-guest-close-${application.id}`}>Close</button>}
+                {application.status === 'closed' && <span className="guest-admin-closed">Closed</span>}
+              </div>
+            </article>)}
+          </section>}
+    </div>
+  </AdminShell>;
+}
+
 function NotFound() {
   return <main className="not-found portal-frame"><div className="not-found-card"><PortalWordmark /><span className="not-found-code">404</span><h1>This page isn’t here.</h1><p>The address may have changed. Return to the enrollment portal to continue.</p><Link href="/" className="button button-primary" data-testid="link-not-found-home">Return to portal <ArrowRight size={15} /></Link></div></main>;
 }
@@ -1718,6 +2075,9 @@ function RoutedPages() {
   }, [themeKey, pageTheme?.mode, pageTheme?.color, pageTheme?.blendColor, pageTheme?.angle]);
   return <Switch>
     <Route path="/" component={PublicLanding} />
+    <Route path="/guest/apply" component={GuestApplicationPage} />
+    <Route path="/guest/track" component={GuestTrackingPage} />
+    <Route path="/staff/sign-up/*?" component={StaffSignUpPage} />
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
@@ -1731,6 +2091,7 @@ function RoutedPages() {
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />
+    <Route path="/admin/pre-applications" component={() => <AdminGate><GuestFollowupPage /></AdminGate>} />
     <Route component={NotFound} />
   </Switch>;
 }

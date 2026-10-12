@@ -28,6 +28,38 @@ export const supportStatus = pgEnum("support_status", [
   "closed",
 ]);
 
+export const guestPreapplicationStatus = pgEnum("guest_preapplication_status", [
+  "received",
+  "contacted",
+  "closed",
+]);
+
+export const guestPreapplicationsTable = pgTable(
+  "guest_preapplications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    submissionId: uuid("submission_id").notNull().unique(),
+    reference: text("reference").notNull().unique(),
+    accessKeyHash: text("access_key_hash").notNull().unique(),
+    categoryId: text("category_id").notNull(),
+    fullName: text("full_name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    status: guestPreapplicationStatus("status").notNull().default("received"),
+    updatedByUserId: text("updated_by_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("guest_preapplications_status_idx").on(table.status),
+    index("guest_preapplications_created_idx").on(table.createdAt),
+  ],
+);
+
 export const enrollmentApplicationsTable = pgTable(
   "enrollment_applications",
   {
@@ -147,3 +179,4 @@ export type EnrollmentApplication =
   typeof enrollmentApplicationsTable.$inferSelect;
 export type ApplicationEvent = typeof applicationEventsTable.$inferSelect;
 export type SupportTicket = typeof supportTicketsTable.$inferSelect;
+export type GuestPreapplication = typeof guestPreapplicationsTable.$inferSelect;

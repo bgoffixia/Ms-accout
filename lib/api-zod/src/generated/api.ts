@@ -97,6 +97,31 @@ export const SubmitNewApplicationResponse = zod.object({
 
 
 /**
+ * @summary Create a server-saved draft for the signed-in applicant
+ */
+export const CreateApplicationDraftBody = zod.object({
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4'])
+})
+
+export const CreateApplicationDraftResponse = zod.object({
+  "id": zod.string(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
+  "currentStep": zod.number().int(),
+  "hasPin": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "applicantName": zod.string().nullish(),
+  "applicantEmail": zod.string().nullish(),
+  "reviewNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "submittedAt": zod.coerce.date().nullish()
+})
+
+
+/**
  * @summary Get an application owned by the signed-in applicant
  */
 export const GetApplicationParams = zod.object({
@@ -210,10 +235,112 @@ export const GetApplicantSummaryResponse = zod.object({
 
 
 /**
+ * @summary Create a guest pre-application
+ */
+export const createGuestPreapplicationBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const createGuestPreapplicationBodyFullNameMin = 2;
+export const createGuestPreapplicationBodyFullNameMax = 160;
+
+export const createGuestPreapplicationBodyEmailMax = 320;
+
+export const createGuestPreapplicationBodyPhoneMax = 40;
+
+
+
+export const CreateGuestPreapplicationBody = zod.object({
+  "submissionId": zod.string().uuid(),
+  "accessKey": zod.string().regex(createGuestPreapplicationBodyAccessKeyRegExp),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "fullName": zod.string().min(createGuestPreapplicationBodyFullNameMin).max(createGuestPreapplicationBodyFullNameMax),
+  "email": zod.string().email().max(createGuestPreapplicationBodyEmailMax),
+  "phone": zod.string().max(createGuestPreapplicationBodyPhoneMax).optional()
+})
+
+export const CreateGuestPreapplicationResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Look up guest pre-application status with a private access key
+ */
+export const lookupGuestPreapplicationBodyReferenceMin = 8;
+export const lookupGuestPreapplicationBodyReferenceMax = 32;
+
+export const lookupGuestPreapplicationBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+
+
+export const LookupGuestPreapplicationBody = zod.object({
+  "reference": zod.string().min(lookupGuestPreapplicationBodyReferenceMin).max(lookupGuestPreapplicationBodyReferenceMax),
+  "accessKey": zod.string().regex(lookupGuestPreapplicationBodyAccessKeyRegExp)
+})
+
+export const LookupGuestPreapplicationResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List guest pre-applications for authorized reviewers
+ */
+export const ListAdminGuestPreapplicationsResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "fullName": zod.string(),
+  "email": zod.string().email(),
+  "phone": zod.string().nullable()
+}))
+export const ListAdminGuestPreapplicationsResponse = zod.array(ListAdminGuestPreapplicationsResponseItem)
+
+
+/**
+ * @summary Update guest pre-application follow-up status
+ */
+export const UpdateAdminGuestPreapplicationParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const UpdateAdminGuestPreapplicationBody = zod.object({
+  "status": zod.enum(['contacted', 'closed'])
+})
+
+export const UpdateAdminGuestPreapplicationResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "fullName": zod.string(),
+  "email": zod.string().email(),
+  "phone": zod.string().nullable()
+}))
+
+
+/**
  * @summary List applications for authorized administrators
  */
 export const ListApplicationsForReviewQueryParams = zod.object({
-  "status": zod.enum(['submitted', 'under_review', 'needs_information', 'approved', 'rejected']).optional(),
+  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']).optional(),
   "search": zod.coerce.string().optional()
 })
 
@@ -297,6 +424,26 @@ export const ListAdminUsersResponse = zod.object({
   "enrollmentStatus": zod.string().nullable()
 })),
   "totalCount": zod.number().int()
+})
+
+
+/**
+ * @summary Invite a staff member to create an account with an approved role
+ */
+export const createAdminUserInvitationBodyEmailMax = 320;
+
+
+
+export const CreateAdminUserInvitationBody = zod.object({
+  "email": zod.string().email().max(createAdminUserInvitationBodyEmailMax),
+  "role": zod.enum(['admin', 'sub_admin', 'moderator'])
+})
+
+export const CreateAdminUserInvitationResponse = zod.object({
+  "invitationId": zod.string(),
+  "email": zod.string().email(),
+  "role": zod.enum(['admin', 'sub_admin', 'moderator']),
+  "message": zod.string()
 })
 
 

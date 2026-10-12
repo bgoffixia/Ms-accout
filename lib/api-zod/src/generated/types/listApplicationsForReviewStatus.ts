@@ -10,6 +10,7 @@ export type ListApplicationsForReviewStatus = typeof ListApplicationsForReviewSt
 
 
 export const ListApplicationsForReviewStatus = {
+  draft: 'draft',
   submitted: 'submitted',
   under_review: 'under_review',
   needs_information: 'needs_information',

@@ -86,6 +86,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrollmentApplication"
+  /applications/drafts:
+    post:
+      operationId: createApplicationDraft
+      tags: [enrollment]
+      summary: Create a server-saved draft for the signed-in applicant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationDraftInput"
+      responses:
+        "201":
+          description: Created application draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollmentApplication"
   /applications/{applicationId}:
     parameters:
       - name: applicationId
@@ -157,6 +175,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApplicantSummary"
+  /guest/preapplications:
+    post:
+      operationId: createGuestPreapplication
+      tags: [enrollment]
+      summary: Create a guest pre-application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestPreapplicationInput"
+      responses:
+        "200":
+          description: Previously created submission returned for a safe retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestPreapplicationCreated"
+        "201":
+          description: Guest pre-application received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestPreapplicationCreated"
+  /guest/preapplications/lookup:
+    post:
+      operationId: lookupGuestPreapplication
+      tags: [enrollment]
+      summary: Look up guest pre-application status with a private access key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestPreapplicationLookupInput"
+      responses:
+        "200":
+          description: Guest pre-application status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestPreapplicationStatus"
+        "404":
+          description: Reference and access key could not be verified
+  /admin/guest-preapplications:
+    get:
+      operationId: listAdminGuestPreapplications
+      tags: [administration]
+      summary: List guest pre-applications for authorized reviewers
+      responses:
+        "200":
+          description: Guest pre-applications ordered by most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminGuestPreapplication"
+  /admin/guest-preapplications/{applicationId}:
+    patch:
+      operationId: updateAdminGuestPreapplication
+      tags: [administration]
+      summary: Update guest pre-application follow-up status
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminGuestPreapplicationStatusUpdate"
+      responses:
+        "200":
+          description: Updated guest pre-application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminGuestPreapplication"
   /admin/applications:
     get:
       operationId: listApplicationsForReview
@@ -167,7 +268,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [submitted, under_review, needs_information, approved, rejected]
+            enum: [draft, submitted, under_review, needs_information, approved, rejected]
         - name: search
           in: query
           schema:
@@ -232,6 +333,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminUserList"
+  /admin/users/invitations:
+    post:
+      operationId: createAdminUserInvitation
+      tags: [administration]
+      summary: Invite a staff member to create an account with an approved role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserInvitationInput"
+      responses:
+        "201":
+          description: Staff invitation sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserInvitationResponse"
+        "409":
+          description: The email already has an account or an active invitation
   /admin/users/{userId}/status:
     patch:
       operationId: updateAdminUserStatus
@@ -520,6 +641,105 @@ components:
           type: string
         accent:
           type: string
+    GuestPreapplicationStatusValue:
+      type: string
+      enum: [received, contacted, closed]
+    GuestPreapplicationInput:
+      type: object
+      required: [submissionId, accessKey, categoryId, fullName, email]
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+        accessKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        categoryId:
+          type: string
+          enum: [category-1, category-2, category-3, category-4]
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 160
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        phone:
+          type: string
+          maxLength: 40
+    GuestPreapplicationLookupInput:
+      type: object
+      required: [reference, accessKey]
+      properties:
+        reference:
+          type: string
+          minLength: 8
+          maxLength: 32
+        accessKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+    GuestPreapplicationCreated:
+      type: object
+      required: [id, reference, categoryId, categoryName, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        categoryId:
+          type: string
+          enum: [category-1, category-2, category-3, category-4]
+        categoryName:
+          type: string
+        status:
+          $ref: "#/components/schemas/GuestPreapplicationStatusValue"
+        createdAt:
+          type: string
+          format: date-time
+    GuestPreapplicationStatus:
+      type: object
+      required: [id, reference, categoryId, categoryName, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        categoryId:
+          type: string
+          enum: [category-1, category-2, category-3, category-4]
+        categoryName:
+          type: string
+        status:
+          $ref: "#/components/schemas/GuestPreapplicationStatusValue"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AdminGuestPreapplication:
+      allOf:
+        - $ref: "#/components/schemas/GuestPreapplicationStatus"
+        - type: object
+          required: [fullName, email, phone]
+          properties:
+            fullName:
+              type: string
+            email:
+              type: string
+              format: email
+            phone:
+              type: ["string", "null"]
+    AdminGuestPreapplicationStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [contacted, closed]
     ApplicationStatus:
       type: string
       enum: [draft, submitted, under_review, needs_information, approved, rejected]
@@ -627,6 +847,13 @@ components:
         pinConfirmation:
           type: string
           pattern: "^[0-9]{4,6}$"
+    ApplicationDraftInput:
+      type: object
+      required: [categoryId]
+      properties:
+        categoryId:
+          type: string
+          enum: [category-1, category-2, category-3, category-4]
     ApplicationDecision:
       type: object
       required: [decision]
@@ -720,6 +947,24 @@ components:
         role:
           type: string
           enum: [applicant, admin, sub_admin, moderator]
+    AdminUserInvitationInput:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        role:
+          type: string
+          enum: [admin, sub_admin, moderator]
+    AdminUserInvitationResponse:
+      type: object
+      required: [invitationId, email, role, message]
+      properties:
+        invitationId: { type: string }
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum: [admin, sub_admin, moderator]
+        message: { type: string }
     PortalSettings:
       type: object
       required: [hero, cards, theme, screenCopy]

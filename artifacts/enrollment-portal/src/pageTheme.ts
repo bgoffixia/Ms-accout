@@ -53,6 +53,7 @@ export function pageThemeKeyForRoute(path: string): string {
   const route = path.split("?")[0].replace(/\/+$/, "") || "/";
   if (route === "/") return "landing";
   if (route.startsWith("/sign-in")) return "sign-in";
+  if (route.startsWith("/staff/sign-up")) return "sign-up";
   if (route.startsWith("/sign-up")) return "sign-up";
   if (route === "/auth/complete") return "auth-complete";
   if (route === "/dashboard") return "dashboard";

@@ -26,6 +26,109 @@ export interface EnrollmentCategory {
   accent: string;
 }
 
+export type GuestPreapplicationStatusValue = typeof GuestPreapplicationStatusValue[keyof typeof GuestPreapplicationStatusValue];
+
+
+export const GuestPreapplicationStatusValue = {
+  received: 'received',
+  contacted: 'contacted',
+  closed: 'closed',
+} as const;
+
+export type GuestPreapplicationInputCategoryId = typeof GuestPreapplicationInputCategoryId[keyof typeof GuestPreapplicationInputCategoryId];
+
+
+export const GuestPreapplicationInputCategoryId = {
+  'category-1': 'category-1',
+  'category-2': 'category-2',
+  'category-3': 'category-3',
+  'category-4': 'category-4',
+} as const;
+
+export interface GuestPreapplicationInput {
+  submissionId: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  accessKey: string;
+  categoryId: GuestPreapplicationInputCategoryId;
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  fullName: string;
+  /** @maxLength 320 */
+  email: string;
+  /** @maxLength 40 */
+  phone?: string;
+}
+
+export interface GuestPreapplicationLookupInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  accessKey: string;
+}
+
+export type GuestPreapplicationCreatedCategoryId = typeof GuestPreapplicationCreatedCategoryId[keyof typeof GuestPreapplicationCreatedCategoryId];
+
+
+export const GuestPreapplicationCreatedCategoryId = {
+  'category-1': 'category-1',
+  'category-2': 'category-2',
+  'category-3': 'category-3',
+  'category-4': 'category-4',
+} as const;
+
+export interface GuestPreapplicationCreated {
+  id: string;
+  reference: string;
+  categoryId: GuestPreapplicationCreatedCategoryId;
+  categoryName: string;
+  status: GuestPreapplicationStatusValue;
+  createdAt: string;
+}
+
+export type GuestPreapplicationStatusCategoryId = typeof GuestPreapplicationStatusCategoryId[keyof typeof GuestPreapplicationStatusCategoryId];
+
+
+export const GuestPreapplicationStatusCategoryId = {
+  'category-1': 'category-1',
+  'category-2': 'category-2',
+  'category-3': 'category-3',
+  'category-4': 'category-4',
+} as const;
+
+export interface GuestPreapplicationStatus {
+  id: string;
+  reference: string;
+  categoryId: GuestPreapplicationStatusCategoryId;
+  categoryName: string;
+  status: GuestPreapplicationStatusValue;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
+  fullName: string;
+  email: string;
+  /** @nullable */
+  phone: string | null;
+});
+
+export type AdminGuestPreapplicationStatusUpdateStatus = typeof AdminGuestPreapplicationStatusUpdateStatus[keyof typeof AdminGuestPreapplicationStatusUpdateStatus];
+
+
+export const AdminGuestPreapplicationStatusUpdateStatus = {
+  contacted: 'contacted',
+  closed: 'closed',
+} as const;
+
+export interface AdminGuestPreapplicationStatusUpdate {
+  status: AdminGuestPreapplicationStatusUpdateStatus;
+}
+
 export type ApplicationStatus = typeof ApplicationStatus[keyof typeof ApplicationStatus];
 
 
@@ -159,6 +262,20 @@ export interface ApplicationUpdate {
   pinConfirmation?: string;
 }
 
+export type ApplicationDraftInputCategoryId = typeof ApplicationDraftInputCategoryId[keyof typeof ApplicationDraftInputCategoryId];
+
+
+export const ApplicationDraftInputCategoryId = {
+  'category-1': 'category-1',
+  'category-2': 'category-2',
+  'category-3': 'category-3',
+  'category-4': 'category-4',
+} as const;
+
+export interface ApplicationDraftInput {
+  categoryId: ApplicationDraftInputCategoryId;
+}
+
 export type ApplicationDecisionDecision = typeof ApplicationDecisionDecision[keyof typeof ApplicationDecisionDecision];
 
 
@@ -280,6 +397,37 @@ export const AdminUserRoleUpdateRole = {
 
 export interface AdminUserRoleUpdate {
   role: AdminUserRoleUpdateRole;
+}
+
+export type AdminUserInvitationInputRole = typeof AdminUserInvitationInputRole[keyof typeof AdminUserInvitationInputRole];
+
+
+export const AdminUserInvitationInputRole = {
+  admin: 'admin',
+  sub_admin: 'sub_admin',
+  moderator: 'moderator',
+} as const;
+
+export interface AdminUserInvitationInput {
+  /** @maxLength 320 */
+  email: string;
+  role: AdminUserInvitationInputRole;
+}
+
+export type AdminUserInvitationResponseRole = typeof AdminUserInvitationResponseRole[keyof typeof AdminUserInvitationResponseRole];
+
+
+export const AdminUserInvitationResponseRole = {
+  admin: 'admin',
+  sub_admin: 'sub_admin',
+  moderator: 'moderator',
+} as const;
+
+export interface AdminUserInvitationResponse {
+  invitationId: string;
+  email: string;
+  role: AdminUserInvitationResponseRole;
+  message: string;
 }
 
 export type PortalSettingsHero = {
@@ -517,6 +665,7 @@ export type ListApplicationsForReviewStatus = typeof ListApplicationsForReviewSt
 
 
 export const ListApplicationsForReviewStatus = {
+  draft: 'draft',
   submitted: 'submitted',
   under_review: 'under_review',
   needs_information: 'needs_information',

@@ -20,13 +20,18 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminGuestPreapplication,
+  AdminGuestPreapplicationStatusUpdate,
   AdminOverview,
   AdminUser,
+  AdminUserInvitationInput,
+  AdminUserInvitationResponse,
   AdminUserList,
   AdminUserRoleUpdate,
   AdminUserStatusUpdate,
   ApplicantSummary,
   ApplicationDecision,
+  ApplicationDraftInput,
   ApplicationEvent,
   ApplicationNoteInput,
   ApplicationUpdate,
@@ -34,6 +39,10 @@ import type {
   EnrollmentApplication,
   EnrollmentCategory,
   ExistingApplicationSubmissionInput,
+  GuestPreapplicationCreated,
+  GuestPreapplicationInput,
+  GuestPreapplicationLookupInput,
+  GuestPreapplicationStatus,
   HealthStatus,
   ListAdminUsersParams,
   ListApplicationsForReviewParams,
@@ -468,6 +477,94 @@ export const useSubmitNewApplication = <TError = ErrorType<unknown>,
       return useMutation(getSubmitNewApplicationMutationOptions(options));
     }
 
+export const getCreateApplicationDraftUrl = () => {
+
+
+
+
+  return `/api/applications/drafts`
+}
+
+/**
+ * @summary Create a server-saved draft for the signed-in applicant
+ */
+export const createApplicationDraft = async (applicationDraftInput: ApplicationDraftInput, options?: Parameters<typeof customFetch>[1]): Promise<EnrollmentApplication> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EnrollmentApplication>(getCreateApplicationDraftUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(applicationDraftInput)
+  }
+);}
+
+
+
+
+
+export const getCreateApplicationDraftMutationKey = () => ['createApplicationDraft'] as const;
+
+export const getCreateApplicationDraftMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createApplicationDraft>>, TError,CreateApplicationDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createApplicationDraft>>, TError,CreateApplicationDraftMutationVariables, TContext> => {
+
+const mutationKey = getCreateApplicationDraftMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createApplicationDraft>>, CreateApplicationDraftMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createApplicationDraft(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateApplicationDraftMutationResult = NonNullable<Awaited<ReturnType<typeof createApplicationDraft>>>
+    export type CreateApplicationDraftMutationBody = BodyType<ApplicationDraftInput>
+    export type CreateApplicationDraftMutationError = ErrorType<unknown>
+    export type CreateApplicationDraftMutationVariables = {data: BodyType<ApplicationDraftInput>}
+
+    /**
+ * @summary Create a server-saved draft for the signed-in applicant
+ */
+export const useCreateApplicationDraft = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createApplicationDraft>>, TError,CreateApplicationDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createApplicationDraft>>,
+        TError,
+        CreateApplicationDraftMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateApplicationDraftMutationOptions(options));
+    }
+
 export const getGetApplicationUrl = (applicationId: string,) => {
 
 
@@ -800,6 +897,348 @@ export function useGetApplicantSummary<TData = Awaited<ReturnType<typeof getAppl
 
 
 
+export const getCreateGuestPreapplicationUrl = () => {
+
+
+
+
+  return `/api/guest/preapplications`
+}
+
+/**
+ * @summary Create a guest pre-application
+ */
+export const createGuestPreapplication = async (guestPreapplicationInput: GuestPreapplicationInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationCreated> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestPreapplicationCreated>(getCreateGuestPreapplicationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestPreapplicationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateGuestPreapplicationMutationKey = () => ['createGuestPreapplication'] as const;
+
+export const getCreateGuestPreapplicationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestPreapplication>>, TError,CreateGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGuestPreapplication>>, TError,CreateGuestPreapplicationMutationVariables, TContext> => {
+
+const mutationKey = getCreateGuestPreapplicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuestPreapplication>>, CreateGuestPreapplicationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGuestPreapplication(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGuestPreapplicationMutationResult = NonNullable<Awaited<ReturnType<typeof createGuestPreapplication>>>
+    export type CreateGuestPreapplicationMutationBody = BodyType<GuestPreapplicationInput>
+    export type CreateGuestPreapplicationMutationError = ErrorType<unknown>
+    export type CreateGuestPreapplicationMutationVariables = {data: BodyType<GuestPreapplicationInput>}
+
+    /**
+ * @summary Create a guest pre-application
+ */
+export const useCreateGuestPreapplication = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestPreapplication>>, TError,CreateGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGuestPreapplication>>,
+        TError,
+        CreateGuestPreapplicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateGuestPreapplicationMutationOptions(options));
+    }
+
+export const getLookupGuestPreapplicationUrl = () => {
+
+
+
+
+  return `/api/guest/preapplications/lookup`
+}
+
+/**
+ * @summary Look up guest pre-application status with a private access key
+ */
+export const lookupGuestPreapplication = async (guestPreapplicationLookupInput: GuestPreapplicationLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestPreapplicationStatus>(getLookupGuestPreapplicationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestPreapplicationLookupInput)
+  }
+);}
+
+
+
+
+
+export const getLookupGuestPreapplicationMutationKey = () => ['lookupGuestPreapplication'] as const;
+
+export const getLookupGuestPreapplicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupGuestPreapplication>>, TError,LookupGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupGuestPreapplication>>, TError,LookupGuestPreapplicationMutationVariables, TContext> => {
+
+const mutationKey = getLookupGuestPreapplicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupGuestPreapplication>>, LookupGuestPreapplicationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  lookupGuestPreapplication(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LookupGuestPreapplicationMutationResult = NonNullable<Awaited<ReturnType<typeof lookupGuestPreapplication>>>
+    export type LookupGuestPreapplicationMutationBody = BodyType<GuestPreapplicationLookupInput>
+    export type LookupGuestPreapplicationMutationError = ErrorType<void>
+    export type LookupGuestPreapplicationMutationVariables = {data: BodyType<GuestPreapplicationLookupInput>}
+
+    /**
+ * @summary Look up guest pre-application status with a private access key
+ */
+export const useLookupGuestPreapplication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupGuestPreapplication>>, TError,LookupGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lookupGuestPreapplication>>,
+        TError,
+        LookupGuestPreapplicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLookupGuestPreapplicationMutationOptions(options));
+    }
+
+export const getListAdminGuestPreapplicationsUrl = () => {
+
+
+
+
+  return `/api/admin/guest-preapplications`
+}
+
+/**
+ * @summary List guest pre-applications for authorized reviewers
+ */
+export const listAdminGuestPreapplications = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminGuestPreapplication[]> => {
+
+  return customFetch<AdminGuestPreapplication[]>(getListAdminGuestPreapplicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminGuestPreapplicationsQueryKey = () => {
+    return [
+    `/api/admin/guest-preapplications`
+    ] as const;
+    }
+
+
+export const getListAdminGuestPreapplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminGuestPreapplications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminGuestPreapplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminGuestPreapplicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminGuestPreapplications>>> = ({ signal }) => listAdminGuestPreapplications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminGuestPreapplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminGuestPreapplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminGuestPreapplications>>>
+export type ListAdminGuestPreapplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List guest pre-applications for authorized reviewers
+ */
+
+export function useListAdminGuestPreapplications<TData = Awaited<ReturnType<typeof listAdminGuestPreapplications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminGuestPreapplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminGuestPreapplicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminGuestPreapplicationUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/admin/guest-preapplications/${applicationId}`
+}
+
+/**
+ * @summary Update guest pre-application follow-up status
+ */
+export const updateAdminGuestPreapplication = async (applicationId: string,
+    adminGuestPreapplicationStatusUpdate: AdminGuestPreapplicationStatusUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AdminGuestPreapplication> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminGuestPreapplication>(getUpdateAdminGuestPreapplicationUrl(applicationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminGuestPreapplicationStatusUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminGuestPreapplicationMutationKey = () => ['updateAdminGuestPreapplication'] as const;
+
+export const getUpdateAdminGuestPreapplicationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminGuestPreapplication>>, TError,UpdateAdminGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminGuestPreapplication>>, TError,UpdateAdminGuestPreapplicationMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminGuestPreapplicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminGuestPreapplication>>, UpdateAdminGuestPreapplicationMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  updateAdminGuestPreapplication(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminGuestPreapplicationMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminGuestPreapplication>>>
+    export type UpdateAdminGuestPreapplicationMutationBody = BodyType<AdminGuestPreapplicationStatusUpdate>
+    export type UpdateAdminGuestPreapplicationMutationError = ErrorType<unknown>
+    export type UpdateAdminGuestPreapplicationMutationVariables = {applicationId: string;data: BodyType<AdminGuestPreapplicationStatusUpdate>}
+
+    /**
+ * @summary Update guest pre-application follow-up status
+ */
+export const useUpdateAdminGuestPreapplication = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminGuestPreapplication>>, TError,UpdateAdminGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminGuestPreapplication>>,
+        TError,
+        UpdateAdminGuestPreapplicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminGuestPreapplicationMutationOptions(options));
+    }
+
 export const getListApplicationsForReviewUrl = (params?: ListApplicationsForReviewParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1115,6 +1554,94 @@ export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUse
 
 
 
+
+export const getCreateAdminUserInvitationUrl = () => {
+
+
+
+
+  return `/api/admin/users/invitations`
+}
+
+/**
+ * @summary Invite a staff member to create an account with an approved role
+ */
+export const createAdminUserInvitation = async (adminUserInvitationInput: AdminUserInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminUserInvitationResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminUserInvitationResponse>(getCreateAdminUserInvitationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminUserInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminUserInvitationMutationKey = () => ['createAdminUserInvitation'] as const;
+
+export const getCreateAdminUserInvitationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminUserInvitation>>, TError,CreateAdminUserInvitationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminUserInvitation>>, TError,CreateAdminUserInvitationMutationVariables, TContext> => {
+
+const mutationKey = getCreateAdminUserInvitationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminUserInvitation>>, CreateAdminUserInvitationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminUserInvitation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminUserInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminUserInvitation>>>
+    export type CreateAdminUserInvitationMutationBody = BodyType<AdminUserInvitationInput>
+    export type CreateAdminUserInvitationMutationError = ErrorType<void>
+    export type CreateAdminUserInvitationMutationVariables = {data: BodyType<AdminUserInvitationInput>}
+
+    /**
+ * @summary Invite a staff member to create an account with an approved role
+ */
+export const useCreateAdminUserInvitation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminUserInvitation>>, TError,CreateAdminUserInvitationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminUserInvitation>>,
+        TError,
+        CreateAdminUserInvitationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateAdminUserInvitationMutationOptions(options));
+    }
 
 export const getUpdateAdminUserStatusUrl = (userId: string,) => {
 
