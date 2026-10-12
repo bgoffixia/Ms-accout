@@ -219,6 +219,42 @@ paths:
                 $ref: "#/components/schemas/GuestPreapplicationStatus"
         "404":
           description: Reference and access key could not be verified
+  /staff/registration-check:
+    post:
+      operationId: checkStaffRegistrationEmail
+      tags: [administration]
+      summary: Check whether an email is allowed to use staff registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffRegistrationCheckInput"
+      responses:
+        "200":
+          description: Whether the email is authorized for staff registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffRegistrationCheckResponse"
+        "400":
+          description: Invalid email address
+  /staff/access-claim:
+    post:
+      operationId: claimAllowlistedStaffAccess
+      tags: [administration]
+      summary: Grant Admin access to a verified allowlisted account
+      responses:
+        "200":
+          description: Admin access activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessClaimResponse"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Verified email is not authorized for staff access
   /admin/guest-preapplications:
     get:
       operationId: listAdminGuestPreapplications
@@ -947,6 +983,22 @@ components:
         role:
           type: string
           enum: [applicant, admin, sub_admin, moderator]
+    StaffRegistrationCheckInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+    StaffRegistrationCheckResponse:
+      type: object
+      required: [allowed]
+      properties:
+        allowed: { type: boolean }
+    StaffAccessClaimResponse:
+      type: object
+      required: [role, message]
+      properties:
+        role: { type: string, enum: [admin] }
+        message: { type: string }
     AdminUserInvitationInput:
       type: object
       required: [email, role]
