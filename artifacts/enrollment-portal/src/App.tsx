@@ -192,7 +192,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
             </Link>
           ))}
-          {user?.publicMetadata?.role === 'admin' && (
+          {['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) && (
             <Link href="/admin" onClick={() => setMenuOpen(false)}
               className={`nav-link ${active === 'admin' ? 'nav-link-active' : ''}`} data-testid="link-nav-admin">
               <ShieldCheck size={18} strokeWidth={1.8} /><span>Admin panel</span>
@@ -2035,7 +2035,13 @@ function PublicApplicantDashboard() {
             })}
           </div>}
     </section>
-    <footer className="guest-footer"><span>SECURE ENROLLMENT PORTAL</span><Link href="/guest/track" data-testid="link-dashboard-track">Already started? Track your application</Link></footer>
+    <footer className="guest-footer">
+      <span>SECURE ENROLLMENT PORTAL</span>
+      <nav className="guest-footer-actions" aria-label="Dashboard links">
+        <Link href="/staff/sign-up" className="guest-footer-admin-link" data-testid="link-dashboard-admin-access"><ShieldCheck size={13} /> Admin access</Link>
+        <Link href="/guest/track" data-testid="link-dashboard-track">Already started? Track your application</Link>
+      </nav>
+    </footer>
   </main>;
 }
 
