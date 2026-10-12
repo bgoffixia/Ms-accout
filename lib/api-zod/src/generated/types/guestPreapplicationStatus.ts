@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GuestPreapplicationStatusAnswers } from './guestPreapplicationStatusAnswers';
 import type { GuestPreapplicationStatusCategoryId } from './guestPreapplicationStatusCategoryId';
 import type { GuestPreapplicationStatusValue } from './guestPreapplicationStatusValue';
 
@@ -13,7 +14,16 @@ export interface GuestPreapplicationStatus {
   reference: string;
   categoryId: GuestPreapplicationStatusCategoryId;
   categoryName: string;
+  fullName: string;
+  email: string;
   status: GuestPreapplicationStatusValue;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  detailsComplete: boolean;
+  answers: GuestPreapplicationStatusAnswers;
   createdAt: Date;
   updatedAt: Date;
 }

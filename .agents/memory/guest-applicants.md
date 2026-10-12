@@ -1,10 +1,10 @@
 ---
 name: Guest applicant path
-description: Product requirement for pre-applications without an applicant account.
+description: Product requirements for account-free guest applications and later evidence collection.
 ---
 
-Guest applicants start without an account. The first screen collects only full name and email, then continues to a separate category-selection screen. Staff must collect the required identity files and verification video before a full verification review; do not remove those evidence requirements to enable guest access.
+Guest applicants complete the non-evidence application details without creating an account or PIN. The first screen collects only full name and email, then continues to a separate category-selection screen. Identity files and verification video are collected later by staff before a full review.
 
-**Why:** The user chose guest applications, specified that applicants should submit details now and provide evidence later, and later clarified the two-screen order and first-screen fields.
+**Why:** The user chose account-free applications with full details submitted before identity evidence, and specified that the first screen contain only full name and email before category selection.
 
-**How to apply:** Keep the guest path limited to a pre-application until staff follow-up supplies the required verification evidence. Do not add category, phone, or evidence fields to the first contact screen.
+**How to apply:** Save guest answers and progress server-side, protect resume access with the private tracking key, never ask guests for account credentials, and keep evidence required before staff review. Do not add category, phone, or evidence fields to the first contact screen.

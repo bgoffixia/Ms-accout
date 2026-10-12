@@ -27,6 +27,8 @@
   background: #fcfdfc;
 }
 .ew-top-meta { display: flex; align-items: center; gap: 15px; }
+.ew-copy-tracking-key { min-height: 29px; padding: 0 9px; border: 1px solid #cbdcd4; border-radius: 7px; color: #2d6f58; background: #f4faf6; font: 600 9px var(--app-font-sans, sans-serif); cursor: pointer; }
+.ew-copy-tracking-key:hover { background: #e9f5ee; }
 .ew-draft-status { padding: 5px 9px; border: 1px solid #e8dcbf; border-radius: 99px; color: #8a692d; background: #fff9ed; font: 9px var(--app-font-mono, monospace); text-transform: capitalize; }
 .ew-draft-status.submitted { border-color: #cfe3dc; color: #32745e; background: #eff8f3; }
 .ew-reference { color: #728998; font: 10px var(--app-font-mono, monospace); letter-spacing: .025em; }
@@ -196,6 +198,9 @@
 .ew-gate-icon { flex: 0 0 auto; margin-top: 1px; }
 .ew-submit-gate b { color: #725d37; font-size: 10px; }
 .ew-submit-gate p { margin: 4px 0 0; color: #8a795c; font-size: 9px; line-height: 1.55; }
+.ew-evidence-later { margin: 4px 0 15px; border-color: #d6e7dc; color: #3a735d; background: #f0f8f3; }
+.ew-evidence-later b { color: #305e4c; }
+.ew-evidence-later p { color: #638174; }
 
 @media (max-width: 860px) {
   .ew-layout { grid-template-columns: 220px minmax(0, 1fr); }
@@ -212,6 +217,7 @@
   .ew-topbar .portal-wordmark-secondary { font-size: 7px; }
   .ew-top-meta { gap: 8px; }
   .ew-reference { font-size: 8px; }
+  .ew-copy-tracking-key { min-height: 26px; padding-inline: 7px; font-size: 8px; }
   .ew-layout { display: flex; flex-direction: column; }
   .ew-rail { display: none; }
   .ew-mobile-progress { display: block; padding: 11px 18px 0; color: #527a6b; font: 9px var(--app-font-mono, monospace); letter-spacing: .08em; }

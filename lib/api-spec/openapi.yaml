@@ -219,6 +219,35 @@ paths:
                 $ref: "#/components/schemas/GuestPreapplicationStatus"
         "404":
           description: Reference and access key could not be verified
+  /guest/preapplications/{applicationId}:
+    patch:
+      operationId: updateGuestPreapplicationProgress
+      tags: [enrollment]
+      summary: Save guest application progress using its private key
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestPreapplicationProgressInput"
+      responses:
+        "200":
+          description: Saved guest application progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestPreapplicationStatus"
+        "404":
+          description: Application reference and private key could not be verified
+        "409":
+          description: Application is closed
   /staff/registration-check:
     post:
       operationId: checkStaffRegistrationEmail
@@ -717,7 +746,7 @@ components:
           pattern: "^[A-Za-z0-9_-]{43}$"
     GuestPreapplicationCreated:
       type: object
-      required: [id, reference, categoryId, categoryName, status, createdAt]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, currentStep, detailsComplete, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -729,33 +758,81 @@ components:
           enum: [category-1, category-2, category-3, category-4]
         categoryName:
           type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
         status:
           $ref: "#/components/schemas/GuestPreapplicationStatusValue"
-        createdAt:
-          type: string
-          format: date-time
-    GuestPreapplicationStatus:
-      type: object
-      required: [id, reference, categoryId, categoryName, status, createdAt, updatedAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        reference:
-          type: string
-        categoryId:
-          type: string
-          enum: [category-1, category-2, category-3, category-4]
-        categoryName:
-          type: string
-        status:
-          $ref: "#/components/schemas/GuestPreapplicationStatusValue"
+        currentStep:
+          type: integer
+          minimum: 0
+          maximum: 7
+        detailsComplete:
+          type: boolean
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+    GuestPreapplicationStatus:
+      type: object
+      required: [id, reference, categoryId, categoryName, fullName, email, status, currentStep, detailsComplete, answers, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        categoryId:
+          type: string
+          enum: [category-1, category-2, category-3, category-4]
+        categoryName:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        status:
+          $ref: "#/components/schemas/GuestPreapplicationStatusValue"
+        currentStep:
+          type: integer
+          minimum: 0
+          maximum: 7
+        detailsComplete:
+          type: boolean
+        answers:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    GuestPreapplicationProgressInput:
+      type: object
+      required: [reference, accessKey, currentStep, answers, complete]
+      properties:
+        reference:
+          type: string
+          minLength: 8
+          maxLength: 32
+        accessKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        currentStep:
+          type: integer
+          minimum: 0
+          maximum: 7
+        answers:
+          type: object
+          additionalProperties: true
+        complete:
+          type: boolean
     AdminGuestPreapplication:
       allOf:
         - $ref: "#/components/schemas/GuestPreapplicationStatus"

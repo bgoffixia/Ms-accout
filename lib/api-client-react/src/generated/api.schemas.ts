@@ -86,8 +86,17 @@ export interface GuestPreapplicationCreated {
   reference: string;
   categoryId: GuestPreapplicationCreatedCategoryId;
   categoryName: string;
+  fullName: string;
+  email: string;
   status: GuestPreapplicationStatusValue;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  detailsComplete: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export type GuestPreapplicationStatusCategoryId = typeof GuestPreapplicationStatusCategoryId[keyof typeof GuestPreapplicationStatusCategoryId];
@@ -100,14 +109,44 @@ export const GuestPreapplicationStatusCategoryId = {
   'category-4': 'category-4',
 } as const;
 
+export type GuestPreapplicationStatusAnswers = { [key: string]: unknown };
+
 export interface GuestPreapplicationStatus {
   id: string;
   reference: string;
   categoryId: GuestPreapplicationStatusCategoryId;
   categoryName: string;
+  fullName: string;
+  email: string;
   status: GuestPreapplicationStatusValue;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  detailsComplete: boolean;
+  answers: GuestPreapplicationStatusAnswers;
   createdAt: string;
   updatedAt: string;
+}
+
+export type GuestPreapplicationProgressInputAnswers = { [key: string]: unknown };
+
+export interface GuestPreapplicationProgressInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  accessKey: string;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  answers: GuestPreapplicationProgressInputAnswers;
+  complete: boolean;
 }
 
 export type AdminGuestPreapplication = GuestPreapplicationStatus & ({

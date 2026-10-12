@@ -1,5 +1,6 @@
 import { createInsertSchema } from "drizzle-zod";
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -45,6 +46,12 @@ export const guestPreapplicationsTable = pgTable(
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
     phone: text("phone"),
+    currentStep: integer("current_step").notNull().default(0),
+    answers: jsonb("answers")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    detailsComplete: boolean("details_complete").notNull().default(false),
     status: guestPreapplicationStatus("status").notNull().default("received"),
     updatedByUserId: text("updated_by_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })

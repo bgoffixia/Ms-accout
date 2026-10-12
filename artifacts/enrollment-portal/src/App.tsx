@@ -19,6 +19,7 @@ import {
   getListAdminUsersQueryKey, getListMySupportTicketsQueryKey, getListSupportTicketsForAdminQueryKey,
   useAddAdminApplicationNote, useAddApplicantSupportMessage, useAssignSupportTicket,
   useCreateGuestPreapplication, useLookupGuestPreapplication, useListAdminGuestPreapplications,
+  useUpdateGuestPreapplicationProgress,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminOverview,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
@@ -1467,8 +1468,8 @@ function AdminSettings() {
     setError('');
     saveSettings.mutate({ data: draft }, {
       onSuccess: (saved) => {
-        queryClient.invalidateQueries({ queryKey: getGetPortalSettingsQueryKey() });
-        setDraft(saved);
+        queryClient.setQueryData<PortalSettings>(getGetPortalSettingsQueryKey(), saved);
+        setDraft({ ...saved, pageThemes: normalizePageThemes(saved.pageThemes) });
         setMessage('Portal settings saved.');
       },
       onError: () => setError('Settings could not be saved. Please try again.'),
@@ -1928,10 +1929,18 @@ function GuestPublicHeader() {
 function GuestApplicationPage() {
   const categories = useListEnrollmentCategories();
   const createGuest = useCreateGuestPreapplication();
+  const updateGuest = useUpdateGuestPreapplicationProgress();
+  const lookupGuest = useLookupGuestPreapplication();
+  const [, setLocation] = useLocation();
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
+  const [applicationAnswers, setApplicationAnswers] = useState<Record<string, unknown>>({});
   const [copied, setCopied] = useState(false);
-  const [stage, setStage] = useState<'contact' | 'category'>('contact');
+  const [stage, setStage] = useState<'contact' | 'category' | 'key' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
   const [isContinuing, setIsContinuing] = useState(false);
+  const [progressError, setProgressError] = useState('');
+  const [resumeError, setResumeError] = useState('');
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const resumeStarted = useRef(false);
   const [pendingSubmission, setPendingSubmission] = useState<{
     fingerprint: string;
     input: GuestPreapplicationInput;
@@ -1941,6 +1950,83 @@ function GuestApplicationPage() {
     resolver: zodResolver(guestApplicationSchema),
     defaultValues: { categoryId: '', fullName: '', email: '' },
   });
+
+  useEffect(() => {
+    if (resumeStarted.current) return;
+    if (new URLSearchParams(window.location.search).get('resume') !== '1') return;
+    resumeStarted.current = true;
+    setResumeLoading(true);
+    const stored = window.sessionStorage.getItem('guest-application-resume');
+    if (!stored) {
+      setResumeError('To continue a saved application, return to status lookup and enter your reference and private key.');
+      setResumeLoading(false);
+      return;
+    }
+    let credentials: { reference?: unknown; accessKey?: unknown };
+    try {
+      credentials = JSON.parse(stored) as { reference?: unknown; accessKey?: unknown };
+    } catch {
+      credentials = {};
+    }
+    if (typeof credentials.reference !== 'string' || typeof credentials.accessKey !== 'string') {
+      setResumeError('The saved application details could not be restored. Return to status lookup and try again.');
+      setResumeLoading(false);
+      return;
+    }
+    void lookupGuest.mutateAsync({
+      data: { reference: credentials.reference, accessKey: credentials.accessKey },
+    }).then((application) => {
+      setCreated({ application, accessKey: credentials.accessKey as string });
+      setApplicationAnswers(application.answers);
+      setStage(application.status === 'closed'
+        ? 'closed'
+        : application.detailsComplete
+          ? 'complete'
+          : application.answers.categoryEntryComplete === true
+            ? 'application'
+            : 'categoryEntry');
+      window.sessionStorage.removeItem('guest-application-resume');
+    }).catch(() => {
+      setResumeError('The reference and private key could not be verified. Return to status lookup and try again.');
+    }).finally(() => setResumeLoading(false));
+  }, []);
+
+  const saveGuestProgress = async (
+    answers: Record<string, unknown>,
+    currentStep: number,
+    complete = false,
+  ): Promise<boolean> => {
+    if (!created) return false;
+    setProgressError('');
+    try {
+      const saved = await updateGuest.mutateAsync({
+        applicationId: created.application.id,
+        data: {
+          reference: created.application.reference,
+          accessKey: created.accessKey,
+          currentStep,
+          answers,
+          complete,
+        },
+      });
+      setCreated((current) => current ? {
+        ...current,
+        application: {
+          ...current.application,
+          status: saved.status,
+          currentStep: saved.currentStep,
+          detailsComplete: saved.detailsComplete,
+          updatedAt: saved.updatedAt,
+        },
+      } : current);
+      setApplicationAnswers(saved.answers);
+      if (complete) setStage('complete');
+      return true;
+    } catch {
+      setProgressError('Your progress could not be saved. Check your connection and try again.');
+      return false;
+    }
+  };
 
   const continueToCategory = async () => {
     setIsContinuing(true);
@@ -1990,6 +2076,8 @@ function GuestApplicationPage() {
     try {
       const application = await createGuest.mutateAsync({ data: input });
       setCreated({ application, accessKey });
+      setApplicationAnswers({});
+      setStage('key');
       setPendingSubmission(null);
     } catch {
       // Keep the same key and submission ID in memory so a retry is idempotent.
@@ -2006,28 +2094,69 @@ function GuestApplicationPage() {
     }
   };
 
+  if (stage === 'application' && created) {
+    const wizardApplication: EnrollmentApplication = {
+      id: created.application.id,
+      reference: created.application.reference,
+      categoryId: created.application.categoryId,
+      categoryName: created.application.categoryName,
+      status: 'draft',
+      currentStep: created.application.currentStep,
+      hasPin: false,
+      answers: applicationAnswers,
+      applicantName: created.application.fullName,
+      applicantEmail: created.application.email,
+      reviewNote: null,
+      createdAt: created.application.createdAt,
+      updatedAt: created.application.updatedAt,
+      submittedAt: null,
+    };
+    return <EnrollmentWizard
+      application={wizardApplication}
+      categories={categories.data ?? []}
+      status={created.application.status}
+      storageAvailable={false}
+      maxUploadBytes={5 * 1024 * 1024}
+      isSaving={updateGuest.isPending}
+      isSubmitting={updateGuest.isPending}
+      error={progressError}
+      reopenedSections={[]}
+      evidenceLater
+      privateTrackingKey={created.accessKey}
+      saveStep={(answers, currentStep) => saveGuestProgress(answers, currentStep)}
+      submit={(answers) => saveGuestProgress(answers, 7, true)}
+      onChangeCategory={() => undefined}
+      onBackToCategoryEntry={(answers) => saveGuestProgress(answers, 0).then((saved) => {
+        if (saved) setStage('categoryEntry');
+        return saved;
+      })}
+    />;
+  }
+
   return <main className="guest-page portal-frame">
     <GuestPublicHeader />
     <div className="guest-page-grid">
       <section className="guest-intro rise">
         <div className="eyebrow"><span className="eyebrow-rule" />START WITHOUT AN ACCOUNT</div>
-        <h1>Begin with the essentials.</h1>
-        <p>Share your contact details so our enrollment team can help you complete the application. No account or identity files are needed for this first step.</p>
+        <h1>Apply without an account.</h1>
+        <p>Enter your name and email, choose a category, then complete the application online. Identity files and video are collected later.</p>
         <div className="guest-process">
           <div className="guest-process-step"><span>01</span><div><b>Share your contact details</b><small>Start with your name and email address.</small></div></div>
           <div className="guest-process-step"><span>02</span><div><b>Choose an enrollment category</b><small>Select the category that matches your application.</small></div></div>
-          <div className="guest-process-step"><span>03</span><div><b>We’ll follow up privately</b><small>Staff will collect the remaining details and identity evidence.</small></div></div>
-          <div className="guest-process-step"><span>04</span><div><b>Full review starts when complete</b><small>Identity files and video are required before review begins.</small></div></div>
+          <div className="guest-process-step"><span>03</span><div><b>Complete your details</b><small>Your answers save as you move through each section.</small></div></div>
+          <div className="guest-process-step"><span>04</span><div><b>Provide evidence later</b><small>Staff will arrange identity files and a video before review.</small></div></div>
         </div>
-        <div className="guest-intro-note"><LockKeyhole size={16} /><span>Your tracking key is private and is never sent by email.</span></div>
+        <div className="guest-intro-note"><LockKeyhole size={16} /><span>No account or PIN is needed. Keep your private tracking key to resume.</span></div>
       </section>
 
       <section className="guest-form-card rise-delay" aria-labelledby="guest-apply-heading">
-        {created ? <div className="guest-success" data-testid="guest-application-success">
+        {resumeLoading && <div className="guest-form-subtitle" role="status">Restoring your saved application…</div>}
+        {resumeError && <p className="guest-inline-error" role="alert" data-testid="guest-resume-error">{resumeError}</p>}
+        {stage === 'complete' && created ? <div className="guest-success" data-testid="guest-application-success">
           <span className="guest-success-mark"><Check size={22} /></span>
-          <div className="eyebrow">PRE-APPLICATION RECEIVED</div>
-          <h2 id="guest-apply-heading">We’ll be in touch.</h2>
-          <p>Our staff will contact you to collect your identity files and video, and help complete the remaining application details before full review.</p>
+          <div className="eyebrow">APPLICATION DETAILS RECEIVED</div>
+          <h2 id="guest-apply-heading">Your details are saved.</h2>
+          <p>Staff will contact you to arrange the required identity files and verification video. Review begins after that evidence is received.</p>
           <div className="guest-reference-box">
             <span>APPLICATION REFERENCE</span>
             <strong data-testid="text-guest-reference">{created.application.reference}</strong>
@@ -2040,9 +2169,68 @@ function GuestApplicationPage() {
             </button>
           </div>
           <p className="guest-key-warning">Save this key now. It is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
-          <Link href="/guest/track" className="button button-primary guest-success-track" data-testid="link-track-created-application">Track application status <ArrowRight size={16} /></Link>
-        </div> : <>
-          <div className="guest-form-topline"><span>PRE-APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 2' : 'STEP 2 OF 2'}</span></div>
+          <Link href="/guest/track" className="button button-primary guest-success-track" data-testid="link-track-created-application">Track or resume application <ArrowRight size={16} /></Link>
+        </div> : stage === 'closed' && created ? <div className="guest-success" data-testid="guest-application-closed">
+          <span className="guest-success-mark"><LockKeyhole size={20} /></span>
+          <div className="eyebrow">APPLICATION CLOSED</div>
+          <h2 id="guest-apply-heading">This application is closed.</h2>
+          <p>Contact the enrollment team if you believe this was closed in error.</p>
+          <Link href="/guest/track" className="button button-primary guest-success-track">Return to status lookup <ArrowRight size={16} /></Link>
+        </div> : stage === 'key' && created ? <div className="guest-success" data-testid="guest-tracking-key-step">
+          <span className="guest-success-mark"><LockKeyhole size={20} /></span>
+          <div className="eyebrow">SAVE YOUR PRIVATE KEY</div>
+          <h2 id="guest-apply-heading">Keep access to your application.</h2>
+          <p>You can resume without an account using this key and your application reference. Save both before continuing.</p>
+          <div className="guest-reference-box">
+            <span>APPLICATION REFERENCE</span>
+            <strong data-testid="text-guest-reference">{created.application.reference}</strong>
+          </div>
+          <div className="guest-key-box">
+            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
+            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
+            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
+              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
+            </button>
+          </div>
+          <p className="guest-key-warning">This key is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
+          <button type="button" className="button button-primary guest-success-track" onClick={() => setStage('categoryEntry')} data-testid="button-continue-to-category-details">Continue to category details <ArrowRight size={16} /></button>
+        </div> : stage === 'categoryEntry' && created ? <>
+          <div className="guest-form-topline"><span>CATEGORY DETAILS</span><span>STEP 3 OF 4</span></div>
+          {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
+          <CategoryEntryForm
+            categoryId={created.application.categoryId}
+            reference={created.application.reference}
+            savedAnswers={applicationAnswers}
+            isSaving={updateGuest.isPending}
+            error={progressError}
+            guestMode
+            onComplete={async (entryAnswers, pin) => {
+              if (pin) {
+                setProgressError('A PIN is not used for guest applications.');
+                return;
+              }
+              const personal = applicationAnswers.personalInformation &&
+                typeof applicationAnswers.personalInformation === 'object' &&
+                !Array.isArray(applicationAnswers.personalInformation)
+                ? applicationAnswers.personalInformation as Record<string, unknown>
+                : {};
+              const nameParts = created.application.fullName.trim().split(/\s+/);
+              const nextAnswers = {
+                ...applicationAnswers,
+                ...entryAnswers,
+                categoryEntryComplete: true,
+                personalInformation: {
+                  ...personal,
+                  firstName: personal.firstName || nameParts[0] || '',
+                  surname: personal.surname || nameParts.slice(1).join(' '),
+                  email: personal.email || created.application.email,
+                },
+              };
+              if (await saveGuestProgress(nextAnswers, 0)) setStage('application');
+            }}
+          />
+        </> : <>
+          <div className="guest-form-topline"><span>APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 4' : 'STEP 2 OF 4'}</span></div>
           {stage === 'contact' ? <>
             <h2 id="guest-apply-heading">Your contact details</h2>
             <p className="guest-form-subtitle">Start with only your name and email. You’ll choose an enrollment category next.</p>
@@ -2065,7 +2253,7 @@ function GuestApplicationPage() {
             </Form>
           </> : <>
             <h2 id="guest-apply-heading">Choose your category</h2>
-            <p className="guest-form-subtitle">Select the enrollment category for your pre-application.</p>
+            <p className="guest-form-subtitle">Select the enrollment category, then continue to your account-free application details.</p>
             {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
               categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
                 <p>Enrollment categories could not be loaded.</p>
@@ -2092,7 +2280,7 @@ function GuestApplicationPage() {
                   {createGuest.isError && <div className="guest-inline-error" role="alert" data-testid="guest-submit-error">
                     <p>We couldn’t confirm receipt. Retry with the same details to safely reuse this submission attempt.</p>
                     <button type="button" className="text-action" onClick={() => {
-                      if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate pre-application. Continue?')) return;
+                      if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate application. Continue?')) return;
                       setPendingSubmission(null);
                       setRetryMismatch(false);
                       createGuest.reset();
@@ -2102,7 +2290,7 @@ function GuestApplicationPage() {
                   <div className="guest-step-actions">
                     <button type="button" className="button button-quiet" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back</button>
                     <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-submit-guest-application">
-                      {createGuest.isPending ? 'Sending your details…' : createGuest.isError ? 'Retry pre-application' : 'Send pre-application'} <ArrowRight size={16} />
+                      {createGuest.isPending ? 'Starting your application…' : createGuest.isError ? 'Retry application setup' : 'Continue to category details'} <ArrowRight size={16} />
                     </button>
                   </div>
                   <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
@@ -2118,7 +2306,9 @@ function GuestApplicationPage() {
 
 function GuestTrackingPage() {
   const lookup = useLookupGuestPreapplication();
+  const [, setLocation] = useLocation();
   const [status, setStatus] = useState<GuestPreapplicationStatus | null>(null);
+  const [lastAccessKey, setLastAccessKey] = useState('');
   const [lookupError, setLookupError] = useState('');
   const form = useForm<GuestLookupValues>({
     resolver: zodResolver(guestLookupSchema),
@@ -2130,6 +2320,7 @@ function GuestTrackingPage() {
     try {
       const result = await lookup.mutateAsync({ data: { reference: values.reference.trim(), accessKey: values.accessKey } });
       setStatus(result);
+      setLastAccessKey(values.accessKey);
       form.reset({ reference: values.reference.trim(), accessKey: '' });
     } catch {
       setLookupError('We couldn’t find a matching application with those details. Check your reference and private key, then try again.');
@@ -2141,7 +2332,7 @@ function GuestTrackingPage() {
       <div className="guest-track-heading rise">
         <div className="eyebrow"><span className="eyebrow-rule" />PRIVATE STATUS LOOKUP</div>
         <h1>Your progress, clearly.</h1>
-        <p>Use the reference and private tracking key you received when you started. Your key is sent securely for this lookup only.</p>
+        <p>Use the reference and private tracking key you saved when you started. The key is required to view or resume your application.</p>
       </div>
       <section className="guest-track-card rise-delay">
         <Form {...form}><form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -2156,7 +2347,7 @@ function GuestTrackingPage() {
             {lookup.isPending ? 'Checking status…' : 'Look up status'} <ArrowRight size={16} />
           </button>
         </form></Form>
-        <p className="guest-track-security"><LockKeyhole size={14} /> Your private key is never included in a link or saved on this device.</p>
+        <p className="guest-track-security"><LockKeyhole size={14} /> Your private key is never included in a link. Keep your own copy to return later.</p>
       </section>
       {status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
         <div className="guest-status-head"><div><span className="eyebrow">APPLICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.status} testId="status-guest-application" /></div>
@@ -2166,12 +2357,30 @@ function GuestTrackingPage() {
           <div><span>Last updated</span><strong>{formatDate(status.updatedAt)}</strong></div>
         </div>
         <div className="guest-status-next"><ShieldCheck size={17} /><p>{status.status === 'closed'
-          ? 'This pre-application is closed. Contact the enrollment team if you need help.'
+          ? 'This application is closed. Contact the enrollment team if you need help.'
           : status.status === 'contacted'
-            ? 'Our team has reached out. Identity evidence and remaining application details are still outstanding before full review.'
-            : 'Your details are received. Staff will contact you to collect identity evidence and the remaining application details before full review.'}</p></div>
+            ? status.detailsComplete
+              ? 'Your application details are saved. Our team has reached out to arrange the required identity files and verification video before review.'
+              : 'Our team has reached out. Continue your saved application details, then arrange the required identity files and verification video before review.'
+            : status.detailsComplete
+              ? 'Your application details are saved. Staff will arrange identity files and a verification video before review.'
+              : 'Your progress is saved. Continue the application details; identity files and a verification video will be provided later.'}</p></div>
+        {!status.detailsComplete && status.status !== 'closed' && <button type="button" className="button button-primary guest-submit"
+          disabled={!lastAccessKey} onClick={() => {
+            if (!lastAccessKey) {
+              setLookupError('Look up the application again to continue it.');
+              return;
+            }
+            window.sessionStorage.setItem('guest-application-resume', JSON.stringify({
+              reference: status.reference,
+              accessKey: lastAccessKey,
+            }));
+            setLocation('/guest/apply?resume=1');
+          }} data-testid="button-resume-guest-application">
+          Continue application <ArrowRight size={16} />
+        </button>}
       </section>}
-      <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">Need to start a pre-application? <span>Begin here <ArrowRight size={14} /></span></Link></p>
+      <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">Need to start an application? <span>Begin here <ArrowRight size={14} /></span></Link></p>
     </div>
   </main>;
 }
@@ -2184,6 +2393,17 @@ function GuestFollowupPage() {
   const role = String(user?.publicMetadata?.role);
   const canReview = role === 'sub_admin';
   const [feedback, setFeedback] = useState('');
+  const guestStepLabel: Record<number, string> = {
+    0: 'Personal information',
+    1: 'Next of kin',
+    2: 'Education',
+    3: 'Work information',
+    6: 'Bank details',
+    7: 'Application review',
+  };
+  const progressLabel = (application: AdminGuestPreapplication) => application.detailsComplete
+    ? 'Details complete · identity evidence outstanding'
+    : `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
 
   const setApplicationStatus = (application: AdminGuestPreapplication, nextStatus: 'contacted' | 'closed') => {
     setFeedback('');
@@ -2198,22 +2418,22 @@ function GuestFollowupPage() {
 
   if (!canReview) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card">
     <span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div>
-    <h1>Reviewer access required</h1><p>Guest pre-application follow-up is available to administrators and sub-administrators.</p>
+    <h1>Reviewer access required</h1><p>Guest application review is available to the authorized sub-administrator only.</p>
     <Link href="/admin/support" className="button button-primary" data-testid="link-guest-followup-return">Return to staff workspace <ArrowRight size={15} /></Link>
   </div></main>;
 
   return <AdminShell active="preapplications">
     <div className="admin-page guest-admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest pre-applications" detail="Follow up with applicants who began without an account." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
-      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Evidence is still outstanding</b><p>These are pre-applications only. Staff must contact applicants to collect identity files and video before full review can begin.</p></div></div>
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest applications" detail="Review saved details from applicants who applied without accounts." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Identity evidence is collected later</b><p>Applicants complete their non-evidence details online. Staff must arrange identity files and a verification video before full review can begin.</p></div></div>
       {feedback && <p className={update.isError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-admin-feedback">{feedback}</p>}
       {applications.isLoading ? <div className="guest-admin-loading" data-testid="guest-admin-loading"><div /><div /><div /></div> :
         applications.isError ? <section className="state-card" role="alert" data-testid="guest-admin-error">
           <span className="state-icon error-icon"><Activity size={19} /></span><h2>Follow-up list unavailable</h2>
           <p>Guest pre-applications could not be loaded. Your access has not changed.</p>
           <button className="text-action" type="button" onClick={() => void applications.refetch()} data-testid="button-retry-guest-admin">Try again <ArrowRight size={15} /></button>
-        </section> : (applications.data ?? []).length === 0 ? <EmptyPanel title="No guest pre-applications yet" message="New public pre-applications will appear here for staff follow-up." /> :
-          <section className="guest-admin-list" aria-label="Guest pre-application follow-up list" data-testid="guest-admin-list">
+        </section> : (applications.data ?? []).length === 0 ? <EmptyPanel title="No guest applications yet" message="New account-free applications will appear here for staff review." /> :
+          <section className="guest-admin-list" aria-label="Guest application follow-up list" data-testid="guest-admin-list">
             <div className="guest-admin-list-head"><span>APPLICANT</span><span>CONTACT</span><span>CATEGORY / REFERENCE</span><span>STATUS</span><span>FOLLOW-UP</span></div>
             {(applications.data ?? []).map((application) => <article className="guest-admin-row" key={application.id} data-testid={`row-guest-preapplication-${application.id}`}>
               <div className="guest-admin-name"><strong>{application.fullName}</strong><small>Received {formatDate(application.createdAt)}</small></div>
@@ -2221,12 +2441,29 @@ function GuestFollowupPage() {
                 ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
                 : <small>No phone provided</small>}</div>
               <div className="guest-admin-category"><strong>{application.categoryName}</strong><small>{application.reference}</small></div>
-              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>Evidence outstanding</small></div>
+              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>{progressLabel(application)}</small></div>
               <div className="guest-admin-actions">
                 {application.status === 'received' && <button type="button" className="button button-primary guest-admin-action" onClick={() => setApplicationStatus(application, 'contacted')} disabled={update.isPending} data-testid={`button-guest-contacted-${application.id}`}>Mark contacted</button>}
                 {application.status !== 'closed' && <button type="button" className="guest-admin-close" onClick={() => setApplicationStatus(application, 'closed')} disabled={update.isPending} data-testid={`button-guest-close-${application.id}`}>Close</button>}
                 {application.status === 'closed' && <span className="guest-admin-closed">Closed</span>}
               </div>
+              <details className="guest-admin-details" data-testid={`details-guest-application-${application.id}`}>
+                <summary>Review saved application details <small>{progressLabel(application)}</small></summary>
+                <div className="guest-admin-record-sections">
+                  <section className="review-category-selection">
+                    <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Category details</h2></div>
+                    <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+                    {getCategoryEntryFields(application.answers, application.categoryId).map((field) =>
+                      <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
+                    <div className="review-field"><span>Applicant declaration</span><b>{application.answers.reviewDeclarationAccepted === true ? 'Accepted' : 'Not yet accepted'}</b></div>
+                  </section>
+                  <AdminAnswerSection title="Personal information" data={readAnswerGroup(application.answers, 'personalInformation')} />
+                  <AdminAnswerSection title="Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
+                  <AdminAnswerSection title="Education" data={readAnswerGroup(application.answers, 'education')} />
+                  <AdminAnswerSection title="Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
+                  <AdminAnswerSection title="Optional bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Account numbers are masked in this guest follow-up view." />
+                </div>
+              </details>
             </article>)}
           </section>}
     </div>
@@ -2330,8 +2567,21 @@ function ClerkRoutes() {
     routerPush={(to) => setLocation(stripBase(to))}
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
   >
-    <QueryClientProvider client={queryClient}><ClerkQueryClientCacheInvalidator /><RoutedPages /></QueryClientProvider>
+    <QueryClientProvider client={queryClient}><PortalSettingsLiveSync /><ClerkQueryClientCacheInvalidator /><RoutedPages /></QueryClientProvider>
   </ClerkProvider>;
+}
+
+function PortalSettingsLiveSync() {
+  useGetPortalSettings({
+    query: {
+      queryKey: getGetPortalSettingsQueryKey(),
+      refetchInterval: 5_000,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: true,
+    },
+    request: { cache: 'no-store' },
+  });
+  return null;
 }
 
 function App() {

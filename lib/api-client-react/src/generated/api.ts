@@ -42,6 +42,7 @@ import type {
   GuestPreapplicationCreated,
   GuestPreapplicationInput,
   GuestPreapplicationLookupInput,
+  GuestPreapplicationProgressInput,
   GuestPreapplicationStatus,
   HealthStatus,
   ListAdminUsersParams,
@@ -1074,6 +1075,95 @@ export const useLookupGuestPreapplication = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getLookupGuestPreapplicationMutationOptions(options));
+    }
+
+export const getUpdateGuestPreapplicationProgressUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/guest/preapplications/${applicationId}`
+}
+
+/**
+ * @summary Save guest application progress using its private key
+ */
+export const updateGuestPreapplicationProgress = async (applicationId: string,
+    guestPreapplicationProgressInput: GuestPreapplicationProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestPreapplicationStatus>(getUpdateGuestPreapplicationProgressUrl(applicationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestPreapplicationProgressInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateGuestPreapplicationProgressMutationKey = () => ['updateGuestPreapplicationProgress'] as const;
+
+export const getUpdateGuestPreapplicationProgressMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, TError,UpdateGuestPreapplicationProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, TError,UpdateGuestPreapplicationProgressMutationVariables, TContext> => {
+
+const mutationKey = getUpdateGuestPreapplicationProgressMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, UpdateGuestPreapplicationProgressMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  updateGuestPreapplicationProgress(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGuestPreapplicationProgressMutationResult = NonNullable<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>>
+    export type UpdateGuestPreapplicationProgressMutationBody = BodyType<GuestPreapplicationProgressInput>
+    export type UpdateGuestPreapplicationProgressMutationError = ErrorType<void>
+    export type UpdateGuestPreapplicationProgressMutationVariables = {applicationId: string;data: BodyType<GuestPreapplicationProgressInput>}
+
+    /**
+ * @summary Save guest application progress using its private key
+ */
+export const useUpdateGuestPreapplicationProgress = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, TError,UpdateGuestPreapplicationProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>,
+        TError,
+        UpdateGuestPreapplicationProgressMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateGuestPreapplicationProgressMutationOptions(options));
     }
 
 export const getCheckStaffRegistrationEmailUrl = () => {

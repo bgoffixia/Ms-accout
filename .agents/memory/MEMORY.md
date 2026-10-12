@@ -1,3 +1,3 @@
-- [Guest applicant path](guest-applicants.md) — Applicants may start without accounts; staff collect verification evidence before full review.
+- [Guest applicant path](guest-applicants.md) — Applicants submit full non-evidence details account-free; staff collect identity files and video before review.
 - [Staff access](staff-access.md) — The two allowlisted accounts have separate management and enrollment-review roles; other staff remain invitation-only.
 - [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.

@@ -13,6 +13,15 @@ export interface GuestPreapplicationCreated {
   reference: string;
   categoryId: GuestPreapplicationCreatedCategoryId;
   categoryName: string;
+  fullName: string;
+  email: string;
   status: GuestPreapplicationStatusValue;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  detailsComplete: boolean;
   createdAt: Date;
+  updatedAt: Date;
 }

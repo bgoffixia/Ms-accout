@@ -26,6 +26,8 @@ export type EnrollmentWizardProps = {
   reopenedSections: number[];
   screenCopy?: Record<string, Record<string, string>>;
   pageThemes?: Record<string, PortalPageTheme>;
+  evidenceLater?: boolean;
+  privateTrackingKey?: string;
   saveStep: (answers: Record<string, unknown>, currentStep: number) => Promise<boolean>;
   submit: (answers: Record<string, unknown>) => Promise<boolean>;
   onChangeCategory: (categoryId: string) => void;
@@ -204,9 +206,16 @@ function SelectField({ label, name, register, error, options, placeholder = 'Cho
   </label>;
 }
 
-function StageHeading({ index, title, detail, sectionIdLabel }: { index: number; title: string; detail: string; sectionIdLabel?: string }) {
+function StageHeading({ index, title, detail, sectionIdLabel, displayIndex, totalStages = 8 }: {
+  index: number;
+  title: string;
+  detail: string;
+  sectionIdLabel?: string;
+  displayIndex?: number;
+  totalStages?: number;
+}) {
   return <div className="ew-stage-heading">
-    <span className="ew-stage-number">{sectionIdLabel || `0${index + 1}`} <i>/ 08</i></span>
+    <span className="ew-stage-number">{sectionIdLabel || `0${(displayIndex ?? index) + 1}`} <i>/ {String(totalStages).padStart(2, '0')}</i></span>
     <h2>{title}</h2><p>{detail}</p>
   </div>;
 }
@@ -216,8 +225,18 @@ type LocalImage = { file: File; url: string };
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, saveStep, submit, onChangeCategory,
-  onBackToCategoryEntry, pageThemes,
+  onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey,
 }: EnrollmentWizardProps) {
+  const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
+  const normalizeStep = (candidate: number) => {
+    const resolved = resumeAt(candidate, reopenedSections);
+    return evidenceLater && !activeSteps.includes(resolved)
+      ? activeSteps.find((index) => index >= resolved) ?? 7
+      : resolved;
+  };
+  const heading = (index: number, title: string, detail: string, sectionIdLabel?: string) =>
+    <StageHeading index={index} title={title} detail={detail} sectionIdLabel={sectionIdLabel}
+      displayIndex={activeSteps.indexOf(index)} totalStages={activeSteps.length} />;
   const copyForStep = (index: number) => screenCopy[`workflow-step-${index + 1}`] ?? {};
   const titleForStep = (index: number) => copyForStep(index).title || stageTitles[index];
   const fieldLabel = (index: number, path: string, fallback: string) =>
@@ -232,7 +251,7 @@ export function EnrollmentWizard({
     }
     return initial;
   });
-  const [step, setStep] = useState(() => resumeAt(application.currentStep, reopenedSections));
+  const [step, setStep] = useState(() => normalizeStep(application.currentStep));
   const stageBackground = pageThemeBackground(pageThemes?.[`workflow-step-${step + 1}`]);
   const [editingFromPreview, setEditingFromPreview] = useState(false);
   const [localImages, setLocalImages] = useState<Record<string, LocalImage>>({});
@@ -244,6 +263,7 @@ export function EnrollmentWizard({
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberProvided, setAccountNumberProvided] = useState(() => Boolean(section(saved, 'bankDetails').accountNumberMasked));
   const [submitError, setSubmitError] = useState('');
+  const [keyCopied, setKeyCopied] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -252,7 +272,7 @@ export function EnrollmentWizard({
   const imageUrlsRef = useRef<string[]>([]);
   const reopenedSignature = reopenedSections.join(',');
   const allowedSections = reopenedSections.length > 0 ? new Set(reopenedSections) : null;
-  const readOnly = status !== 'draft' && reopenedSections.length === 0;
+  const readOnly = !evidenceLater && status !== 'draft' && reopenedSections.length === 0;
   const canEditSection = (sectionIndex: number) => !readOnly && (!allowedSections || allowedSections.has(sectionIndex));
   const category = categories.find((item) => item.id === application.categoryId);
   const form = useForm<WizardAnswers>({
@@ -277,7 +297,7 @@ export function EnrollmentWizard({
     setAccountNumberProvided(Boolean(section(safeSaved, 'bankDetails').accountNumberMasked));
     if (section(safeSaved, 'bankDetails').accountNumberMasked) setAccountNumberProvided(true);
     reset(safeSaved);
-    setStep(resumeAt(application.currentStep, reopenedSections));
+    setStep(normalizeStep(application.currentStep));
   }, [application.id, application.updatedAt, application.currentStep, reopenedSignature, reset]);
 
   useEffect(() => () => {
@@ -420,7 +440,8 @@ export function EnrollmentWizard({
     delete safeSection.accountNumber;
     if (step === 5 && recordingUrl && recordingConfirmed) safeSection.durationSeconds = 12;
     const merged = { ...answers, [sectionKey]: safeSection };
-    const targetStep = editingFromPreview ? 7 : Math.min(7, step + 1);
+    const stepPosition = activeSteps.indexOf(step);
+    const targetStep = editingFromPreview ? 7 : activeSteps[Math.min(activeSteps.length - 1, stepPosition + 1)];
     const savedOk = await saveStep(outgoing, targetStep);
     if (!savedOk) return;
     setAnswers(merged);
@@ -452,7 +473,8 @@ export function EnrollmentWizard({
       void onBackToCategoryEntry(backAnswers);
       return;
     }
-    setStep(Math.max(0, step - 1));
+    const position = activeSteps.indexOf(step);
+    setStep(activeSteps[Math.max(0, position - 1)]);
   };
 
   const openEdit = (index: number) => {
@@ -518,14 +540,15 @@ export function EnrollmentWizard({
   };
 
   const missingUploads = useMemo(() => {
+    if (evidenceLater) return [];
     const missing: string[] = [];
     if (!answer(answers, 'proofOfIdentity', 'frontObjectPath')) missing.push('identity document front');
     if (isBackRequired && !answer(answers, 'proofOfIdentity', 'backObjectPath')) missing.push('identity document back');
     if (!answer(answers, 'liveVideoRecording', 'objectPath')) missing.push('video reference');
     if (!storageAvailable) missing.push('storage-backed references (secure storage unavailable)');
     return missing;
-  }, [answers, isBackRequired, storageAvailable]);
-  const readyToSubmit = stageTitles.slice(0, 7).every((_, index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
+  }, [answers, evidenceLater, isBackRequired, storageAvailable]);
+  const readyToSubmit = activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -582,7 +605,7 @@ export function EnrollmentWizard({
   const categoryReview = <section className="ew-category-review" data-testid="review-category">
     <div className="ew-category-top"><div><span className="ew-mini-label">ENROLLMENT CATEGORY</span><h3>{application.categoryName}</h3>
       <p>{category?.description ?? 'The enrollment category attached to this application.'}</p></div>
-      {categories.length > 1 && !readOnly && !allowedSections && <label className="ew-category-change">Change category
+      {categories.length > 1 && !evidenceLater && !readOnly && !allowedSections && <label className="ew-category-change">Change category
         <select value={application.categoryId} onChange={(event) => onChangeCategory(event.target.value)} aria-label="Change enrollment category" data-testid="select-category-change">
           {categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select><ChevronDown size={14} />
@@ -592,19 +615,32 @@ export function EnrollmentWizard({
   </section>;
 
   const uploadProgress = Math.min(100, Math.round((recordingSeconds / 12) * 100));
+  const activeStepPosition = Math.max(0, activeSteps.indexOf(step));
+  const copyPrivateKey = async () => {
+    if (!privateTrackingKey) return;
+    try {
+      await navigator.clipboard.writeText(privateTrackingKey);
+      setKeyCopied(true);
+    } catch {
+      setKeyCopied(false);
+    }
+  };
 
   return <main className="ew-shell" style={stageBackground ? { background: stageBackground } : undefined} data-testid="enrollment-wizard">
     <header className="ew-topbar">
       <PortalWordmark />
-      <div className="ew-top-meta"><span className={`ew-draft-status ${status === 'draft' ? '' : 'submitted'}`} data-testid="status-application">{status.replaceAll('_', ' ')}</span>
-        <span className="ew-reference" data-testid="text-application-reference">{application.reference}</span></div>
+      <div className="ew-top-meta"><span className={`ew-draft-status ${status === 'draft' ? '' : 'submitted'}`} data-testid="status-application">{evidenceLater ? 'details in progress' : status.replaceAll('_', ' ')}</span>
+        <span className="ew-reference" data-testid="text-application-reference">{application.reference}</span>
+        {evidenceLater && privateTrackingKey && <button type="button" className="ew-copy-tracking-key" onClick={() => void copyPrivateKey()} data-testid="button-copy-guest-key">
+          {keyCopied ? 'Key copied' : 'Copy tracking key'}
+        </button>}</div>
     </header>
     <div className="ew-layout">
       <aside className="ew-rail">
         <div className="ew-rail-intro"><span className="ew-mini-label">YOUR APPLICATION</span><h1>One step<br /><em>at a time.</em></h1>
           <p>Your progress is saved as you move through each section.</p></div>
         <nav className="ew-steps" aria-label="Application sections">
-          {stageTitles.map((_title, index) => {
+          {activeSteps.map((index, visibleIndex) => {
             const title = titleForStep(index);
             const active = step === index;
             const done = index < 7 && sectionComplete(index);
@@ -615,7 +651,7 @@ export function EnrollmentWizard({
                 else if (allowedSections ? allowedSections.has(index) : index <= step) setStep(index);
               }}
               aria-current={active ? 'step' : undefined} data-testid={`button-stage-${index}`}>
-              <span className="ew-step-marker">{done ? <Check size={13} /> : `0${index + 1}`}</span><span>{title}</span>
+              <span className="ew-step-marker">{done ? <Check size={13} /> : `0${visibleIndex + 1}`}</span><span>{title}</span>
             </button>;
           })}
         </nav>
@@ -623,11 +659,11 @@ export function EnrollmentWizard({
       </aside>
 
       <section className="ew-main" style={stageBackground ? { background: stageBackground } : undefined} aria-live="polite">
-        <div className="ew-mobile-progress" data-testid="text-progress">SECTION {String(step + 1).padStart(2, '0')} OF 08</div>
+        <div className="ew-mobile-progress" data-testid="text-progress">SECTION {String(activeStepPosition + 1).padStart(2, '0')} OF {String(activeSteps.length).padStart(2, '0')}</div>
         {step < 7 ? <form className="ew-form" onSubmit={(event) => { event.preventDefault(); void saveAndContinue(); }} noValidate>
           <div className="ew-content-scroll">
-            <div className="ew-progress-line"><span style={{ width: `${((step + 1) / 8) * 100}%` }} /></div>
-            {step === 0 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "Enter the personal details that identify your application."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            <div className="ew-progress-line"><span style={{ width: `${((activeStepPosition + 1) / activeSteps.length) * 100}%` }} /></div>
+            {step === 0 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Enter the personal details that identify your application.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
                 <Field label={fieldLabel(0, 'personalInformation.firstName', 'First name')} name="personalInformation.firstName" register={register} error={errorFor('personalInformation.firstName')} autoComplete="given-name" />
                 <Field label={fieldLabel(0, 'personalInformation.middleName', 'Middle name')} name="personalInformation.middleName" register={register} optional autoComplete="additional-name" />
@@ -642,7 +678,7 @@ export function EnrollmentWizard({
                 <Field label={fieldLabel(0, 'personalInformation.postalCode', 'Postal code')} name="personalInformation.postalCode" register={register} optional autoComplete="postal-code" />
               </div>
             </>}
-            {step === 1 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "Name someone we may contact if we need to reach you."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            {step === 1 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Name someone we may contact if we need to reach you.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
                 <Field label={fieldLabel(1, 'nextOfKin.fullName', 'Full name')} name="nextOfKin.fullName" register={register} error={errorFor('nextOfKin.fullName')} autoComplete="off" />
                 <Field label={fieldLabel(1, 'nextOfKin.relationship', 'Relationship')} name="nextOfKin.relationship" register={register} error={errorFor('nextOfKin.relationship')} />
@@ -654,7 +690,7 @@ export function EnrollmentWizard({
               </div>
               <div className="ew-callout" data-testid="notice-next-of-kin"><ShieldCheck size={17} /><p><b>Authorization reminder</b><br />Your next of kin is a contact only. This does not authorize them to act for you or access your application.</p></div>
             </>}
-            {step === 2 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "Tell us about your education and any relevant qualifications."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            {step === 2 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Tell us about your education and any relevant qualifications.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
                 <SelectField label={fieldLabel(2, 'education.highestQualification', 'Highest qualification')} name="education.highestQualification" register={register} error={errorFor('education.highestQualification')}
                   options={['Primary education', 'Secondary education', 'Certificate', 'Diploma', 'Bachelor’s degree', 'Postgraduate degree', 'Other']} />
@@ -665,9 +701,9 @@ export function EnrollmentWizard({
                 <SelectField label={fieldLabel(2, 'education.certificationStatus', 'Certification status')} name="education.certificationStatus" register={register} error={errorFor('education.certificationStatus')} options={['Completed', 'Awaiting certificate', 'In progress']} />
                 <Field label={fieldLabel(2, 'education.additionalQualifications', 'Additional qualifications')} name="education.additionalQualifications" register={register} optional />
               </div>
-              {renderFileUploader('educationCertificate', fieldLabel(2, 'education.certificateObjectPath', 'Certificate image'), 2)}
+              {!evidenceLater && renderFileUploader('educationCertificate', fieldLabel(2, 'education.certificateObjectPath', 'Certificate image'), 2)}
             </>}
-            {step === 3 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "Share your current work situation. We do not ask for income."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            {step === 3 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Share your current work situation. We do not ask for income.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
                 <SelectField label={fieldLabel(3, 'workInformation.employmentStatus', 'Employment status')} name="workInformation.employmentStatus" register={register} error={errorFor('workInformation.employmentStatus')}
                   options={['Employed', 'Self-employed', 'Not currently employed']} />
@@ -683,7 +719,7 @@ export function EnrollmentWizard({
                 </>}
               </div>
             </>}
-            {step === 4 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "Choose an identity document and add its images when storage is available."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            {step === 4 && !evidenceLater && <>{heading(step, titleForStep(step), copyForStep(step).description || "Choose an identity document and add its images when storage is available.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid ew-fields-single">
                 <SelectField label={fieldLabel(4, 'proofOfIdentity.documentType', 'Document type')} name="proofOfIdentity.documentType" register={register} error={errorFor('proofOfIdentity.documentType')}
                   options={['National ID', 'Passport', 'Driver license', 'Passport card', 'Other']} />
@@ -694,7 +730,7 @@ export function EnrollmentWizard({
               <div className="ew-storage-banner" data-testid="state-identity-incomplete"><CircleAlert size={17} /><div><b>Identity images are not yet attached</b>
                 <p>Your previews stay on this device. Secure upload is currently unavailable, so they cannot be included with your application.</p></div></div>
             </>}
-            {step === 5 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "A short recording can be made here, but it is not an identity or liveness check."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            {step === 5 && !evidenceLater && <>{heading(step, titleForStep(step), copyForStep(step).description || "A short recording can be made here, but it is not an identity or liveness check.", copyForStep(step).sectionIdLabel)}
               <div className="ew-video-consent">
                 <label className="ew-consent-check"><input type="checkbox" {...register('liveVideoRecording.consentAccepted')} data-testid="check-video-consent" />
                   <span className="ew-checkmark" /><span>I consent to use my camera and microphone to make a 12-second video recording for this application.</span></label>
@@ -723,7 +759,7 @@ export function EnrollmentWizard({
               <div className="ew-storage-banner" data-testid="state-video-incomplete"><CircleAlert size={17} /><div><b>Recording is not saved to your application</b>
                 <p>This recording remains in memory and will be cleared when you leave this page. Video storage is unavailable, so a saved video reference is still required.</p></div></div>
             </>}
-            {step === 6 && <><StageHeading index={step} title={titleForStep(step)} detail={copyForStep(step).description || "Only provide bank details if they are genuinely needed for your enrollment."} sectionIdLabel={copyForStep(step).sectionIdLabel} />
+            {step === 6 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Only provide bank details if they are genuinely needed for your enrollment.", copyForStep(step).sectionIdLabel)}
               <p className="ew-inline-notice">This section is optional. If payment details are not required for your enrollment, leave it blank and continue.</p>
               <div className="ew-fields-grid ew-fields-single">
                 <Field label={fieldLabel(6, 'bankDetails.bankName', 'Bank')} name="bankDetails.bankName" register={register} error={errorFor('bankDetails.bankName')} autoComplete="off" />
@@ -759,8 +795,15 @@ export function EnrollmentWizard({
           <div className="ew-preview" data-testid="enrollment-preview">
             <div className="ew-content-scroll">
               <div className="ew-progress-line"><span style={{ width: '100%' }} /></div>
-              <StageHeading index={7} title={titleForStep(7)} detail={copyForStep(7).description || "Check your details carefully. Incomplete secure uploads must be attached before you can submit."} sectionIdLabel={copyForStep(7).sectionIdLabel} />
+              {heading(7, titleForStep(7), copyForStep(7).description || (evidenceLater
+                ? "Review your details. Staff will arrange the required identity files and verification video later."
+                : "Check your details carefully. Incomplete secure uploads must be attached before you can submit."),
+                copyForStep(7).sectionIdLabel)}
               {categoryReview}
+              {evidenceLater && <div className="ew-storage-banner ew-evidence-later" data-testid="notice-evidence-later">
+                <ShieldCheck size={17} /><div><b>Identity evidence will be provided later</b>
+                  <p>Your details are saved now. Staff will arrange the identity files and verification video before review begins.</p></div>
+              </div>}
               <div className="ew-review-stack">
                 {reviewStage(0, titleForStep(0), [
                   [fieldLabel(0, 'personalInformation.firstName', 'First name'), answer(answers, 'personalInformation', 'firstName'), 'firstName'], [fieldLabel(0, 'personalInformation.middleName', 'Middle name'), answer(answers, 'personalInformation', 'middleName'), 'middleName'], [fieldLabel(0, 'personalInformation.surname', 'Surname'), answer(answers, 'personalInformation', 'surname'), 'surname'],
@@ -775,18 +818,18 @@ export function EnrollmentWizard({
                 {reviewStage(2, titleForStep(2), [
                   [fieldLabel(2, 'education.highestQualification', 'Highest qualification'), answer(answers, 'education', 'highestQualification'), 'highestQualification'], [fieldLabel(2, 'education.institution', 'Institution'), answer(answers, 'education', 'institution'), 'institution'], [fieldLabel(2, 'education.courseField', 'Course / field'), answer(answers, 'education', 'courseField'), 'courseField'],
                   [fieldLabel(2, 'education.startYear', 'Start year'), answer(answers, 'education', 'startYear'), 'startYear'], [fieldLabel(2, 'education.completionYear', 'Completion year'), answer(answers, 'education', 'completionYear'), 'completionYear'], [fieldLabel(2, 'education.certificationStatus', 'Certification status'), answer(answers, 'education', 'certificationStatus'), 'certificationStatus'],
-                  [fieldLabel(2, 'education.additionalQualifications', 'Additional qualifications'), answer(answers, 'education', 'additionalQualifications'), 'additionalQualifications'], [fieldLabel(2, 'education.certificateObjectPath', 'Certificate image'), answer(answers, 'education', 'certificateObjectPath') ? 'Uploaded reference attached' : 'Not uploaded', 'educationCertificate'],
+                  [fieldLabel(2, 'education.additionalQualifications', 'Additional qualifications'), answer(answers, 'education', 'additionalQualifications'), 'additionalQualifications'], [fieldLabel(2, 'education.certificateObjectPath', 'Certificate image'), evidenceLater ? 'Provided later if required' : answer(answers, 'education', 'certificateObjectPath') ? 'Uploaded reference attached' : 'Not uploaded', 'educationCertificate'],
                 ])}
                 {reviewStage(3, titleForStep(3), [
                   [fieldLabel(3, 'workInformation.employmentStatus', 'Employment status'), answer(answers, 'workInformation', 'employmentStatus'), 'employmentStatus'], [fieldLabel(3, 'workInformation.occupation', 'Occupation'), answer(answers, 'workInformation', 'occupation'), 'occupation'], [fieldLabel(3, 'workInformation.employer', 'Employer'), answer(answers, 'workInformation', 'employer'), 'employer'],
                   [fieldLabel(3, 'workInformation.businessName', 'Business name'), answer(answers, 'workInformation', 'businessName'), 'businessName'], [fieldLabel(3, 'workInformation.workAddress', 'Business / work address'), answer(answers, 'workInformation', 'workAddress'), 'workAddress'], [fieldLabel(3, 'workInformation.workPhone', 'Work phone'), answer(answers, 'workInformation', 'workPhone'), 'workPhone'], [fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience'), answer(answers, 'workInformation', 'yearsExperience'), 'yearsExperience'],
                 ])}
-                {reviewStage(4, titleForStep(4), [
+                {!evidenceLater && reviewStage(4, titleForStep(4), [
                   [fieldLabel(4, 'proofOfIdentity.documentType', 'Document type'), answer(answers, 'proofOfIdentity', 'documentType'), 'identityDocumentType'], [fieldLabel(4, 'proofOfIdentity.documentNumber', 'Document number'), answer(answers, 'proofOfIdentity', 'documentNumber'), 'identityDocumentNumber'],
                   [fieldLabel(4, 'proofOfIdentity.frontObjectPath', 'Document front'), answer(answers, 'proofOfIdentity', 'frontObjectPath') ? 'Uploaded reference attached' : 'Not uploaded', 'identityFront'],
                   [fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), isBackRequired ? answer(answers, 'proofOfIdentity', 'backObjectPath') ? 'Uploaded reference attached' : 'Not uploaded' : 'Not applicable', 'identityBack'],
                 ])}
-                {reviewStage(5, titleForStep(5), [
+                {!evidenceLater && reviewStage(5, titleForStep(5), [
                   ['Consent', answer(answers, 'liveVideoRecording', 'consentAccepted') ? 'Consent given' : 'Not confirmed', 'liveVideoConsent'],
                   ['Recording length', answer(answers, 'liveVideoRecording', 'durationSeconds') ? `${answer(answers, 'liveVideoRecording', 'durationSeconds')} seconds recorded locally` : 'Not recorded', 'liveVideoDuration'],
                   ['Saved video reference', answer(answers, 'liveVideoRecording', 'objectPath') ? 'Reference attached' : 'Not uploaded', 'liveVideoReference'],
@@ -806,13 +849,17 @@ export function EnrollmentWizard({
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
                 <div><b>{readyToSubmit ? 'Ready for your review' : 'A few required items are still missing'}</b>
-                  <p>{missingUploads.length ? `Secure storage is unavailable. Required references still missing: ${missingUploads.join(', ')}.` : 'Complete the declaration and all required details before submitting.'}</p>
+                  <p>{evidenceLater
+                    ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
+                    : missingUploads.length
+                      ? `Secure storage is unavailable. Required references still missing: ${missingUploads.join(', ')}.`
+                      : 'Complete the declaration and all required details before submitting.'}</p>
                 </div>
               </div>
               {(error || submitError) && <p className="ew-form-alert" role="alert" data-testid="text-submit-error">{submitError || error}</p>}
             </div>
             <footer className="ew-form-footer">
-              <button type="button" className="ew-button ew-button-quiet" onClick={() => setStep(6)} data-testid="button-preview-back"><ArrowLeft size={15} /> Back</button>
+              <button type="button" className="ew-button ew-button-quiet" onClick={() => setStep(activeSteps[Math.max(0, activeSteps.length - 2)])} data-testid="button-preview-back"><ArrowLeft size={15} /> Back</button>
               <span className="ew-save-note">You can edit any section before submitting.</span>
               <button type="button" className="ew-button ew-button-primary" onClick={() => void beginSubmit()}
                 disabled={!readyToSubmit || isSaving || isSubmitting || readOnly} data-testid="button-submit-enrollment">

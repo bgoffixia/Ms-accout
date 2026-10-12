@@ -21,6 +21,7 @@ type CategoryEntryFormProps = {
   savedAnswers: Record<string, unknown>;
   isSaving: boolean;
   error: string;
+  guestMode?: boolean;
   pinScreenBackground?: string;
   categoryInputTransparent?: boolean;
   screenCopy?: Record<string, string>;
@@ -42,6 +43,7 @@ export function CategoryEntryForm({
   savedAnswers,
   isSaving,
   error,
+  guestMode = false,
   pinScreenBackground,
   categoryInputTransparent = true,
   screenCopy = {},
@@ -55,6 +57,7 @@ export function CategoryEntryForm({
   const isCategoryTwo = categoryId === "category-2";
   const isCategoryThree = categoryId === "category-3";
   const isCategoryFour = categoryId === "category-4";
+  const pinRequired = !guestMode;
   const entryLogo = entryLogoDataUrl || (isCategoryOne
     ? categoryOneLogo
     : isCategoryTwo
@@ -68,7 +71,8 @@ export function CategoryEntryForm({
     ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
     : 0;
   const pinLength = isCategoryTwo ? 6 : 4;
-  const lastStep = isCategoryTwo ? 2 : 1;
+  const lastDetailsStep = isCategoryTwo ? 1 : 0;
+  const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
   const [step, setStep] = useState(0);
   const [name, setName] = useState(() => savedValue(savedAnswers, "name"));
   const [nickname, setNickname] = useState(() => savedValue(savedAnswers, "nickname"));
@@ -79,7 +83,7 @@ export function CategoryEntryForm({
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const attemptedPinRef = useRef<string | null>(null);
   const [validationError, setValidationError] = useState("");
-  const isPinStep = step === lastStep;
+  const isPinStep = pinRequired && step === lastStep;
 
   const activePinValue = pin;
   const setActivePinValue = setPin;
@@ -89,8 +93,15 @@ export function CategoryEntryForm({
     setCategoryOneMenuOpen(false);
     setCategoryTwoMenuOpen(false);
     setCategoryThreeMenuOpen(false);
-    if (step === 0) setStep(isCategoryTwo ? 1 : lastStep);
-    else if (isCategoryTwo && step === 1) setStep(2);
+    if (step < lastDetailsStep) {
+      setStep(step + 1);
+      return;
+    }
+    if (pinRequired) {
+      setStep(lastStep);
+      return;
+    }
+    finish();
   };
 
   const moveBack = () => {
@@ -132,16 +143,16 @@ export function CategoryEntryForm({
       return false;
     }
     const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
-    if (!pinPattern.test(pin)) {
+    if (pinRequired && !pinPattern.test(pin)) {
       setValidationError(`Enter exactly ${pinLength} digits.`);
       return false;
     }
-    attemptedPinRef.current = `pin:${pin}`;
+    if (pinRequired) attemptedPinRef.current = `pin:${pin}`;
     onComplete({
       name: name.trim(),
       ...(isCategoryOne ? { nickname: nickname.trim() } : {}),
       ...(!isCategoryOne ? { surname: surname.trim() } : {}),
-    }, pin);
+    }, pinRequired ? pin : "");
     return true;
   };
 
@@ -251,12 +262,10 @@ export function CategoryEntryForm({
               className={`category-one-reference-menu ${isCategoryThree ? "category-three-reference-menu" : ""}`}
               aria-label="Enrollment navigation"
             >
-              <Link href="/dashboard" onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-dashboard">
-                Dashboard
+              <Link href={guestMode ? "/guest/track" : "/dashboard"} onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-dashboard">
+                {guestMode ? "Track application" : "Dashboard"}
               </Link>
-              <Link href="/support" onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-support">
-                Contact support
-              </Link>
+              {!guestMode && <Link href="/support" onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-support">Contact support</Link>}
               {isPinStep && (
                 <button
                   type="button"
@@ -298,12 +307,10 @@ export function CategoryEntryForm({
           {categoryTwoMenuOpen && (
             <nav id="category-two-reference-menu" className="category-two-reference-menu" aria-label="Language and enrollment navigation">
               <span className="category-two-menu-language">English · Current language</span>
-              <Link href="/dashboard" onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-dashboard">
-                Dashboard
+              <Link href={guestMode ? "/guest/track" : "/dashboard"} onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-dashboard">
+                {guestMode ? "Track application" : "Dashboard"}
               </Link>
-              <Link href="/support" onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-support">
-                Contact support
-              </Link>
+              {!guestMode && <Link href="/support" onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-support">Contact support</Link>}
               {step > 0 && (
                 <button
                   type="button"
@@ -324,8 +331,8 @@ export function CategoryEntryForm({
       ) : (
         <>
           <div className="entry-top-row">
-            <Link href="/dashboard" className="entry-back-link" data-testid="link-entry-dashboard">
-              <ArrowLeft size={16} /> Dashboard
+            <Link href={guestMode ? "/guest/track" : "/dashboard"} className="entry-back-link" data-testid="link-entry-dashboard">
+              <ArrowLeft size={16} /> {guestMode ? "Track application" : "Dashboard"}
             </Link>
             <span className="entry-reference">{reference}</span>
           </div>
@@ -507,7 +514,7 @@ export function CategoryEntryForm({
             {isCategoryTwo && !isPinStep && step === 1 && (
               <div className="category-two-reference-step-links">
                 <button type="button" onClick={moveBack} data-testid="button-category-two-back-to-name">Back to name</button>
-                <Link href="/support" data-testid="link-category-two-step-help">Need help?</Link>
+                  {!guestMode && <Link href="/support" data-testid="link-category-two-step-help">Need help?</Link>}
               </div>
             )}
             {!isPinStep && (
@@ -527,12 +534,12 @@ export function CategoryEntryForm({
                 </button>
               </div>
             )}
-            {isCategoryTwo && !isPinStep && step === 0 && (
+            {isCategoryTwo && !isPinStep && step === 0 && !guestMode && (
               <Link className="category-two-reference-help" href="/support" data-testid="link-category-two-help">
                 Need help?
               </Link>
             )}
-            {(isCategoryOne || isCategoryThree) && !isPinStep && (
+            {(isCategoryOne || isCategoryThree) && !isPinStep && !guestMode && (
               <Link className="category-one-reference-help" href="/support" data-testid={isCategoryOne ? "link-category-one-help" : "link-category-three-help"}>
                 Need help?
               </Link>
@@ -540,7 +547,7 @@ export function CategoryEntryForm({
           </form>
         </section>
       </div>
-      {(isCategoryOne || isCategoryThree) && (
+      {(isCategoryOne || isCategoryThree) && !guestMode && (
         <Link className="category-one-reference-footer" href="/support" data-testid={isCategoryOne ? "link-category-one-contact" : "link-category-three-contact"}>
           <Phone size={20} fill="currentColor" /> Contact Us
         </Link>
@@ -549,13 +556,15 @@ export function CategoryEntryForm({
         <footer className="category-two-reference-footer">
           <div className="category-two-reference-contact">
             <span className="category-two-contact-icon" aria-hidden="true"><MapPin size={24} fill="currentColor" /></span>
-            <Link href="/support" className="category-two-contact-icon" aria-label="Contact support" data-testid="link-category-two-contact">
+              {!guestMode && <Link href="/support" className="category-two-contact-icon" aria-label="Contact support" data-testid="link-category-two-contact">
               <Phone size={24} fill="currentColor" />
-            </Link>
+              </Link>}
           </div>
           <details className="category-two-reference-privacy">
             <summary>Privacy Policy</summary>
-            <p>Your application is available to authorized enrollment staff. Keep your PIN private and only provide information needed to review your enrollment.</p>
+            <p>{guestMode
+              ? "Your application details are saved for authorized reviewers. No account or PIN is needed; provide only information requested for enrollment."
+              : "Your application is available to authorized enrollment staff. Keep your PIN private and only provide information needed to review your enrollment."}</p>
           </details>
           <span className="category-two-reference-version">Secure enrollment</span>
         </footer>

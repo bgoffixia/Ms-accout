@@ -73,6 +73,9 @@ import {
   UpdateAdminGuestPreapplicationBody,
   UpdateAdminGuestPreapplicationParams,
   UpdateAdminGuestPreapplicationResponse,
+  UpdateGuestPreapplicationProgressBody,
+  UpdateGuestPreapplicationProgressParams,
+  UpdateGuestPreapplicationProgressResponse,
   UpdateApplicationBody,
   UpdateApplicationParams,
   UpdateApplicationResponse,
@@ -313,7 +316,12 @@ function serializeGuestPreapplicationStatus(
     reference: application.reference,
     categoryId: application.categoryId,
     categoryName: categoryName(application.categoryId),
+    fullName: application.fullName,
+    email: application.email,
     status: application.status,
+    currentStep: application.currentStep,
+    detailsComplete: application.detailsComplete,
+    answers: applicantSafeAnswers(application.answers ?? {}),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
   };
@@ -326,7 +334,7 @@ function serializeAdminGuestPreapplication(
     ...serializeGuestPreapplicationStatus(application),
     fullName: application.fullName,
     email: application.email,
-    phone: application.phone,
+    phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
   };
 }
 
@@ -339,6 +347,35 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function containsCredentialAnswerKey(value: unknown): boolean {
+  const forbidden = new Set([
+    "pin",
+    "pinconfirmation",
+    "pinhash",
+    "pincode",
+    "pinvalue",
+    "password",
+    "passwordconfirmation",
+    "passwordhash",
+  ]);
+  if (Array.isArray(value)) return value.some(containsCredentialAnswerKey);
+  if (!value || typeof value !== "object") return false;
+  return Object.entries(value).some(([key, child]) => {
+    const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, "");
+    return forbidden.has(normalizedKey) || containsCredentialAnswerKey(child);
+  });
+}
+
+function containsGuestEvidence(answers: Record<string, unknown>): boolean {
+  const identity = asRecord(answers.proofOfIdentity);
+  const video = asRecord(answers.liveVideoRecording);
+  const education = asRecord(answers.education);
+  return Object.keys(identity).length > 0 ||
+    Object.keys(video).length > 0 ||
+    (typeof education.certificateObjectPath === "string" &&
+      education.certificateObjectPath.trim().length > 0);
 }
 
 function nestedString(
@@ -497,6 +534,7 @@ const wizardSections = [
 function validateFinalApplication(
   categoryId: string,
   answers: Record<string, unknown>,
+  requireEvidence = true,
 ): string | null {
   if (!categories.some((category) => category.id === categoryId)) {
     return "The selected enrollment category is invalid.";
@@ -603,22 +641,24 @@ function validateFinalApplication(
     return "Select a valid employment status.";
   }
 
-  const identity = asRecord(answers.proofOfIdentity);
-  if (
-    !nestedString(answers, "proofOfIdentity", "documentType") ||
-    typeof identity.frontObjectPath !== "string" ||
-    !identity.frontObjectPath
-  ) {
-    return "Complete the private proof-of-identity upload.";
-  }
-  const video = asRecord(answers.liveVideoRecording);
-  if (
-    video.consentAccepted !== true ||
-    video.durationSeconds !== 12 ||
-    typeof video.objectPath !== "string" ||
-    !video.objectPath
-  ) {
-    return "Confirm a 12-second video recording and complete its private upload.";
+  if (requireEvidence) {
+    const identity = asRecord(answers.proofOfIdentity);
+    if (
+      !nestedString(answers, "proofOfIdentity", "documentType") ||
+      typeof identity.frontObjectPath !== "string" ||
+      !identity.frontObjectPath
+    ) {
+      return "Complete the private proof-of-identity upload.";
+    }
+    const video = asRecord(answers.liveVideoRecording);
+    if (
+      video.consentAccepted !== true ||
+      video.durationSeconds !== 12 ||
+      typeof video.objectPath !== "string" ||
+      !video.objectPath
+    ) {
+      return "Confirm a 12-second video recording and complete its private upload.";
+    }
   }
 
   const bank = asRecord(answers.bankDetails);
@@ -733,6 +773,7 @@ async function loadPortalSettings() {
 }
 
 router.get("/portal/settings", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     res.json(await loadPortalSettings());
   } catch (error) {
@@ -832,6 +873,86 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ err: error }, "Failed to create guest pre-application");
     res.status(503).json({ error: "Guest applications are temporarily unavailable." });
+  }
+});
+
+router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<void> => {
+  const parsedParams = UpdateGuestPreapplicationProgressParams.safeParse(req.params);
+  const parsedBody = UpdateGuestPreapplicationProgressBody.safeParse(req.body);
+  if (!parsedParams.success || !parsedBody.success) {
+    res.status(400).json({ error: "Check the application progress and try again." });
+    return;
+  }
+
+  try {
+    const [application] = await db
+      .select()
+      .from(guestPreapplicationsTable)
+      .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+      .limit(1);
+    if (
+      !application ||
+      application.reference !== parsedBody.data.reference.trim().toUpperCase() ||
+      !matchesGuestAccessKey(application.accessKeyHash, parsedBody.data.accessKey)
+    ) {
+      res.status(404).json({ error: "The application reference and private key could not be verified." });
+      return;
+    }
+    if (application.status === "closed") {
+      res.status(409).json({ error: "This guest application is closed." });
+      return;
+    }
+    if (containsCredentialAnswerKey(parsedBody.data.answers)) {
+      res.status(400).json({ error: "PINs and passwords cannot be saved as application answers." });
+      return;
+    }
+    if (containsGuestEvidence(parsedBody.data.answers)) {
+      res.status(400).json({ error: "Identity evidence must be collected through the later staff follow-up." });
+      return;
+    }
+
+    const prepared = prepareApplicantAnswers(
+      application.answers ?? {},
+      parsedBody.data.answers,
+    );
+    if (prepared.error) {
+      res.status(400).json({ error: prepared.error });
+      return;
+    }
+    if (parsedBody.data.complete) {
+      const validationError = validateFinalApplication(
+        application.categoryId,
+        prepared.answers,
+        false,
+      );
+      if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+      }
+    }
+
+    const [updated] = await db
+      .update(guestPreapplicationsTable)
+      .set({
+        currentStep: parsedBody.data.currentStep,
+        answers: prepared.answers,
+        detailsComplete: parsedBody.data.complete,
+        updatedAt: new Date(),
+      })
+      .where(eq(guestPreapplicationsTable.id, application.id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Guest application not found." });
+      return;
+    }
+    res.json(
+      UpdateGuestPreapplicationProgressResponse.parse(
+        serializeGuestPreapplicationStatus(updated),
+      ),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to save guest application progress");
+    res.status(503).json({ error: "Guest application progress could not be saved." });
   }
 });
 
@@ -1740,6 +1861,7 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
 });
 
 router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const parsed = UpdatePortalSettingsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

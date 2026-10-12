@@ -256,13 +256,23 @@ export const CreateGuestPreapplicationBody = zod.object({
   "phone": zod.string().max(createGuestPreapplicationBodyPhoneMax).optional()
 })
 
+export const createGuestPreapplicationResponseCurrentStepMin = 0;
+export const createGuestPreapplicationResponseCurrentStepMax = 7;
+
+
+
 export const CreateGuestPreapplicationResponse = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
-  "createdAt": zod.coerce.date()
+  "currentStep": zod.number().int().min(createGuestPreapplicationResponseCurrentStepMin).max(createGuestPreapplicationResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -280,12 +290,67 @@ export const LookupGuestPreapplicationBody = zod.object({
   "accessKey": zod.string().regex(lookupGuestPreapplicationBodyAccessKeyRegExp)
 })
 
+export const lookupGuestPreapplicationResponseCurrentStepMin = 0;
+export const lookupGuestPreapplicationResponseCurrentStepMax = 7;
+
+
+
 export const LookupGuestPreapplicationResponse = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "currentStep": zod.number().int().min(lookupGuestPreapplicationResponseCurrentStepMin).max(lookupGuestPreapplicationResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Save guest application progress using its private key
+ */
+export const UpdateGuestPreapplicationProgressParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const updateGuestPreapplicationProgressBodyReferenceMin = 8;
+export const updateGuestPreapplicationProgressBodyReferenceMax = 32;
+
+export const updateGuestPreapplicationProgressBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const updateGuestPreapplicationProgressBodyCurrentStepMin = 0;
+export const updateGuestPreapplicationProgressBodyCurrentStepMax = 7;
+
+
+
+export const UpdateGuestPreapplicationProgressBody = zod.object({
+  "reference": zod.string().min(updateGuestPreapplicationProgressBodyReferenceMin).max(updateGuestPreapplicationProgressBodyReferenceMax),
+  "accessKey": zod.string().regex(updateGuestPreapplicationProgressBodyAccessKeyRegExp),
+  "currentStep": zod.number().int().min(updateGuestPreapplicationProgressBodyCurrentStepMin).max(updateGuestPreapplicationProgressBodyCurrentStepMax),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "complete": zod.boolean()
+})
+
+export const updateGuestPreapplicationProgressResponseCurrentStepMin = 0;
+export const updateGuestPreapplicationProgressResponseCurrentStepMax = 7;
+
+
+
+export const UpdateGuestPreapplicationProgressResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "currentStep": zod.number().int().min(updateGuestPreapplicationProgressResponseCurrentStepMin).max(updateGuestPreapplicationProgressResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -319,12 +384,22 @@ export const ClaimAllowlistedStaffAccessResponse = zod.object({
 /**
  * @summary List guest pre-applications for authorized reviewers
  */
+export const listAdminGuestPreapplicationsResponseOneCurrentStepMin = 0;
+export const listAdminGuestPreapplicationsResponseOneCurrentStepMax = 7;
+
+
+
 export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseOneCurrentStepMin).max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
@@ -346,12 +421,22 @@ export const UpdateAdminGuestPreapplicationBody = zod.object({
   "status": zod.enum(['contacted', 'closed'])
 })
 
+export const updateAdminGuestPreapplicationResponseOneCurrentStepMin = 0;
+export const updateAdminGuestPreapplicationResponseOneCurrentStepMax = 7;
+
+
+
 export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "id": zod.string().uuid(),
   "reference": zod.string(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
   "status": zod.enum(['received', 'contacted', 'closed']),
+  "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseOneCurrentStepMin).max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
