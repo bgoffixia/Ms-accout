@@ -149,13 +149,18 @@ export interface GuestPreapplicationProgressInput {
   complete: boolean;
 }
 
+export type AdminGuestPreapplicationEvidenceEvidenceType = typeof AdminGuestPreapplicationEvidenceEvidenceType[keyof typeof AdminGuestPreapplicationEvidenceEvidenceType];
+
 export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   fullName: string;
   email: string;
   /** @nullable */
   phone: string | null;
+  reviewReady: boolean;
+  evidence: AdminGuestPreapplicationEvidence[];
 });
 
+export type GuestEvidenceUploadInputEvidenceType = typeof GuestEvidenceUploadInputEvidenceType[keyof typeof GuestEvidenceUploadInputEvidenceType];
 export type AdminGuestPreapplicationStatusUpdateStatus = typeof AdminGuestPreapplicationStatusUpdateStatus[keyof typeof AdminGuestPreapplicationStatusUpdateStatus];
 
 
@@ -761,3 +766,46 @@ export const ListSupportTicketsForAdminStatus = {
   resolved: 'resolved',
 } as const;
 
+
+export const AdminGuestPreapplicationEvidenceEvidenceType = {
+  identity_document: 'identity_document',
+  verification_video: 'verification_video',
+} as const;
+
+export interface AdminGuestPreapplicationEvidence {
+  id: string;
+  evidenceType: AdminGuestPreapplicationEvidenceEvidenceType;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  /** @nullable */
+  uploadedAt: string | null;
+  /** @nullable */
+  downloadUrl: string | null;
+}
+
+export const GuestEvidenceUploadInputEvidenceType = {
+  identity_document: 'identity_document',
+  verification_video: 'verification_video',
+} as const;
+
+export interface GuestEvidenceUploadInput {
+  evidenceType: GuestEvidenceUploadInputEvidenceType;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  fileName: string;
+  /** @maxLength 100 */
+  contentType: string;
+  /**
+     * @minimum 1
+     * @maximum 209715200
+     */
+  sizeBytes: number;
+}
+
+export interface GuestEvidenceUploadUrl {
+  evidenceId: string;
+  uploadUrl: string;
+}

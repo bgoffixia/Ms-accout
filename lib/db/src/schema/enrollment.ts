@@ -35,6 +35,10 @@ export const guestPreapplicationStatus = pgEnum("guest_preapplication_status", [
   "closed",
 ]);
 
+export const guestEvidenceType = pgEnum("guest_evidence_type", [
+  "identity_document",
+  "verification_video",
+]);
 export const guestPreapplicationsTable = pgTable(
   "guest_preapplications",
   {
@@ -67,6 +71,34 @@ export const guestPreapplicationsTable = pgTable(
   ],
 );
 
+export const guestPreapplicationEvidenceTable = pgTable(
+  "guest_preapplication_evidence",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => guestPreapplicationsTable.id, { onDelete: "cascade" }),
+    evidenceType: guestEvidenceType("evidence_type").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    objectPath: text("object_path").notNull().unique(),
+    uploadedByUserId: text("uploaded_by_user_id").notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("guest_preapplication_evidence_application_idx").on(
+      table.applicationId,
+    ),
+    index("guest_preapplication_evidence_type_idx").on(
+      table.applicationId,
+      table.evidenceType,
+    ),
+  ],
+);
 export const enrollmentApplicationsTable = pgTable(
   "enrollment_applications",
   {

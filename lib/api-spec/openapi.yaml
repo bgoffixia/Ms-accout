@@ -323,6 +323,84 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminGuestPreapplication"
+  /admin/guest-preapplications/{applicationId}/evidence/upload-url:
+    post:
+      operationId: requestGuestPreapplicationEvidenceUpload
+      tags: [administration]
+      summary: Request a private upload URL for guest application evidence
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestEvidenceUploadInput"
+      responses:
+        "200":
+          description: Private upload URL for the reviewer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestEvidenceUploadUrl"
+  /admin/guest-preapplications/{applicationId}/evidence/{evidenceId}/complete:
+    post:
+      operationId: completeGuestPreapplicationEvidenceUpload
+      tags: [administration]
+      summary: Verify and record an uploaded guest evidence file
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Verified private evidence metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminGuestPreapplicationEvidence"
+  /admin/guest-preapplications/{applicationId}/evidence/{evidenceId}/file:
+    get:
+      operationId: downloadGuestPreapplicationEvidence
+      tags: [administration]
+      summary: Download private guest application evidence
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Evidence file streamed as an attachment
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Uploaded evidence not found
   /admin/applications:
     get:
       operationId: listApplicationsForReview
@@ -837,7 +915,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/GuestPreapplicationStatus"
         - type: object
-          required: [fullName, email, phone]
+          required: [fullName, email, phone, reviewReady, evidence]
           properties:
             fullName:
               type: string
@@ -846,6 +924,61 @@ components:
               format: email
             phone:
               type: ["string", "null"]
+            reviewReady:
+              type: boolean
+            evidence:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminGuestPreapplicationEvidence"
+    GuestEvidenceUploadInput:
+      type: object
+      required: [evidenceType, fileName, contentType, sizeBytes]
+      properties:
+        evidenceType:
+          type: string
+          enum: [identity_document, verification_video]
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        contentType:
+          type: string
+          maxLength: 100
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 209715200
+    GuestEvidenceUploadUrl:
+      type: object
+      required: [evidenceId, uploadUrl]
+      properties:
+        evidenceId:
+          type: string
+          format: uuid
+        uploadUrl:
+          type: string
+          format: uri
+    AdminGuestPreapplicationEvidence:
+      type: object
+      required: [id, evidenceType, fileName, contentType, sizeBytes, uploadedAt, downloadUrl]
+      properties:
+        id:
+          type: string
+          format: uuid
+        evidenceType:
+          type: string
+          enum: [identity_document, verification_video]
+        fileName:
+          type: string
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+        uploadedAt:
+          type: ["string", "null"]
+          format: date-time
+        downloadUrl:
+          type: ["string", "null"]
     AdminGuestPreapplicationStatusUpdate:
       type: object
       required: [status]
@@ -1248,4 +1381,3 @@ components:
       properties:
         assigneeUserId:
           type: ["string", "null"]
-

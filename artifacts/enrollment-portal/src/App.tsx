@@ -7,7 +7,7 @@ import { shadcn } from '@clerk/themes';
 import {
   Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
   ChevronDown, CircleHelp, FileCheck2, FileText, Headphones, Home, LifeBuoy,
-  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, X,
+  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Upload, X,
 } from 'lucide-react';
 import {
   getGetApplicationQueryKey, getGetApplicantSummaryQueryKey,
@@ -31,6 +31,8 @@ import {
   useUpdateAdminGuestPreapplication,
   useCreateAdminUserInvitation,
   useCreateApplicationDraft,
+  useRequestGuestPreapplicationEvidenceUpload,
+  useCompleteGuestPreapplicationEvidenceUpload,
 } from '@workspace/api-client-react';
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, EnrollmentApplication, EnrollmentCategory,
@@ -2390,9 +2392,13 @@ function GuestFollowupPage() {
   const queryClient = useQueryClient();
   const applications = useListAdminGuestPreapplications();
   const update = useUpdateAdminGuestPreapplication();
+  const requestEvidenceUpload = useRequestGuestPreapplicationEvidenceUpload();
+  const completeEvidenceUpload = useCompleteGuestPreapplicationEvidenceUpload();
   const role = String(user?.publicMetadata?.role);
   const canReview = role === 'sub_admin';
   const [feedback, setFeedback] = useState('');
+  const [feedbackIsError, setFeedbackIsError] = useState(false);
+  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
   const guestStepLabel: Record<number, string> = {
     0: 'Personal information',
     1: 'Next of kin',
@@ -2401,18 +2407,86 @@ function GuestFollowupPage() {
     6: 'Bank details',
     7: 'Application review',
   };
-  const progressLabel = (application: AdminGuestPreapplication) => application.detailsComplete
-    ? 'Details complete · identity evidence outstanding'
-    : `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
+  const progressLabel = (application: AdminGuestPreapplication) => {
+    if (application.reviewReady) return 'Ready for full review';
+    if (!application.detailsComplete) {
+      return `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
+    }
+    const uploaded = application.evidence.filter((item) => item.uploadedAt);
+    const hasIdentity = uploaded.some((item) => item.evidenceType === 'identity_document');
+    const hasVideo = uploaded.some((item) => item.evidenceType === 'verification_video');
+    if (!hasIdentity && !hasVideo) return 'Details complete · identity evidence outstanding';
+    return `Details complete · missing ${[
+      !hasIdentity && 'an identity file',
+      !hasVideo && 'a verification video',
+    ].filter(Boolean).join(' and ')}`;
+  };
+
+  const uploadEvidence = async (
+    application: AdminGuestPreapplication,
+    evidenceType: 'identity_document' | 'verification_video',
+    file: File,
+  ) => {
+    const busyKey = `${application.id}:${evidenceType}`;
+    setEvidenceBusy(busyKey);
+    setFeedback('');
+    try {
+      const { evidenceId, uploadUrl } = await requestEvidenceUpload.mutateAsync({
+        applicationId: application.id,
+        data: {
+          evidenceType,
+          fileName: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+        },
+      });
+      const uploadResult = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!uploadResult.ok) {
+        throw new Error('The file could not be stored securely.');
+      }
+      await completeEvidenceUpload.mutateAsync({
+        applicationId: application.id,
+        evidenceId,
+      });
+      await queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
+      setFeedbackIsError(false);
+      setFeedback(`${file.name} was uploaded and verified.`);
+    } catch (error) {
+      setFeedbackIsError(true);
+      setFeedback(error instanceof Error
+        ? error.message
+        : `Could not upload ${file.name}. Please try again.`);
+    } finally {
+      setEvidenceBusy(null);
+    }
+  };
+
+  const handleEvidenceFile = (
+    application: AdminGuestPreapplication,
+    evidenceType: 'identity_document' | 'verification_video',
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (file) void uploadEvidence(application, evidenceType, file);
+  };
 
   const setApplicationStatus = (application: AdminGuestPreapplication, nextStatus: 'contacted' | 'closed') => {
     setFeedback('');
+    setFeedbackIsError(false);
     update.mutate({ applicationId: application.id, data: { status: nextStatus } }, {
       onSuccess: () => {
         setFeedback(`${application.reference} marked ${nextStatus}.`);
         void queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
       },
-      onError: () => setFeedback(`The status for ${application.reference} could not be updated. Please try again.`),
+      onError: () => {
+        setFeedbackIsError(true);
+        setFeedback(`The status for ${application.reference} could not be updated. Please try again.`);
+      },
     });
   };
 
@@ -2425,8 +2499,8 @@ function GuestFollowupPage() {
   return <AdminShell active="preapplications">
     <div className="admin-page guest-admin-page">
       <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest applications" detail="Review saved details from applicants who applied without accounts." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
-      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Identity evidence is collected later</b><p>Applicants complete their non-evidence details online. Staff must arrange identity files and a verification video before full review can begin.</p></div></div>
-      {feedback && <p className={update.isError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-admin-feedback">{feedback}</p>}
+      <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Evidence stays in the private staff workspace</b><p>For each complete application, record at least one identity document and one verification video. Applicants’ public tracking links never expose these files.</p></div></div>
+      {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-admin-feedback">{feedback}</p>}
       {applications.isLoading ? <div className="guest-admin-loading" data-testid="guest-admin-loading"><div /><div /><div /></div> :
         applications.isError ? <section className="state-card" role="alert" data-testid="guest-admin-error">
           <span className="state-icon error-icon"><Activity size={19} /></span><h2>Follow-up list unavailable</h2>
@@ -2450,6 +2524,41 @@ function GuestFollowupPage() {
               <details className="guest-admin-details" data-testid={`details-guest-application-${application.id}`}>
                 <summary>Review saved application details <small>{progressLabel(application)}</small></summary>
                 <div className="guest-admin-record-sections">
+                  <section className="guest-evidence-panel">
+                    <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
+                    <div className={`guest-review-readiness ${application.reviewReady ? 'is-ready' : ''}`} role="status">
+                      <span>{application.reviewReady ? 'Ready for full review' : 'Not ready for full review'}</span>
+                      <small>
+                        {application.detailsComplete ? 'Application details are complete.' : 'Complete application details first.'}
+                        {' '}Required: one identity file and one verification video.
+                      </small>
+                    </div>
+                    <div className="guest-evidence-upload-actions">
+                      <label className="guest-evidence-upload">
+                        <Upload size={15} />
+                        <span>{evidenceBusy === `${application.id}:identity_document` ? 'Uploading identity file…' : 'Add identity file'}</span>
+                        <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" disabled={evidenceBusy !== null}
+                          onChange={(event) => handleEvidenceFile(application, 'identity_document', event)}
+                          data-testid={`input-guest-identity-evidence-${application.id}`} />
+                      </label>
+                      <label className="guest-evidence-upload">
+                        <Upload size={15} />
+                        <span>{evidenceBusy === `${application.id}:verification_video` ? 'Uploading video…' : 'Add verification video'}</span>
+                        <input type="file" accept="video/mp4,video/webm" disabled={evidenceBusy !== null}
+                          onChange={(event) => handleEvidenceFile(application, 'verification_video', event)}
+                          data-testid={`input-guest-video-evidence-${application.id}`} />
+                      </label>
+                    </div>
+                    {application.evidence.length > 0 && <ul className="guest-evidence-list" aria-label="Private evidence files">
+                      {application.evidence.map((item) => <li key={item.id}>
+                        <span>
+                          <b>{item.evidenceType === 'identity_document' ? 'Identity document' : 'Verification video'}</b>
+                          <small>{item.fileName} · {item.uploadedAt ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : 'Upload pending verification'}</small>
+                        </span>
+                        {item.downloadUrl && <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-guest-evidence-download-${item.id}`}>Download</a>}
+                      </li>)}
+                    </ul>}
+                  </section>
                   <section className="review-category-selection">
                     <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Category details</h2></div>
                     <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>

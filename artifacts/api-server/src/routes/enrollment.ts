@@ -70,6 +70,13 @@ import {
   SubmitNewApplicationResponse,
   LookupGuestPreapplicationBody,
   LookupGuestPreapplicationResponse,
+  RequestGuestPreapplicationEvidenceUploadBody,
+  RequestGuestPreapplicationEvidenceUploadParams,
+  RequestGuestPreapplicationEvidenceUploadResponse,
+  CompleteGuestPreapplicationEvidenceUploadParams,
+  CompleteGuestPreapplicationEvidenceUploadResponse,
+  DownloadGuestPreapplicationEvidenceParams,
+  AdminGuestPreapplicationEvidence,
   UpdateAdminGuestPreapplicationBody,
   UpdateAdminGuestPreapplicationParams,
   UpdateAdminGuestPreapplicationResponse,
@@ -99,10 +106,15 @@ import {
   applicationEventsTable,
   db,
   enrollmentApplicationsTable,
+  guestPreapplicationEvidenceTable,
   guestPreapplicationsTable,
   portalSettingsTable,
   supportTicketsTable,
 } from "@workspace/db";
+import {
+  ObjectNotFoundError,
+  ObjectStorageService,
+} from "../lib/objectStorage";
 
 type ApplicationStatus =
   | "draft"
@@ -113,6 +125,7 @@ type ApplicationStatus =
   | "rejected";
 
 const router: IRouter = Router();
+const objectStorage = new ObjectStorageService();
 
 const categories = [
   {
@@ -329,13 +342,91 @@ function serializeGuestPreapplicationStatus(
 
 function serializeAdminGuestPreapplication(
   application: typeof guestPreapplicationsTable.$inferSelect,
+  evidence: Array<typeof guestPreapplicationEvidenceTable.$inferSelect> = [],
 ) {
+  const uploadedEvidence = evidence.filter((item) => item.uploadedAt !== null);
+  const hasIdentityDocument = uploadedEvidence.some(
+    (item) => item.evidenceType === "identity_document",
+  );
+  const hasVerificationVideo = uploadedEvidence.some(
+    (item) => item.evidenceType === "verification_video",
+  );
   return {
     ...serializeGuestPreapplicationStatus(application),
     fullName: application.fullName,
     email: application.email,
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
+    reviewReady:
+      application.detailsComplete && hasIdentityDocument && hasVerificationVideo,
+    evidence: evidence.map(serializeGuestEvidence),
   };
+}
+
+async function serializeAdminGuestPreapplicationWithEvidence(
+  application: typeof guestPreapplicationsTable.$inferSelect,
+) {
+  const evidence = await db
+    .select()
+    .from(guestPreapplicationEvidenceTable)
+    .where(eq(guestPreapplicationEvidenceTable.applicationId, application.id))
+    .orderBy(desc(guestPreapplicationEvidenceTable.createdAt));
+  return serializeAdminGuestPreapplication(application, evidence);
+}
+
+function serializeGuestEvidence(
+  evidence: typeof guestPreapplicationEvidenceTable.$inferSelect,
+): AdminGuestPreapplicationEvidence {
+  return {
+    id: evidence.id,
+    evidenceType: evidence.evidenceType,
+    fileName: evidence.fileName,
+    contentType: evidence.contentType,
+    sizeBytes: evidence.sizeBytes,
+    uploadedAt: evidence.uploadedAt ?? null,
+    downloadUrl: evidence.uploadedAt
+      ? `/api/admin/guest-preapplications/${evidence.applicationId}/evidence/${evidence.id}/file`
+      : null,
+  };
+}
+
+function safeEvidenceFileName(fileName: string): string {
+  return fileName.replace(/[\u0000-\u001f\u007f/\\]/g, "_").trim().slice(0, 160) || "evidence";
+}
+
+function isAllowedEvidenceType(
+  evidenceType: "identity_document" | "verification_video",
+  contentType: string,
+  sizeBytes: number,
+): boolean {
+  if (evidenceType === "identity_document") {
+    return (
+      sizeBytes <= 20 * 1024 * 1024 &&
+      ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(contentType)
+    );
+  }
+  return (
+    sizeBytes <= 200 * 1024 * 1024 &&
+    ["video/mp4", "video/webm"].includes(contentType)
+  );
+}
+
+function evidenceSignatureMatches(contentType: string, bytes: Buffer): boolean {
+  switch (contentType) {
+    case "application/pdf":
+      return bytes.length >= 5 && bytes.toString("ascii", 0, 5) === "%PDF-";
+    case "image/jpeg":
+      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    case "image/png":
+      return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    case "image/webp":
+      return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+    case "video/mp4":
+      return bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp";
+    case "video/webm":
+      return bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    default:
+      return false;
+  }
 }
 
 function answerString(answers: Record<string, unknown>, key: string): string | null {
@@ -1816,9 +1907,30 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
       .from(guestPreapplicationsTable)
       .orderBy(desc(guestPreapplicationsTable.createdAt))
       .limit(300);
+    const evidenceRows = applications.length
+      ? await db
+          .select()
+          .from(guestPreapplicationEvidenceTable)
+          .where(inArray(
+            guestPreapplicationEvidenceTable.applicationId,
+            applications.map((application) => application.id),
+          ))
+          .orderBy(desc(guestPreapplicationEvidenceTable.createdAt))
+      : [];
+    const evidenceByApplication = new Map<string, typeof evidenceRows>();
+    for (const evidence of evidenceRows) {
+      const group = evidenceByApplication.get(evidence.applicationId) ?? [];
+      group.push(evidence);
+      evidenceByApplication.set(evidence.applicationId, group);
+    }
     res.json(
       ListAdminGuestPreapplicationsResponse.parse(
-        applications.map(serializeAdminGuestPreapplication),
+        applications.map((application) =>
+          serializeAdminGuestPreapplication(
+            application,
+            evidenceByApplication.get(application.id) ?? [],
+          ),
+        ),
       ),
     );
   } catch (error) {
@@ -1826,6 +1938,228 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
     res.status(503).json({ error: "Guest pre-applications are temporarily unavailable." });
   }
 });
+
+router.post(
+  "/admin/guest-preapplications/:applicationId/evidence/upload-url",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsedParams = RequestGuestPreapplicationEvidenceUploadParams.safeParse(req.params);
+    const parsedBody = RequestGuestPreapplicationEvidenceUploadBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "Choose a supported evidence file and try again." });
+      return;
+    }
+    const { evidenceType, contentType, sizeBytes } = parsedBody.data;
+    if (!isAllowedEvidenceType(evidenceType, contentType, sizeBytes)) {
+      res.status(400).json({
+        error: evidenceType === "identity_document"
+          ? "Identity evidence must be a PDF, JPEG, PNG, or WebP file no larger than 20 MB."
+          : "Verification videos must be MP4 or WebM files no larger than 200 MB.",
+      });
+      return;
+    }
+
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .limit(1);
+      if (!application) {
+        res.status(404).json({ error: "Guest application not found." });
+        return;
+      }
+      if (application.status === "closed") {
+        res.status(409).json({ error: "Evidence cannot be added to a closed application." });
+        return;
+      }
+      if (!process.env.PRIVATE_OBJECT_DIR || !process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) {
+        res.status(503).json({ error: "Private evidence storage is unavailable." });
+        return;
+      }
+
+      const existingEvidence = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(eq(guestPreapplicationEvidenceTable.applicationId, application.id));
+      if (evidenceType === "verification_video" && existingEvidence.some(
+        (item) => item.evidenceType === "verification_video" && item.uploadedAt !== null,
+      )) {
+        res.status(409).json({ error: "A verification video is already recorded for this application." });
+        return;
+      }
+      if (evidenceType === "identity_document" && existingEvidence.filter(
+        (item) => item.evidenceType === "identity_document" && item.uploadedAt !== null,
+      ).length >= 5) {
+        res.status(409).json({ error: "No more than five identity files can be recorded." });
+        return;
+      }
+
+      const uploadUrl = await objectStorage.getObjectEntityUploadURL();
+      const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
+      if (!objectPath.startsWith("/objects/")) {
+        throw new Error("Storage returned an invalid private object path.");
+      }
+      const [record] = await db
+        .insert(guestPreapplicationEvidenceTable)
+        .values({
+          applicationId: application.id,
+          evidenceType,
+          fileName: safeEvidenceFileName(parsedBody.data.fileName),
+          contentType,
+          sizeBytes,
+          objectPath,
+          uploadedByUserId: res.locals.userId as string,
+        })
+        .returning();
+      if (!record) throw new Error("Evidence upload record could not be created.");
+      res.json(
+        RequestGuestPreapplicationEvidenceUploadResponse.parse({
+          evidenceId: record.id,
+          uploadUrl,
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to prepare private guest evidence upload");
+      res.status(503).json({ error: "A secure evidence upload could not be prepared." });
+    }
+  },
+);
+
+router.post(
+  "/admin/guest-preapplications/:applicationId/evidence/:evidenceId/complete",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsedParams = CompleteGuestPreapplicationEvidenceUploadParams.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: "Evidence could not be verified." });
+      return;
+    }
+    const { applicationId, evidenceId } = parsedParams.data;
+    try {
+      const [evidence] = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(and(
+          eq(guestPreapplicationEvidenceTable.id, evidenceId),
+          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+        ))
+        .limit(1);
+      if (!evidence) {
+        res.status(404).json({ error: "Evidence upload not found." });
+        return;
+      }
+      if (evidence.uploadedAt) {
+        res.json(CompleteGuestPreapplicationEvidenceUploadResponse.parse(
+          serializeGuestEvidence(evidence),
+        ));
+        return;
+      }
+
+      const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+      const [metadata] = await objectFile.getMetadata();
+      if (Number(metadata.size) !== evidence.sizeBytes || metadata.contentType !== evidence.contentType) {
+        await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+        await db.delete(guestPreapplicationEvidenceTable)
+          .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
+        res.status(400).json({ error: "The uploaded file did not match its declared type or size." });
+        return;
+      }
+      const [signatureBytes] = await objectFile.download({
+        start: 0,
+        end: Math.min(evidence.sizeBytes - 1, 31),
+      });
+      if (!evidenceSignatureMatches(evidence.contentType, signatureBytes)) {
+        await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+        await db.delete(guestPreapplicationEvidenceTable)
+          .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
+        res.status(400).json({ error: "The uploaded file content is not a supported evidence format." });
+        return;
+      }
+
+      const [completed] = await db
+        .update(guestPreapplicationEvidenceTable)
+        .set({ uploadedAt: new Date() })
+        .where(and(
+          eq(guestPreapplicationEvidenceTable.id, evidence.id),
+          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+        ))
+        .returning();
+      if (!completed) {
+        res.status(404).json({ error: "Evidence upload not found." });
+        return;
+      }
+      await db
+        .update(guestPreapplicationsTable)
+        .set({ updatedAt: new Date(), updatedByUserId: res.locals.userId as string })
+        .where(eq(guestPreapplicationsTable.id, applicationId));
+      res.json(
+        CompleteGuestPreapplicationEvidenceUploadResponse.parse(
+          serializeGuestEvidence(completed),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(409).json({ error: "Upload the selected file before recording it." });
+        return;
+      }
+      req.log.error({ err: error, applicationId, evidenceId }, "Failed to verify guest evidence upload");
+      res.status(503).json({ error: "The evidence file could not be verified." });
+    }
+  },
+);
+
+router.get(
+  "/admin/guest-preapplications/:applicationId/evidence/:evidenceId/file",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsedParams = DownloadGuestPreapplicationEvidenceParams.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: "Evidence file not found." });
+      return;
+    }
+    const { applicationId, evidenceId } = parsedParams.data;
+    try {
+      const [evidence] = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(and(
+          eq(guestPreapplicationEvidenceTable.id, evidenceId),
+          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+        ))
+        .limit(1);
+      if (!evidence?.uploadedAt) {
+        res.status(404).json({ error: "Uploaded evidence file not found." });
+        return;
+      }
+      const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+      const [metadata] = await objectFile.getMetadata();
+      const downloadName = safeEvidenceFileName(evidence.fileName);
+      res.setHeader("Content-Type", evidence.contentType);
+      res.setHeader("Content-Length", String(metadata.size));
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+      );
+      res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      const stream = objectFile.createReadStream();
+      stream.on("error", (error) => {
+        req.log.error({ err: error, applicationId, evidenceId }, "Failed to stream private guest evidence");
+        if (res.headersSent) res.destroy(error);
+        else res.status(503).json({ error: "The evidence file could not be downloaded." });
+      });
+      stream.pipe(res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(404).json({ error: "Uploaded evidence file not found." });
+        return;
+      }
+      req.log.error({ err: error, applicationId, evidenceId }, "Failed to open private guest evidence");
+      res.status(503).json({ error: "The evidence file could not be downloaded." });
+    }
+  },
+);
 
 router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, async (req, res): Promise<void> => {
   const parsedParams = UpdateAdminGuestPreapplicationParams.safeParse(req.params);
@@ -1851,7 +2185,7 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
     }
     res.json(
       UpdateAdminGuestPreapplicationResponse.parse(
-        serializeAdminGuestPreapplication(updated),
+        await serializeAdminGuestPreapplicationWithEvidence(updated),
       ),
     );
   } catch (error) {

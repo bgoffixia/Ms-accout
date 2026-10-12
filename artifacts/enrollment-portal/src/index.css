@@ -3337,6 +3337,23 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .guest-admin-details summary small { color: #80919a; font-size: 9px; font-weight: 400; text-align: right; }
 .guest-admin-record-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .guest-admin-record-sections .review-category-selection { margin-top: 0; }
+.guest-evidence-panel { grid-column: 1 / -1; min-width: 0; padding: 15px; border: 1px solid #dfe8eb; border-radius: 10px; background: #fbfcfc; }
+.guest-review-readiness { display: grid; gap: 4px; margin: 12px 0; padding: 10px 12px; border: 1px solid #eadfbf; border-radius: 8px; color: #8a6827; background: #fffaf0; }
+.guest-review-readiness.is-ready { border-color: #c9e2d1; color: #2d6f4d; background: #f1f8f3; }
+.guest-review-readiness span { font-size: 10px; font-weight: 700; }
+.guest-review-readiness small { color: #7a8c93; font-size: 9px; line-height: 1.5; }
+.guest-evidence-upload-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.guest-evidence-upload { position: relative; display: inline-flex; min-height: 36px; align-items: center; gap: 7px; overflow: hidden; padding: 0 11px; border: 1px solid #d6e2e7; border-radius: 8px; color: #285c7d; background: white; font-size: 9px; font-weight: 700; cursor: pointer; }
+.guest-evidence-upload:hover { border-color: #8db2c3; background: #f6fafb; }
+.guest-evidence-upload:has(input:disabled) { opacity: .58; cursor: wait; }
+.guest-evidence-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.guest-evidence-list { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+.guest-evidence-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid #e6ecee; border-radius: 7px; background: #fff; }
+.guest-evidence-list li > span { min-width: 0; display: grid; gap: 4px; }
+.guest-evidence-list b { color: #355368; font-size: 9px; }
+.guest-evidence-list small { overflow-wrap: anywhere; color: #84949e; font-size: 8px; }
+.guest-evidence-download { flex: 0 0 auto; color: #24618a; font-size: 9px; font-weight: 700; text-decoration: none; }
+.guest-evidence-download:hover { text-decoration: underline; }
 .guest-admin-name strong, .guest-admin-category strong { display: block; color: #28465c; font-size: 11px; }
 .guest-admin-name small, .guest-admin-contact small, .guest-admin-category small, .guest-admin-status small { display: block; margin-top: 5px; color: #84949e; font-size: 9px; line-height: 1.4; }
 .guest-admin-contact a { display: block; overflow-wrap: anywhere; color: #24618a; font-size: 10px; text-decoration: none; }

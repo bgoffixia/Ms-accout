@@ -7,6 +7,8 @@
  */
 
 export * from './adminGuestPreapplication';
+export * from './adminGuestPreapplicationEvidence';
+export * from './adminGuestPreapplicationEvidenceEvidenceType';
 export * from './adminGuestPreapplicationStatusUpdate';
 export * from './adminGuestPreapplicationStatusUpdateStatus';
 export * from './adminOverview';
@@ -44,6 +46,9 @@ export * from './enrollmentCategoryId';
 export * from './existingApplicationSubmissionInput';
 export * from './existingApplicationSubmissionInputAnswers';
 export * from './existingApplicationSubmissionInputCategoryId';
+export * from './guestEvidenceUploadInput';
+export * from './guestEvidenceUploadInputEvidenceType';
+export * from './guestEvidenceUploadUrl';
 export * from './guestPreapplicationCreated';
 export * from './guestPreapplicationCreatedCategoryId';
 export * from './guestPreapplicationInput';

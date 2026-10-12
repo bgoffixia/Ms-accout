@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminGuestPreapplicationEvidence } from './adminGuestPreapplicationEvidence';
 import type { GuestPreapplicationStatus } from './guestPreapplicationStatus';
 
 export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
@@ -12,4 +13,6 @@ export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   email: string;
   /** @nullable */
   phone: string | null;
+  reviewReady: boolean;
+  evidence: AdminGuestPreapplicationEvidence[];
 });
