@@ -599,7 +599,7 @@ export function EnrollmentWizard({
       ['employmentStatus'],
       ['documentType'],
       ['consentAccepted'],
-      ['bankName', 'accountHolder'],
+      [],
       [],
     ][index];
     if (required.some((key) => !isFilled(values, key))) return false;
