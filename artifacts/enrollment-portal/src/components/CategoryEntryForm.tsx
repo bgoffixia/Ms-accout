@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, MapPin, Menu, Phone, X } from "lucide-react";
 import type { EnrollmentCategory, PortalPageTheme } from "@workspace/api-client-react";
@@ -81,7 +81,6 @@ export function CategoryEntryForm({
   const [categoryOneMenuOpen, setCategoryOneMenuOpen] = useState(false);
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
-  const attemptedPinRef = useRef<string | null>(null);
   const [validationError, setValidationError] = useState("");
   const isPinStep = pinRequired && step === lastStep;
 
@@ -110,7 +109,6 @@ export function CategoryEntryForm({
     setCategoryTwoMenuOpen(false);
     setCategoryThreeMenuOpen(false);
     setPin("");
-    attemptedPinRef.current = null;
     setStep((current) => Math.max(0, current - 1));
   };
 
@@ -147,7 +145,6 @@ export function CategoryEntryForm({
       setValidationError(`Enter exactly ${pinLength} digits.`);
       return false;
     }
-    if (pinRequired) attemptedPinRef.current = `pin:${pin}`;
     onComplete({
       name: name.trim(),
       ...(isCategoryOne ? { nickname: nickname.trim() } : {}),
@@ -156,32 +153,25 @@ export function CategoryEntryForm({
     return true;
   };
 
+  const confirmPin = () => {
+    if (isSaving) return;
+    finish();
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isPinStep) moveForward();
+    if (isPinStep) confirmPin();
+    else moveForward();
   };
 
   useEffect(() => {
     if (!error) return;
-    attemptedPinRef.current = null;
     if (isPinStep) setActivePinValue("");
   }, [error, isPinStep]);
 
   useEffect(() => {
-    if (!isPinStep) {
-      attemptedPinRef.current = null;
-      return;
-    }
-    if (activePinValue.length !== pinLength || isSaving) {
-      if (activePinValue.length !== pinLength) attemptedPinRef.current = null;
-      return;
-    }
-    const attempt = `pin:${activePinValue}`;
-    if (attemptedPinRef.current === attempt) return;
-    attemptedPinRef.current = attempt;
-    setValidationError("");
-    finish();
-  }, [activePinValue, finish, isPinStep, isSaving, pinLength]);
+    if (!isPinStep) setValidationError("");
+  }, [isPinStep]);
 
   const defaultHeading = isPinStep
     ? "Create your PIN"
@@ -440,7 +430,7 @@ export function CategoryEntryForm({
                   <div className="category-four-pin-brand"><img src={entryLogo} alt="Category Four PIN logo" /></div>
                 )}
                 <p className="sr-only" id="pin-entry-help">
-                  Enter {pinLength} digits. This screen continues automatically when complete.
+                  Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.
                 </p>
                 <div className="pin-entry-indicators" aria-hidden="true">
                   {Array.from({ length: pinLength }, (_, index) => (
@@ -481,11 +471,11 @@ export function CategoryEntryForm({
                   </p>
                 )}
                 <div className="pin-entry-keypad" role="group" aria-label="On-screen numeric keypad">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((digit) => (
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
                     <button
                       key={digit}
                       type="button"
-                      className={`pin-entry-key ${digit === "0" ? "pin-entry-key-zero" : ""}`}
+                      className="pin-entry-key"
                       onClick={() => handleKeypad(digit)}
                       disabled={isSaving}
                       aria-label={`Enter ${digit}`}
@@ -494,16 +484,37 @@ export function CategoryEntryForm({
                       {digit}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className="pin-entry-key pin-entry-key-clear"
+                    onClick={() => handleKeypad("clear")}
+                    disabled={isSaving}
+                    aria-label="Clear PIN"
+                    data-testid="button-pin-key-clear"
+                  >
+                    ×
+                  </button>
+                  <button
+                    type="button"
+                    className="pin-entry-key pin-entry-key-zero"
+                    onClick={() => handleKeypad("0")}
+                    disabled={isSaving}
+                    aria-label="Enter 0"
+                    data-testid="button-pin-key-0"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    className="pin-entry-key pin-entry-key-confirm"
+                    onClick={confirmPin}
+                    disabled={isSaving}
+                    aria-label="Confirm PIN and continue"
+                    data-testid="button-pin-key-confirm"
+                  >
+                    ✓
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="sr-only"
-                  onClick={() => handleKeypad("clear")}
-                  aria-label="Clear PIN entry"
-                  data-testid="button-pin-key-clear"
-                >
-                  Clear PIN
-                </button>
               </section>
             )}
 

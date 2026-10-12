@@ -3461,3 +3461,113 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .guest-dashboard-contact { align-items: flex-start; }
   .guest-dashboard-contact .text-action { padding-top: 2px; }
 }
+
+/* Keep guest routes within the viewport; longer content scrolls inside its own panel. */
+.guest-page {
+  min-height: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.guest-public-header,
+.guest-footer {
+  flex: 0 0 auto;
+}
+
+.guest-page-grid,
+.guest-dashboard-shell,
+.guest-track-wrap {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.guest-page-grid {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.guest-track-wrap {
+  align-self: stretch;
+}
+
+.guest-dashboard-page {
+  min-height: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+
+@media (max-width: 680px) {
+  .guest-page-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-block: 10px;
+  }
+
+  .guest-intro {
+    display: none;
+  }
+
+  .guest-form-card {
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .guest-track-wrap {
+    padding-block: 16px;
+  }
+
+  .guest-dashboard-shell {
+    padding-block: 12px;
+  }
+}
+
+@media (max-height: 660px) {
+  .guest-public-header {
+    min-height: 56px;
+  }
+
+  .guest-page-grid {
+    padding-block: 8px;
+  }
+
+  .guest-form-card,
+  .guest-track-card {
+    padding: 18px;
+  }
+
+  .guest-track-wrap {
+    padding-block: 10px;
+  }
+
+  .guest-dashboard-shell {
+    padding-block: 8px;
+  }
+}
+
+/* Keep the requested prompt size consistent across category-specific PIN themes. */
+.category-entry-screen.entry-pin-stage .pin-entry-title {
+  font-size: 12px !important;
+}
+
+.pin-entry-key-clear,
+.pin-entry-key-confirm {
+  font-size: clamp(22px, 5.5vw, 28px);
+  font-weight: 600;
+}
+
+.pin-entry-key-clear {
+  color: #ffffffd9;
+}
+
+.pin-entry-key-confirm {
+  color: #baf2d0;
+}
+
+.category-entry-screen.category-four-reference-screen.entry-pin-stage .pin-entry-key-confirm {
+  color: #168251;
+}
