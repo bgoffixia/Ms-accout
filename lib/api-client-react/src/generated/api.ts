@@ -46,6 +46,7 @@ import type {
   GuestEvidenceUploadInput,
   GuestEvidenceUploadUrl,
   GuestPreapplicationCreated,
+  GuestPreapplicationEmailUpdate,
   GuestPreapplicationInput,
   GuestPreapplicationLookupInput,
   GuestPreapplicationProgressInput,
@@ -1170,6 +1171,95 @@ export const useUpdateGuestPreapplicationProgress = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateGuestPreapplicationProgressMutationOptions(options));
+    }
+
+export const getUpdateGuestPreapplicationEmailUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/guest/preapplications/${applicationId}/email`
+}
+
+/**
+ * @summary Correct a guest applicant email using its private tracking key
+ */
+export const updateGuestPreapplicationEmail = async (applicationId: string,
+    guestPreapplicationEmailUpdate: GuestPreapplicationEmailUpdate, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GuestPreapplicationStatus>(getUpdateGuestPreapplicationEmailUrl(applicationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestPreapplicationEmailUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateGuestPreapplicationEmailMutationKey = () => ['updateGuestPreapplicationEmail'] as const;
+
+export const getUpdateGuestPreapplicationEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>, TError,UpdateGuestPreapplicationEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>, TError,UpdateGuestPreapplicationEmailMutationVariables, TContext> => {
+
+const mutationKey = getUpdateGuestPreapplicationEmailMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>, UpdateGuestPreapplicationEmailMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  updateGuestPreapplicationEmail(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGuestPreapplicationEmailMutationResult = NonNullable<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>>
+    export type UpdateGuestPreapplicationEmailMutationBody = BodyType<GuestPreapplicationEmailUpdate>
+    export type UpdateGuestPreapplicationEmailMutationError = ErrorType<void>
+    export type UpdateGuestPreapplicationEmailMutationVariables = {applicationId: string;data: BodyType<GuestPreapplicationEmailUpdate>}
+
+    /**
+ * @summary Correct a guest applicant email using its private tracking key
+ */
+export const useUpdateGuestPreapplicationEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>, TError,UpdateGuestPreapplicationEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>,
+        TError,
+        UpdateGuestPreapplicationEmailMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateGuestPreapplicationEmailMutationOptions(options));
     }
 
 export const getRequestGuestApplicantEvidenceUploadUrl = (applicationId: string,) => {

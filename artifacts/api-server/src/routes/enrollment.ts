@@ -93,6 +93,9 @@ import {
   UpdateGuestPreapplicationProgressBody,
   UpdateGuestPreapplicationProgressParams,
   UpdateGuestPreapplicationProgressResponse,
+  UpdateGuestPreapplicationEmailBody,
+  UpdateGuestPreapplicationEmailParams,
+  UpdateGuestPreapplicationEmailResponse,
   UpdateApplicationBody,
   UpdateApplicationParams,
   UpdateApplicationResponse,
@@ -1146,6 +1149,66 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
   }
 });
 
+router.patch(
+  "/guest/preapplications/:applicationId/email",
+  async (req, res): Promise<void> => {
+    const parsedParams = UpdateGuestPreapplicationEmailParams.safeParse(req.params);
+    const parsedBody = UpdateGuestPreapplicationEmailBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "Enter a valid contact email and try again." });
+      return;
+    }
+
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .limit(1);
+      if (
+        !application ||
+        application.reference !== parsedBody.data.reference.trim().toUpperCase() ||
+        !matchesGuestAccessKey(application.accessKeyHash, parsedBody.data.accessKey)
+      ) {
+        res.status(404).json({ error: "The application reference and private key could not be verified." });
+        return;
+      }
+      if (application.status === "closed" || application.submissionStatus === "submitted") {
+        res.status(409).json({ error: "This guest application has already been submitted or closed." });
+        return;
+      }
+
+      const email = normalizeEmail(parsedBody.data.email);
+      const answers = structuredClone(application.answers ?? {});
+      answers.personalInformation = {
+        ...asRecord(answers.personalInformation),
+        email,
+      };
+      const [updated] = await db
+        .update(guestPreapplicationsTable)
+        .set({ email, answers, updatedAt: new Date() })
+        .where(and(
+          eq(guestPreapplicationsTable.id, application.id),
+          eq(guestPreapplicationsTable.submissionStatus, "draft"),
+          ne(guestPreapplicationsTable.status, "closed"),
+        ))
+        .returning();
+      if (!updated) {
+        res.status(409).json({ error: "This guest application has already been submitted or closed." });
+        return;
+      }
+      res.json(
+        UpdateGuestPreapplicationEmailResponse.parse(
+          serializeGuestPreapplicationStatus(updated),
+        ),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to update guest applicant email");
+      res.status(503).json({ error: "The contact email could not be updated." });
+    }
+  },
+);
+
 router.post(
   "/guest/preapplications/:applicationId/evidence/upload-url",
   async (req, res): Promise<void> => {
@@ -1473,6 +1536,7 @@ router.post(
         if (
           !currentPreapplication ||
           currentPreapplication.submissionStatus !== "draft" ||
+          currentPreapplication.email !== normalizedEmail ||
           currentPreapplication.linkedApplicationId
         ) return null;
 

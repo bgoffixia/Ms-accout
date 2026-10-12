@@ -186,6 +186,18 @@ export interface GuestApplicationAccessInput {
   accessKey: string;
 }
 
+export interface GuestPreapplicationEmailUpdate {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  accessKey: string;
+  /** @maxLength 320 */
+  email: string;
+}
+
 export type AdminGuestPreapplicationEvidenceEvidenceType = typeof AdminGuestPreapplicationEvidenceEvidenceType[keyof typeof AdminGuestPreapplicationEvidenceEvidenceType];
 
 

@@ -33,6 +33,7 @@ export type EnrollmentWizardProps = {
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
   ) => Promise<{ objectPath: string; fileName: string }>;
   saveStep: (answers: Record<string, unknown>, currentStep: number) => Promise<boolean>;
+  updateContactEmail?: (email: string) => Promise<boolean>;
   submit: (answers: Record<string, unknown>) => Promise<boolean>;
   onChangeCategory: (categoryId: string) => void;
   onBackToCategoryEntry: (answers: Record<string, unknown>) => Promise<boolean>;
@@ -229,7 +230,7 @@ type LocalImage = { file: File; url: string };
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, saveStep, submit, onChangeCategory,
-  onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence,
+  onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -267,6 +268,9 @@ export function EnrollmentWizard({
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberProvided, setAccountNumberProvided] = useState(() => Boolean(section(saved, 'bankDetails').accountNumberMasked));
   const [submitError, setSubmitError] = useState('');
+  const [contactEmailInput, setContactEmailInput] = useState(application.applicantEmail ?? '');
+  const [emailCorrectionError, setEmailCorrectionError] = useState('');
+  const [emailCorrectionSaved, setEmailCorrectionSaved] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
   const [keyCopied, setKeyCopied] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -300,11 +304,12 @@ export function EnrollmentWizard({
       safeSaved.bankDetails = bank;
     }
     setAnswers(safeSaved);
+    setContactEmailInput(application.applicantEmail ?? '');
     setAccountNumberProvided(Boolean(section(safeSaved, 'bankDetails').accountNumberMasked));
     if (section(safeSaved, 'bankDetails').accountNumberMasked) setAccountNumberProvided(true);
     reset(safeSaved);
     setStep(normalizeStep(application.currentStep));
-  }, [application.id, application.updatedAt, application.currentStep, reopenedSignature, reset]);
+  }, [application.id, application.updatedAt, application.currentStep, application.applicantEmail, reopenedSignature, reset]);
 
   useEffect(() => () => {
     imageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -559,6 +564,22 @@ export function EnrollmentWizard({
       if (!ok) setSubmitError('We could not submit your application. Your saved details remain available.');
     })();
     if (!accepted) setSubmitError('Review the declaration before submitting.');
+  };
+
+  const correctContactEmail = async () => {
+    setEmailCorrectionError('');
+    setEmailCorrectionSaved(false);
+    const parsed = z.string().trim().email('Enter a valid email address.').max(320).safeParse(contactEmailInput);
+    if (!parsed.success) {
+      setEmailCorrectionError(parsed.error.issues[0]?.message ?? 'Enter a valid email address.');
+      return;
+    }
+    if (!updateContactEmail || !(await updateContactEmail(parsed.data))) {
+      setEmailCorrectionError('The contact email could not be updated. Please try again.');
+      return;
+    }
+    setContactEmailInput(parsed.data);
+    setEmailCorrectionSaved(true);
   };
 
   const categoryEntry = Object.entries(categoryEntryLabels)
@@ -911,6 +932,23 @@ export function EnrollmentWizard({
                   [fieldLabel(6, 'bankDetails.accountType', 'Account type'), answer(answers, 'bankDetails', 'accountType'), 'accountType'],
                 ])}
               </div>
+              {privateTrackingKey && updateContactEmail && <section className="ew-email-correction" data-testid="section-correct-contact-email">
+                <div><b>Need to correct your contact email?</b><p>Use an address you can verify before submitting. Your application remains an unverified draft.</p></div>
+                <label className="ew-field" htmlFor="guest-contact-email">
+                  <span className="ew-label">Contact email</span>
+                  <input id="guest-contact-email" className="ew-input" type="email" autoComplete="email" maxLength={320}
+                    value={contactEmailInput} onChange={(event) => {
+                      setContactEmailInput(event.target.value);
+                      setEmailCorrectionError('');
+                      setEmailCorrectionSaved(false);
+                    }} data-testid="input-correct-contact-email" />
+                </label>
+                {emailCorrectionError && <p className="ew-field-error" role="alert" data-testid="error-correct-contact-email">{emailCorrectionError}</p>}
+                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Verify this address when you submit.</p>}
+                <button type="button" className="ew-button ew-button-quiet" onClick={() => void correctContactEmail()}
+                  disabled={isSaving || contactEmailInput.trim().toLowerCase() === (application.applicantEmail ?? '').trim().toLowerCase()}
+                  data-testid="button-save-contact-email">Save contact email</button>
+              </section>}
               <section className="ew-declaration" data-testid="section-declaration">
                 <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>Applicant declaration</b><p>I confirm that the information above is complete and accurate to the best of my knowledge.</p></div></div>
                 <label className="ew-consent-check"><input type="checkbox" {...register('reviewDeclarationAccepted')} data-testid="check-declaration" />

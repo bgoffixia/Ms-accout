@@ -20,6 +20,7 @@ import {
   useAddAdminApplicationNote, useAddApplicantSupportMessage, useAssignSupportTicket,
   useCreateGuestPreapplication, useLookupGuestPreapplication, useListAdminGuestPreapplications,
   useUpdateGuestPreapplicationProgress,
+  useUpdateGuestPreapplicationEmail,
   useRequestGuestApplicantEvidenceUpload, useCompleteGuestApplicantEvidenceUpload,
   useSubmitGuestPreapplication,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
@@ -2129,6 +2130,7 @@ function GuestApplicationPage() {
   const categories = useListEnrollmentCategories();
   const createGuest = useCreateGuestPreapplication();
   const updateGuest = useUpdateGuestPreapplicationProgress();
+  const updateGuestEmail = useUpdateGuestPreapplicationEmail();
   const lookupGuest = useLookupGuestPreapplication();
   const requestEvidenceUpload = useRequestGuestApplicantEvidenceUpload();
   const completeEvidenceUpload = useCompleteGuestApplicantEvidenceUpload();
@@ -2261,6 +2263,34 @@ function GuestApplicationPage() {
       return true;
     } catch {
       setProgressError('Your progress could not be saved. Check your connection and try again.');
+      return false;
+    }
+  };
+
+  const saveGuestContactEmail = async (email: string): Promise<boolean> => {
+    if (!created) return false;
+    setProgressError('');
+    try {
+      const updated = await updateGuestEmail.mutateAsync({
+        applicationId: created.application.id,
+        data: {
+          reference: created.application.reference,
+          accessKey: created.accessKey,
+          email,
+        },
+      });
+      setCreated((current) => current ? {
+        ...current,
+        application: {
+          ...current.application,
+          email: updated.email,
+          updatedAt: updated.updatedAt,
+        },
+      } : current);
+      setApplicationAnswers(updated.answers);
+      return true;
+    } catch {
+      setProgressError('The contact email could not be updated. Check your connection and try again.');
       return false;
     }
   };
@@ -2445,11 +2475,12 @@ function GuestApplicationPage() {
       status={created.application.status}
       storageAvailable
       maxUploadBytes={20 * 1024 * 1024}
-      isSaving={updateGuest.isPending || requestEvidenceUpload.isPending || completeEvidenceUpload.isPending}
+      isSaving={updateGuest.isPending || updateGuestEmail.isPending || requestEvidenceUpload.isPending || completeEvidenceUpload.isPending}
       isSubmitting={updateGuest.isPending || submitGuest.isPending}
       error={progressError}
       reopenedSections={[]}
       privateTrackingKey={created.accessKey}
+      updateContactEmail={saveGuestContactEmail}
       uploadEvidence={uploadGuestEvidence}
       saveStep={(answers, currentStep) => saveGuestProgress(answers, currentStep)}
       submit={submitGuestApplication}

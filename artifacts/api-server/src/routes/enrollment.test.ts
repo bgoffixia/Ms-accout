@@ -440,6 +440,90 @@ describe("guest application verification and persistence", () => {
     return objectPath;
   }
 
+  async function createGuestDraft(email = contactEmail) {
+    return request("/guest/preapplications", {
+      method: "POST",
+      body: JSON.stringify({
+        submissionId: crypto.randomUUID(),
+        accessKey,
+        categoryId: "category-1",
+        fullName: "Test Applicant",
+        email,
+      }),
+    });
+  }
+
+  it("updates the canonical and answer contact emails while leaving the application unverified", async () => {
+    const created = await createGuestDraft();
+    expect(created.response.status).toBe(201);
+    const corrected = await request(`/guest/preapplications/${created.body.id}/email`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        accessKey,
+        email: "Corrected.Applicant@Example.Test",
+      }),
+    });
+
+    expect(corrected.response.status).toBe(200);
+    expect(corrected.body).toMatchObject({
+      email: "corrected.applicant@example.test",
+      emailVerified: false,
+      submissionStatus: "draft",
+      answers: { personalInformation: { email: "corrected.applicant@example.test" } },
+    });
+    const reviewerDrafts = await request("/admin/guest-preapplications", {}, "reviewer");
+    expect(reviewerDrafts.response.status).toBe(200);
+    expect(reviewerDrafts.body[0]).toMatchObject({
+      email: "corrected.applicant@example.test",
+      emailVerified: false,
+      submissionStatus: "draft",
+    });
+  });
+
+  it("rejects contact email changes when the private tracking key is incorrect", async () => {
+    const created = await createGuestDraft();
+    const response = await request(`/guest/preapplications/${created.body.id}/email`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        accessKey: "b".repeat(43),
+        email: "corrected@example.test",
+      }),
+    });
+
+    expect(response.response.status).toBe(404);
+    expect(mockState.rows.get("guest_preapplications")?.[0]).toMatchObject({
+      email: contactEmail,
+      submissionStatus: "draft",
+      emailVerified: false,
+    });
+  });
+
+  it("does not allow contact email changes after an application has been submitted", async () => {
+    const created = await createGuestDraft();
+    const savedDraft = mockState.rows.get("guest_preapplications")?.[0];
+    if (!savedDraft) throw new Error("Expected the guest draft to be saved.");
+    savedDraft.submissionStatus = "submitted";
+    savedDraft.emailVerified = true;
+
+    const response = await request(`/guest/preapplications/${created.body.id}/email`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        accessKey,
+        email: "corrected@example.test",
+      }),
+    });
+
+    expect(response.response.status).toBe(409);
+    expect(savedDraft).toMatchObject({
+      email: contactEmail,
+      submissionStatus: "submitted",
+      emailVerified: true,
+    });
+  });
+
   it("keeps guest drafts and private evidence available through verification failures and links one successful submission", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",
@@ -580,6 +664,21 @@ describe("guest application verification and persistence", () => {
     expect(reviewerDownload.headers.get("cache-control")).toContain("no-store");
     expect(Buffer.from(await reviewerDownload.arrayBuffer()).length).toBeGreaterThan(0);
 
+    const correctedEmail = await request(`/guest/preapplications/${applicationId}/email`, {
+      method: "PATCH",
+      body: JSON.stringify({ reference, accessKey, email: "corrected@example.test" }),
+    });
+    expect(correctedEmail.response.status).toBe(200);
+    expect(correctedEmail.body.email).toBe("corrected@example.test");
+    mockState.users.set("applicant-corrected-verified", {
+      id: "applicant-corrected-verified",
+      primaryEmailAddress: {
+        emailAddress: "corrected@example.test",
+        verification: { status: "verified" },
+      },
+      publicMetadata: {},
+    });
+
     const unverifiedSubmit = await request(
       `/guest/preapplications/${applicationId}/submit`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
@@ -593,25 +692,32 @@ describe("guest application verification and persistence", () => {
       "applicant-mismatch",
     );
     expect(mismatchedSubmit.response.status).toBe(403);
+    const originalEmailSubmit = await request(
+      `/guest/preapplications/${applicationId}/submit`,
+      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      "applicant-verified",
+    );
+    expect(originalEmailSubmit.response.status).toBe(403);
     expect(mockState.rows.get("enrollment_applications")).toHaveLength(0);
 
     const afterFailures = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(afterFailures.response.status).toBe(200);
     expect(afterFailures.body).toHaveLength(1);
     expect(afterFailures.body[0].id).toBe(applicationId);
+    expect(afterFailures.body[0].email).toBe("corrected@example.test");
     expect(afterFailures.body[0].emailVerified).toBe(false);
 
     const successfulSubmit = await request(
       `/guest/preapplications/${applicationId}/submit`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
-      "applicant-verified",
+      "applicant-corrected-verified",
     );
     expect(successfulSubmit.response.status).toBe(200);
     expect(successfulSubmit.body.status).toBe("submitted");
     const retry = await request(
       `/guest/preapplications/${applicationId}/submit`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
-      "applicant-verified",
+      "applicant-corrected-verified",
     );
     expect(retry.response.status).toBe(200);
     expect(retry.body.id).toBe(successfulSubmit.body.id);
@@ -621,7 +727,7 @@ describe("guest application verification and persistence", () => {
     expect(storedDraft).toMatchObject({
       submissionStatus: "submitted",
       emailVerified: true,
-      clerkUserId: "applicant-verified",
+      clerkUserId: "applicant-corrected-verified",
       linkedApplicationId: successfulSubmit.body.id,
     });
     expect(String(storedDraft?.pinHash)).toMatch(/^scrypt\$/);

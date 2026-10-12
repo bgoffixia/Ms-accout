@@ -248,6 +248,35 @@ paths:
           description: Application reference and private key could not be verified
         "409":
           description: Application is closed
+  /guest/preapplications/{applicationId}/email:
+    patch:
+      operationId: updateGuestPreapplicationEmail
+      tags: [enrollment]
+      summary: Correct a guest applicant email using its private tracking key
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestPreapplicationEmailUpdate"
+      responses:
+        "200":
+          description: Updated unsubmitted guest application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestPreapplicationStatus"
+        "404":
+          description: Application reference and private key could not be verified
+        "409":
+          description: Application is already submitted or closed
   /guest/preapplications/{applicationId}/evidence/upload-url:
     post:
       operationId: requestGuestApplicantEvidenceUpload
@@ -1035,6 +1064,21 @@ components:
         accessKey:
           type: string
           pattern: "^[A-Za-z0-9_-]{43}$"
+    GuestPreapplicationEmailUpdate:
+      type: object
+      required: [reference, accessKey, email]
+      properties:
+        reference:
+          type: string
+          minLength: 8
+          maxLength: 32
+        accessKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+        email:
+          type: string
+          format: email
+          maxLength: 320
     AdminGuestPreapplication:
       allOf:
         - $ref: "#/components/schemas/GuestPreapplicationStatus"

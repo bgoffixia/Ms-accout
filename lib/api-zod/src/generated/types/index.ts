@@ -60,6 +60,7 @@ export * from './guestEvidenceUploadUrl';
 export * from './guestPreapplicationCreated';
 export * from './guestPreapplicationCreatedCategoryId';
 export * from './guestPreapplicationCreatedSubmissionStatus';
+export * from './guestPreapplicationEmailUpdate';
 export * from './guestPreapplicationInput';
 export * from './guestPreapplicationInputCategoryId';
 export * from './guestPreapplicationLookupInput';

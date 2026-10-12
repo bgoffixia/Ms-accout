@@ -371,6 +371,52 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
 
 
 /**
+ * @summary Correct a guest applicant email using its private tracking key
+ */
+export const UpdateGuestPreapplicationEmailParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const updateGuestPreapplicationEmailBodyReferenceMin = 8;
+export const updateGuestPreapplicationEmailBodyReferenceMax = 32;
+
+export const updateGuestPreapplicationEmailBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const updateGuestPreapplicationEmailBodyEmailMax = 320;
+
+
+
+export const UpdateGuestPreapplicationEmailBody = zod.object({
+  "reference": zod.string().min(updateGuestPreapplicationEmailBodyReferenceMin).max(updateGuestPreapplicationEmailBodyReferenceMax),
+  "accessKey": zod.string().regex(updateGuestPreapplicationEmailBodyAccessKeyRegExp),
+  "email": zod.string().email().max(updateGuestPreapplicationEmailBodyEmailMax)
+})
+
+export const updateGuestPreapplicationEmailResponseCurrentStepMin = 0;
+export const updateGuestPreapplicationEmailResponseCurrentStepMax = 7;
+
+
+
+export const UpdateGuestPreapplicationEmailResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
+  "currentStep": zod.number().int().min(updateGuestPreapplicationEmailResponseCurrentStepMin).max(updateGuestPreapplicationEmailResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Prepare a private applicant evidence upload
  */
 export const RequestGuestApplicantEvidenceUploadParams = zod.object({
