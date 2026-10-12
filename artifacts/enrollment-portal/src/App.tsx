@@ -1780,11 +1780,12 @@ function AdminSupport() {
   </AdminShell>;
 }
 
-const guestApplicationSchema = z.object({
-  categoryId: z.string().min(1, 'Choose an enrollment category.'),
+const guestContactSchema = z.object({
   fullName: z.string().trim().min(2, 'Enter your full name.').max(160, 'Name must be 160 characters or fewer.'),
   email: z.string().trim().email('Enter a valid email address.').max(320),
-  phone: z.string().trim().max(40, 'Phone number must be 40 characters or fewer.').optional(),
+});
+const guestApplicationSchema = guestContactSchema.extend({
+  categoryId: z.string().min(1, 'Choose an enrollment category.'),
 });
 type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
 
@@ -1811,6 +1812,8 @@ function GuestApplicationPage() {
   const createGuest = useCreateGuestPreapplication();
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [stage, setStage] = useState<'contact' | 'category'>('contact');
+  const [isContinuing, setIsContinuing] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<{
     fingerprint: string;
     input: GuestPreapplicationInput;
@@ -1818,15 +1821,29 @@ function GuestApplicationPage() {
   const [retryMismatch, setRetryMismatch] = useState(false);
   const form = useForm<GuestApplicationValues>({
     resolver: zodResolver(guestApplicationSchema),
-    defaultValues: { categoryId: '', fullName: '', email: '', phone: '' },
+    defaultValues: { categoryId: '', fullName: '', email: '' },
   });
+
+  const continueToCategory = async () => {
+    setIsContinuing(true);
+    const contactDetails = guestContactSchema.safeParse({
+      fullName: form.getValues('fullName'),
+      email: form.getValues('email'),
+    });
+    if (!contactDetails.success) {
+      await form.trigger(['fullName', 'email']);
+      setIsContinuing(false);
+      return;
+    }
+    setIsContinuing(false);
+    setStage('category');
+  };
 
   const onSubmit = async (values: GuestApplicationValues) => {
     const details = {
       categoryId: values.categoryId as GuestPreapplicationInput['categoryId'],
       fullName: values.fullName.trim(),
       email: values.email.trim(),
-      phone: values.phone?.trim() ?? '',
     };
     const fingerprint = JSON.stringify(details);
     if (pendingSubmission && pendingSubmission.fingerprint !== fingerprint) {
@@ -1848,7 +1865,6 @@ function GuestApplicationPage() {
         categoryId: details.categoryId,
         fullName: details.fullName,
         email: details.email,
-        ...(details.phone ? { phone: details.phone } : {}),
       };
       setPendingSubmission({ fingerprint, input });
     }
@@ -1880,9 +1896,10 @@ function GuestApplicationPage() {
         <h1>Begin with the essentials.</h1>
         <p>Share your contact details so our enrollment team can help you complete the application. No account or identity files are needed for this first step.</p>
         <div className="guest-process">
-          <div className="guest-process-step"><span>01</span><div><b>Tell us how to reach you</b><small>Choose a category and enter your contact details.</small></div></div>
-          <div className="guest-process-step"><span>02</span><div><b>We’ll follow up privately</b><small>Staff will collect the remaining application details and identity evidence.</small></div></div>
-          <div className="guest-process-step"><span>03</span><div><b>Full review starts when complete</b><small>Identity files and video are required before review begins.</small></div></div>
+          <div className="guest-process-step"><span>01</span><div><b>Share your contact details</b><small>Start with your name and email address.</small></div></div>
+          <div className="guest-process-step"><span>02</span><div><b>Choose an enrollment category</b><small>Select the category that matches your application.</small></div></div>
+          <div className="guest-process-step"><span>03</span><div><b>We’ll follow up privately</b><small>Staff will collect the remaining details and identity evidence.</small></div></div>
+          <div className="guest-process-step"><span>04</span><div><b>Full review starts when complete</b><small>Identity files and video are required before review begins.</small></div></div>
         </div>
         <div className="guest-intro-note"><LockKeyhole size={16} /><span>Your tracking key is private and is never sent by email.</span></div>
       </section>
@@ -1907,48 +1924,73 @@ function GuestApplicationPage() {
           <p className="guest-key-warning">Save this key now. It is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
           <Link href="/guest/track" className="button button-primary guest-success-track" data-testid="link-track-created-application">Track application status <ArrowRight size={16} /></Link>
         </div> : <>
-          <div className="guest-form-topline"><span>PRE-APPLICATION</span><span>ABOUT 2 MINUTES</span></div>
-          <h2 id="guest-apply-heading">Your first details</h2>
-          <p className="guest-form-subtitle">A member of our team will use these details to follow up.</p>
-          {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
-            categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
-              <p>Enrollment categories could not be loaded.</p>
-              <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-categories">Try again <ArrowRight size={14} /></button>
-            </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status" data-testid="guest-category-empty">No enrollment categories are available right now.</div> :
+          <div className="guest-form-topline"><span>PRE-APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 2' : 'STEP 2 OF 2'}</span></div>
+          {stage === 'contact' ? <>
+            <h2 id="guest-apply-heading">Your contact details</h2>
+            <p className="guest-form-subtitle">Start with only your name and email. You’ll choose an enrollment category next.</p>
             <Form {...form}>
-              <form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-                <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem className="guest-field">
-                  <FormLabel>Enrollment category</FormLabel>
-                  <FormControl><select {...field} id="guest-category" className="guest-select" data-testid="select-guest-category">
-                    <option value="">Select a category</option>
-                    {(categories.data ?? []).map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
-                  </select></FormControl><FormMessage />
-                </FormItem>} />
+              <form className="guest-form" onSubmit={(event) => {
+                event.preventDefault();
+                void continueToCategory();
+              }} noValidate>
                 <FormField control={form.control} name="fullName" render={({ field }) => <FormItem className="guest-field">
                   <FormLabel>Full name</FormLabel><FormControl><Input {...field} autoComplete="name" placeholder="As shown on your identity document" data-testid="input-guest-full-name" /></FormControl><FormMessage />
                 </FormItem>} />
                 <FormField control={form.control} name="email" render={({ field }) => <FormItem className="guest-field">
                   <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
                 </FormItem>} />
-                <FormField control={form.control} name="phone" render={({ field }) => <FormItem className="guest-field">
-                  <FormLabel>Phone number <span className="guest-optional">OPTIONAL</span></FormLabel><FormControl><Input {...field} type="tel" autoComplete="tel" placeholder="Include country code if outside Vanuatu" data-testid="input-guest-phone" /></FormControl><FormMessage />
-                </FormItem>} />
-                {createGuest.isError && <div className="guest-inline-error" role="alert" data-testid="guest-submit-error">
-                  <p>We couldn’t confirm receipt. Retry with the same details to safely reuse this submission attempt.</p>
-                  <button type="button" className="text-action" onClick={() => {
-                    if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate pre-application. Continue?')) return;
-                    setPendingSubmission(null);
-                    setRetryMismatch(false);
-                    createGuest.reset();
-                  }} data-testid="button-reset-guest-attempt">Start over with different details</button>
-                </div>}
-                {retryMismatch && <p className="guest-inline-error" role="alert" data-testid="guest-retry-mismatch">This request may already have been received. Restore the same details to retry safely, or use “Start over” if you accept that a duplicate may be created.</p>}
-                <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending || !categories.data?.length} data-testid="button-submit-guest-application">
-                  {createGuest.isPending ? 'Sending your details…' : createGuest.isError ? 'Retry pre-application' : 'Send pre-application'} <ArrowRight size={16} />
+                <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
+                  {isContinuing ? 'Checking details…' : 'Continue to category selection'} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
-            </Form>}
+            </Form>
+          </> : <>
+            <h2 id="guest-apply-heading">Choose your category</h2>
+            <p className="guest-form-subtitle">Select the enrollment category for your pre-application.</p>
+            {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
+              categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
+                <p>Enrollment categories could not be loaded.</p>
+                <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-categories">Try again <ArrowRight size={14} /></button>
+                <button type="button" className="text-action" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back to contact details</button>
+              </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status" data-testid="guest-category-empty">
+                <p>No enrollment categories are available right now.</p>
+                <button type="button" className="text-action" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back to contact details</button>
+              </div> :
+              <Form {...form}>
+                <form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+                  <div className="guest-contact-summary">
+                    <span>CONTACT DETAILS</span>
+                    <strong>{form.getValues('fullName')}</strong>
+                    <small>{form.getValues('email')}</small>
+                  </div>
+                  <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem className="guest-field">
+                    <FormLabel>Enrollment category</FormLabel>
+                    <FormControl><select {...field} id="guest-category" className="guest-select" data-testid="select-guest-category">
+                      <option value="">Select a category</option>
+                      {(categories.data ?? []).map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
+                    </select></FormControl><FormMessage />
+                  </FormItem>} />
+                  {createGuest.isError && <div className="guest-inline-error" role="alert" data-testid="guest-submit-error">
+                    <p>We couldn’t confirm receipt. Retry with the same details to safely reuse this submission attempt.</p>
+                    <button type="button" className="text-action" onClick={() => {
+                      if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate pre-application. Continue?')) return;
+                      setPendingSubmission(null);
+                      setRetryMismatch(false);
+                      createGuest.reset();
+                    }} data-testid="button-reset-guest-attempt">Start over with different details</button>
+                  </div>}
+                  {retryMismatch && <p className="guest-inline-error" role="alert" data-testid="guest-retry-mismatch">This request may already have been received. Restore the same details to retry safely, or use “Start over” if you accept that a duplicate may be created.</p>}
+                  <div className="guest-step-actions">
+                    <button type="button" className="button button-quiet" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back</button>
+                    <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-submit-guest-application">
+                      {createGuest.isPending ? 'Sending your details…' : createGuest.isError ? 'Retry pre-application' : 'Send pre-application'} <ArrowRight size={16} />
+                    </button>
+                  </div>
+                  <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
+                </form>
+              </Form>}
+          </>}
         </>}
       </section>
     </div>

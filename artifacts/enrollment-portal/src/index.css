@@ -3259,6 +3259,12 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .guest-form-card h2, .guest-track-card h2 { margin: 19px 0 5px; color: #193851; font: 500 29px/1.1 var(--app-font-serif); letter-spacing: -.03em; }
 .guest-form-subtitle { margin: 0 0 23px; color: #7b8c98; font-size: 11px; line-height: 1.6; }
 .guest-form { display: grid; gap: 15px; }
+.guest-contact-summary { display: grid; gap: 5px; padding: 12px 14px; border: 1px solid #dfe8eb; border-radius: 9px; background: #f8fbfb; }
+.guest-contact-summary span { color: #81939e; font: 8px var(--app-font-mono); letter-spacing: .08em; }
+.guest-contact-summary strong { color: #2d4b61; font-size: 12px; }
+.guest-contact-summary small { color: #718590; font-size: 10px; }
+.guest-step-actions { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+.guest-step-actions .guest-submit { margin-top: 0; }
 .guest-field { display: grid; gap: 7px; }
 .guest-field label { color: #355168; font-size: 11px; font-weight: 700; }
 .guest-field input, .guest-select { min-height: 44px; border: 1px solid #d8e2e7; border-radius: 9px; color: #27445a; background-color: #fbfdfd; font: 12px var(--app-font-sans); }
