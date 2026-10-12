@@ -86,6 +86,9 @@ import {
   CreateApplicationDraftResponse,
   CreateAdminUserInvitationBody,
   CreateAdminUserInvitationResponse,
+  CheckStaffRegistrationEmailBody,
+  CheckStaffRegistrationEmailResponse,
+  ClaimAllowlistedStaffAccessResponse,
   UpdatePortalSettingsBody,
   UpdatePortalSettingsResponse,
 } from "@workspace/api-zod";
@@ -188,6 +191,15 @@ const defaultPortalSettings = {
 };
 
 type CategoryId = (typeof categories)[number]["id"];
+
+const allowlistedStaffEmails = new Set([
+  "agbodave807@gmail.com",
+  "skyfashion053@gmail.com",
+]);
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 async function authenticate(
   req: Request,
@@ -852,7 +864,61 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
   }
 });
 
+router.post("/staff/registration-check", (req, res): void => {
+  const parsed = CheckStaffRegistrationEmailBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  res.json(
+    CheckStaffRegistrationEmailResponse.parse({
+      allowed: allowlistedStaffEmails.has(normalizeEmail(parsed.data.email)),
+    }),
+  );
+});
+
 router.use(authenticate);
+
+router.post("/staff/access-claim", async (req, res): Promise<void> => {
+  const userId = res.locals.userId as string;
+  const user = res.locals.clerkUser;
+  const primaryEmail = user?.primaryEmailAddress;
+  const normalizedEmail = primaryEmail?.emailAddress
+    ? normalizeEmail(primaryEmail.emailAddress)
+    : "";
+
+  if (
+    !normalizedEmail ||
+    primaryEmail?.verification?.status !== "verified" ||
+    !allowlistedStaffEmails.has(normalizedEmail)
+  ) {
+    res.status(403).json({
+      error: "This verified email is not authorized for staff registration.",
+    });
+    return;
+  }
+
+  try {
+    const updated =
+      user.publicMetadata?.role === "admin"
+        ? user
+        : await clerkClient.users.updateUserMetadata(userId, {
+            publicMetadata: {
+              ...user.publicMetadata,
+              role: "admin",
+            },
+          });
+    res.json(
+      ClaimAllowlistedStaffAccessResponse.parse({
+        role: updated.publicMetadata?.role,
+        message: "Admin access activated.",
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error, userId }, "Failed to activate allowlisted staff access");
+    res.status(503).json({ error: "Admin access could not be activated." });
+  }
+});
 
 router.post("/applications/drafts", async (req, res): Promise<void> => {
   const parsed = CreateApplicationDraftBody.safeParse(req.body);

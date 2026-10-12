@@ -49,6 +49,9 @@ import type {
   ListSupportTicketsForAdminParams,
   NewApplicationSubmissionInput,
   PortalSettings,
+  StaffAccessClaimResponse,
+  StaffRegistrationCheckInput,
+  StaffRegistrationCheckResponse,
   SupportAssignmentInput,
   SupportMessageInput,
   SupportReplyInput,
@@ -1071,6 +1074,168 @@ export const useLookupGuestPreapplication = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getLookupGuestPreapplicationMutationOptions(options));
+    }
+
+export const getCheckStaffRegistrationEmailUrl = () => {
+
+
+
+
+  return `/api/staff/registration-check`
+}
+
+/**
+ * @summary Check whether an email is allowed to use staff registration
+ */
+export const checkStaffRegistrationEmail = async (staffRegistrationCheckInput: StaffRegistrationCheckInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffRegistrationCheckResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StaffRegistrationCheckResponse>(getCheckStaffRegistrationEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(staffRegistrationCheckInput)
+  }
+);}
+
+
+
+
+
+export const getCheckStaffRegistrationEmailMutationKey = () => ['checkStaffRegistrationEmail'] as const;
+
+export const getCheckStaffRegistrationEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkStaffRegistrationEmail>>, TError,CheckStaffRegistrationEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkStaffRegistrationEmail>>, TError,CheckStaffRegistrationEmailMutationVariables, TContext> => {
+
+const mutationKey = getCheckStaffRegistrationEmailMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkStaffRegistrationEmail>>, CheckStaffRegistrationEmailMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkStaffRegistrationEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckStaffRegistrationEmailMutationResult = NonNullable<Awaited<ReturnType<typeof checkStaffRegistrationEmail>>>
+    export type CheckStaffRegistrationEmailMutationBody = BodyType<StaffRegistrationCheckInput>
+    export type CheckStaffRegistrationEmailMutationError = ErrorType<void>
+    export type CheckStaffRegistrationEmailMutationVariables = {data: BodyType<StaffRegistrationCheckInput>}
+
+    /**
+ * @summary Check whether an email is allowed to use staff registration
+ */
+export const useCheckStaffRegistrationEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkStaffRegistrationEmail>>, TError,CheckStaffRegistrationEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkStaffRegistrationEmail>>,
+        TError,
+        CheckStaffRegistrationEmailMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCheckStaffRegistrationEmailMutationOptions(options));
+    }
+
+export const getClaimAllowlistedStaffAccessUrl = () => {
+
+
+
+
+  return `/api/staff/access-claim`
+}
+
+/**
+ * @summary Grant Admin access to a verified allowlisted account
+ */
+export const claimAllowlistedStaffAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessClaimResponse> => {
+
+  return customFetch<StaffAccessClaimResponse>(getClaimAllowlistedStaffAccessUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getClaimAllowlistedStaffAccessMutationKey = () => ['claimAllowlistedStaffAccess'] as const;
+
+export const getClaimAllowlistedStaffAccessMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext> => {
+
+const mutationKey = getClaimAllowlistedStaffAccessMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, void> = () => {
+
+
+          return  claimAllowlistedStaffAccess(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimAllowlistedStaffAccessMutationResult = NonNullable<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>>
+
+    export type ClaimAllowlistedStaffAccessMutationError = ErrorType<void>
+
+
+    /**
+ * @summary Grant Admin access to a verified allowlisted account
+ */
+export const useClaimAllowlistedStaffAccess = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getClaimAllowlistedStaffAccessMutationOptions(options));
     }
 
 export const getListAdminGuestPreapplicationsUrl = () => {

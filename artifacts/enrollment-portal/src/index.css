@@ -829,6 +829,11 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .signedout-card, .not-found-card { display: flex; flex-direction: column; align-items: flex-start; width: min(430px, 100%); padding: 38px; border: 1px solid #e2e9ef; border-radius: 20px; background: #fff; box-shadow: var(--shadow-card); }
 .signedout-card h1, .not-found-card h1 { margin: 13px 0 9px; font: 500 36px/1.05 var(--app-font-serif); letter-spacing: -.04em; }
 .signedout-card p, .not-found-card p { margin: 0 0 25px; color: #697d8e; font-size: 13px; line-height: 1.7; }
+.staff-registration-form { display: flex; flex-direction: column; gap: 9px; width: 100%; }
+.staff-registration-form .field-label { margin: 0; }
+.staff-registration-form .inline-error { margin: 0; }
+.staff-registration-form .button { width: 100%; justify-content: center; margin-top: 3px; }
+.staff-registration-form + .text-action { margin-top: 16px; }
 .state-icon { display: grid; place-items: center; width: 43px; height: 43px; margin-bottom: 20px; border-radius: 14px; color: #1c6682; background: #e9f2f5; }
 .state-card, .empty-panel { max-width: 520px; padding: 33px; border: 1px solid #e0e8ef; border-radius: 17px; background: #fff; box-shadow: var(--shadow-soft); }
 .state-card h2, .empty-panel h3 { margin: 0 0 7px; color: #1b3852; font: 500 23px var(--app-font-serif); }

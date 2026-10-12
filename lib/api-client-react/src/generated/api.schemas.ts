@@ -399,6 +399,27 @@ export interface AdminUserRoleUpdate {
   role: AdminUserRoleUpdateRole;
 }
 
+export interface StaffRegistrationCheckInput {
+  /** @maxLength 320 */
+  email: string;
+}
+
+export interface StaffRegistrationCheckResponse {
+  allowed: boolean;
+}
+
+export type StaffAccessClaimResponseRole = typeof StaffAccessClaimResponseRole[keyof typeof StaffAccessClaimResponseRole];
+
+
+export const StaffAccessClaimResponseRole = {
+  admin: 'admin',
+} as const;
+
+export interface StaffAccessClaimResponse {
+  role: StaffAccessClaimResponseRole;
+  message: string;
+}
+
 export type AdminUserInvitationInputRole = typeof AdminUserInvitationInputRole[keyof typeof AdminUserInvitationInputRole];
 
 

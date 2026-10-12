@@ -292,6 +292,31 @@ export const LookupGuestPreapplicationResponse = zod.object({
 
 
 /**
+ * @summary Check whether an email is allowed to use staff registration
+ */
+export const checkStaffRegistrationEmailBodyEmailMax = 320;
+
+
+
+export const CheckStaffRegistrationEmailBody = zod.object({
+  "email": zod.string().email().max(checkStaffRegistrationEmailBodyEmailMax)
+})
+
+export const CheckStaffRegistrationEmailResponse = zod.object({
+  "allowed": zod.boolean()
+})
+
+
+/**
+ * @summary Grant Admin access to a verified allowlisted account
+ */
+export const ClaimAllowlistedStaffAccessResponse = zod.object({
+  "role": zod.enum(['admin']),
+  "message": zod.string()
+})
+
+
+/**
  * @summary List guest pre-applications for authorized reviewers
  */
 export const ListAdminGuestPreapplicationsResponseItem = zod.object({

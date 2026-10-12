@@ -21,6 +21,7 @@ import {
   useCreateGuestPreapplication, useLookupGuestPreapplication, useListAdminGuestPreapplications,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminOverview,
+  useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
   useListAdminUsers, useListEnrollmentCategories, useListMyApplications, useListMySupportTickets,
   useListSupportTicketsForAdmin, useReplyToSupportTicket, useSubmitApplication, useSubmitNewApplication,
@@ -258,22 +259,30 @@ function PublicLanding() {
   );
 }
 
-function AuthPage({ mode }: { mode: 'in' | 'up' | 'staff' }) {
+function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; allowlistedEmail?: string }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
+  const directStaffRegistration = mode === 'staff' && !!allowlistedEmail;
+  const staffSignInRegistration = mode === 'in' && new URLSearchParams(window.location.search).get('staffRegistration') === '1';
+  const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration;
+  const completionUrl = staffRegistrationIntent
+    ? `${basePath}/auth/complete?staffRegistration=1`
+    : `${basePath}/auth/complete`;
   useEffect(() => {
-    if (isLoaded && isSignedIn) setLocation('/auth/complete', { replace: true });
-  }, [isLoaded, isSignedIn, setLocation]);
+    if (isLoaded && isSignedIn) {
+      setLocation(staffRegistrationIntent ? '/auth/complete?staffRegistration=1' : '/auth/complete', { replace: true });
+    }
+  }, [isLoaded, isSignedIn, staffRegistrationIntent, setLocation]);
   if (isLoaded && isSignedIn) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your secure workspace" /></main>;
   return <main className="auth-page portal-frame">
     <div className="auth-brand"><PortalWordmark /><span>SECURE ACCESS</span></div>
     <div className="auth-canvas">
-      <div className="auth-intro"><div className="eyebrow">{mode === 'staff' ? 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'staff' ? 'Your team account.' : 'Let’s get started.'}</h1>
-        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
+      <div className="auth-intro"><div className="eyebrow">{mode === 'staff' ? directStaffRegistration ? 'AUTHORIZED ADMIN ACCESS' : 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'staff' ? directStaffRegistration ? 'Your admin account.' : 'Your team account.' : 'Let’s get started.'}</h1>
+        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Admin access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} forceRedirectUrl={`${basePath}/auth/complete`} /> :
-          <SignUp routing="path" path={`${basePath}${mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/auth/complete`} />}
+        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={staffSignInRegistration ? `${basePath}/staff/sign-up` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
+          <SignUp routing="path" path={`${basePath}${mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}/sign-in?staffRegistration=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
       </div>
     </div>
   </main>;
@@ -282,14 +291,59 @@ function AuthPage({ mode }: { mode: 'in' | 'up' | 'staff' }) {
 function StaffSignUpPage() {
   const invitationTicket = new URLSearchParams(window.location.search).get('__clerk_ticket');
   if (invitationTicket) return <AuthPage mode="staff" />;
-  return <main className="signedout-page portal-frame" data-testid="staff-invitation-required">
+  return <AllowlistedStaffSignUp />;
+}
+
+function AllowlistedStaffSignUp() {
+  const checkEmail = useCheckStaffRegistrationEmail();
+  const [email, setEmail] = useState('');
+  const [allowlistedEmail, setAllowlistedEmail] = useState('');
+  const [error, setError] = useState('');
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    const normalizedEmail = email.trim();
+    checkEmail.mutate({ data: { email: normalizedEmail } }, {
+      onSuccess: (result) => {
+        if (result.allowed) {
+          setAllowlistedEmail(normalizedEmail);
+        } else {
+          setError('This email is not authorized for Admin registration.');
+        }
+      },
+      onError: () => setError('Staff registration could not be checked. Please try again.'),
+    });
+  };
+
+  if (allowlistedEmail) return <AuthPage mode="staff" allowlistedEmail={allowlistedEmail} />;
+
+  return <main className="signedout-page portal-frame" data-testid="staff-allowlist-check">
     <PortalWordmark />
     <div className="signedout-card">
       <span className="state-icon"><LockKeyhole size={21} /></span>
-      <div className="eyebrow">INVITATION REQUIRED</div>
-      <h1>Staff registration is invitation-only.</h1>
-      <p>Open the invitation email from your portal administrator to create a staff account. If your invitation expired, ask an administrator to send a new one.</p>
-      <Link href="/sign-in" className="button button-primary" data-testid="link-staff-invitation-sign-in">Staff sign in <ArrowRight size={15} /></Link>
+      <div className="eyebrow">AUTHORIZED ADMIN ACCESS</div>
+      <h1>Admin registration</h1>
+      <p>Enter an approved email address to continue. Admin access is granted only after that email is verified.</p>
+      <form className="staff-registration-form" onSubmit={submit}>
+        <label className="field-label" htmlFor="staff-registration-email">Email address</label>
+        <input
+          id="staff-registration-email"
+          className="text-input"
+          type="email"
+          autoComplete="email"
+          required
+          maxLength={320}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          data-testid="input-staff-registration-email"
+        />
+        {error && <p className="inline-error" role="alert" data-testid="text-staff-registration-error">{error}</p>}
+        <button className="button button-primary" type="submit" disabled={checkEmail.isPending} data-testid="button-check-staff-registration">
+          {checkEmail.isPending ? 'Checking…' : 'Continue to sign up'} <ArrowRight size={15} />
+        </button>
+      </form>
+      <Link href="/sign-in?staffRegistration=1" className="text-action" data-testid="link-staff-registration-sign-in">Already have an account? Sign in</Link>
     </div>
   </main>;
 }
@@ -298,14 +352,41 @@ function AuthComplete() {
   const { isLoaded, isSignedIn } = useAuth();
   const { isLoaded: userLoaded, user } = useUser();
   const [, setLocation] = useLocation();
+  const claimStaffAccess = useClaimAllowlistedStaffAccess();
+  const claimStarted = useRef(false);
+  const [claimError, setClaimError] = useState('');
+  const isStaffRegistration = new URLSearchParams(window.location.search).get('staffRegistration') === '1';
+
   useEffect(() => {
     if (!isLoaded || !userLoaded) return;
     if (!isSignedIn) {
       setLocation('/sign-in', { replace: true });
       return;
     }
+    if (isStaffRegistration) {
+      if (claimStarted.current) return;
+      claimStarted.current = true;
+      claimStaffAccess.mutate(undefined, {
+        onSuccess: () => window.location.replace(`${basePath}/admin`),
+        onError: () => setClaimError('This verified email could not be authorized for Admin access.'),
+      });
+      return;
+    }
     setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard', { replace: true });
-  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation]);
+  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, claimStaffAccess.mutate]);
+
+  if (claimError) return <main className="signedout-page portal-frame" data-testid="staff-claim-error">
+    <PortalWordmark />
+    <div className="signedout-card">
+      <span className="state-icon"><LockKeyhole size={21} /></span>
+      <div className="eyebrow">STAFF ACCESS CHECK</div>
+      <h1>Admin access wasn’t activated.</h1>
+      <p>{claimError} You can continue with a regular applicant account or retry the verification.</p>
+      <Link href="/dashboard" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>
+      <button className="text-action" type="button" onClick={() => window.location.reload()}>Retry verification</button>
+    </div>
+  </main>;
+
   return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your secure workspace" /></main>;
 }
 
