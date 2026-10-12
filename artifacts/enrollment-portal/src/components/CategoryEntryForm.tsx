@@ -169,10 +169,6 @@ export function CategoryEntryForm({
     if (isPinStep) setActivePinValue("");
   }, [error, isPinStep]);
 
-  useEffect(() => {
-    if (!isPinStep) setValidationError("");
-  }, [isPinStep]);
-
   const defaultHeading = isPinStep
     ? "Create your PIN"
     : isCategoryTwo
@@ -460,7 +456,10 @@ export function CategoryEntryForm({
                         event.preventDefault();
                         handleKeypad("delete");
                       }
-                      if (event.key === "Enter") event.preventDefault();
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        confirmPin();
+                      }
                     }}
                     data-testid="input-entry-pin"
                   />

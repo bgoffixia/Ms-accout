@@ -193,8 +193,68 @@ async function fillStage(page: Page, fields: Record<string, string>) {
   await page.locator("form.ew-form button[type=submit]").click();
 }
 
+async function expectNoDocumentOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => {
+    const documentScroller = document.scrollingElement ?? document.documentElement;
+    return {
+      clientHeight: documentScroller.clientHeight,
+      scrollHeight: documentScroller.scrollHeight,
+      clientWidth: documentScroller.clientWidth,
+      scrollWidth: documentScroller.scrollWidth,
+    };
+  });
+  expect(dimensions.scrollHeight, `document height overflow: ${JSON.stringify(dimensions)}`)
+    .toBeLessThanOrEqual(dimensions.clientHeight + 1);
+  expect(dimensions.scrollWidth, `document width overflow: ${JSON.stringify(dimensions)}`)
+    .toBeLessThanOrEqual(dimensions.clientWidth + 1);
+}
+
+test("keeps public guest pages inside the viewport on phone and desktop", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path === "/api/enrollment/categories"
+      ? [{ id: "category-1", name: "Category One", description: "Enrollment category.", accent: "#168341" }]
+      : path === "/api/portal/settings"
+        ? {
+            hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
+            cards: [],
+            theme: {
+              pinScreenBackground: "#FFFFFF",
+              buttonSize: "standard",
+              buttonPlacement: "right",
+              categoryInputTransparent: true,
+            },
+            screenCopy: {},
+            pageThemes: {},
+          }
+      : {};
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  });
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 390, height: 568 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const path of ["/", "/guest/apply", "/dashboard", "/guest/track"]) {
+      await page.goto(path);
+      await expect(page.locator(".portal-frame")).toBeVisible();
+      await expectNoDocumentOverflow(page);
+      if (path !== "/") {
+        await expect(page.locator(".guest-page")).toHaveCSS("overflow-y", "hidden");
+      }
+    }
+  }
+});
+
 test("preserves the same guest application across verification failure, reload, and verified return", async ({ page }) => {
   const api = new GuestApiFixture();
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
   await page.route("**/__test-upload/**", (route) =>
     route.fulfill({ status: 200, body: "stored" }),
@@ -222,19 +282,48 @@ test("preserves the same guest application across verification failure, reload, 
 
   await page.goto("/");
   await page.getByTestId("link-get-started").click();
+  await expectNoDocumentOverflow(page);
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
+  await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
+  await expectNoDocumentOverflow(page);
   await page.getByTestId("select-guest-category").selectOption("category-1");
+  await expectNoDocumentOverflow(page);
   await page.locator("form.guest-form button[type=submit]").click();
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await page.getByTestId("button-continue-to-category-details").click();
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
+  await page.setViewportSize({ width: 390, height: 568 });
   await page.locator("form button[type=submit]").click();
-  await page.getByTestId("input-entry-pin").fill("4826");
+  const pinInput = page.getByTestId("input-entry-pin");
+  await expect(page.locator("#pin-entry-heading")).toHaveCSS("font-size", "12px");
+  await expectNoDocumentOverflow(page);
+  const keypadButtons = await page.locator(".pin-entry-key").all();
+  for (const button of keypadButtons) {
+    const bounds = await button.boundingBox();
+    expect(bounds, "every PIN key should have a visible bounding box").not.toBeNull();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(568);
+  }
+  await page.getByTestId("button-pin-key-4").click();
+  await page.getByTestId("button-pin-key-8").click();
+  await expect(pinInput).toHaveValue("48");
+  await page.getByTestId("button-pin-key-confirm").click();
+  await expect(page.getByTestId("text-entry-error")).toContainText("Enter exactly 4 digits.");
+  await page.getByTestId("button-pin-key-clear").click();
+  await expect(pinInput).toHaveValue("");
+  for (const digit of ["4", "8", "2", "6"]) {
+    await page.getByTestId(`button-pin-key-${digit}`).click();
+  }
+  await expect(pinInput).toHaveValue("4826");
+  await expect(page.getByTestId("enrollment-wizard")).toHaveCount(0);
+  await page.getByTestId("button-pin-key-confirm").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoDocumentOverflow(page);
 
   await fillStage(page, {
     "input-personalInformation.firstName": "Jordan",
