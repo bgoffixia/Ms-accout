@@ -239,9 +239,32 @@ function categoryCardLogoStyle(card: PortalSettings['cards'][number] | undefined
   const alignment = card?.cardLogoAlignment ?? 'left';
   const verticalOffset = Number(card?.cardLogoVerticalOffset ?? 0);
   const offset = Number.isFinite(verticalOffset) ? Math.max(-60, Math.min(60, verticalOffset)) : 0;
+  const size = Number(card?.cardLogoSize);
   return {
     alignSelf: alignment === 'center' ? 'center' : alignment === 'right' ? 'flex-end' : 'flex-start',
     transform: offset ? `translateY(${offset}px)` : undefined,
+    ...(Number.isFinite(size) && size > 0 ? { width: `${size}px`, height: `${size}px`, maxWidth: '100%', maxHeight: 'min(28vh, 180px)' } : {}),
+    objectFit: card?.cardLogoFit === 'cover' ? 'cover' : 'contain',
+  };
+}
+
+function defaultLogoSize(categoryId: string, slot: 'card' | 'entry' | 'pin') {
+  const sizes: Record<string, Record<'card' | 'entry' | 'pin', number>> = {
+    'category-1': { card: 110, entry: 176, pin: 160 },
+    'category-2': { card: 53, entry: 104, pin: 78 },
+    'category-3': { card: 48, entry: 98, pin: 78 },
+    'category-4': { card: 78, entry: 110, pin: 150 },
+  };
+  return sizes[categoryId]?.[slot] ?? (slot === 'card' ? 56 : 100);
+}
+
+function logoFitStyle(size: number, fit: string): CSSProperties {
+  return {
+    width: `${size}px`,
+    height: `${size}px`,
+    maxWidth: 'min(90vw, 320px)',
+    maxHeight: 'min(28vh, 180px)',
+    objectFit: fit === 'cover' ? 'cover' : 'contain',
   };
 }
 
@@ -891,8 +914,12 @@ function DraftApplication() {
       pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
       entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
       entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
+      entryLogoSize={categoryEntryCard?.entryLogoSize}
+      entryLogoFit={categoryEntryCard?.entryLogoFit}
       pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment ?? categoryEntryCard?.entryLogoAlignment}
       pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset ?? categoryEntryCard?.entryLogoVerticalOffset}
+      pinLogoSize={categoryEntryCard?.pinLogoSize}
+      pinLogoFit={categoryEntryCard?.pinLogoFit}
       onComplete={(entryAnswers: CategoryEntryAnswers, entryPin: string) => {
         setFeedback('');
         if (sessionOnlyRoute) {
@@ -1600,6 +1627,8 @@ function AdminSettings() {
       : slot === 'entry' ? 'entryLogoDataUrl' : 'pinLogoDataUrl';
     const alignmentKey = slot === 'card' ? 'cardLogoAlignment' : slot === 'entry' ? 'entryLogoAlignment' : 'pinLogoAlignment';
     const offsetKey = slot === 'card' ? 'cardLogoVerticalOffset' : slot === 'entry' ? 'entryLogoVerticalOffset' : 'pinLogoVerticalOffset';
+    const sizeKey = slot === 'card' ? 'cardLogoSize' : slot === 'entry' ? 'entryLogoSize' : 'pinLogoSize';
+    const fitKey = slot === 'card' ? 'cardLogoFit' : slot === 'entry' ? 'entryLogoFit' : 'pinLogoFit';
     const ownLogo = slot === 'card' ? card.logoDataUrl : slot === 'entry' ? card.entryLogoDataUrl : card.pinLogoDataUrl;
     const logoSource = slot === 'card'
       ? card.logoDataUrl || defaultCategoryLogos[card.id]
@@ -1616,6 +1645,8 @@ function AdminSettings() {
       : slot === 'entry'
         ? Number(card.entryLogoVerticalOffset ?? legacyCopy.entryLogoVerticalOffset ?? 0)
         : Number(card.pinLogoVerticalOffset ?? legacyCopy.entryLogoVerticalOffset ?? card.entryLogoVerticalOffset ?? 0);
+    const size = Number(card[sizeKey] ?? defaultLogoSize(card.id, slot));
+    const fit = card[fitKey] ?? 'contain';
     const maxOffset = slot === 'card' ? 60 : 120;
     const title = slot === 'card' ? 'Category card logo' : slot === 'entry' ? 'Entry fields logo' : 'PIN screen logo';
     const inheritedLabel = slot === 'entry' ? 'Using the category card logo'
@@ -1633,12 +1664,32 @@ function AdminSettings() {
         />
       </label>
       <div className="settings-logo-preview">
-        <img src={logoSource} alt={`${card.title} ${title.toLowerCase()} preview`} />
+        <div className="settings-logo-preview-frame">
+          <img src={logoSource} alt={`${card.title} ${title.toLowerCase()} preview`} style={logoFitStyle(size, fit)} />
+        </div>
         {ownLogo
           ? <button type="button" className="text-action" onClick={() => updateCard(card.id, assetKey, null)}>{slot === 'card' ? 'Use built-in logo' : inheritedLabel}</button>
           : <small>{inheritedLabel}</small>}
       </div>
       <div className="settings-inline-fields">
+        <label className="field-label settings-logo-size-field">
+          <span>{title} size <b>{size}px</b></span>
+          <input
+            type="range"
+            min="24"
+            max="240"
+            step="4"
+            value={Math.max(24, Math.min(240, size))}
+            onChange={(event) => updateCard(card.id, sizeKey, Number(event.target.value))}
+            aria-label={`${card.title} ${title.toLowerCase()} size`}
+            data-testid={`input-logo-size-${slot}-${card.id}`}
+          />
+        </label>
+        <label className="field-label">Image fit
+          <select className="text-input select-input" value={fit} onChange={(event) => updateCard(card.id, fitKey, event.target.value)} data-testid={`select-logo-fit-${slot}-${card.id}`}>
+            <option value="contain">Show full logo</option><option value="cover">Fill frame (crop edges)</option>
+          </select>
+        </label>
         <label className="field-label">{title} horizontal position
           <select className="text-input select-input" value={alignment} onChange={(event) => updateCard(card.id, alignmentKey, event.target.value)} data-testid={`select-logo-alignment-${slot}-${card.id}`}>
             <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
@@ -3268,8 +3319,12 @@ function GuestApplicationPage() {
             pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
             entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
             entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
+            entryLogoSize={categoryEntryCard?.entryLogoSize}
+            entryLogoFit={categoryEntryCard?.entryLogoFit}
             pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment ?? categoryEntryCard?.entryLogoAlignment}
             pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset ?? categoryEntryCard?.entryLogoVerticalOffset}
+            pinLogoSize={categoryEntryCard?.pinLogoSize}
+            pinLogoFit={categoryEntryCard?.pinLogoFit}
             onComplete={async (entryAnswers, pin) => {
               const personal = applicationAnswers.personalInformation &&
                 typeof applicationAnswers.personalInformation === 'object' &&

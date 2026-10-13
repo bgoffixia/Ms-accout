@@ -31,8 +31,12 @@ type CategoryEntryFormProps = {
   pinLogoDataUrl?: string | null;
   entryLogoAlignment?: string;
   entryLogoVerticalOffset?: string | number;
+  entryLogoSize?: number;
+  entryLogoFit?: string;
   pinLogoAlignment?: string;
   pinLogoVerticalOffset?: string | number;
+  pinLogoSize?: number;
+  pinLogoFit?: string;
   onComplete: (answers: CategoryEntryAnswers, pin: string) => void;
 };
 
@@ -57,8 +61,12 @@ export function CategoryEntryForm({
   pinLogoDataUrl,
   entryLogoAlignment = "center",
   entryLogoVerticalOffset = "0",
+  entryLogoSize,
+  entryLogoFit = "contain",
   pinLogoAlignment = "center",
   pinLogoVerticalOffset = "0",
+  pinLogoSize,
+  pinLogoFit = "contain",
   onComplete,
 }: CategoryEntryFormProps) {
   const isCategoryOne = categoryId === "category-1";
@@ -93,6 +101,22 @@ export function CategoryEntryForm({
   const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
     ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
     : 0;
+  const logoFitStyle = (size: number | undefined, fit: string): CSSProperties => ({
+    ...(typeof size === "number" && Number.isFinite(size) ? { width: `${Math.max(24, Math.min(240, size))}px`, height: `${Math.max(24, Math.min(240, size))}px` } : {}),
+    maxWidth: "min(90vw, 320px)",
+    maxHeight: "min(28vh, 180px)",
+    objectFit: fit === "cover" ? "cover" : "contain",
+  });
+  const entryLogoStyle = logoFitStyle(entryLogoSize, entryLogoFit);
+  const pinLogoStyle = logoFitStyle(pinLogoSize, pinLogoFit);
+  const entryLogoBrandStyle = typeof entryLogoSize === "number" && Number.isFinite(entryLogoSize)
+    ? {
+      width: `${Math.max(24, Math.min(240, entryLogoSize))}px`,
+      height: `${Math.max(24, Math.min(240, entryLogoSize))}px`,
+      maxWidth: "80vw",
+      maxHeight: "28vh",
+    } satisfies CSSProperties
+    : undefined;
 
   const activePinValue = pin;
   const setActivePinValue = setPin;
@@ -244,12 +268,12 @@ export function CategoryEntryForm({
           </header>
           {!isPinStep && isCategoryThree && (
             <div className="category-three-reference-brand">
-              <img src={entryLogo} alt="Category Three entry logo" />
+              <img src={entryLogo} alt="Category Three entry logo" style={entryLogoStyle} />
             </div>
           )}
           {!isPinStep && isCategoryOne && (
             <div className="category-one-bank-brand">
-              <img src={entryLogo} alt="Category One entry logo" />
+              <img src={entryLogo} alt="Category One entry logo" style={entryLogoStyle} />
             </div>
           )}
           {(isCategoryOne && categoryOneMenuOpen || isCategoryThree && categoryThreeMenuOpen) && (
@@ -297,7 +321,7 @@ export function CategoryEntryForm({
           </header>
           {!isPinStep && (
             <div className={`category-two-reference-brand category-two-reference-brand-step-${step}`}>
-              <img className="category-two-reference-logo" src={entryLogo} alt="Category Two entry logo" />
+              <img className="category-two-reference-logo" src={entryLogo} alt="Category Two entry logo" style={entryLogoStyle} />
             </div>
           )}
           {categoryTwoMenuOpen && (
@@ -335,7 +359,7 @@ export function CategoryEntryForm({
         </>
       )}
       {isCategoryFour && !isPinStep && entryLogoDataUrl && (
-        <div className="category-four-entry-brand"><img src={entryLogoDataUrl} alt="Category Four entry logo" /></div>
+        <div className="category-four-entry-brand" style={entryLogoBrandStyle}><img src={entryLogoDataUrl} alt="Category Four entry logo" style={entryLogoStyle} /></div>
       )}
 
       <div className={`entry-content ${isCategoryOne || isCategoryThree ? "category-one-reference-content" : ""} ${isCategoryTwo ? "category-two-reference-content" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-content category-four-reference-content" : ""}`}>
@@ -419,18 +443,18 @@ export function CategoryEntryForm({
                 </h1>
                 {isCategoryThree && (
                   <div className="category-three-pin-brand">
-                    <img src={pinLogo} alt="Category Three PIN logo" />
+                    <img src={pinLogo} alt="Category Three PIN logo" style={pinLogoStyle} />
                   </div>
                 )}
                 {isCategoryOne && (
                   <div className="category-one-pin-brand">
-                    <img src={pinLogo} alt="Category One PIN logo" />
+                    <img src={pinLogo} alt="Category One PIN logo" style={pinLogoStyle} />
                   </div>
                 )}
                 {isCategoryTwo && (
                   <>
                     <div className="category-two-pin-brand">
-                      <img className="category-two-pin-logo" src={pinLogo} alt="Category Two PIN logo" />
+                      <img className="category-two-pin-logo" src={pinLogo} alt="Category Two PIN logo" style={pinLogoStyle} />
                     </div>
                     <div className="category-two-pin-actions">
                       <Link href="/support" data-testid="link-category-two-pin-help">Need help?</Link>
@@ -439,7 +463,7 @@ export function CategoryEntryForm({
                   </>
                 )}
                 {isCategoryFour && (
-                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Category Four PIN logo" /></div>
+                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Category Four PIN logo" style={pinLogoStyle} /></div>
                 )}
                 <p className="sr-only" id="pin-entry-help">
                   Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.

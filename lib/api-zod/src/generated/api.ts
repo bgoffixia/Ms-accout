@@ -957,11 +957,20 @@ export const getPortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
 export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -60;
 export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 60;
 
+export const getPortalSettingsResponseCardsItemCardLogoSizeMin = 24;
+export const getPortalSettingsResponseCardsItemCardLogoSizeMax = 240;
+
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
+export const getPortalSettingsResponseCardsItemEntryLogoSizeMin = 24;
+export const getPortalSettingsResponseCardsItemEntryLogoSizeMax = 240;
+
 export const getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin = -120;
 export const getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax = 120;
+
+export const getPortalSettingsResponseCardsItemPinLogoSizeMin = 24;
+export const getPortalSettingsResponseCardsItemPinLogoSizeMax = 240;
 
 export const getPortalSettingsResponseCardsMin = 4;
 export const getPortalSettingsResponseCardsMax = 4;
@@ -996,10 +1005,16 @@ export const GetPortalSettingsResponse = zod.object({
   "pinLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardLogoSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoSizeMin).max(getPortalSettingsResponseCardsItemCardLogoSizeMax).optional(),
+  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
+  "entryLogoSize": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoSizeMin).max(getPortalSettingsResponseCardsItemEntryLogoSizeMax).optional(),
+  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional()
+  "pinLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional(),
+  "pinLogoSize": zod.number().int().min(getPortalSettingsResponseCardsItemPinLogoSizeMin).max(getPortalSettingsResponseCardsItemPinLogoSizeMax).optional(),
+  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
 })).min(getPortalSettingsResponseCardsMin).max(getPortalSettingsResponseCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(getPortalSettingsResponseThemePinScreenBackgroundRegExp),
@@ -1042,11 +1057,20 @@ export const updatePortalSettingsBodyCardsItemPinLogoDataUrlMax = 6000000;
 export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin = -60;
 export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax = 60;
 
+export const updatePortalSettingsBodyCardsItemCardLogoSizeMin = 24;
+export const updatePortalSettingsBodyCardsItemCardLogoSizeMax = 240;
+
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax = 120;
 
+export const updatePortalSettingsBodyCardsItemEntryLogoSizeMin = 24;
+export const updatePortalSettingsBodyCardsItemEntryLogoSizeMax = 240;
+
 export const updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax = 120;
+
+export const updatePortalSettingsBodyCardsItemPinLogoSizeMin = 24;
+export const updatePortalSettingsBodyCardsItemPinLogoSizeMax = 240;
 
 export const updatePortalSettingsBodyCardsMin = 4;
 export const updatePortalSettingsBodyCardsMax = 4;
@@ -1081,10 +1105,16 @@ export const UpdatePortalSettingsBody = zod.object({
   "pinLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardLogoSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoSizeMin).max(updatePortalSettingsBodyCardsItemCardLogoSizeMax).optional(),
+  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax).optional(),
+  "entryLogoSize": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoSizeMin).max(updatePortalSettingsBodyCardsItemEntryLogoSizeMax).optional(),
+  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax).optional()
+  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax).optional(),
+  "pinLogoSize": zod.number().int().min(updatePortalSettingsBodyCardsItemPinLogoSizeMin).max(updatePortalSettingsBodyCardsItemPinLogoSizeMax).optional(),
+  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
 })).min(updatePortalSettingsBodyCardsMin).max(updatePortalSettingsBodyCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(updatePortalSettingsBodyThemePinScreenBackgroundRegExp),
@@ -1126,11 +1156,20 @@ export const updatePortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -60;
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 60;
 
+export const updatePortalSettingsResponseCardsItemCardLogoSizeMin = 24;
+export const updatePortalSettingsResponseCardsItemCardLogoSizeMax = 240;
+
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
+export const updatePortalSettingsResponseCardsItemEntryLogoSizeMin = 24;
+export const updatePortalSettingsResponseCardsItemEntryLogoSizeMax = 240;
+
 export const updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax = 120;
+
+export const updatePortalSettingsResponseCardsItemPinLogoSizeMin = 24;
+export const updatePortalSettingsResponseCardsItemPinLogoSizeMax = 240;
 
 export const updatePortalSettingsResponseCardsMin = 4;
 export const updatePortalSettingsResponseCardsMax = 4;
@@ -1165,10 +1204,16 @@ export const UpdatePortalSettingsResponse = zod.object({
   "pinLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardLogoSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoSizeMin).max(updatePortalSettingsResponseCardsItemCardLogoSizeMax).optional(),
+  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
+  "entryLogoSize": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoSizeMin).max(updatePortalSettingsResponseCardsItemEntryLogoSizeMax).optional(),
+  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional()
+  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional(),
+  "pinLogoSize": zod.number().int().min(updatePortalSettingsResponseCardsItemPinLogoSizeMin).max(updatePortalSettingsResponseCardsItemPinLogoSizeMax).optional(),
+  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
 })).min(updatePortalSettingsResponseCardsMin).max(updatePortalSettingsResponseCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(updatePortalSettingsResponseThemePinScreenBackgroundRegExp),
@@ -1245,11 +1290,20 @@ export const migratePortalLogosResponseCardsItemPinLogoDataUrlMax = 6000000;
 export const migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMin = -60;
 export const migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMax = 60;
 
+export const migratePortalLogosResponseCardsItemCardLogoSizeMin = 24;
+export const migratePortalLogosResponseCardsItemCardLogoSizeMax = 240;
+
 export const migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
+export const migratePortalLogosResponseCardsItemEntryLogoSizeMin = 24;
+export const migratePortalLogosResponseCardsItemEntryLogoSizeMax = 240;
+
 export const migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin = -120;
 export const migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax = 120;
+
+export const migratePortalLogosResponseCardsItemPinLogoSizeMin = 24;
+export const migratePortalLogosResponseCardsItemPinLogoSizeMax = 240;
 
 export const migratePortalLogosResponseCardsMin = 4;
 export const migratePortalLogosResponseCardsMax = 4;
@@ -1284,10 +1338,16 @@ export const MigratePortalLogosResponse = zod.object({
   "pinLogoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardLogoSize": zod.number().int().min(migratePortalLogosResponseCardsItemCardLogoSizeMin).max(migratePortalLogosResponseCardsItemCardLogoSizeMax).optional(),
+  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
+  "entryLogoSize": zod.number().int().min(migratePortalLogosResponseCardsItemEntryLogoSizeMin).max(migratePortalLogosResponseCardsItemEntryLogoSizeMax).optional(),
+  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax).optional()
+  "pinLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax).optional(),
+  "pinLogoSize": zod.number().int().min(migratePortalLogosResponseCardsItemPinLogoSizeMin).max(migratePortalLogosResponseCardsItemPinLogoSizeMax).optional(),
+  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
 })).min(migratePortalLogosResponseCardsMin).max(migratePortalLogosResponseCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(migratePortalLogosResponseThemePinScreenBackgroundRegExp),

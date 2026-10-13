@@ -1275,8 +1275,9 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .settings-color-field { display: flex; align-items: center; justify-content: space-between; }
 .settings-color-field input[type="color"] { width: 46px; height: 30px; padding: 2px; border: 1px solid #dfe7ea; border-radius: 6px; background: #fff; }
 .settings-panel input[type="file"] { width: 100%; color: #657c8b; font-size: 9px; }
-.settings-logo-preview { display: flex; align-items: center; gap: 10px; }
-.settings-logo-preview img { width: 46px; height: 46px; object-fit: contain; border: 1px solid #e5ebee; border-radius: 8px; }
+.settings-logo-preview { display: grid; grid-template-columns: minmax(80px, 1fr) auto; align-items: center; gap: 10px; }
+.settings-logo-preview-frame { display: grid; min-width: 0; height: 190px; place-items: center; overflow: hidden; border: 1px solid #e5ebee; border-radius: 8px; background: repeating-conic-gradient(#f3f6f7 0% 25%, #fff 0% 50%) 50% / 14px 14px; }
+.settings-logo-preview img { display: block; border-radius: 5px; }
 .settings-logo-preview small { color: #718590; font-size: 9px; }
 .settings-check { display: flex; align-items: center; gap: 8px; color: #526c7c; font-size: 10px; }
 .settings-screen-list { display: grid; gap: 7px; }
@@ -1317,6 +1318,10 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .settings-logo-offset-field > span b { color: #31546a; font-weight: 700; }
 .settings-logo-offset-field input[type="range"] { width: 100%; accent-color: #17618a; }
 .settings-logo-offset-field small { color: #728594; font-size: 9px; }
+.settings-logo-size-field { grid-column: 1 / -1; display: grid; gap: 7px; }
+.settings-logo-size-field > span { display: flex; justify-content: space-between; gap: 8px; }
+.settings-logo-size-field > span b { color: #31546a; font-weight: 700; }
+.settings-logo-size-field input[type="range"] { width: 100%; accent-color: #17618a; }
 .settings-save-bottom { display: flex; justify-content: flex-end; }
 .admin-record-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 .admin-answer-section { min-width: 0; }

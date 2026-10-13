@@ -891,13 +891,19 @@ describe("guest application verification and persistence", () => {
         getStartedLabel: "Get started",
         loginLabel: "Sign in",
       },
-      cards: ["category-1", "category-2", "category-3", "category-4"].map((id) => ({
+      cards: ["category-1", "category-2", "category-3", "category-4"].map((id, index) => ({
         id,
         title: id,
         description: "Enrollment category",
         buttonLabel: "Continue",
         backgroundColor: "#ffffff",
         logoDataUrl: null,
+        cardLogoSize: 48 + index * 16,
+        cardLogoFit: index % 2 === 0 ? "cover" : "contain",
+        entryLogoSize: 96 + index * 16,
+        entryLogoFit: index % 2 === 0 ? "contain" : "cover",
+        pinLogoSize: 144 + index * 16,
+        pinLogoFit: index % 2 === 0 ? "cover" : "contain",
       })),
       theme: {
         pinScreenBackground: "#ffffff",
@@ -938,6 +944,19 @@ describe("guest application verification and persistence", () => {
     expect(savedSettings.response.status).toBe(200);
     expect(savedSettings.body.requiredFields).toEqual(["personalInformation.firstName"]);
     expect(savedSettings.body.screenCopy["guest-status"].title).toBe("Check your progress");
+    expect(savedSettings.body.cards.map((card: Record<string, unknown>) => [
+      card.cardLogoSize,
+      card.cardLogoFit,
+      card.entryLogoSize,
+      card.entryLogoFit,
+      card.pinLogoSize,
+      card.pinLogoFit,
+    ])).toEqual([
+      [48, "cover", 96, "contain", 144, "cover"],
+      [64, "contain", 112, "cover", 160, "contain"],
+      [80, "cover", 128, "contain", 176, "cover"],
+      [96, "contain", 144, "cover", 192, "contain"],
+    ]);
 
     const created = await request("/guest/preapplications", {
       method: "POST",

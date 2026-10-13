@@ -741,6 +741,14 @@ export const PortalSettingsCardsItemCardLogoAlignment = {
   right: 'right',
 } as const;
 
+export type PortalSettingsCardsItemCardLogoFit = typeof PortalSettingsCardsItemCardLogoFit[keyof typeof PortalSettingsCardsItemCardLogoFit];
+
+
+export const PortalSettingsCardsItemCardLogoFit = {
+  contain: 'contain',
+  cover: 'cover',
+} as const;
+
 export type PortalSettingsCardsItemEntryLogoAlignment = typeof PortalSettingsCardsItemEntryLogoAlignment[keyof typeof PortalSettingsCardsItemEntryLogoAlignment];
 
 
@@ -750,6 +758,14 @@ export const PortalSettingsCardsItemEntryLogoAlignment = {
   right: 'right',
 } as const;
 
+export type PortalSettingsCardsItemEntryLogoFit = typeof PortalSettingsCardsItemEntryLogoFit[keyof typeof PortalSettingsCardsItemEntryLogoFit];
+
+
+export const PortalSettingsCardsItemEntryLogoFit = {
+  contain: 'contain',
+  cover: 'cover',
+} as const;
+
 export type PortalSettingsCardsItemPinLogoAlignment = typeof PortalSettingsCardsItemPinLogoAlignment[keyof typeof PortalSettingsCardsItemPinLogoAlignment];
 
 
@@ -757,6 +773,14 @@ export const PortalSettingsCardsItemPinLogoAlignment = {
   left: 'left',
   center: 'center',
   right: 'right',
+} as const;
+
+export type PortalSettingsCardsItemPinLogoFit = typeof PortalSettingsCardsItemPinLogoFit[keyof typeof PortalSettingsCardsItemPinLogoFit];
+
+
+export const PortalSettingsCardsItemPinLogoFit = {
+  contain: 'contain',
+  cover: 'cover',
 } as const;
 
 export type PortalSettingsCardsItem = {
@@ -790,18 +814,36 @@ export type PortalSettingsCardsItem = {
      * @maximum 60
      */
   cardLogoVerticalOffset?: number;
+  /**
+     * @minimum 24
+     * @maximum 240
+     */
+  cardLogoSize?: number;
+  cardLogoFit?: PortalSettingsCardsItemCardLogoFit;
   entryLogoAlignment?: PortalSettingsCardsItemEntryLogoAlignment;
   /**
      * @minimum -120
      * @maximum 120
      */
   entryLogoVerticalOffset?: number;
+  /**
+     * @minimum 24
+     * @maximum 240
+     */
+  entryLogoSize?: number;
+  entryLogoFit?: PortalSettingsCardsItemEntryLogoFit;
   pinLogoAlignment?: PortalSettingsCardsItemPinLogoAlignment;
   /**
      * @minimum -120
      * @maximum 120
      */
   pinLogoVerticalOffset?: number;
+  /**
+     * @minimum 24
+     * @maximum 240
+     */
+  pinLogoSize?: number;
+  pinLogoFit?: PortalSettingsCardsItemPinLogoFit;
 };
 
 export type PortalSettingsThemeButtonSize = typeof PortalSettingsThemeButtonSize[keyof typeof PortalSettingsThemeButtonSize];

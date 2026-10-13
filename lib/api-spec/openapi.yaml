@@ -1608,10 +1608,16 @@ components:
               pinLogoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
               cardLogoAlignment: { type: string, enum: [left, center, right] }
               cardLogoVerticalOffset: { type: integer, minimum: -60, maximum: 60 }
+              cardLogoSize: { type: integer, minimum: 24, maximum: 240 }
+              cardLogoFit: { type: string, enum: [contain, cover] }
               entryLogoAlignment: { type: string, enum: [left, center, right] }
               entryLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
+              entryLogoSize: { type: integer, minimum: 24, maximum: 240 }
+              entryLogoFit: { type: string, enum: [contain, cover] }
               pinLogoAlignment: { type: string, enum: [left, center, right] }
               pinLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
+              pinLogoSize: { type: integer, minimum: 24, maximum: 240 }
+              pinLogoFit: { type: string, enum: [contain, cover] }
         theme:
           type: object
           required: [pinScreenBackground, buttonSize, buttonPlacement, categoryInputTransparent]
