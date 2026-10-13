@@ -252,7 +252,57 @@ const defaultPortalSettings = {
     categoryInputTransparent: true,
   },
   screenCopy: {},
+  requiredFields: [],
   pageThemes: {},
+};
+
+const requiredFieldLabels: Record<string, string> = {
+  name: "Category entry name",
+  nickname: "Category entry nickname",
+  surname: "Category entry surname",
+  "personalInformation.firstName": "First name",
+  "personalInformation.middleName": "Middle name",
+  "personalInformation.surname": "Surname",
+  "personalInformation.dateOfBirth": "Date of birth",
+  "personalInformation.nationality": "Nationality",
+  "personalInformation.phone": "Personal phone number",
+  "personalInformation.email": "Email address",
+  "personalInformation.residentialAddress": "Residential address",
+  "personalInformation.stateRegion": "State or region",
+  "personalInformation.city": "City",
+  "personalInformation.postalCode": "Postal code",
+  "nextOfKin.fullName": "Next-of-kin full name",
+  "nextOfKin.relationship": "Next-of-kin relationship",
+  "nextOfKin.phone": "Next-of-kin phone number",
+  "nextOfKin.email": "Next-of-kin email address",
+  "nextOfKin.residentialAddress": "Next-of-kin residential address",
+  "nextOfKin.city": "Next-of-kin city",
+  "nextOfKin.stateRegion": "Next-of-kin state or region",
+  "education.highestQualification": "Highest qualification",
+  "education.institution": "Institution",
+  "education.courseField": "Course or field",
+  "education.startYear": "Education start year",
+  "education.completionYear": "Education completion year",
+  "education.certificationStatus": "Certification status",
+  "education.additionalQualifications": "Additional qualifications",
+  "education.certificateObjectPath": "Education certificate",
+  "workInformation.employmentStatus": "Employment status",
+  "workInformation.occupation": "Occupation",
+  "workInformation.employer": "Employer",
+  "workInformation.businessName": "Business name",
+  "workInformation.workAddress": "Business or work address",
+  "workInformation.workPhone": "Work phone",
+  "workInformation.yearsExperience": "Years of experience",
+  "proofOfIdentity.documentType": "Identity document type",
+  "proofOfIdentity.documentNumber": "Identity document number",
+  "proofOfIdentity.frontObjectPath": "Identity document front",
+  "proofOfIdentity.backObjectPath": "Identity document back",
+  "liveVideoRecording.consentAccepted": "Video recording consent",
+  "liveVideoRecording.objectPath": "Verification video",
+  "bankDetails.bankName": "Bank name",
+  "bankDetails.accountHolder": "Account holder",
+  "bankDetails.accountNumber": "Account number",
+  "bankDetails.accountType": "Account type",
 };
 
 type CategoryId = (typeof categories)[number]["id"];
@@ -372,8 +422,10 @@ function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
 
 function serializeGuestPreapplicationStatus(
   application: typeof guestPreapplicationsTable.$inferSelect,
+  requiredFields: string[] = [],
 ) {
   const answers = application.answers ?? {};
+  const missingRequiredFields = getMissingRequiredFields(answers, requiredFields);
   return {
     id: application.id,
     reference: application.reference,
@@ -387,7 +439,7 @@ function serializeGuestPreapplicationStatus(
     hasPin: Boolean(application.pinHash),
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
-    detailsComplete: application.detailsComplete,
+    detailsComplete: application.detailsComplete && missingRequiredFields.length === 0,
     answers: applicantSafeAnswers(answers),
     reviewStatus: application.submissionStatus === "submitted" ? "submitted" : null,
     applicantFollowup: null,
@@ -396,6 +448,7 @@ function serializeGuestPreapplicationStatus(
       answers,
       Boolean(application.pinHash),
     ),
+    missingRequiredFields,
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
   };
@@ -403,8 +456,9 @@ function serializeGuestPreapplicationStatus(
 
 async function serializeGuestPreapplicationStatusWithReview(
   application: typeof guestPreapplicationsTable.$inferSelect,
+  requiredFields: string[] = [],
 ) {
-  const status = serializeGuestPreapplicationStatus(application);
+  const status = serializeGuestPreapplicationStatus(application, requiredFields);
   if (!application.linkedApplicationId) return status;
   const [linkedApplication] = await db
     .select()
@@ -412,15 +466,21 @@ async function serializeGuestPreapplicationStatusWithReview(
     .where(eq(enrollmentApplicationsTable.id, application.linkedApplicationId))
     .limit(1);
   if (!linkedApplication) return status;
+  const missingRequiredFields = getMissingRequiredFields(
+    linkedApplication.answers ?? {},
+    requiredFields,
+  );
   return {
     ...status,
     reviewStatus: linkedApplication.status,
-    applicantFollowup: linkedApplication.reviewNote ?? null,
+    detailsComplete: status.detailsComplete && missingRequiredFields.length === 0,
+    applicantFollowup: null,
     outstandingRequirements: outstandingApplicationRequirements(
       linkedApplication.categoryId,
       linkedApplication.answers ?? {},
       Boolean(linkedApplication.pinHash),
     ),
+    missingRequiredFields,
   };
 }
 
@@ -428,6 +488,7 @@ function serializeAdminGuestPreapplication(
   application: typeof guestPreapplicationsTable.$inferSelect,
   evidence: Array<typeof guestPreapplicationEvidenceTable.$inferSelect> = [],
   history: Array<typeof guestPreapplicationRevisionsTable.$inferSelect> = [],
+  requiredFields: string[] = [],
 ) {
   const uploadedEvidence = evidence.filter((item) => item.uploadedAt !== null);
   const hasIdentityFront = uploadedEvidence.some((item) => item.evidenceSlot === "identity_front");
@@ -435,12 +496,14 @@ function serializeAdminGuestPreapplication(
     (item) => item.evidenceSlot === "verification_video",
   );
   return {
-    ...serializeGuestPreapplicationStatus(application),
+    ...serializeGuestPreapplicationStatus(application, requiredFields),
     fullName: application.fullName,
     email: application.email,
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
     reviewReady:
-      application.detailsComplete && Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
+      application.detailsComplete &&
+      getMissingRequiredFields(application.answers ?? {}, requiredFields).length === 0 &&
+      Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
     evidence: evidence.map(serializeGuestEvidence),
     history: history.map((revision) => ({
       id: revision.id,
@@ -453,6 +516,7 @@ function serializeAdminGuestPreapplication(
 
 async function serializeAdminGuestPreapplicationWithEvidence(
   application: typeof guestPreapplicationsTable.$inferSelect,
+  requiredFields: string[] = [],
 ) {
   const evidence = await db
     .select()
@@ -464,7 +528,7 @@ async function serializeAdminGuestPreapplicationWithEvidence(
     .from(guestPreapplicationRevisionsTable)
     .where(eq(guestPreapplicationRevisionsTable.applicationId, application.id))
     .orderBy(guestPreapplicationRevisionsTable.createdAt);
-  return serializeAdminGuestPreapplication(application, evidence, history);
+  return serializeAdminGuestPreapplication(application, evidence, history, requiredFields);
 }
 
 function revisionValue(value: unknown, field: string): string {
@@ -1050,6 +1114,46 @@ function outstandingApplicationRequirements(
   return missing;
 }
 
+function requiredFieldValue(
+  answers: Record<string, unknown>,
+  field: string,
+): unknown {
+  if (["name", "nickname", "surname"].includes(field)) return answers[field];
+  const [section, key] = field.split(".", 2);
+  if (!section || !key) return undefined;
+  const values = asRecord(answers[section]);
+  if (section === "bankDetails" && key === "accountNumber") {
+    return typeof values.accountNumberEncrypted === "string"
+      ? values.accountNumberEncrypted
+      : undefined;
+  }
+  return values[key];
+}
+
+function isRequiredFieldComplete(value: unknown): boolean {
+  if (typeof value === "string") return value.trim().length > 0;
+  return value === true;
+}
+
+function getMissingRequiredFields(
+  answers: Record<string, unknown>,
+  requiredFields: string[],
+): string[] {
+  return requiredFields
+    .filter((field) => !isRequiredFieldComplete(requiredFieldValue(answers, field)))
+    .map((field) => requiredFieldLabels[field] ?? "Required applicant information");
+}
+
+function validateConfiguredRequiredFields(
+  answers: Record<string, unknown>,
+  requiredFields: string[],
+): string | null {
+  const missing = getMissingRequiredFields(answers, requiredFields);
+  return missing.length
+    ? `Complete these required items before submitting: ${missing.join(", ")}.`
+    : null;
+}
+
 function isPrivateStorageConfigured(): boolean {
   return Boolean(
     process.env.PRIVATE_OBJECT_DIR &&
@@ -1073,6 +1177,7 @@ function hasRequiredCategoryDetails(
 function serializeApplication(
   application: typeof enrollmentApplicationsTable.$inferSelect,
   includeSensitiveBankDetails = false,
+  requiredFields: string[] = [],
 ) {
   const answers = application.answers ?? {};
   const applicantAnswers = includeSensitiveBankDetails
@@ -1108,17 +1213,30 @@ function serializeApplication(
       (typeof personalInformation.email === "string"
         ? personalInformation.email
         : null),
-    reviewNote: application.reviewNote,
-    applicantFollowup: application.reviewNote,
+    reviewNote: includeSensitiveBankDetails ? application.reviewNote : null,
+    applicantFollowup: null,
     outstandingRequirements: outstandingApplicationRequirements(
       application.categoryId,
       answers,
       Boolean(application.pinHash),
     ),
+    missingRequiredFields: getMissingRequiredFields(answers, requiredFields),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
     submittedAt: application.submittedAt?.toISOString() ?? null,
   };
+}
+
+async function serializeApplicationWithPortalSettings(
+  application: typeof enrollmentApplicationsTable.$inferSelect,
+  includeSensitiveBankDetails = false,
+) {
+  const settings = await loadPortalSettings();
+  return serializeApplication(
+    application,
+    includeSensitiveBankDetails,
+    settings.requiredFields ?? [],
+  );
 }
 
 function serializeTicket(
@@ -1148,7 +1266,12 @@ async function loadPortalSettings() {
     .from(portalSettingsTable)
     .where(eq(portalSettingsTable.key, "portal"))
     .limit(1);
-  return GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
+  const stored = record?.value ?? {};
+  return GetPortalSettingsResponse.parse({
+    ...defaultPortalSettings,
+    ...stored,
+    requiredFields: stored.requiredFields ?? defaultPortalSettings.requiredFields,
+  });
 }
 
 router.get("/portal/settings", async (req, res): Promise<void> => {
@@ -1264,6 +1387,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
   }
 
   try {
+    const portalSettings = await loadPortalSettings();
     const [application] = await db
       .select()
       .from(guestPreapplicationsTable)
@@ -1326,7 +1450,8 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       });
     }
     const detailsComplete =
-      validateFinalApplication(application.categoryId, prepared.answers, true) === null;
+      validateFinalApplication(application.categoryId, prepared.answers, true) === null &&
+      getMissingRequiredFields(prepared.answers, portalSettings.requiredFields ?? []).length === 0;
     const updated = await db.transaction(async (transaction) => {
       const [row] = await transaction
         .update(guestPreapplicationsTable)
@@ -1354,7 +1479,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
     }
     res.json(
       UpdateGuestPreapplicationProgressResponse.parse(
-        serializeGuestPreapplicationStatus(updated),
+        serializeGuestPreapplicationStatus(updated, portalSettings.requiredFields ?? []),
       ),
     );
   } catch (error) {
@@ -1371,6 +1496,7 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
   }
 
   try {
+    const portalSettings = await loadPortalSettings();
     const [application] = await db
       .select()
       .from(guestPreapplicationsTable)
@@ -1383,7 +1509,10 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
 
     res.json(
       LookupGuestPreapplicationResponse.parse(
-        await serializeGuestPreapplicationStatusWithReview(application),
+        await serializeGuestPreapplicationStatusWithReview(
+          application,
+          portalSettings.requiredFields ?? [],
+        ),
       ),
     );
   } catch (error) {
@@ -1403,6 +1532,7 @@ router.patch(
     }
 
     try {
+      const portalSettings = await loadPortalSettings();
       const [application] = await db
         .select()
         .from(guestPreapplicationsTable)
@@ -1458,7 +1588,10 @@ router.patch(
       }
       res.json(
         UpdateGuestPreapplicationEmailResponse.parse(
-          serializeGuestPreapplicationStatus(updated),
+          serializeGuestPreapplicationStatus(
+            updated,
+            portalSettings.requiredFields ?? [],
+          ),
         ),
       );
     } catch (error) {
@@ -1722,6 +1855,7 @@ router.post(
     }
 
     try {
+      const portalSettings = await loadPortalSettings();
       const user = res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
       const primaryEmail = user.primaryEmailAddress;
       const normalizedEmail = primaryEmail?.emailAddress
@@ -1769,7 +1903,9 @@ router.post(
             ))
             .limit(1);
           if (existingApplication) {
-            res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(existingApplication)));
+            res.json(SubmitGuestPreapplicationResponse.parse(
+              await serializeApplicationWithPortalSettings(existingApplication),
+            ));
             return;
           }
         }
@@ -1781,6 +1917,14 @@ router.post(
         return;
       }
       const answers = preapplication.answers ?? {};
+      const requiredFieldError = validateConfiguredRequiredFields(
+        answers,
+        portalSettings.requiredFields ?? [],
+      );
+      if (requiredFieldError) {
+        res.status(400).json({ error: requiredFieldError });
+        return;
+      }
       if (!(await guestEvidencePathsAreOwned(preapplication.id, answers))) {
         res.status(400).json({ error: "One or more evidence references are not attached to this application." });
         return;
@@ -1868,7 +2012,9 @@ router.post(
         res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
         return;
       }
-      res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(submitted)));
+      res.json(SubmitGuestPreapplicationResponse.parse(
+        await serializeApplicationWithPortalSettings(submitted),
+      ));
     } catch (error) {
       req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit verified guest application");
       res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
@@ -1952,7 +2098,9 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
       return;
     }
     res.status(201).json(
-      CreateApplicationDraftResponse.parse(serializeApplication(created)),
+      CreateApplicationDraftResponse.parse(
+        await serializeApplicationWithPortalSettings(created),
+      ),
     );
   } catch (error) {
     req.log.error({ err: error }, "Failed to create application draft");
@@ -1966,7 +2114,10 @@ router.get("/me/applications", async (req, res): Promise<void> => {
     .from(enrollmentApplicationsTable)
     .where(eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId))
     .orderBy(desc(enrollmentApplicationsTable.updatedAt));
-  res.json(ListMyApplicationsResponse.parse(applications.map((application) => serializeApplication(application))));
+  const settings = await loadPortalSettings();
+  res.json(ListMyApplicationsResponse.parse(applications.map((application) =>
+    serializeApplication(application, false, settings.requiredFields ?? []),
+  )));
 });
 
 router.delete("/me/drafts", async (_req, res): Promise<void> => {
@@ -2000,7 +2151,9 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
       res.status(409).json({ error: "This submission request has already been used." });
       return;
     }
-    res.json(SubmitNewApplicationResponse.parse(serializeApplication(existing)));
+    res.json(SubmitNewApplicationResponse.parse(
+      await serializeApplicationWithPortalSettings(existing),
+    ));
     return;
   }
 
@@ -2045,6 +2198,15 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   const validationError = validateFinalApplication(categoryId, answers);
   if (validationError) {
     res.status(400).json({ error: validationError });
+    return;
+  }
+  const portalSettings = await loadPortalSettings();
+  const requiredFieldError = validateConfiguredRequiredFields(
+    answers,
+    portalSettings.requiredFields ?? [],
+  );
+  if (requiredFieldError) {
+    res.status(400).json({ error: requiredFieldError });
     return;
   }
   if (!isPrivateStorageConfigured()) {
@@ -2107,7 +2269,9 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   }
   res
     .status(outcome.created ? 201 : 200)
-    .json(SubmitNewApplicationResponse.parse(serializeApplication(outcome.application)));
+    .json(SubmitNewApplicationResponse.parse(
+      await serializeApplicationWithPortalSettings(outcome.application),
+    ));
 });
 
 router.get("/applications/:applicationId", async (req, res): Promise<void> => {
@@ -2130,7 +2294,9 @@ router.get("/applications/:applicationId", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Application not found." });
     return;
   }
-  res.json(GetApplicationResponse.parse(serializeApplication(application)));
+  res.json(GetApplicationResponse.parse(
+    await serializeApplicationWithPortalSettings(application),
+  ));
 });
 
 router.patch("/applications/:applicationId", async (req, res): Promise<void> => {
@@ -2360,7 +2526,9 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     res.status(500).json({ error: "The application could not be saved." });
     return;
   }
-  res.json(UpdateApplicationResponse.parse(serializeApplication(updated)));
+  res.json(UpdateApplicationResponse.parse(
+    await serializeApplicationWithPortalSettings(updated),
+  ));
 });
 
 router.post("/applications/:applicationId/submit", async (req, res): Promise<void> => {
@@ -2387,7 +2555,9 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     return;
   }
   if (application.status === "submitted") {
-    res.json(SubmitApplicationResponse.parse(serializeApplication(application)));
+    res.json(SubmitApplicationResponse.parse(
+      await serializeApplicationWithPortalSettings(application),
+    ));
     return;
   }
   if (!["draft", "needs_information"].includes(application.status)) {
@@ -2463,6 +2633,15 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     res.status(400).json({ error: validationError });
     return;
   }
+  const portalSettings = await loadPortalSettings();
+  const requiredFieldError = validateConfiguredRequiredFields(
+    answers,
+    portalSettings.requiredFields ?? [],
+  );
+  if (requiredFieldError) {
+    res.status(400).json({ error: requiredFieldError });
+    return;
+  }
   if (!isPrivateStorageConfigured()) {
     res.status(503).json({
       error:
@@ -2511,7 +2690,9 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     });
     return;
   }
-  res.json(SubmitApplicationResponse.parse(serializeApplication(submitted)));
+  res.json(SubmitApplicationResponse.parse(
+    await serializeApplicationWithPortalSettings(submitted),
+  ));
 });
 
 router.get("/dashboard/summary", async (_req, res): Promise<void> => {
@@ -2687,6 +2868,7 @@ router.use("/admin", requireAdmin);
 
 router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Promise<void> => {
   try {
+    const portalSettings = await loadPortalSettings();
     const applications = await db
       .select()
       .from(guestPreapplicationsTable)
@@ -2732,6 +2914,7 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
             application,
             evidenceByApplication.get(application.id) ?? [],
             historyByApplication.get(application.id) ?? [],
+            portalSettings.requiredFields ?? [],
           ),
         ),
       ),
@@ -3026,6 +3209,7 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
   }
 
   try {
+    const portalSettings = await loadPortalSettings();
     const [updated] = await db
       .update(guestPreapplicationsTable)
       .set({
@@ -3041,7 +3225,10 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
     }
     res.json(
       UpdateAdminGuestPreapplicationResponse.parse(
-        await serializeAdminGuestPreapplicationWithEvidence(updated),
+        await serializeAdminGuestPreapplicationWithEvidence(
+          updated,
+          portalSettings.requiredFields ?? [],
+        ),
       ),
     );
   } catch (error) {
@@ -3071,24 +3258,29 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
     return;
   }
   try {
+    const previousSettings = await loadPortalSettings();
+    const settingsToSave = {
+      ...parsed.data,
+      requiredFields: parsed.data.requiredFields ?? previousSettings.requiredFields ?? [],
+    };
     const [record] = await db
       .insert(portalSettingsTable)
       .values({
         key: "portal",
-        value: parsed.data,
+        value: settingsToSave,
         updatedByUserId: res.locals.userId,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: portalSettingsTable.key,
         set: {
-          value: parsed.data,
+          value: settingsToSave,
           updatedByUserId: res.locals.userId,
           updatedAt: new Date(),
         },
       })
       .returning({ value: portalSettingsTable.value });
-    res.json(UpdatePortalSettingsResponse.parse(record?.value ?? parsed.data));
+    res.json(UpdatePortalSettingsResponse.parse(record?.value ?? settingsToSave));
   } catch (error) {
     req.log.error({ err: error }, "Failed to save portal settings");
     res.status(503).json({ error: "Portal settings could not be saved." });
@@ -3428,7 +3620,7 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
   }
   res.json(
     GetAdminApplicationResponse.parse(
-      serializeApplication(application, true),
+      await serializeApplicationWithPortalSettings(application, true),
     ),
   );
 });
@@ -3526,7 +3718,10 @@ router.get("/admin/applications", requireReviewer, async (req, res): Promise<voi
     .where(and(...filters))
     .orderBy(desc(enrollmentApplicationsTable.updatedAt))
     .limit(300);
-  const serialized = applications.map((application) => serializeApplication(application));
+  const settings = await loadPortalSettings();
+  const serialized = applications.map((application) =>
+    serializeApplication(application, false, settings.requiredFields ?? []),
+  );
   const search = parsed.data.search?.trim().toLowerCase();
   const results = search
     ? serialized.filter((application) =>
@@ -3639,7 +3834,9 @@ router.post(
       });
       return;
     }
-    res.json(DecideApplicationResponse.parse(serializeApplication(updated)));
+    res.json(DecideApplicationResponse.parse(
+      await serializeApplicationWithPortalSettings(updated),
+    ));
   },
 );
 

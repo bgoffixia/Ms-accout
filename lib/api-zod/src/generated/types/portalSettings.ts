@@ -8,6 +8,7 @@
 import type { PortalSettingsCardsItem } from './portalSettingsCardsItem';
 import type { PortalSettingsHero } from './portalSettingsHero';
 import type { PortalSettingsPageThemes } from './portalSettingsPageThemes';
+import type { PortalSettingsRequiredFieldsItem } from './portalSettingsRequiredFieldsItem';
 import type { PortalSettingsScreenCopy } from './portalSettingsScreenCopy';
 import type { PortalSettingsTheme } from './portalSettingsTheme';
 
@@ -20,5 +21,10 @@ export interface PortalSettings {
   cards: PortalSettingsCardsItem[];
   theme: PortalSettingsTheme;
   screenCopy: PortalSettingsScreenCopy;
+  /**
+     * Applicant answer or evidence fields that must be present before final submission.
+     * @maxItems 46
+     */
+  requiredFields?: PortalSettingsRequiredFieldsItem[];
   pageThemes?: PortalSettingsPageThemes;
 }

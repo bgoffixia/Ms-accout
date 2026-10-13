@@ -150,8 +150,17 @@ function makeDatabase() {
       const tableName = source.__tableName;
       let values: Record<string, unknown> = {};
       let ignoreConflict = false;
+      let conflictUpdate: { target: any; set: Record<string, unknown> } | undefined;
       const run = () => {
         const rows = tableRows(tableName);
+        if (conflictUpdate) {
+          const conflictName = conflictUpdate.target?.name;
+          const existing = rows.find((row) => conflictName && row[conflictName] === values[conflictName]);
+          if (existing) {
+            Object.assign(existing, conflictUpdate.set);
+            return [existing];
+          }
+        }
         const uniqueFields: Record<string, string[]> = {
           guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
           enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
@@ -175,6 +184,10 @@ function makeDatabase() {
         },
         onConflictDoNothing() {
           ignoreConflict = true;
+          return builder;
+        },
+        onConflictDoUpdate(input: { target: any; set: Record<string, unknown> }) {
+          conflictUpdate = input;
           return builder;
         },
         returning() {
@@ -846,6 +859,135 @@ describe("guest application verification and persistence", () => {
       reviewStatus: "submitted",
     });
     expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
+  });
+
+  it("preserves legacy settings and blocks only final submission on configured required fields", async () => {
+    const settings = {
+      hero: {
+        title: "Enrollment",
+        description: "Apply online.",
+        getStartedLabel: "Get started",
+        loginLabel: "Sign in",
+      },
+      cards: ["category-1", "category-2", "category-3", "category-4"].map((id) => ({
+        id,
+        title: id,
+        description: "Enrollment category",
+        buttonLabel: "Continue",
+        backgroundColor: "#ffffff",
+        logoDataUrl: null,
+      })),
+      theme: {
+        pinScreenBackground: "#ffffff",
+        buttonSize: "standard",
+        buttonPlacement: "center",
+        categoryInputTransparent: true,
+      },
+      screenCopy: {
+        "guest-contact": { title: "Start an application" },
+        "guest-status": { title: "Check your progress" },
+      },
+      requiredFields: ["personalInformation.firstName"],
+    };
+    const unauthorizedSettingsUpdate = await request(
+      "/admin/settings",
+      { method: "PUT", body: JSON.stringify(settings) },
+      "reviewer",
+    );
+    expect(unauthorizedSettingsUpdate.response.status).toBe(403);
+
+    const legacySettings = { ...settings };
+    delete (legacySettings as Partial<typeof settings>).requiredFields;
+    mockState.rows.set("portal_settings", [{
+      key: "portal",
+      value: legacySettings,
+      updatedAt: new Date(),
+      updatedByUserId: "administrator",
+    }]);
+    const legacyRead = await request("/portal/settings");
+    expect(legacyRead.response.status).toBe(200);
+    expect(legacyRead.body.requiredFields).toEqual([]);
+
+    const savedSettings = await request(
+      "/admin/settings",
+      { method: "PUT", body: JSON.stringify(settings) },
+      "administrator",
+    );
+    expect(savedSettings.response.status).toBe(200);
+    expect(savedSettings.body.requiredFields).toEqual(["personalInformation.firstName"]);
+    expect(savedSettings.body.screenCopy["guest-status"].title).toBe("Check your progress");
+
+    const created = await request("/guest/preapplications", {
+      method: "POST",
+      body: JSON.stringify({
+        submissionId: crypto.randomUUID(),
+        accessKey,
+        categoryId: "category-2",
+        fullName: "Required Field Applicant",
+        email: contactEmail,
+      }),
+    });
+    expect(created.response.status).toBe(201);
+    const { id: applicationId, reference } = created.body as { id: string; reference: string };
+    const partial = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 0,
+        complete: false,
+        pin: "739102",
+        answers: { personalInformation: { email: contactEmail } },
+      }),
+    });
+    expect(partial.response.status).toBe(200);
+    expect(partial.body.missingRequiredFields).toEqual(["First name"]);
+    expect(partial.body.detailsComplete).toBe(false);
+    const publicProgress = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, accessKey }),
+    });
+    expect(publicProgress.response.status).toBe(200);
+    expect(publicProgress.body.missingRequiredFields).toEqual(["First name"]);
+    expect(publicProgress.body.applicantFollowup).toBeNull();
+
+    const blocked = await request(
+      `/guest/preapplications/${applicationId}/submit`,
+      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      "applicant-verified",
+    );
+    expect(blocked.response.status).toBe(400);
+    expect(blocked.body.error).toContain("First name");
+
+    const completedRequirement = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 0,
+        complete: false,
+        answers: { personalInformation: { firstName: "Ada", email: contactEmail } },
+      }),
+    });
+    expect(completedRequirement.response.status).toBe(200);
+    expect(completedRequirement.body.missingRequiredFields).toEqual([]);
+    const submitted = await request(
+      `/guest/preapplications/${applicationId}/submit`,
+      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      "applicant-verified",
+    );
+    expect(submitted.response.status).toBe(200);
+    expect(submitted.body.status).toBe("submitted");
+    const linkedApplication = mockState.rows.get("enrollment_applications")?.find(
+      (row) => row.id === submitted.body.id,
+    );
+    if (linkedApplication) linkedApplication.reviewNote = "Internal reviewer-only note";
+    const publicSubmittedStatus = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, accessKey }),
+    });
+    expect(publicSubmittedStatus.body.applicantFollowup).toBeNull();
+    expect(JSON.stringify(publicSubmittedStatus.body)).not.toContain("Internal reviewer-only note");
   });
 
   it("cleans expired guest evidence but preserves evidence linked to submitted applications", async () => {

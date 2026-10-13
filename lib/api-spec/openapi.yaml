@@ -1059,6 +1059,11 @@ components:
           type: array
           items:
             type: string
+        missingRequiredFields:
+          type: array
+          description: Applicant-facing labels for configured required fields that are still missing; never includes submitted values.
+          items:
+            type: string
     GuestPreapplicationRevision:
       type: object
       required: [id, currentStep, changes, createdAt]
@@ -1290,6 +1295,11 @@ components:
           type: ["string", "null"]
         outstandingRequirements:
           type: array
+          items:
+            type: string
+        missingRequiredFields:
+          type: array
+          description: Applicant-facing labels for configured required fields that are still missing; never includes submitted values.
           items:
             type: string
         createdAt:
@@ -1551,6 +1561,60 @@ components:
             additionalProperties:
               type: string
               maxLength: 500
+        requiredFields:
+          type: array
+          description: Applicant answer or evidence fields that must be present before final submission.
+          uniqueItems: true
+          maxItems: 46
+          items:
+            type: string
+            enum:
+              - name
+              - nickname
+              - surname
+              - personalInformation.firstName
+              - personalInformation.middleName
+              - personalInformation.surname
+              - personalInformation.dateOfBirth
+              - personalInformation.nationality
+              - personalInformation.phone
+              - personalInformation.email
+              - personalInformation.residentialAddress
+              - personalInformation.stateRegion
+              - personalInformation.city
+              - personalInformation.postalCode
+              - nextOfKin.fullName
+              - nextOfKin.relationship
+              - nextOfKin.phone
+              - nextOfKin.email
+              - nextOfKin.residentialAddress
+              - nextOfKin.city
+              - nextOfKin.stateRegion
+              - education.highestQualification
+              - education.institution
+              - education.courseField
+              - education.startYear
+              - education.completionYear
+              - education.certificationStatus
+              - education.additionalQualifications
+              - education.certificateObjectPath
+              - workInformation.employmentStatus
+              - workInformation.occupation
+              - workInformation.employer
+              - workInformation.businessName
+              - workInformation.workAddress
+              - workInformation.workPhone
+              - workInformation.yearsExperience
+              - proofOfIdentity.documentType
+              - proofOfIdentity.documentNumber
+              - proofOfIdentity.frontObjectPath
+              - proofOfIdentity.backObjectPath
+              - liveVideoRecording.consentAccepted
+              - liveVideoRecording.objectPath
+              - bankDetails.bankName
+              - bankDetails.accountHolder
+              - bankDetails.accountNumber
+              - bankDetails.accountType
         pageThemes:
           type: object
           additionalProperties:

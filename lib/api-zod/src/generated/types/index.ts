@@ -94,6 +94,7 @@ export * from './portalSettingsCardsItemId';
 export * from './portalSettingsCardsItemPinLogoAlignment';
 export * from './portalSettingsHero';
 export * from './portalSettingsPageThemes';
+export * from './portalSettingsRequiredFieldsItem';
 export * from './portalSettingsScreenCopy';
 export * from './portalSettingsTheme';
 export * from './portalSettingsThemeButtonPlacement';

@@ -46,6 +46,7 @@ export const ListMyApplicationsResponseItem = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -94,6 +95,7 @@ export const SubmitNewApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -121,6 +123,7 @@ export const CreateApplicationDraftResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -148,6 +151,7 @@ export const GetApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -190,6 +194,7 @@ export const UpdateApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -228,6 +233,7 @@ export const SubmitApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -330,7 +336,8 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
+  "outstandingRequirements": zod.array(zod.string()),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
 })
 
 
@@ -384,7 +391,8 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
+  "outstandingRequirements": zod.array(zod.string()),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
 })
 
 
@@ -433,7 +441,8 @@ export const UpdateGuestPreapplicationEmailResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
+  "outstandingRequirements": zod.array(zod.string()),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
 })
 
 
@@ -535,6 +544,7 @@ export const SubmitGuestPreapplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -596,7 +606,8 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
+  "outstandingRequirements": zod.array(zod.string()),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
 }).and(zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
@@ -664,7 +675,8 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
+  "outstandingRequirements": zod.array(zod.string()),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
 }).and(zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
@@ -775,6 +787,7 @@ export const ListApplicationsForReviewResponseItem = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -800,6 +813,7 @@ export const GetAdminApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -955,6 +969,8 @@ export const getPortalSettingsResponseCardsMax = 4;
 export const getPortalSettingsResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponseScreenCopyMaxTwo = 500;
 
+export const getPortalSettingsResponseRequiredFieldsMax = 46;
+
 export const getPortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponsePageThemesAngleMin = 0;
@@ -992,6 +1008,7 @@ export const GetPortalSettingsResponse = zod.object({
   "categoryInputTransparent": zod.boolean()
 }),
   "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(getPortalSettingsResponseScreenCopyMaxTwo))),
+  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(getPortalSettingsResponseRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
   "pageThemes": zod.record(zod.string(), zod.object({
   "mode": zod.enum(['inherit', 'solid', 'gradient']),
   "color": zod.string().regex(getPortalSettingsResponsePageThemesColorRegExp),
@@ -1037,6 +1054,8 @@ export const updatePortalSettingsBodyCardsMax = 4;
 export const updatePortalSettingsBodyThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyScreenCopyMaxTwo = 500;
 
+export const updatePortalSettingsBodyRequiredFieldsMax = 46;
+
 export const updatePortalSettingsBodyPageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyPageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyPageThemesAngleMin = 0;
@@ -1074,6 +1093,7 @@ export const UpdatePortalSettingsBody = zod.object({
   "categoryInputTransparent": zod.boolean()
 }),
   "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(updatePortalSettingsBodyScreenCopyMaxTwo))),
+  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(updatePortalSettingsBodyRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
   "pageThemes": zod.record(zod.string(), zod.object({
   "mode": zod.enum(['inherit', 'solid', 'gradient']),
   "color": zod.string().regex(updatePortalSettingsBodyPageThemesColorRegExp),
@@ -1118,6 +1138,8 @@ export const updatePortalSettingsResponseCardsMax = 4;
 export const updatePortalSettingsResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponseScreenCopyMaxTwo = 500;
 
+export const updatePortalSettingsResponseRequiredFieldsMax = 46;
+
 export const updatePortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponsePageThemesAngleMin = 0;
@@ -1155,6 +1177,7 @@ export const UpdatePortalSettingsResponse = zod.object({
   "categoryInputTransparent": zod.boolean()
 }),
   "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(updatePortalSettingsResponseScreenCopyMaxTwo))),
+  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(updatePortalSettingsResponseRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
   "pageThemes": zod.record(zod.string(), zod.object({
   "mode": zod.enum(['inherit', 'solid', 'gradient']),
   "color": zod.string().regex(updatePortalSettingsResponsePageThemesColorRegExp),
@@ -1260,6 +1283,7 @@ export const DecideApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
+  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()

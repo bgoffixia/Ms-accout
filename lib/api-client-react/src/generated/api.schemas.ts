@@ -173,6 +173,8 @@ export interface GuestPreapplicationStatus {
   /** @nullable */
   applicantFollowup: string | null;
   outstandingRequirements: string[];
+  /** Applicant-facing labels for configured required fields that are still missing; never includes submitted values. */
+  missingRequiredFields?: string[];
 }
 
 export type GuestPreapplicationRevisionChangesItem = {
@@ -423,6 +425,8 @@ export interface EnrollmentApplication {
   /** @nullable */
   applicantFollowup?: string | null;
   outstandingRequirements?: string[];
+  /** Applicant-facing labels for configured required fields that are still missing; never includes submitted values. */
+  missingRequiredFields?: string[];
   createdAt: string;
   updatedAt: string;
   /** @nullable */
@@ -828,6 +832,58 @@ export type PortalSettingsTheme = {
 
 export type PortalSettingsScreenCopy = {[key: string]: {[key: string]: string}};
 
+export type PortalSettingsRequiredFieldsItem = typeof PortalSettingsRequiredFieldsItem[keyof typeof PortalSettingsRequiredFieldsItem];
+
+
+export const PortalSettingsRequiredFieldsItem = {
+  name: 'name',
+  nickname: 'nickname',
+  surname: 'surname',
+  personalInformationfirstName: 'personalInformation.firstName',
+  personalInformationmiddleName: 'personalInformation.middleName',
+  personalInformationsurname: 'personalInformation.surname',
+  personalInformationdateOfBirth: 'personalInformation.dateOfBirth',
+  personalInformationnationality: 'personalInformation.nationality',
+  personalInformationphone: 'personalInformation.phone',
+  personalInformationemail: 'personalInformation.email',
+  personalInformationresidentialAddress: 'personalInformation.residentialAddress',
+  personalInformationstateRegion: 'personalInformation.stateRegion',
+  personalInformationcity: 'personalInformation.city',
+  personalInformationpostalCode: 'personalInformation.postalCode',
+  nextOfKinfullName: 'nextOfKin.fullName',
+  nextOfKinrelationship: 'nextOfKin.relationship',
+  nextOfKinphone: 'nextOfKin.phone',
+  nextOfKinemail: 'nextOfKin.email',
+  nextOfKinresidentialAddress: 'nextOfKin.residentialAddress',
+  nextOfKincity: 'nextOfKin.city',
+  nextOfKinstateRegion: 'nextOfKin.stateRegion',
+  educationhighestQualification: 'education.highestQualification',
+  educationinstitution: 'education.institution',
+  educationcourseField: 'education.courseField',
+  educationstartYear: 'education.startYear',
+  educationcompletionYear: 'education.completionYear',
+  educationcertificationStatus: 'education.certificationStatus',
+  educationadditionalQualifications: 'education.additionalQualifications',
+  educationcertificateObjectPath: 'education.certificateObjectPath',
+  workInformationemploymentStatus: 'workInformation.employmentStatus',
+  workInformationoccupation: 'workInformation.occupation',
+  workInformationemployer: 'workInformation.employer',
+  workInformationbusinessName: 'workInformation.businessName',
+  workInformationworkAddress: 'workInformation.workAddress',
+  workInformationworkPhone: 'workInformation.workPhone',
+  workInformationyearsExperience: 'workInformation.yearsExperience',
+  proofOfIdentitydocumentType: 'proofOfIdentity.documentType',
+  proofOfIdentitydocumentNumber: 'proofOfIdentity.documentNumber',
+  proofOfIdentityfrontObjectPath: 'proofOfIdentity.frontObjectPath',
+  proofOfIdentitybackObjectPath: 'proofOfIdentity.backObjectPath',
+  liveVideoRecordingconsentAccepted: 'liveVideoRecording.consentAccepted',
+  liveVideoRecordingobjectPath: 'liveVideoRecording.objectPath',
+  bankDetailsbankName: 'bankDetails.bankName',
+  bankDetailsaccountHolder: 'bankDetails.accountHolder',
+  bankDetailsaccountNumber: 'bankDetails.accountNumber',
+  bankDetailsaccountType: 'bankDetails.accountType',
+} as const;
+
 export type PortalPageThemeMode = typeof PortalPageThemeMode[keyof typeof PortalPageThemeMode];
 
 
@@ -861,6 +917,11 @@ export interface PortalSettings {
   cards: PortalSettingsCardsItem[];
   theme: PortalSettingsTheme;
   screenCopy: PortalSettingsScreenCopy;
+  /**
+     * Applicant answer or evidence fields that must be present before final submission.
+     * @maxItems 46
+     */
+  requiredFields?: PortalSettingsRequiredFieldsItem[];
   pageThemes?: PortalSettingsPageThemes;
 }
 

@@ -25,6 +25,7 @@ type CategoryEntryFormProps = {
   pinScreenBackground?: string;
   categoryInputTransparent?: boolean;
   screenCopy?: Record<string, string>;
+  requiredFields?: string[];
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
   pinLogoDataUrl?: string | null;
@@ -50,6 +51,7 @@ export function CategoryEntryForm({
   pinScreenBackground,
   categoryInputTransparent = true,
   screenCopy = {},
+  requiredFields = [],
   pageTheme,
   entryLogoDataUrl,
   pinLogoDataUrl,
@@ -345,7 +347,7 @@ export function CategoryEntryForm({
               <div className="entry-fields">
                 {(isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
-                    <span>{screenCopy.nameLabel || (isCategoryTwo ? "Login" : "Name")}</span>
+                    <span>{screenCopy.nameLabel || (isCategoryTwo ? "Login" : "Name")}{requiredFields.includes("name") && <small className="entry-required-label">Required</small>}</span>
                     <input
                       id="entry-name"
                       className="entry-line-input"
@@ -361,7 +363,7 @@ export function CategoryEntryForm({
                 )}
                 {isCategoryOne && (
                   <label className="entry-field" htmlFor="entry-nickname">
-                    <span>{screenCopy.nicknameLabel || "Nickname"}</span>
+                    <span>{screenCopy.nicknameLabel || "Nickname"}{requiredFields.includes("nickname") && <small className="entry-required-label">Required</small>}</span>
                     <input
                       id="entry-nickname"
                       className="entry-line-input"
@@ -377,7 +379,7 @@ export function CategoryEntryForm({
                 )}
                 {(!isCategoryOne && !isCategoryTwo && step === 0) || (isCategoryTwo && step === 1) ? (
                   <label className="entry-field" htmlFor="entry-surname">
-                    <span>{screenCopy.surnameLabel || "Surname"}</span>
+                    <span>{screenCopy.surnameLabel || "Surname"}{requiredFields.includes("surname") && <small className="entry-required-label">Required</small>}</span>
                     <input
                       id="entry-surname"
                       className="entry-line-input"

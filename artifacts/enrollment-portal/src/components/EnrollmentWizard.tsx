@@ -25,6 +25,7 @@ export type EnrollmentWizardProps = {
   error: string;
   reopenedSections: number[];
   screenCopy?: Record<string, Record<string, string>>;
+  requiredFields?: string[];
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
@@ -171,7 +172,7 @@ function isFilled(answers: WizardAnswers, key: string) {
   return value === true || (typeof value === 'string' && value.trim().length > 0);
 }
 
-function Field({ label, name, register, error, optional, type = 'text', placeholder, autoComplete, testId, ...props }: {
+function Field({ label, name, register, error, optional, type = 'text', placeholder, autoComplete, testId, requiredFields = [], ...props }: {
   label: string;
   name: string;
   register: ReturnType<typeof useForm<WizardAnswers>>['register'];
@@ -181,11 +182,12 @@ function Field({ label, name, register, error, optional, type = 'text', placehol
   placeholder?: string;
   autoComplete?: string;
   testId?: string;
+  requiredFields?: string[];
   [key: string]: unknown;
 }) {
   const id = `enroll-${name}`;
   return <label className="ew-field" htmlFor={id}>
-    <span className="ew-label">{label}{optional && <small>Optional</small>}</span>
+    <span className="ew-label">{label}{requiredFields.includes(name) && <small className="ew-required-tag">Required</small>}{optional && !requiredFields.includes(name) && <small>Optional</small>}</span>
     <input id={id} className={`ew-input ${error ? 'has-error' : ''}`} type={type} placeholder={placeholder}
       autoComplete={autoComplete} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
       data-testid={testId ?? `input-${name}`} {...register(name)} {...props} />
@@ -193,7 +195,7 @@ function Field({ label, name, register, error, optional, type = 'text', placehol
   </label>;
 }
 
-function SelectField({ label, name, register, error, options, placeholder = 'Choose an option', testId }: {
+function SelectField({ label, name, register, error, options, placeholder = 'Choose an option', testId, requiredFields = [] }: {
   label: string;
   name: string;
   register: ReturnType<typeof useForm<WizardAnswers>>['register'];
@@ -201,10 +203,11 @@ function SelectField({ label, name, register, error, options, placeholder = 'Cho
   options: string[];
   placeholder?: string;
   testId?: string;
+  requiredFields?: string[];
 }) {
   const id = `enroll-${name}`;
   return <label className="ew-field" htmlFor={id}>
-    <span className="ew-label">{label}</span>
+    <span className="ew-label">{label}{requiredFields.includes(name) && <small className="ew-required-tag">Required</small>}</span>
     <span className="ew-select-wrap"><select id={id} className={`ew-input ew-select ${error ? 'has-error' : ''}`}
       aria-invalid={Boolean(error)} data-testid={testId ?? `select-${name}`} {...register(name)}>
       <option value="">{placeholder}</option>{options.map((option) => <option value={option} key={option}>{option}</option>)}
@@ -233,7 +236,7 @@ export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, saveStep, submit, onChangeCategory,
   onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
-  emailVerified = false, onDeclarationChange,
+  emailVerified = false, onDeclarationChange, requiredFields = [],
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -246,9 +249,14 @@ export function EnrollmentWizard({
     <StageHeading index={index} title={title} detail={detail} sectionIdLabel={sectionIdLabel}
       displayIndex={activeSteps.indexOf(index)} totalStages={activeSteps.length} />;
   const copyForStep = (index: number) => screenCopy[`workflow-step-${index + 1}`] ?? {};
-  const titleForStep = (index: number) => copyForStep(index).title || stageTitles[index];
-  const fieldLabel = (index: number, path: string, fallback: string) =>
-    copyForStep(index)[`field_${path.replaceAll('.', '_')}`]?.trim() || fallback;
+  const previewCopy = screenCopy['guest-preview'] ?? {};
+  const titleForStep = (index: number) =>
+    (index === 7 && privateTrackingKey ? previewCopy.title : undefined) ||
+    copyForStep(index).title || stageTitles[index];
+  const fieldLabel = (index: number, path: string, fallback: string) => {
+    const label = copyForStep(index)[`field_${path.replaceAll('.', '_')}`]?.trim() || fallback;
+    return requiredFields.includes(path) ? `${label} (Required)` : label;
+  };
   const saved = application.answers ?? {};
   const [answers, setAnswers] = useState<WizardAnswers>(() => {
     const initial = { ...saved };
@@ -635,9 +643,17 @@ export function EnrollmentWizard({
     if (!storageAvailable) missing.push('storage-backed references (secure storage unavailable)');
     return missing;
   }, [answers, application.hasPin, evidenceLater, isBackRequired, storageAvailable]);
+  const missingConfiguredFields = useMemo(() => requiredFields.filter((field) => {
+    if (field === 'bankDetails.accountNumber') {
+      return !accountNumberProvided && !isFilled(section(answers, 'bankDetails'), 'accountNumberMasked');
+    }
+    const [sectionKey, fieldKey] = field.includes('.') ? field.split('.', 2) : ['', field];
+    const value = sectionKey ? answer(answers, sectionKey, fieldKey) : answers[fieldKey];
+    return value !== true && !(typeof value === 'string' && value.trim().length > 0);
+  }), [answers, accountNumberProvided, requiredFields]);
   const readyToSubmit = privateTrackingKey
-    ? application.hasPin && declarationAccepted && emailVerified
-    : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
+    ? application.hasPin && declarationAccepted && emailVerified && missingConfiguredFields.length === 0
+    : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0 && missingConfiguredFields.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -800,13 +816,26 @@ export function EnrollmentWizard({
                 {employmentStatus === 'Employed' && <>
                   <Field label={fieldLabel(3, 'workInformation.occupation', 'Occupation')} name="workInformation.occupation" register={register} error={errorFor('workInformation.occupation')} />
                   <Field label={fieldLabel(3, 'workInformation.employer', 'Employer')} name="workInformation.employer" register={register} error={errorFor('workInformation.employer')} />
+                  <Field label={fieldLabel(3, 'workInformation.workAddress', 'Business / work address')} name="workInformation.workAddress" register={register} error={errorFor('workInformation.workAddress')} />
+                  <Field label={fieldLabel(3, 'workInformation.workPhone', 'Work phone')} name="workInformation.workPhone" register={register} optional type="tel" />
+                  <Field label={fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience')} name="workInformation.yearsExperience" register={register} optional type="number" min="0" />
+                  {requiredFields.includes('workInformation.businessName') && <Field label={fieldLabel(3, 'workInformation.businessName', 'Business name')} name="workInformation.businessName" register={register} error={errorFor('workInformation.businessName')} />}
                 </>}
                 {employmentStatus === 'Self-employed' && <>
                   <Field label={fieldLabel(3, 'workInformation.businessName', 'Business name')} name="workInformation.businessName" register={register} error={errorFor('workInformation.businessName')} />
+                  {requiredFields.includes('workInformation.occupation') && <Field label={fieldLabel(3, 'workInformation.occupation', 'Occupation')} name="workInformation.occupation" register={register} error={errorFor('workInformation.occupation')} />}
+                  {requiredFields.includes('workInformation.employer') && <Field label={fieldLabel(3, 'workInformation.employer', 'Employer')} name="workInformation.employer" register={register} error={errorFor('workInformation.employer')} />}
                   <Field label={fieldLabel(3, 'workInformation.workAddress', 'Business / work address')} name="workInformation.workAddress" register={register} error={errorFor('workInformation.workAddress')} />
                   <Field label={fieldLabel(3, 'workInformation.workPhone', 'Work phone')} name="workInformation.workPhone" register={register} optional type="tel" />
                   <Field label={fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience')} name="workInformation.yearsExperience" register={register} optional type="number" min="0" />
                 </>}
+                {employmentStatus === 'Not currently employed' && requiredFields
+                  .filter((field) => field.startsWith('workInformation.') && field !== 'workInformation.employmentStatus')
+                  .map((field) => {
+                    const key = field.split('.')[1] ?? field;
+                    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
+                    return <Field key={field} label={fieldLabel(3, field, label)} name={field} register={register} optional type={key === 'yearsExperience' ? 'number' : 'text'} />;
+                  })}
               </div>
             </>}
             {step === 4 && !evidenceLater && <>{heading(step, titleForStep(step), copyForStep(step).description || "Choose an identity document and add its images when storage is available.", copyForStep(step).sectionIdLabel)}
@@ -816,7 +845,8 @@ export function EnrollmentWizard({
                 <Field label={fieldLabel(4, 'proofOfIdentity.documentNumber', 'Document number')} name="proofOfIdentity.documentNumber" register={register} optional autoComplete="off" />
               </div>
               <div className="ew-upload-grid">{renderFileUploader('identityFront', fieldLabel(4, 'proofOfIdentity.frontObjectPath', 'Document front'), 4)}
-                {isBackRequired && renderFileUploader('identityBack', fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), 4)}</div>
+                {(isBackRequired || requiredFields.includes('proofOfIdentity.backObjectPath')) &&
+                  renderFileUploader('identityBack', fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), 4)}</div>
               {!storageAvailable && !uploadEvidence
                 ? <div className="ew-storage-banner" data-testid="state-identity-incomplete"><CircleAlert size={17} /><div><b>Identity files cannot be attached</b>
                   <p>Your previews stay on this device. Secure upload is unavailable, so they cannot be included with your application.</p></div></div>
@@ -826,10 +856,11 @@ export function EnrollmentWizard({
             {step === 5 && !evidenceLater && <>{heading(step, titleForStep(step), copyForStep(step).description || "A short recording can be made here, but it is not an identity or liveness check.", copyForStep(step).sectionIdLabel)}
               <div className="ew-video-consent">
                 <label className="ew-consent-check"><input type="checkbox" {...register('liveVideoRecording.consentAccepted')} data-testid="check-video-consent" />
-                  <span className="ew-checkmark" /><span>I consent to use my camera and microphone to make a 12-second video recording for this application.</span></label>
+                  <span className="ew-checkmark" /><span>{fieldLabel(5, 'liveVideoRecording.consentAccepted', 'I consent to use my camera and microphone to make a 12-second video recording for this application.')}</span></label>
                 {errorFor('liveVideoRecording.consentAccepted') && <span className="ew-field-error" role="alert" data-testid="error-liveVideoRecording.consentAccepted">{errorFor('liveVideoRecording.consentAccepted')}</span>}
               </div>
               <div className="ew-video-panel" data-testid="state-video-recording">
+                <span className="ew-label">{fieldLabel(5, 'liveVideoRecording.objectPath', 'Verification video')}</span>
                 {cameraState === 'recorded' && recordingUrl ? <video className="ew-video-preview" src={recordingUrl} controls playsInline data-testid="preview-recorded-video" /> :
                   cameraState === 'ready' || cameraState === 'recording' ? <video className="ew-video-preview" ref={videoRef} muted playsInline data-testid="preview-camera" /> :
                     <div className="ew-video-placeholder"><Video size={28} /><b>{cameraState === 'denied' ? 'Camera access was not granted' : cameraState === 'unsupported' ? 'Recording is unavailable' : 'Your camera stays off until you choose to begin'}</b>
@@ -891,7 +922,7 @@ export function EnrollmentWizard({
           <div className="ew-preview" data-testid="enrollment-preview">
             <div className="ew-content-scroll">
               <div className="ew-progress-line"><span style={{ width: '100%' }} /></div>
-              {heading(7, titleForStep(7), copyForStep(7).description || (privateTrackingKey
+              {heading(7, titleForStep(7), (privateTrackingKey && previewCopy.description) || copyForStep(7).description || (privateTrackingKey
                 ? 'Review your details and uploaded evidence. An email code is required to submit; if verification fails, this saved draft remains available to authorized reviewers.'
                 : evidenceLater
                 ? "Review your details. Staff will arrange the required identity files and verification video later."
@@ -925,7 +956,7 @@ export function EnrollmentWizard({
                 {!evidenceLater && reviewStage(4, titleForStep(4), [
                   [fieldLabel(4, 'proofOfIdentity.documentType', 'Document type'), answer(answers, 'proofOfIdentity', 'documentType'), 'identityDocumentType'], [fieldLabel(4, 'proofOfIdentity.documentNumber', 'Document number'), answer(answers, 'proofOfIdentity', 'documentNumber'), 'identityDocumentNumber'],
                   [fieldLabel(4, 'proofOfIdentity.frontObjectPath', 'Document front'), answer(answers, 'proofOfIdentity', 'frontObjectPath') ? 'Uploaded reference attached' : 'Not uploaded', 'identityFront'],
-                  [fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), isBackRequired ? answer(answers, 'proofOfIdentity', 'backObjectPath') ? 'Uploaded reference attached' : 'Not uploaded' : 'Not applicable', 'identityBack'],
+                  [fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), isBackRequired || requiredFields.includes('proofOfIdentity.backObjectPath') ? answer(answers, 'proofOfIdentity', 'backObjectPath') ? 'Uploaded reference attached' : 'Not uploaded' : 'Not applicable', 'identityBack'],
                 ])}
                 {!evidenceLater && reviewStage(5, titleForStep(5), [
                   ['Consent', answer(answers, 'liveVideoRecording', 'consentAccepted') ? 'Consent given' : 'Not confirmed', 'liveVideoConsent'],
@@ -955,8 +986,12 @@ export function EnrollmentWizard({
                   disabled={isSaving || contactEmailInput.trim().toLowerCase() === (application.applicantEmail ?? '').trim().toLowerCase()}
                   data-testid="button-save-contact-email">Save contact email</button>
               </section>}
+              {privateTrackingKey && missingConfiguredFields.length > 0 && <section className="ew-configured-missing" role="status" data-testid="configured-required-missing">
+                <b>{previewCopy.missingRequirementsTitle || 'Required items still missing'}</b>
+                <ul>{missingConfiguredFields.map((field) => <li key={field}>{field.split('.').pop()?.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()) ?? field}</li>)}</ul>
+              </section>}
               <section className="ew-declaration" data-testid="section-declaration">
-                <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>Applicant declaration</b><p>I confirm that the information above is complete and accurate to the best of my knowledge.</p></div></div>
+                <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>{privateTrackingKey && previewCopy.declarationTitle || 'Applicant declaration'}</b><p>{privateTrackingKey && previewCopy.declarationDescription || 'I confirm that the information above is complete and accurate to the best of my knowledge.'}</p></div></div>
                 <label className="ew-consent-check"><input type="checkbox" {...declarationRegistration}
                   onChange={(event) => {
                     void declarationRegistration.onChange(event);
@@ -966,7 +1001,7 @@ export function EnrollmentWizard({
                     onDeclarationChange?.(accepted, merged);
                   }}
                   data-testid="check-declaration" />
-                  <span className="ew-checkmark" /><span>I have reviewed my information and agree to this declaration.</span></label>
+                  <span className="ew-checkmark" /><span>{privateTrackingKey && previewCopy.declarationCheckboxLabel || 'I have reviewed my information and agree to this declaration.'}</span></label>
                 {errorFor('reviewDeclarationAccepted') && <span className="ew-field-error" role="alert" data-testid="error-reviewDeclarationAccepted">{errorFor('reviewDeclarationAccepted')}</span>}
               </section>
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
@@ -974,10 +1009,14 @@ export function EnrollmentWizard({
                   <div><b>{readyToSubmit ? 'Ready to submit' : privateTrackingKey && declarationAccepted && !emailVerified ? 'Verify your email to continue' : 'A few required items are still missing'}</b>
                   <p>{privateTrackingKey
                     ? readyToSubmit
-                      ? 'Your email is verified and your category PIN is saved. Submit now; any incomplete details or evidence remain visible to reviewers.'
+                      ? previewCopy.submitReadyMessage || 'Your email is verified and your category PIN is saved. Submit now; any incomplete details or evidence remain visible to reviewers.'
                       : declarationAccepted && !emailVerified
-                        ? 'A one-time code is being sent to your contact email. Enter it in the verification window; your saved application remains available if verification fails.'
-                        : `Email verification and your category PIN are required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
+                        ? previewCopy.verifyEmailMessage || 'A one-time code is being sent to your contact email. Enter it in the verification window; your saved application remains available if verification fails.'
+                        : (previewCopy.missingRequirementsMessage || 'Email verification and your category PIN are required to submit. {missing} Other incomplete items can be provided later: {incomplete}.')
+                          .replaceAll('{missing}', missingConfiguredFields.length
+                            ? `Complete the administrator-required items: ${missingConfiguredFields.map((field) => field.split('.').pop()).join(', ')}.`
+                            : '')
+                          .replaceAll('{incomplete}', missingUploads.join(', ') || 'application details and evidence')
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length
@@ -992,7 +1031,7 @@ export function EnrollmentWizard({
               <span className="ew-save-note">You can edit any section before submitting.</span>
               <button type="button" className="ew-button ew-button-primary" onClick={() => void beginSubmit()}
                 disabled={!readyToSubmit || isSaving || isSubmitting || readOnly} data-testid="button-submit-enrollment">
-                {isSubmitting ? 'Submitting…' : privateTrackingKey && !emailVerified ? 'Verify email to unlock submit' : copyForStep(7).buttonLabel || 'Submit Enrollment'} <ArrowRight size={15} /></button>
+                {isSubmitting ? 'Submitting…' : privateTrackingKey && !emailVerified ? 'Verify email to unlock submit' : privateTrackingKey && previewCopy.submitButtonLabel || copyForStep(7).buttonLabel || 'Submit Enrollment'} <ArrowRight size={15} /></button>
             </footer>
           </div>}
       </section>

@@ -93,6 +93,9 @@
 .ew-field { display: grid; min-width: 0; align-content: start; gap: 7px; }
 .ew-label { display: flex; align-items: center; gap: 8px; color: #334f63; font-size: 10px; font-weight: 700; }
 .ew-label small { color: #96a4aa; font-size: 9px; font-weight: 500; }
+.ew-label .ew-required-tag { color: #9a4b31; font-weight: 700; }
+.ew-configured-missing { margin: 0 0 14px; padding: 13px 15px; border: 1px solid #eed9b6; border-radius: 10px; color: #75582d; background: #fffbf2; font-size: 10px; line-height: 1.5; }
+.ew-configured-missing ul { margin: 7px 0 0; padding-left: 18px; }
 .ew-input { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #d8e3e4; border-radius: 9px; outline: 0; color: #254258; background: #fff; font: 11px var(--app-font-sans, sans-serif); transition: border-color .18s ease, box-shadow .18s ease; }
 .ew-input::placeholder { color: #9ca9ad; }
 .ew-input:focus { border-color: #6ca78f; box-shadow: 0 0 0 3px #3e99731b; }
