@@ -1964,6 +1964,7 @@ type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
 const guestDashboardStartSchema = guestApplicationSchema;
 const GUEST_DASHBOARD_CONTACT_KEY = 'guest-dashboard-contact';
 const GUEST_DASHBOARD_START_KEY = 'guest-dashboard-start';
+const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = 'guest-dashboard-pending-category';
 const GUEST_APPLICATION_RESUME_KEY = 'guest-application-resume';
 const GUEST_APPLICATION_AUTH_CONTEXT_KEY = 'guest-application-auth-context';
 const guestAuthContextSchema = z.object({
@@ -2047,7 +2048,12 @@ function PublicApplicantDashboard() {
   const chooseCategory = (categoryId: string) => {
     setStartError('');
     if (!contact) {
-      setLocation('/guest/apply');
+      try {
+        window.sessionStorage.setItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY, categoryId);
+        setLocation('/guest/apply');
+      } catch {
+        setStartError('Your category could not be saved in this browser. Enable session storage and try again.');
+      }
       return;
     }
     const start = guestDashboardStartSchema.safeParse({ ...contact, categoryId });
@@ -2112,7 +2118,7 @@ function PublicApplicantDashboard() {
                           ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" />
                           : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
                 <span className="category-title">{cardSettings?.title ?? category.name}</span>
-                <span className="category-select">{contact ? 'Start application' : 'Enter contact details'} <ArrowUpRight size={15} /></span>
+                <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
               </button>;
             })}
           </div>}
@@ -2128,9 +2134,7 @@ function PublicApplicantDashboard() {
 }
 
 function ApplicantDashboardRoute() {
-  const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the applicant dashboard" /></main>;
-  return isSignedIn ? <Dashboard /> : <PublicApplicantDashboard />;
+  return <PublicApplicantDashboard />;
 }
 
 function clerkMessage(error: unknown) {
@@ -2311,10 +2315,9 @@ function GuestApplicationPage() {
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
   const [applicationAnswers, setApplicationAnswers] = useState<Record<string, unknown>>({});
   const [copied, setCopied] = useState(false);
-  const [stage, setStage] = useState<'contact' | 'category' | 'key' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
+  const [stage, setStage] = useState<'contact' | 'category' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState('');
-  const [startedFromDashboard, setStartedFromDashboard] = useState(false);
   const [progressError, setProgressError] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
   const [verificationOpen, setVerificationOpen] = useState(false);
@@ -2322,6 +2325,7 @@ function GuestApplicationPage() {
   const [resumeLoading, setResumeLoading] = useState(false);
   const resumeStarted = useRef(false);
   const dashboardStartStarted = useRef(false);
+  const [dashboardStartValues, setDashboardStartValues] = useState<GuestApplicationValues | null>(null);
   const [pendingSubmission, setPendingSubmission] = useState<{
     fingerprint: string;
     input: GuestPreapplicationInput;
@@ -2396,26 +2400,6 @@ function GuestApplicationPage() {
     }).finally(() => setResumeLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (dashboardStartStarted.current) return;
-    if (new URLSearchParams(window.location.search).get('dashboardStart') !== '1') return;
-    dashboardStartStarted.current = true;
-    let storedStart: unknown;
-    try {
-      storedStart = JSON.parse(window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? 'null');
-    } catch {
-      storedStart = null;
-    }
-    const start = guestDashboardStartSchema.safeParse(storedStart);
-    if (!start.success) {
-      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
-      return;
-    }
-    form.reset(start.data);
-    setStartedFromDashboard(true);
-    setStage('category');
-  }, []);
-
   const saveGuestProgress = async (
     answers: Record<string, unknown>,
     currentStep: number,
@@ -2488,6 +2472,7 @@ function GuestApplicationPage() {
 
   const continueToCategory = async () => {
     setIsContinuing(true);
+    let startAfterContact = false;
     const contactDetails = guestContactSchema.safeParse({
       fullName: form.getValues('fullName'),
       email: form.getValues('email'),
@@ -2499,7 +2484,23 @@ function GuestApplicationPage() {
     }
     try {
       window.sessionStorage.setItem(GUEST_DASHBOARD_CONTACT_KEY, JSON.stringify(contactDetails.data));
-      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+      const pendingCategoryId = window.sessionStorage.getItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+      if (pendingCategoryId) {
+        const start = guestDashboardStartSchema.safeParse({ ...contactDetails.data, categoryId: pendingCategoryId });
+        if (!start.success) {
+          window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+          setContactSaveError('Your selected category could not be restored. Return to the dashboard and choose it again.');
+          setIsContinuing(false);
+          return;
+        }
+        window.sessionStorage.setItem(GUEST_DASHBOARD_START_KEY, JSON.stringify(start.data));
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+        dashboardStartStarted.current = false;
+        setDashboardStartValues(start.data);
+        startAfterContact = true;
+      } else {
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+      }
     } catch {
       setContactSaveError('Your details could not be saved in this browser. Enable session storage and try again.');
       setIsContinuing(false);
@@ -2507,7 +2508,12 @@ function GuestApplicationPage() {
     }
     setContactSaveError('');
     setIsContinuing(false);
-    setLocation('/dashboard');
+    if (startAfterContact) {
+      setStage('category');
+      setLocation('/guest/apply?dashboardStart=1');
+    } else {
+      setLocation('/dashboard');
+    }
   };
 
   const onSubmit = async (values: GuestApplicationValues) => {
@@ -2545,6 +2551,7 @@ function GuestApplicationPage() {
       try {
         window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
         window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
       } catch {
         // Keep the successful application visible even if browser storage cleanup fails.
       }
@@ -2555,12 +2562,38 @@ function GuestApplicationPage() {
         setProgressError('Your private key could not be saved for this session. Copy it before continuing.');
       }
       setApplicationAnswers({});
-      setStage('key');
+      setStage('categoryEntry');
       setPendingSubmission(null);
+      setDashboardStartValues(null);
+      dashboardStartStarted.current = false;
     } catch {
       // Keep the same key and submission ID in memory so a retry is idempotent.
     }
   };
+
+  useEffect(() => {
+    if (dashboardStartStarted.current) return;
+    if (new URLSearchParams(window.location.search).get('dashboardStart') !== '1') return;
+    let storedStart: unknown;
+    try {
+      storedStart = JSON.parse(window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? 'null');
+    } catch {
+      storedStart = null;
+    }
+    const start = guestDashboardStartSchema.safeParse(storedStart);
+    if (!start.success) {
+      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
+      return;
+    }
+    setDashboardStartValues(start.data);
+  }, []);
+
+  useEffect(() => {
+    if (!dashboardStartValues || dashboardStartStarted.current) return;
+    dashboardStartStarted.current = true;
+    setStage('category');
+    void onSubmit(dashboardStartValues);
+  }, [dashboardStartValues]);
 
   const uploadGuestEvidence = async (
     file: File,
@@ -2736,27 +2769,24 @@ function GuestApplicationPage() {
           <h2 id="guest-apply-heading">This application is closed.</h2>
           <p>Contact the enrollment team if you believe this was closed in error.</p>
           <Link href="/guest/track" className="button button-primary guest-success-track">Return to status lookup <ArrowRight size={16} /></Link>
-        </div> : stage === 'key' && created ? <div className="guest-success" data-testid="guest-tracking-key-step">
-          <span className="guest-success-mark"><LockKeyhole size={20} /></span>
-          <div className="eyebrow">SAVE YOUR PRIVATE KEY</div>
-          <h2 id="guest-apply-heading">Keep access to your application.</h2>
-          <p>You can resume without an account using this key and your application reference. Save both before continuing.</p>
-          <div className="guest-reference-box">
-            <span>APPLICATION REFERENCE</span>
-            <strong data-testid="text-guest-reference">{created.application.reference}</strong>
-          </div>
-          <div className="guest-key-box">
-            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
-            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
-            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
-              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
-            </button>
-          </div>
-          <p className="guest-key-warning">This key is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
-          <button type="button" className="button button-primary guest-success-track" onClick={() => setStage('categoryEntry')} data-testid="button-continue-to-category-details">Continue to category details <ArrowRight size={16} /></button>
         </div> : stage === 'categoryEntry' && created ? <>
           <div className="guest-form-topline"><span>CATEGORY DETAILS</span><span>STEP 3 OF 4</span></div>
           {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
+          <div className="guest-access-reminder" data-testid="guest-tracking-key-step">
+            <div className="guest-access-reminder-copy"><LockKeyhole size={15} /><span>Save these details to securely resume later.</span></div>
+            <div className="guest-reference-box">
+              <span>APPLICATION REFERENCE</span>
+              <strong data-testid="text-guest-reference">{created.application.reference}</strong>
+            </div>
+            <div className="guest-key-box">
+              <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
+              <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
+              <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
+                {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
+              </button>
+            </div>
+            <p className="guest-key-warning">Keep the key private. It is not emailed and cannot be recovered if lost.</p>
+          </div>
           <CategoryEntryForm
             categoryId={created.application.categoryId}
             reference={created.application.reference}
@@ -2785,11 +2815,22 @@ function GuestApplicationPage() {
               if (await saveGuestProgress(nextAnswers, 0, false, pin)) setStage('application');
             }}
           />
-        </> : <>
-          <div className="guest-form-topline"><span>APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 4' : 'STEP 2 OF 4'}</span></div>
+        </> : stage === 'category' ? <div className="guest-starting-category" role="status" data-testid="guest-application-starting">
+          <span className="guest-success-mark">{createGuest.isError ? <LockKeyhole size={20} /> : <ArrowRight size={20} />}</span>
+          <div className="eyebrow">{createGuest.isError ? 'APPLICATION NOT STARTED' : 'OPENING YOUR APPLICATION'}</div>
+          <h2 id="guest-apply-heading">{createGuest.isError ? 'We couldn’t start this application.' : 'Preparing your category form…'}</h2>
+          <p>{createGuest.isError
+            ? 'Your category selection and contact details are saved. Retry to continue without creating a duplicate.'
+            : 'Your secure application is being prepared. This usually takes a moment.'}</p>
+          {createGuest.isError && dashboardStartValues && <button type="button" className="button button-primary guest-success-track" onClick={() => void onSubmit(dashboardStartValues)} disabled={createGuest.isPending}>
+            Retry application setup <ArrowRight size={16} />
+          </button>}
+          {createGuest.isError && <button type="button" className="text-action" onClick={() => setLocation('/dashboard')}>Choose another category</button>}
+        </div> : <>
+          <div className="guest-form-topline"><span>APPLICATION</span><span>STEP 1 OF 4</span></div>
           {stage === 'contact' ? <>
             <h2 id="guest-apply-heading">Your contact details</h2>
-            <p className="guest-form-subtitle">Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.</p>
+            <p className="guest-form-subtitle">Start with only your name and email. You’ll continue to the public category dashboard.</p>
             {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
@@ -2803,58 +2844,11 @@ function GuestApplicationPage() {
                   <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : 'Continue to dashboard'} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : 'Continue to categories'} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
             </Form>
-          </> : <>
-            <h2 id="guest-apply-heading">{startedFromDashboard ? 'Confirm your category' : 'Choose your category'}</h2>
-            <p className="guest-form-subtitle">{startedFromDashboard
-              ? 'Confirm the category you chose on the applicant dashboard to start your account-free application.'
-              : 'Select the enrollment category, then continue to your account-free application details.'}</p>
-            {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
-              categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
-                <p>Enrollment categories could not be loaded.</p>
-                <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-categories">Try again <ArrowRight size={14} /></button>
-                <button type="button" className="text-action" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back to contact details</button>
-              </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status" data-testid="guest-category-empty">
-                <p>No enrollment categories are available right now.</p>
-                <button type="button" className="text-action" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back to contact details</button>
-              </div> :
-              <Form {...form}>
-                <form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-                  <div className="guest-contact-summary">
-                    <span>CONTACT DETAILS</span>
-                    <strong>{form.getValues('fullName')}</strong>
-                    <small>{form.getValues('email')}</small>
-                  </div>
-                  <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem className="guest-field">
-                    <FormLabel>Enrollment category</FormLabel>
-                    <FormControl><select {...field} id="guest-category" className="guest-select" data-testid="select-guest-category">
-                      <option value="">Select a category</option>
-                      {(categories.data ?? []).map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
-                    </select></FormControl><FormMessage />
-                  </FormItem>} />
-                  {createGuest.isError && <div className="guest-inline-error" role="alert" data-testid="guest-submit-error">
-                    <p>We couldn’t confirm receipt. Retry with the same details to safely reuse this submission attempt.</p>
-                    <button type="button" className="text-action" onClick={() => {
-                      if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate application. Continue?')) return;
-                      setPendingSubmission(null);
-                      setRetryMismatch(false);
-                      createGuest.reset();
-                    }} data-testid="button-reset-guest-attempt">Start over with different details</button>
-                  </div>}
-                  {retryMismatch && <p className="guest-inline-error" role="alert" data-testid="guest-retry-mismatch">This request may already have been received. Restore the same details to retry safely, or use “Start over” if you accept that a duplicate may be created.</p>}
-                  <div className="guest-step-actions">
-                    <button type="button" className="button button-quiet" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back</button>
-                    <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-submit-guest-application">
-                      {createGuest.isPending ? 'Starting your application…' : createGuest.isError ? 'Retry application setup' : startedFromDashboard ? 'Start account-free application' : 'Continue to category details'} <ArrowRight size={16} />
-                    </button>
-                  </div>
-                  <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
-                </form>
-              </Form>}
           </>}
         </>}
       </section>
