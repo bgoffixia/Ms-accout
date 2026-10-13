@@ -2240,14 +2240,14 @@ function PublicApplicantDashboard() {
           title={copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.')}
           detail={copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.')}
         />
-        {contact ? <div className="guest-dashboard-contact">
+        {contact && <div className="guest-dashboard-contact">
           <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
           <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">Change details</button>
-        </div> : <p className="guest-dashboard-contact-hint">You can browse categories now. Enter your name and email when you’re ready to start.</p>}
+        </div>}
         {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
         <section className="selection-section rise-delay">
           <div className="section-line">
-            <div><h2>Enrollment categories</h2><p>Choose the option that best matches your application.</p></div>
+            <div><h2>Enrollment categories</h2><p>Select a category to continue.</p></div>
             <span className="step-indicator">START HERE</span>
           </div>
           {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :

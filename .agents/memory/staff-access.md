@@ -7,4 +7,8 @@ Two specifically authorized accounts may self-register through the staff route o
 
 **Why:** The user assigned separate management and enrollment-review responsibilities to the two allowlisted self-signup accounts.
 
-**How to apply:** Keep the allowlist and role mapping on the server, require verified primary email before role assignment, enforce these restrictions in API routes as well as navigation, and keep all other staff role assignment invitation-only.
+Public/shared applicant pages must not display staff/admin entry links or role names, even when an authorized staff member visits a public route. Hiding links is only presentation; protected routes and APIs remain authoritative.
+
+**Why:** The user wants applicants to use the shared dashboard without exposing role-based access or restricted staff controls.
+
+**How to apply:** Keep the allowlist and role mapping on the server, require verified primary email before role assignment, enforce restrictions in API routes, omit staff links from public applicant layouts, and keep all other staff role assignment invitation-only.

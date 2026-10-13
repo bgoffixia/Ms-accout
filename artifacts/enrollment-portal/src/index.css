@@ -3056,18 +3056,29 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   }
 
   .dashboard-page-content .category-card {
-    min-height: clamp(80px, 12vh, 96px);
-    padding: 7px 9px;
+    min-height: 72px;
+    padding: 6px 8px;
+  }
+
+  .dashboard-page-content .category-logo {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 3px;
   }
 
   .dashboard-page-content .category-one-default-logo {
-    width: clamp(70px, 24vw, 100px);
-    height: 32px;
+    width: clamp(64px, 22vw, 84px);
+    height: 26px;
+  }
+
+  .dashboard-page-content .category-title {
+    font-size: 11px;
+    line-height: 1.12;
   }
 
   .dashboard-page-content .category-select {
     gap: 3px;
-    padding-top: 4px;
+    padding-top: 3px;
     font-size: 8px;
   }
 
@@ -3094,6 +3105,31 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
   .dashboard-page-content .help-card p,
   .dashboard-page-content .help-card .text-action {
+    font-size: 8px;
+  }
+
+  .dashboard-page-content .guest-dashboard-contact {
+    min-height: 38px;
+    margin-bottom: 5px;
+    padding: 5px 8px;
+  }
+
+  .dashboard-page-content .guest-dashboard-contact > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 6px;
+  }
+
+  .dashboard-page-content .guest-dashboard-contact span {
+    display: none;
+  }
+
+  .dashboard-page-content .guest-dashboard-contact strong {
+    font-size: 9px;
+  }
+
+  .dashboard-page-content .guest-dashboard-contact small {
     font-size: 8px;
   }
 }

@@ -244,6 +244,7 @@ async function expectNoDocumentOverflow(page: Page) {
     const shell = document.querySelector<HTMLElement>(".ew-shell");
     const previewScroll = document.querySelector<HTMLElement>(".ew-preview .ew-content-scroll");
     const singlePage = document.querySelector<HTMLElement>(".category-entry-screen")
+      ?? document.querySelector<HTMLElement>(".dashboard-page-content > .dashboard-layout")
       ?? document.querySelector<HTMLElement>(".guest-dashboard-shell");
     const geometry = (element: HTMLElement | null) => element ? {
       className: element.className,
@@ -327,7 +328,9 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
       await page.goto(path);
       await expect(page.locator(".portal-frame")).toBeVisible();
       await expectNoDocumentOverflow(page);
-      if (path !== "/") {
+      if (path === "/dashboard") {
+        await expect(page.locator(".app-shell")).toHaveCSS("overflow-y", "hidden");
+      } else if (path !== "/") {
         await expect(page.locator(".guest-page")).toHaveCSS("overflow-y", "hidden");
       }
     }
@@ -340,6 +343,12 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.route("**/api/**", (route) => api.handle(route));
 
   await page.goto("/dashboard");
+  await expect(page.getByTestId("guest-applicant-dashboard-frame")).toBeVisible();
+  await expect(page.getByTestId("guest-applicant-dashboard-content")).toBeVisible();
+  await expect(page.getByTestId("guest-dashboard-overview")).toBeVisible();
+  await expect(page.getByTestId("link-nav-track")).toHaveCount(1);
+  await expect(page.getByTestId("link-nav-admin")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Admin access" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Choose a category to begin." })).toHaveCount(1);
   await expect(page.getByText("This dashboard introduction should appear once.")).toHaveCount(1);
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
