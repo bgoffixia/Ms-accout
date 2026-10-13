@@ -243,6 +243,7 @@ async function expectNoDocumentOverflow(page: Page) {
     const documentScroller = document.scrollingElement ?? document.documentElement;
     const shell = document.querySelector<HTMLElement>(".ew-shell");
     const previewScroll = document.querySelector<HTMLElement>(".ew-preview .ew-content-scroll");
+    const dashboardMain = document.querySelector<HTMLElement>(".dashboard-page-content .dashboard-main");
     const singlePage = document.querySelector<HTMLElement>(".category-entry-screen")
       ?? document.querySelector<HTMLElement>(".dashboard-page-content > .dashboard-layout")
       ?? document.querySelector<HTMLElement>(".guest-dashboard-shell");
@@ -272,6 +273,7 @@ async function expectNoDocumentOverflow(page: Page) {
       bodyOverflowY: bodyStyle.overflowY,
       attemptedDocumentScroll,
       shell: geometry(shell),
+      dashboardMain: geometry(dashboardMain),
       previewScroll: geometry(previewScroll),
       singlePage: geometry(singlePage),
     };
@@ -286,9 +288,27 @@ async function expectNoDocumentOverflow(page: Page) {
     expect(dimensions.shell.rectHeight, `application shell should fit viewport: ${JSON.stringify(dimensions)}`)
       .toBeLessThanOrEqual(dimensions.clientHeight + 1);
   }
+  if (dimensions.dashboardMain) {
+    expect(dimensions.dashboardMain.scrollHeight, `dashboard content should fit without clipping: ${JSON.stringify(dimensions)}`)
+      .toBeLessThanOrEqual(dimensions.dashboardMain.clientHeight + 1);
+  }
   if (dimensions.singlePage) {
     expect(dimensions.singlePage.scrollHeight, `applicant page should not require scrolling: ${JSON.stringify(dimensions)}`)
       .toBeLessThanOrEqual(dimensions.singlePage.clientHeight + 1);
+  }
+}
+
+async function expectSquareCategoryCards(page: Page) {
+  const cards = page.locator(".dashboard-page-content .category-card");
+  await expect(cards.first()).toBeVisible();
+  const dimensions = await cards.evaluateAll((elements) => elements.map((element) => {
+    const { width, height } = element.getBoundingClientRect();
+    return { width, height };
+  }));
+  expect(dimensions.length).toBeGreaterThan(0);
+  for (const card of dimensions) {
+    expect(Math.abs(card.width - card.height), `category card should be square: ${JSON.stringify(card)}`)
+      .toBeLessThanOrEqual(1);
   }
 }
 
@@ -330,6 +350,8 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
       await expectNoDocumentOverflow(page);
       if (path === "/dashboard") {
         await expect(page.locator(".app-shell")).toHaveCSS("overflow-y", "hidden");
+        await expectSquareCategoryCards(page);
+        await expectNoDocumentOverflow(page);
       } else if (path !== "/") {
         await expect(page.locator(".guest-page")).toHaveCSS("overflow-y", "hidden");
       }
@@ -345,7 +367,8 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.goto("/dashboard");
   await expect(page.getByTestId("guest-applicant-dashboard-frame")).toBeVisible();
   await expect(page.getByTestId("guest-applicant-dashboard-content")).toBeVisible();
-  await expect(page.getByTestId("guest-dashboard-overview")).toBeVisible();
+  await expect(page.getByTestId("guest-dashboard-overview")).toBeHidden();
+  await expect(page.getByTestId("link-compact-guest-track")).toBeVisible();
   await expect(page.getByTestId("link-nav-track")).toHaveCount(1);
   await expect(page.getByTestId("link-nav-admin")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Admin access" })).toHaveCount(0);
@@ -353,6 +376,7 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByText("This dashboard introduction should appear once.")).toHaveCount(1);
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await expect(page.getByTestId("guest-dashboard-category-category-4")).toBeVisible();
+  await expectSquareCategoryCards(page);
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");

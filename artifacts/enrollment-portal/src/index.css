@@ -2876,11 +2876,15 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 }
 
 .dashboard-page-content .category-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  justify-items: center;
 }
 
 .dashboard-page-content .category-card {
-  min-height: clamp(84px, 11vh, 112px);
+  width: min(100%, 44vw, 33vh, 240px);
+  aspect-ratio: 1;
+  min-height: 0;
   padding: 9px 12px 8px;
 }
 
@@ -3056,7 +3060,6 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   }
 
   .dashboard-page-content .category-card {
-    min-height: 72px;
     padding: 6px 8px;
   }
 
@@ -3131,6 +3134,16 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
   .dashboard-page-content .guest-dashboard-contact small {
     font-size: 8px;
+  }
+}
+
+@media (max-width: 540px) and (max-height: 650px) {
+  .dashboard-page-content > .dashboard-layout {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .dashboard-page-content .dashboard-aside {
+    display: none;
   }
 }
 
