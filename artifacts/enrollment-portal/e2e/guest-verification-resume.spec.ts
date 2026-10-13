@@ -330,6 +330,17 @@ test("starts from the public shared dashboard and opens the selected category fo
   expect(api.draft?.categoryId).toBe("category-1");
 });
 
+test("redirects retired account-based applicant URLs to the shared dashboard", async ({ page }) => {
+  const api = new GuestApiFixture();
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  for (const oldPath of ["/apply/legacy-draft-id", "/applications/legacy-application-id"]) {
+    await page.goto(oldPath);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
+  }
+});
+
 test("preserves the same guest application across verification failure, reload, and verified return", async ({ page }) => {
   const api = new GuestApiFixture();
   await page.setViewportSize({ width: 390, height: 844 });

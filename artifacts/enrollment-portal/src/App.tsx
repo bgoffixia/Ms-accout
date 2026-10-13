@@ -3146,6 +3146,14 @@ function NotFound() {
   return <main className="not-found portal-frame"><div className="not-found-card"><PortalWordmark /><span className="not-found-code">404</span><h1>This page isn’t here.</h1><p>The address may have changed. Return to the enrollment portal to continue.</p><Link href="/" className="button button-primary" data-testid="link-not-found-home">Return to portal <ArrowRight size={15} /></Link></div></main>;
 }
 
+function RetiredApplicantRoute() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation('/dashboard', { replace: true });
+  }, [setLocation]);
+  return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the shared applicant dashboard" /></main>;
+}
+
 function RoutedPages() {
   const [location, setLocation] = useLocation();
   const portalSettings = useGetPortalSettings();
@@ -3178,8 +3186,8 @@ function RoutedPages() {
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
     <Route path="/dashboard" component={ApplicantDashboardRoute} />
-    <Route path="/apply/:applicationId" component={() => <AuthGate><DraftApplication /></AuthGate>} />
-    <Route path="/applications/:applicationId" component={() => <AuthGate><ApplicationDetail /></AuthGate>} />
+    <Route path="/apply/:applicationId" component={RetiredApplicantRoute} />
+    <Route path="/applications/:applicationId" component={RetiredApplicantRoute} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
     <Route path="/admin" component={() => <AdminGate><AdminLanding /></AdminGate>} />
     <Route path="/admin/review" component={() => <AdminGate><AdminQueue /></AdminGate>} />
