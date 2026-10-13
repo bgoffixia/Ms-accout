@@ -7,7 +7,7 @@ import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import {
   Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
-  ChevronDown, CircleHelp, FileCheck2, FileText, Headphones, Home, LifeBuoy,
+  ChevronDown, CircleHelp, Copy, FileCheck2, FileText, Headphones, Home, LifeBuoy,
   GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Upload, X,
 } from 'lucide-react';
 import {
@@ -1161,8 +1161,56 @@ function AdminManagementHome() {
           <span className="admin-action-icon"><Headphones size={18} /></span><b>Support inbox</b><span>Respond to applicant conversations and track resolution.</span><strong>Staff access</strong><ArrowRight size={16} />
         </Link>
       </section>
+      <GuestInviteLinkCard />
     </div>
   </AdminShell>;
+}
+
+function GuestInviteLinkCard() {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'manual'>('idle');
+  const inviteInput = useRef<HTMLInputElement>(null);
+  const inviteUrl = useMemo(() => `${window.location.origin}${basePath}/dashboard`, []);
+
+  const copyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopyState('copied');
+    } catch {
+      inviteInput.current?.focus();
+      inviteInput.current?.select();
+      setCopyState('manual');
+    }
+  };
+
+  return <section className="admin-guest-invite" aria-labelledby="admin-guest-invite-title" data-testid="admin-guest-invite-card">
+    <div className="admin-guest-invite-copy">
+      <span className="eyebrow">APPLICANT ACCESS</span>
+      <h2 id="admin-guest-invite-title">Reusable guest invite link</h2>
+      <p>Share this link to open the category dashboard. Applicants can start without creating an enrollment-portal account.</p>
+    </div>
+    <div className="admin-guest-invite-share">
+      <label className="admin-guest-invite-field">
+        <span>Public category link</span>
+        <input
+          ref={inviteInput}
+          className="text-input"
+          type="url"
+          readOnly
+          value={inviteUrl}
+          onFocus={(event) => event.currentTarget.select()}
+          aria-label="Reusable guest invite link"
+          data-testid="input-admin-guest-invite-link"
+        />
+      </label>
+      <button type="button" className="button button-primary" onClick={() => void copyInviteLink()} data-testid="button-copy-admin-guest-invite">
+        {copyState === 'copied' ? <Check size={15} /> : <Copy size={15} />}
+        {copyState === 'copied' ? 'Copied' : 'Copy link'}
+      </button>
+      <p className="admin-guest-invite-status" aria-live="polite">
+        {copyState === 'copied' ? 'Link copied. It can be reused.' : copyState === 'manual' ? 'Automatic copy was blocked; the link is selected for manual copying.' : 'Anyone with the link can open the public guest portal.'}
+      </p>
+    </div>
+  </section>;
 }
 
 function AdminLanding() {

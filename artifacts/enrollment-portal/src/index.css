@@ -3373,6 +3373,15 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .admin-overview-link span:not(.admin-action-icon) { grid-column: 2 / -1; color: #74878f; font-size: 9px; line-height: 1.55; }
 .admin-overview-link strong { grid-column: 2; align-self: end; margin-top: 5px; color: #39745b; font: 9px var(--app-font-mono); }
 .admin-overview-link > svg:last-child { grid-column: 3; grid-row: 3; align-self: end; color: #78918c; }
+.admin-guest-invite { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .92fr); align-items: center; gap: 22px; margin-top: 16px; padding: 18px; border: 1px solid #dce8e1; border-radius: 14px; background: linear-gradient(120deg, #f9fcfa, #f0f7f2); }
+.admin-guest-invite-copy .eyebrow { color: #6e8b7c; }
+.admin-guest-invite-copy h2 { margin: 5px 0 6px; color: #244a5b; font: 500 18px var(--app-font-serif); }
+.admin-guest-invite-copy p { max-width: 510px; margin: 0; color: #71848a; font-size: 10px; line-height: 1.6; }
+.admin-guest-invite-share { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; min-width: 0; }
+.admin-guest-invite-field { display: grid; min-width: 0; gap: 5px; color: #607970; font-size: 9px; font-weight: 700; }
+.admin-guest-invite-field .text-input { min-width: 0; height: 38px; padding-inline: 10px; color: #3b5a51; background: #fff; font-size: 9px; }
+.admin-guest-invite-share > .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding-inline: 12px; white-space: nowrap; }
+.admin-guest-invite-status { grid-column: 1 / -1; min-height: 13px; margin: 0; color: #6d8379; font-size: 8px; line-height: 1.5; }
 .admin-recent-section { margin-top: 30px; }
 .admin-recent-card { overflow: hidden; border: 1px solid #dfe8e7; border-radius: 13px; background: #fbfdfc; box-shadow: 0 5px 18px #173e4710; }
 .admin-recent-list { display: grid; }
@@ -3408,11 +3417,15 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .admin-sidebar-open { transform: translateX(0); }
   .admin-mobile-scrim { position: fixed; z-index: 20; inset: 0; display: block; border: 0; background: #152e2b75; }
   .admin-content { width: 100%; min-height: 0; flex: 1; padding: 23px 22px; }
+  .admin-guest-invite { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .admin-content { padding: 19px 14px 25px; }
   .admin-overview-actions { grid-template-columns: 1fr; }
   .admin-overview-link { min-height: 119px; }
+  .admin-guest-invite { padding: 15px; }
+  .admin-guest-invite-share { grid-template-columns: 1fr; }
+  .admin-guest-invite-share > .button { justify-self: start; }
   .admin-section-heading { align-items: flex-start; }
   .admin-section-heading h2 { font-size: 20px; }
   .admin-live-mark { padding-top: 5px; font-size: 7px; }
