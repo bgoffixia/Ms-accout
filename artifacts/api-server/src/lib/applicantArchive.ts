@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import { createGzip } from "node:zlib";
 import { and, desc, eq } from "drizzle-orm";
@@ -34,35 +34,124 @@ type EvidenceMetadata = {
 const privateKeyFields = /pin|password|accesskey|sessiontoken|secret|authorization/i;
 const privateMetadataFields = /^(clerkUserId|reviewerUserId|updatedByUserId|reviewNote)$/i;
 
-function archiveEncryptionKey(): Buffer {
+type ArchiveKeyring = {
+  activeKeyId: string;
+  keys: Map<string, Buffer>;
+  signature: string;
+};
+
+let archiveRotation: { signature: string; promise: Promise<void> } | undefined;
+
+function archiveKeyring(): ArchiveKeyring {
+  const configured = process.env.APPLICANT_ARCHIVE_KEYS?.trim();
+  if (!configured) {
+    throw new Error(
+      "Applicant archive encryption is not configured. Set APPLICANT_ARCHIVE_KEYS before using the archive.",
+    );
+  }
+
+  const keys = new Map<string, Buffer>();
+  let activeKeyId: string;
+  let materials: Record<string, string>;
+  let parsed: unknown;
+  if (configured.startsWith("{")) {
+    try {
+      parsed = JSON.parse(configured);
+    } catch {
+      throw new Error("APPLICANT_ARCHIVE_KEYS must contain a valid JSON keyring.");
+    }
+  }
+
+  if (parsed !== undefined) {
+    const value = parsed as { activeKeyId?: unknown; keys?: unknown };
+    activeKeyId = typeof value.activeKeyId === "string" ? value.activeKeyId : "";
+    materials = value.keys !== null && typeof value.keys === "object" && !Array.isArray(value.keys)
+      ? value.keys as Record<string, string>
+      : {};
+  } else {
+    activeKeyId = `key-${createHash("sha256").update(configured).digest("hex").slice(0, 12)}`;
+    materials = { [activeKeyId]: configured };
+  }
+
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(activeKeyId)) {
+    throw new Error("APPLICANT_ARCHIVE_KEYS must name a valid activeKeyId.");
+  }
+  for (const [keyId, material] of Object.entries(materials)) {
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(keyId) || typeof material !== "string" || material.length < 32) {
+      throw new Error(
+        "Every APPLICANT_ARCHIVE_KEYS entry must have a valid key ID and at least 32 characters of key material.",
+      );
+    }
+    keys.set(
+      keyId,
+      createHmac("sha256", material).update("civic-enroll-applicant-archive-v2").digest(),
+    );
+  }
+  if (!keys.has(activeKeyId)) {
+    throw new Error("APPLICANT_ARCHIVE_KEYS activeKeyId must refer to an entry in keys.");
+  }
+
+  return {
+    activeKeyId,
+    keys,
+    signature: createHash("sha256").update(configured).digest("hex"),
+  };
+}
+
+function legacyArchiveEncryptionKey(): Buffer {
   const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("Applicant archive encryption is not configured.");
+  if (!secret) {
+    throw new Error(
+      "Legacy applicant archive records still need the previous SESSION_SECRET for key migration.",
+    );
+  }
   return createHmac("sha256", secret).update("civic-enroll-applicant-archive-v1").digest();
 }
 
-function encryptJson(value: unknown): string {
+function encryptJson(value: unknown, keyring = archiveKeyring()): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", archiveEncryptionKey(), iv);
+  const cipher = createCipheriv("aes-256-gcm", keyring.keys.get(keyring.activeKeyId)!, iv);
   const ciphertext = Buffer.concat([
     cipher.update(JSON.stringify(value), "utf8"),
     cipher.final(),
   ]);
   return [
-    "enc:v1",
+    "enc:v2",
+    keyring.activeKeyId,
     iv.toString("base64url"),
     cipher.getAuthTag().toString("base64url"),
     ciphertext.toString("base64url"),
   ].join(":");
 }
 
-function decryptJson(value: string): unknown {
-  const [, version, ivPart, tagPart, ciphertextPart] = value.split(":");
-  if (version !== "v1" || !ivPart || !tagPart || !ciphertextPart) {
+function decryptJson(value: string, keyring = archiveKeyring()): unknown {
+  const parts = value.split(":");
+  const version = parts[1];
+  const keyId = version === "v2" ? parts[2] : null;
+  const ivPart = version === "v2" ? parts[3] : parts[2];
+  const tagPart = version === "v2" ? parts[4] : parts[3];
+  const ciphertextPart = version === "v2" ? parts[5] : parts[4];
+  if (
+    parts[0] !== "enc" ||
+    !["v1", "v2"].includes(version ?? "") ||
+    !ivPart ||
+    !tagPart ||
+    !ciphertextPart ||
+    (version === "v2" && (!keyId || !keyring.keys.has(keyId)))
+  ) {
+    if (version === "v2" && keyId && !keyring.keys.has(keyId)) {
+      throw new Error(
+        `Applicant archive key "${keyId}" is missing. Restore that key in APPLICANT_ARCHIVE_KEYS before rotating keys.`,
+      );
+    }
     throw new Error("The applicant archive contains an unsupported encrypted record.");
   }
+  const key = version === "v1"
+    ? legacyArchiveEncryptionKey()
+    : keyring.keys.get(keyId!)!;
   const decipher = createDecipheriv(
     "aes-256-gcm",
-    archiveEncryptionKey(),
+    key,
     Buffer.from(ivPart, "base64url"),
   );
   decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
@@ -71,6 +160,111 @@ function decryptJson(value: string): unknown {
     decipher.final(),
   ]).toString("utf8");
   return JSON.parse(plaintext) as unknown;
+}
+
+function encryptedKeyId(value: string): string | null {
+  const parts = value.split(":");
+  if (parts[0] !== "enc") return null;
+  if (parts[1] === "v1") return "legacy-session";
+  if (parts[1] === "v2" && parts[2]) return parts[2];
+  throw new Error("The applicant archive contains an unsupported encrypted record.");
+}
+
+function archiveBankAccounts(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(archiveBankAccounts);
+  if (value === null || typeof value !== "object") return value;
+  const output: JsonRecord = {};
+  for (const [key, child] of Object.entries(value as JsonRecord)) {
+    if (key === "accountNumberEncrypted") {
+      if (typeof child !== "string") continue;
+      const accountNumber = decryptBankAccount(child);
+      if (!accountNumber) {
+        throw new Error(
+          "An archived bank account could not be unlocked. Keep the current SESSION_SECRET until archive key migration completes.",
+        );
+      }
+      output.accountNumber = accountNumber;
+      continue;
+    }
+    if (key === "accountNumberLast4" || key === "accountNumberMasked") continue;
+    output[key] = archiveBankAccounts(child);
+  }
+  return output;
+}
+
+async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<void> {
+  const snapshots = await db.select().from(applicantMasterArchiveSnapshotsTable);
+  for (const snapshot of snapshots) {
+    const payloadKeyId = encryptedKeyId(snapshot.payloadEncrypted);
+    const changesKeyId = encryptedKeyId(snapshot.changesEncrypted);
+    const payloadEncrypted = payloadKeyId && payloadKeyId !== keyring.activeKeyId
+      ? encryptJson(archiveBankAccounts(decryptJson(snapshot.payloadEncrypted, keyring)), keyring)
+      : undefined;
+    const changesEncrypted = changesKeyId && changesKeyId !== keyring.activeKeyId
+      ? encryptJson(decryptJson(snapshot.changesEncrypted, keyring), keyring)
+      : undefined;
+    if (payloadEncrypted) {
+      await db
+        .update(applicantMasterArchiveSnapshotsTable)
+        .set({ payloadEncrypted })
+        .where(and(
+          eq(applicantMasterArchiveSnapshotsTable.id, snapshot.id),
+          eq(applicantMasterArchiveSnapshotsTable.payloadEncrypted, snapshot.payloadEncrypted),
+        ));
+    }
+    if (changesEncrypted) {
+      await db
+        .update(applicantMasterArchiveSnapshotsTable)
+        .set({ changesEncrypted })
+        .where(and(
+          eq(applicantMasterArchiveSnapshotsTable.id, snapshot.id),
+          eq(applicantMasterArchiveSnapshotsTable.changesEncrypted, snapshot.changesEncrypted),
+        ));
+    }
+  }
+
+  const evidenceRows = await db.select().from(applicantMasterArchiveEvidenceTable);
+  for (const evidence of evidenceRows) {
+    const sourceKeyId = encryptedKeyId(evidence.sourcePathEncrypted);
+    const fileNameKeyId = encryptedKeyId(evidence.fileName);
+    const sourcePathEncrypted = sourceKeyId && sourceKeyId !== keyring.activeKeyId
+      ? encryptJson(decryptJson(evidence.sourcePathEncrypted, keyring), keyring)
+      : undefined;
+    const fileName = fileNameKeyId && fileNameKeyId !== keyring.activeKeyId
+      ? encryptJson(decryptJson(evidence.fileName, keyring), keyring)
+      : undefined;
+    if (sourcePathEncrypted) {
+      await db
+        .update(applicantMasterArchiveEvidenceTable)
+        .set({ sourcePathEncrypted })
+        .where(and(
+          eq(applicantMasterArchiveEvidenceTable.id, evidence.id),
+          eq(applicantMasterArchiveEvidenceTable.sourcePathEncrypted, evidence.sourcePathEncrypted),
+        ));
+    }
+    if (fileName) {
+      await db
+        .update(applicantMasterArchiveEvidenceTable)
+        .set({ fileName })
+        .where(and(
+          eq(applicantMasterArchiveEvidenceTable.id, evidence.id),
+          eq(applicantMasterArchiveEvidenceTable.fileName, evidence.fileName),
+        ));
+    }
+  }
+}
+
+async function ensureArchiveKeyMigration(): Promise<void> {
+  const keyring = archiveKeyring();
+  if (archiveRotation?.signature === keyring.signature) {
+    return archiveRotation.promise;
+  }
+  const promise = migrateArchiveEncryption(keyring).catch((error) => {
+    if (archiveRotation?.promise === promise) archiveRotation = undefined;
+    throw error;
+  });
+  archiveRotation = { signature: keyring.signature, promise };
+  return promise;
 }
 
 function bankAccountKey(): Buffer | null {
