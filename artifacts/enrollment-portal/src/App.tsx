@@ -2330,7 +2330,6 @@ function GuestApplicationPage() {
     fingerprint: string;
     input: GuestPreapplicationInput;
   } | null>(null);
-  const [retryMismatch, setRetryMismatch] = useState(false);
   const form = useForm<GuestApplicationValues>({
     resolver: zodResolver(guestApplicationSchema),
     defaultValues: {
@@ -2523,12 +2522,6 @@ function GuestApplicationPage() {
       email: values.email.trim(),
     };
     const fingerprint = JSON.stringify(details);
-    if (pendingSubmission && pendingSubmission.fingerprint !== fingerprint) {
-      setRetryMismatch(true);
-      return;
-    }
-
-    setRetryMismatch(false);
     let input = pendingSubmission?.input;
     let accessKey = input?.accessKey;
     if (!input || !accessKey) {
@@ -2828,7 +2821,6 @@ function GuestApplicationPage() {
           {createGuest.isError && <button type="button" className="text-action" onClick={() => setLocation('/dashboard')}>Choose another category</button>}
         </div> : <>
           <div className="guest-form-topline"><span>APPLICATION</span><span>STEP 1 OF 4</span></div>
-          {stage === 'contact' ? <>
             <h2 id="guest-apply-heading">Your contact details</h2>
             <p className="guest-form-subtitle">Start with only your name and email. You’ll continue to the public category dashboard.</p>
             {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
@@ -2849,7 +2841,6 @@ function GuestApplicationPage() {
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
             </Form>
-          </>}
         </>}
       </section>
     </div>

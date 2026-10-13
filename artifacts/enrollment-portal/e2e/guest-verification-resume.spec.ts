@@ -310,6 +310,26 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   }
 });
 
+test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
+  const api = new GuestApiFixture();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
+  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
+  await page.getByTestId("input-guest-email").fill("jordan@example.test");
+  await page.getByTestId("button-continue-guest-contact").click();
+
+  await expect(page.getByTestId("input-entry-name")).toBeVisible();
+  await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
+  await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
+  await expectNoDocumentOverflow(page);
+  expect(api.createCount).toBe(1);
+  expect(api.draft?.categoryId).toBe("category-1");
+});
+
 test("preserves the same guest application across verification failure, reload, and verified return", async ({ page }) => {
   const api = new GuestApiFixture();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -350,11 +370,9 @@ test("preserves the same guest application across verification failure, reload, 
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expectNoDocumentOverflow(page);
-  await page.getByTestId("select-guest-category").selectOption("category-1");
-  await expectNoDocumentOverflow(page);
-  await page.locator("form.guest-form button[type=submit]").click();
+  await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
-  await page.getByTestId("button-continue-to-category-details").click();
+  await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await page.setViewportSize({ width: 390, height: 568 });
@@ -495,9 +513,8 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await page.getByTestId("select-guest-category").selectOption("category-1");
-  await page.locator("form.guest-form button[type=submit]").click();
-  await page.getByTestId("button-continue-to-category-details").click();
+  await expect(page.getByTestId("input-entry-name")).toBeVisible();
+  await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
 
   await page.locator("form button[type=submit]").click();
