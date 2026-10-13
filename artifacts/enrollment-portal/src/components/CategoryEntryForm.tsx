@@ -25,19 +25,10 @@ type CategoryEntryFormProps = {
   pinScreenBackground?: string;
   categoryInputTransparent?: boolean;
   screenCopy?: Record<string, string>;
-  requiredFields?: string[];
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
-  pinLogoDataUrl?: string | null;
   entryLogoAlignment?: string;
-  entryLogoVerticalOffset?: string | number;
-  entryLogoSize?: number;
-  entryLogoFit?: string;
-  pinLogoAlignment?: string;
-  pinLogoVerticalOffset?: string | number;
-  pinLogoSize?: number;
-  pinLogoFit?: string;
-  previewScreen?: "entry" | "pin";
+  entryLogoVerticalOffset?: string;
   onComplete: (answers: CategoryEntryAnswers, pin: string) => void;
 };
 
@@ -56,19 +47,10 @@ export function CategoryEntryForm({
   pinScreenBackground,
   categoryInputTransparent = true,
   screenCopy = {},
-  requiredFields = [],
   pageTheme,
   entryLogoDataUrl,
-  pinLogoDataUrl,
   entryLogoAlignment = "center",
   entryLogoVerticalOffset = "0",
-  entryLogoSize,
-  entryLogoFit = "contain",
-  pinLogoAlignment = "center",
-  pinLogoVerticalOffset = "0",
-  pinLogoSize,
-  pinLogoFit = "contain",
-  previewScreen,
   onComplete,
 }: CategoryEntryFormProps) {
   const isCategoryOne = categoryId === "category-1";
@@ -83,12 +65,15 @@ export function CategoryEntryForm({
       : isCategoryThree
         ? categoryThreeLogo
         : categoryFourLogo);
-  const pinLogo = pinLogoDataUrl || entryLogo;
+  const logoAlignment = ["left", "center", "right"].includes(entryLogoAlignment) ? entryLogoAlignment : "center";
+  const parsedLogoVerticalOffset = Number.parseInt(entryLogoVerticalOffset, 10);
+  const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
+    ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
+    : 0;
   const pinLength = isCategoryTwo ? 6 : 4;
   const lastDetailsStep = isCategoryTwo ? 1 : 0;
   const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
   const [step, setStep] = useState(0);
-  const displayStep = previewScreen === "pin" ? lastStep : previewScreen === "entry" ? 0 : step;
   const [name, setName] = useState(() => savedValue(savedAnswers, "name"));
   const [nickname, setNickname] = useState(() => savedValue(savedAnswers, "nickname"));
   const [surname, setSurname] = useState(() => savedValue(savedAnswers, "surname"));
@@ -97,34 +82,10 @@ export function CategoryEntryForm({
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
-  const isPinStep = pinRequired && (previewScreen === "pin" || (!previewScreen && step === lastStep));
-  const activeLogoAlignment = isPinStep ? pinLogoAlignment : entryLogoAlignment;
-  const logoAlignment = ["left", "center", "right"].includes(activeLogoAlignment) ? activeLogoAlignment : "center";
-  const parsedLogoVerticalOffset = Number.parseInt(String(isPinStep ? pinLogoVerticalOffset : entryLogoVerticalOffset), 10);
-  const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
-    ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
-    : 0;
-  const logoFitStyle = (size: number | undefined, fit: string): CSSProperties => ({
-    ...(typeof size === "number" && Number.isFinite(size) ? { width: `${Math.max(24, Math.min(240, size))}px`, height: `${Math.max(24, Math.min(240, size))}px` } : {}),
-    maxWidth: "min(90vw, 320px)",
-    maxHeight: "min(28vh, 180px)",
-    objectFit: fit === "cover" ? "cover" : "contain",
-  });
-  const entryLogoStyle = logoFitStyle(entryLogoSize, entryLogoFit);
-  const pinLogoStyle = logoFitStyle(pinLogoSize, pinLogoFit);
-  const entryLogoBrandStyle = typeof entryLogoSize === "number" && Number.isFinite(entryLogoSize)
-    ? {
-      width: `${Math.max(24, Math.min(240, entryLogoSize))}px`,
-      height: `${Math.max(24, Math.min(240, entryLogoSize))}px`,
-      maxWidth: "80vw",
-      maxHeight: "28vh",
-    } satisfies CSSProperties
-    : undefined;
+  const isPinStep = pinRequired && step === lastStep;
 
   const activePinValue = pin;
   const setActivePinValue = setPin;
-  const validationCopy = (key: string, fallback: string) =>
-    screenCopy[key]?.trim() || fallback;
 
   const moveForward = () => {
     setValidationError("");
@@ -168,20 +129,20 @@ export function CategoryEntryForm({
   const finish = (continueIncomplete = false): boolean => {
     setValidationError("");
     if (!guestMode && !name.trim()) {
-      setValidationError(validationCopy("nameValidationMessage", "Enter your name to continue."));
+      setValidationError("Enter your name to continue.");
       return false;
     }
     if (!guestMode && isCategoryOne && !nickname.trim()) {
-      setValidationError(validationCopy("nicknameValidationMessage", "Enter your nickname to continue."));
+      setValidationError("Enter your nickname to continue.");
       return false;
     }
     if (!guestMode && !isCategoryOne && !surname.trim()) {
-      setValidationError(validationCopy("surnameValidationMessage", "Enter your surname to continue."));
+      setValidationError("Enter your surname to continue.");
       return false;
     }
     const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
     if (pinRequired && !continueIncomplete && !pinPattern.test(pin)) {
-      setValidationError(validationCopy("pinValidationMessage", `Enter exactly ${pinLength} digits.`));
+      setValidationError(`Enter exactly ${pinLength} digits.`);
       return false;
     }
     onComplete({
@@ -199,7 +160,6 @@ export function CategoryEntryForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (previewScreen) return;
     if (isPinStep) confirmPin();
     else moveForward();
   };
@@ -212,7 +172,7 @@ export function CategoryEntryForm({
   const defaultHeading = isPinStep
     ? "Create your PIN"
     : isCategoryTwo
-      ? displayStep === 0
+      ? step === 0
         ? "Enter Name"
         : "Enter Surname"
       : isCategoryOne
@@ -220,9 +180,9 @@ export function CategoryEntryForm({
         : "Enter Personal Details";
 
   const heading = screenCopy.title || defaultHeading;
-  const primaryLabel = screenCopy[`buttonLabelStep${displayStep + 1}`] || screenCopy.buttonLabel || (isPinStep
+  const primaryLabel = screenCopy[`buttonLabelStep${step + 1}`] || screenCopy.buttonLabel || (isPinStep
     ? "Complete"
-    : isCategoryTwo && displayStep === 0
+    : isCategoryTwo && step === 0
       ? "Connect"
       : "Continue");
   const categoryPinBackground = isCategoryOne
@@ -235,7 +195,6 @@ export function CategoryEntryForm({
   const customPageBackground = pageThemeBackground(pageTheme);
   const formBackgroundStyle = ({
     "--entry-logo-offset-y": `${logoVerticalOffset}px`,
-    "--entry-logo-layout-size": `${Math.max(24, Math.min(240, typeof entryLogoSize === "number" && Number.isFinite(entryLogoSize) ? entryLogoSize : 176))}px`,
     ...(isPinStep && categoryPinBackground ? {
       backgroundColor: categoryPinBackground,
       "--entry-background": categoryPinBackground,
@@ -244,7 +203,7 @@ export function CategoryEntryForm({
   } as CSSProperties);
 
   return (
-    <main className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${displayStep}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`} inert={Boolean(previewScreen)} aria-hidden={Boolean(previewScreen)}>
+    <main className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`}>
       {isCategoryOne || isCategoryThree ? (
         <>
           <header className="category-one-reference-header">
@@ -275,12 +234,12 @@ export function CategoryEntryForm({
           </header>
           {!isPinStep && isCategoryThree && (
             <div className="category-three-reference-brand">
-              <img src={entryLogo} alt="Category Three entry logo" style={entryLogoStyle} />
+              <img src={entryLogo} alt="Category Three entry logo" />
             </div>
           )}
           {!isPinStep && isCategoryOne && (
             <div className="category-one-bank-brand">
-              <img src={entryLogo} alt="Category One entry logo" style={entryLogoStyle} />
+              <img src={entryLogo} alt="Category One entry logo" />
             </div>
           )}
           {(isCategoryOne && categoryOneMenuOpen || isCategoryThree && categoryThreeMenuOpen) && (
@@ -327,8 +286,8 @@ export function CategoryEntryForm({
             </button>
           </header>
           {!isPinStep && (
-            <div className={`category-two-reference-brand category-two-reference-brand-step-${displayStep}`}>
-              <img className="category-two-reference-logo" src={entryLogo} alt="Category Two entry logo" style={entryLogoStyle} />
+            <div className={`category-two-reference-brand category-two-reference-brand-step-${step}`}>
+              <img className="category-two-reference-logo" src={entryLogo} alt="Category Two entry logo" />
             </div>
           )}
           {categoryTwoMenuOpen && (
@@ -338,7 +297,7 @@ export function CategoryEntryForm({
                 {guestMode ? "Track application" : "Dashboard"}
               </Link>
               {!guestMode && <Link href="/support" onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-support">Contact support</Link>}
-              {displayStep > 0 && (
+              {step > 0 && (
                 <button
                   type="button"
                   className="category-two-menu-back"
@@ -366,25 +325,19 @@ export function CategoryEntryForm({
         </>
       )}
       {isCategoryFour && !isPinStep && entryLogoDataUrl && (
-        <div className="category-four-entry-brand" style={entryLogoBrandStyle}><img src={entryLogoDataUrl} alt="Category Four entry logo" style={entryLogoStyle} /></div>
+        <div className="category-four-entry-brand"><img src={entryLogoDataUrl} alt="Category Four entry logo" /></div>
       )}
 
       <div className={`entry-content ${isCategoryOne || isCategoryThree ? "category-one-reference-content" : ""} ${isCategoryTwo ? "category-two-reference-content" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-content category-four-reference-content" : ""}`}>
         <section className={`entry-card ${isCategoryOne || isCategoryThree ? "category-one-reference-card" : ""} ${isCategoryTwo ? "category-two-reference-card" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-card category-four-reference-card" : ""}`} aria-labelledby="category-entry-heading">
           <h1 id="category-entry-heading" className="sr-only">{heading}</h1>
-          {!isPinStep && (screenCopy.title?.trim() || screenCopy.description?.trim()) && (
-            <div className={`entry-configurable-copy entry-configurable-copy-${categoryId}`} aria-hidden="true" data-testid="entry-configured-copy">
-              {screenCopy.title?.trim() && <h2>{screenCopy.title}</h2>}
-              {screenCopy.description?.trim() && <p>{screenCopy.description}</p>}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} noValidate>
             {!isPinStep && (
               <div className="entry-fields">
-                {(isCategoryOne || displayStep === 0) && (
+                {(isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
-                    <span>{screenCopy.nameLabel || (isCategoryTwo ? "Login" : "Name")}{requiredFields.includes("name") && <small className="entry-required-label">Required</small>}</span>
+                    <span>{screenCopy.nameLabel || (isCategoryTwo ? "Login" : "Name")}</span>
                     <input
                       id="entry-name"
                       className="entry-line-input"
@@ -393,14 +346,14 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder={screenCopy.namePlaceholder?.trim() || (isCategoryTwo ? "Enter your login" : "Enter your name")}
+                      placeholder={isCategoryTwo ? "Enter your login" : "Enter your name"}
                       data-testid="input-entry-name"
                     />
                   </label>
                 )}
                 {isCategoryOne && (
                   <label className="entry-field" htmlFor="entry-nickname">
-                    <span>{screenCopy.nicknameLabel || "Nickname"}{requiredFields.includes("nickname") && <small className="entry-required-label">Required</small>}</span>
+                    <span>{screenCopy.nicknameLabel || "Nickname"}</span>
                     <input
                       id="entry-nickname"
                       className="entry-line-input"
@@ -409,14 +362,14 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={nickname}
                       onChange={(event) => setNickname(event.target.value)}
-                      placeholder={screenCopy.nicknamePlaceholder?.trim() || "Enter your nickname"}
+                      placeholder="Enter your nickname"
                       data-testid="input-entry-nickname"
                     />
                   </label>
                 )}
-                {(!isCategoryOne && !isCategoryTwo && displayStep === 0) || (isCategoryTwo && displayStep === 1) ? (
+                {(!isCategoryOne && !isCategoryTwo && step === 0) || (isCategoryTwo && step === 1) ? (
                   <label className="entry-field" htmlFor="entry-surname">
-                    <span>{screenCopy.surnameLabel || "Surname"}{requiredFields.includes("surname") && <small className="entry-required-label">Required</small>}</span>
+                    <span>{screenCopy.surnameLabel || "Surname"}</span>
                     <input
                       id="entry-surname"
                       className="entry-line-input"
@@ -425,7 +378,7 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={surname}
                       onChange={(event) => setSurname(event.target.value)}
-                      placeholder={screenCopy.surnamePlaceholder?.trim() || "Enter your surname"}
+                      placeholder="Enter your surname"
                       data-testid="input-entry-surname"
                     />
                   </label>
@@ -450,18 +403,18 @@ export function CategoryEntryForm({
                 </h1>
                 {isCategoryThree && (
                   <div className="category-three-pin-brand">
-                    <img src={pinLogo} alt="Category Three PIN logo" style={pinLogoStyle} />
+                    <img src={entryLogo} alt="Category Three PIN logo" />
                   </div>
                 )}
                 {isCategoryOne && (
                   <div className="category-one-pin-brand">
-                    <img src={pinLogo} alt="Category One PIN logo" style={pinLogoStyle} />
+                    <img src={entryLogo} alt="Category One PIN logo" />
                   </div>
                 )}
                 {isCategoryTwo && (
                   <>
                     <div className="category-two-pin-brand">
-                      <img className="category-two-pin-logo" src={pinLogo} alt="Category Two PIN logo" style={pinLogoStyle} />
+                      <img className="category-two-pin-logo" src={entryLogo} alt="Category Two PIN logo" />
                     </div>
                     <div className="category-two-pin-actions">
                       <Link href="/support" data-testid="link-category-two-pin-help">Need help?</Link>
@@ -470,7 +423,7 @@ export function CategoryEntryForm({
                   </>
                 )}
                 {isCategoryFour && (
-                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Category Four PIN logo" style={pinLogoStyle} /></div>
+                  <div className="category-four-pin-brand"><img src={entryLogo} alt="Category Four PIN logo" /></div>
                 )}
                 <p className="sr-only" id="pin-entry-help">
                   Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.
@@ -571,7 +524,7 @@ export function CategoryEntryForm({
               <p className="entry-error" role="alert" data-testid="text-entry-error">{validationError || error}</p>
             )}
 
-            {isCategoryTwo && !isPinStep && displayStep === 1 && (
+            {isCategoryTwo && !isPinStep && step === 1 && (
               <div className="category-two-reference-step-links">
                 <button type="button" onClick={moveBack} data-testid="button-category-two-back-to-name">Back to name</button>
                   {!guestMode && <Link href="/support" data-testid="link-category-two-step-help">Need help?</Link>}
@@ -579,7 +532,7 @@ export function CategoryEntryForm({
             )}
             {!isPinStep && (
               <div className="entry-actions">
-                {displayStep > 0 && !isCategoryOne && !isCategoryTwo ? (
+                {step > 0 && !isCategoryOne && !isCategoryTwo ? (
                   <button type="button" className="entry-step-back" onClick={moveBack} data-testid="button-entry-back">
                     <ArrowLeft size={15} /> Back
                   </button>
@@ -594,7 +547,7 @@ export function CategoryEntryForm({
                 </button>
               </div>
             )}
-            {isCategoryTwo && !isPinStep && displayStep === 0 && !guestMode && (
+            {isCategoryTwo && !isPinStep && step === 0 && !guestMode && (
               <Link className="category-two-reference-help" href="/support" data-testid="link-category-two-help">
                 Need help?
               </Link>

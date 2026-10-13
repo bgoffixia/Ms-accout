@@ -8,7 +8,7 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:e2e": "playwright test --config=playwright.config.ts && E2E_AUTH_MOCK=1 playwright test --config=playwright.admin.config.ts --grep \"admin can publish applicant copy\""
+    "test:e2e": "playwright test --config=playwright.config.ts"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

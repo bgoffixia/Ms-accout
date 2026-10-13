@@ -46,7 +46,6 @@ export const ListMyApplicationsResponseItem = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -95,7 +94,6 @@ export const SubmitNewApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -123,7 +121,6 @@ export const CreateApplicationDraftResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -151,7 +148,6 @@ export const GetApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -194,7 +190,6 @@ export const UpdateApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -233,7 +228,6 @@ export const SubmitApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -336,8 +330,7 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string()),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
+  "outstandingRequirements": zod.array(zod.string())
 })
 
 
@@ -391,8 +384,7 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string()),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
+  "outstandingRequirements": zod.array(zod.string())
 })
 
 
@@ -441,8 +433,7 @@ export const UpdateGuestPreapplicationEmailResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string()),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
+  "outstandingRequirements": zod.array(zod.string())
 })
 
 
@@ -544,7 +535,6 @@ export const SubmitGuestPreapplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -606,8 +596,7 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string()),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
+  "outstandingRequirements": zod.array(zod.string())
 }).and(zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
@@ -675,8 +664,7 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
   "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string()),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.')
+  "outstandingRequirements": zod.array(zod.string())
 }).and(zod.object({
   "fullName": zod.string(),
   "email": zod.string().email(),
@@ -787,7 +775,6 @@ export const ListApplicationsForReviewResponseItem = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -813,7 +800,6 @@ export const GetAdminApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -950,35 +936,11 @@ export const getPortalSettingsResponseCardsItemButtonLabelMax = 60;
 export const getPortalSettingsResponseCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponseCardsItemLogoDataUrlMax = 6000000;
 
-export const getPortalSettingsResponseCardsItemEntryLogoDataUrlMax = 6000000;
-
-export const getPortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
-
-export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -60;
-export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 60;
-
-export const getPortalSettingsResponseCardsItemCardLogoSizeMin = 24;
-export const getPortalSettingsResponseCardsItemCardLogoSizeMax = 240;
-
-export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
-export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
-
-export const getPortalSettingsResponseCardsItemEntryLogoSizeMin = 24;
-export const getPortalSettingsResponseCardsItemEntryLogoSizeMax = 240;
-
-export const getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin = -120;
-export const getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax = 120;
-
-export const getPortalSettingsResponseCardsItemPinLogoSizeMin = 24;
-export const getPortalSettingsResponseCardsItemPinLogoSizeMax = 240;
-
 export const getPortalSettingsResponseCardsMin = 4;
 export const getPortalSettingsResponseCardsMax = 4;
 
 export const getPortalSettingsResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponseScreenCopyMaxTwo = 500;
-
-export const getPortalSettingsResponseRequiredFieldsMax = 46;
 
 export const getPortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -1000,21 +962,7 @@ export const GetPortalSettingsResponse = zod.object({
   "description": zod.string().max(getPortalSettingsResponseCardsItemDescriptionMax),
   "buttonLabel": zod.string().max(getPortalSettingsResponseCardsItemButtonLabelMax),
   "backgroundColor": zod.string().regex(getPortalSettingsResponseCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardLogoSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoSizeMin).max(getPortalSettingsResponseCardsItemCardLogoSizeMax).optional(),
-  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "entryLogoSize": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoSizeMin).max(getPortalSettingsResponseCardsItemEntryLogoSizeMax).optional(),
-  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional(),
-  "pinLogoSize": zod.number().int().min(getPortalSettingsResponseCardsItemPinLogoSizeMin).max(getPortalSettingsResponseCardsItemPinLogoSizeMax).optional(),
-  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
+  "logoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemLogoDataUrlMax).nullable()
 })).min(getPortalSettingsResponseCardsMin).max(getPortalSettingsResponseCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(getPortalSettingsResponseThemePinScreenBackgroundRegExp),
@@ -1023,7 +971,6 @@ export const GetPortalSettingsResponse = zod.object({
   "categoryInputTransparent": zod.boolean()
 }),
   "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(getPortalSettingsResponseScreenCopyMaxTwo))),
-  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(getPortalSettingsResponseRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
   "pageThemes": zod.record(zod.string(), zod.object({
   "mode": zod.enum(['inherit', 'solid', 'gradient']),
   "color": zod.string().regex(getPortalSettingsResponsePageThemesColorRegExp),
@@ -1050,35 +997,11 @@ export const updatePortalSettingsBodyCardsItemButtonLabelMax = 60;
 export const updatePortalSettingsBodyCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyCardsItemLogoDataUrlMax = 6000000;
 
-export const updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax = 6000000;
-
-export const updatePortalSettingsBodyCardsItemPinLogoDataUrlMax = 6000000;
-
-export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin = -60;
-export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax = 60;
-
-export const updatePortalSettingsBodyCardsItemCardLogoSizeMin = 24;
-export const updatePortalSettingsBodyCardsItemCardLogoSizeMax = 240;
-
-export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin = -120;
-export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax = 120;
-
-export const updatePortalSettingsBodyCardsItemEntryLogoSizeMin = 24;
-export const updatePortalSettingsBodyCardsItemEntryLogoSizeMax = 240;
-
-export const updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin = -120;
-export const updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax = 120;
-
-export const updatePortalSettingsBodyCardsItemPinLogoSizeMin = 24;
-export const updatePortalSettingsBodyCardsItemPinLogoSizeMax = 240;
-
 export const updatePortalSettingsBodyCardsMin = 4;
 export const updatePortalSettingsBodyCardsMax = 4;
 
 export const updatePortalSettingsBodyThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyScreenCopyMaxTwo = 500;
-
-export const updatePortalSettingsBodyRequiredFieldsMax = 46;
 
 export const updatePortalSettingsBodyPageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyPageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -1100,21 +1023,7 @@ export const UpdatePortalSettingsBody = zod.object({
   "description": zod.string().max(updatePortalSettingsBodyCardsItemDescriptionMax),
   "buttonLabel": zod.string().max(updatePortalSettingsBodyCardsItemButtonLabelMax),
   "backgroundColor": zod.string().regex(updatePortalSettingsBodyCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemPinLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardLogoSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoSizeMin).max(updatePortalSettingsBodyCardsItemCardLogoSizeMax).optional(),
-  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "entryLogoSize": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoSizeMin).max(updatePortalSettingsBodyCardsItemEntryLogoSizeMax).optional(),
-  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax).optional(),
-  "pinLogoSize": zod.number().int().min(updatePortalSettingsBodyCardsItemPinLogoSizeMin).max(updatePortalSettingsBodyCardsItemPinLogoSizeMax).optional(),
-  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
+  "logoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemLogoDataUrlMax).nullable()
 })).min(updatePortalSettingsBodyCardsMin).max(updatePortalSettingsBodyCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(updatePortalSettingsBodyThemePinScreenBackgroundRegExp),
@@ -1123,7 +1032,6 @@ export const UpdatePortalSettingsBody = zod.object({
   "categoryInputTransparent": zod.boolean()
 }),
   "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(updatePortalSettingsBodyScreenCopyMaxTwo))),
-  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(updatePortalSettingsBodyRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
   "pageThemes": zod.record(zod.string(), zod.object({
   "mode": zod.enum(['inherit', 'solid', 'gradient']),
   "color": zod.string().regex(updatePortalSettingsBodyPageThemesColorRegExp),
@@ -1149,35 +1057,11 @@ export const updatePortalSettingsResponseCardsItemButtonLabelMax = 60;
 export const updatePortalSettingsResponseCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponseCardsItemLogoDataUrlMax = 6000000;
 
-export const updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax = 6000000;
-
-export const updatePortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
-
-export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -60;
-export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 60;
-
-export const updatePortalSettingsResponseCardsItemCardLogoSizeMin = 24;
-export const updatePortalSettingsResponseCardsItemCardLogoSizeMax = 240;
-
-export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
-export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
-
-export const updatePortalSettingsResponseCardsItemEntryLogoSizeMin = 24;
-export const updatePortalSettingsResponseCardsItemEntryLogoSizeMax = 240;
-
-export const updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin = -120;
-export const updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax = 120;
-
-export const updatePortalSettingsResponseCardsItemPinLogoSizeMin = 24;
-export const updatePortalSettingsResponseCardsItemPinLogoSizeMax = 240;
-
 export const updatePortalSettingsResponseCardsMin = 4;
 export const updatePortalSettingsResponseCardsMax = 4;
 
 export const updatePortalSettingsResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponseScreenCopyMaxTwo = 500;
-
-export const updatePortalSettingsResponseRequiredFieldsMax = 46;
 
 export const updatePortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -1199,21 +1083,7 @@ export const UpdatePortalSettingsResponse = zod.object({
   "description": zod.string().max(updatePortalSettingsResponseCardsItemDescriptionMax),
   "buttonLabel": zod.string().max(updatePortalSettingsResponseCardsItemButtonLabelMax),
   "backgroundColor": zod.string().regex(updatePortalSettingsResponseCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardLogoSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoSizeMin).max(updatePortalSettingsResponseCardsItemCardLogoSizeMax).optional(),
-  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "entryLogoSize": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoSizeMin).max(updatePortalSettingsResponseCardsItemEntryLogoSizeMax).optional(),
-  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional(),
-  "pinLogoSize": zod.number().int().min(updatePortalSettingsResponseCardsItemPinLogoSizeMin).max(updatePortalSettingsResponseCardsItemPinLogoSizeMax).optional(),
-  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
+  "logoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemLogoDataUrlMax).nullable()
 })).min(updatePortalSettingsResponseCardsMin).max(updatePortalSettingsResponseCardsMax),
   "theme": zod.object({
   "pinScreenBackground": zod.string().regex(updatePortalSettingsResponseThemePinScreenBackgroundRegExp),
@@ -1222,7 +1092,6 @@ export const UpdatePortalSettingsResponse = zod.object({
   "categoryInputTransparent": zod.boolean()
 }),
   "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(updatePortalSettingsResponseScreenCopyMaxTwo))),
-  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(updatePortalSettingsResponseRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
   "pageThemes": zod.record(zod.string(), zod.object({
   "mode": zod.enum(['inherit', 'solid', 'gradient']),
   "color": zod.string().regex(updatePortalSettingsResponsePageThemesColorRegExp),
@@ -1230,150 +1099,6 @@ export const UpdatePortalSettingsResponse = zod.object({
   "angle": zod.number().int().min(updatePortalSettingsResponsePageThemesAngleMin).max(updatePortalSettingsResponsePageThemesAngleMax)
 })).optional()
 })
-
-
-/**
- * @summary Request a direct upload URL for an administrator logo
- */
-export const requestPortalLogoUploadResponseObjectPathRegExp = new RegExp('^/objects/uploads/[0-9a-fA-F-]{36}$');
-
-
-export const RequestPortalLogoUploadResponse = zod.object({
-  "uploadUrl": zod.string().url(),
-  "objectPath": zod.string().regex(requestPortalLogoUploadResponseObjectPathRegExp)
-})
-
-
-/**
- * @summary Verify an uploaded portal logo and make it publicly viewable
- */
-export const completePortalLogoUploadBodyObjectPathRegExp = new RegExp('^/objects/uploads/[0-9a-fA-F-]{36}$');
-
-
-export const CompletePortalLogoUploadBody = zod.object({
-  "objectPath": zod.string().regex(completePortalLogoUploadBodyObjectPathRegExp),
-  "contentType": zod.enum(['image/png', 'image/jpeg', 'image/webp'])
-})
-
-export const completePortalLogoUploadResponseLogoUrlRegExp = new RegExp('^/api/enrollment/logos/[0-9a-fA-F-]{36}$');
-
-
-export const CompletePortalLogoUploadResponse = zod.object({
-  "logoUrl": zod.string().regex(completePortalLogoUploadResponseLogoUrlRegExp)
-})
-
-
-/**
- * @summary Move legacy base64 portal logos into durable object storage
- */
-export const migratePortalLogosResponseHeroTitleMax = 160;
-
-export const migratePortalLogosResponseHeroDescriptionMax = 500;
-
-export const migratePortalLogosResponseHeroGetStartedLabelMax = 60;
-
-export const migratePortalLogosResponseHeroLoginLabelMax = 60;
-
-export const migratePortalLogosResponseCardsItemTitleMax = 100;
-
-export const migratePortalLogosResponseCardsItemDescriptionMax = 240;
-
-export const migratePortalLogosResponseCardsItemButtonLabelMax = 60;
-
-export const migratePortalLogosResponseCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const migratePortalLogosResponseCardsItemLogoDataUrlMax = 6000000;
-
-export const migratePortalLogosResponseCardsItemEntryLogoDataUrlMax = 6000000;
-
-export const migratePortalLogosResponseCardsItemPinLogoDataUrlMax = 6000000;
-
-export const migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMin = -60;
-export const migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMax = 60;
-
-export const migratePortalLogosResponseCardsItemCardLogoSizeMin = 24;
-export const migratePortalLogosResponseCardsItemCardLogoSizeMax = 240;
-
-export const migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMin = -120;
-export const migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMax = 120;
-
-export const migratePortalLogosResponseCardsItemEntryLogoSizeMin = 24;
-export const migratePortalLogosResponseCardsItemEntryLogoSizeMax = 240;
-
-export const migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin = -120;
-export const migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax = 120;
-
-export const migratePortalLogosResponseCardsItemPinLogoSizeMin = 24;
-export const migratePortalLogosResponseCardsItemPinLogoSizeMax = 240;
-
-export const migratePortalLogosResponseCardsMin = 4;
-export const migratePortalLogosResponseCardsMax = 4;
-
-export const migratePortalLogosResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const migratePortalLogosResponseScreenCopyMaxTwo = 500;
-
-export const migratePortalLogosResponseRequiredFieldsMax = 46;
-
-export const migratePortalLogosResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const migratePortalLogosResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const migratePortalLogosResponsePageThemesAngleMin = 0;
-export const migratePortalLogosResponsePageThemesAngleMax = 360;
-
-
-
-export const MigratePortalLogosResponse = zod.object({
-  "hero": zod.object({
-  "title": zod.string().max(migratePortalLogosResponseHeroTitleMax),
-  "description": zod.string().max(migratePortalLogosResponseHeroDescriptionMax),
-  "getStartedLabel": zod.string().max(migratePortalLogosResponseHeroGetStartedLabelMax),
-  "loginLabel": zod.string().max(migratePortalLogosResponseHeroLoginLabelMax)
-}),
-  "cards": zod.array(zod.object({
-  "id": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "title": zod.string().max(migratePortalLogosResponseCardsItemTitleMax),
-  "description": zod.string().max(migratePortalLogosResponseCardsItemDescriptionMax),
-  "buttonLabel": zod.string().max(migratePortalLogosResponseCardsItemButtonLabelMax),
-  "backgroundColor": zod.string().regex(migratePortalLogosResponseCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemPinLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardLogoSize": zod.number().int().min(migratePortalLogosResponseCardsItemCardLogoSizeMin).max(migratePortalLogosResponseCardsItemCardLogoSizeMax).optional(),
-  "cardLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "entryLogoSize": zod.number().int().min(migratePortalLogosResponseCardsItemEntryLogoSizeMin).max(migratePortalLogosResponseCardsItemEntryLogoSizeMax).optional(),
-  "entryLogoFit": zod.enum(['contain', 'cover']).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax).optional(),
-  "pinLogoSize": zod.number().int().min(migratePortalLogosResponseCardsItemPinLogoSizeMin).max(migratePortalLogosResponseCardsItemPinLogoSizeMax).optional(),
-  "pinLogoFit": zod.enum(['contain', 'cover']).optional()
-})).min(migratePortalLogosResponseCardsMin).max(migratePortalLogosResponseCardsMax),
-  "theme": zod.object({
-  "pinScreenBackground": zod.string().regex(migratePortalLogosResponseThemePinScreenBackgroundRegExp),
-  "buttonSize": zod.enum(['compact', 'standard', 'large']),
-  "buttonPlacement": zod.enum(['left', 'center', 'right']),
-  "categoryInputTransparent": zod.boolean()
-}),
-  "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(migratePortalLogosResponseScreenCopyMaxTwo))),
-  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(migratePortalLogosResponseRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
-  "pageThemes": zod.record(zod.string(), zod.object({
-  "mode": zod.enum(['inherit', 'solid', 'gradient']),
-  "color": zod.string().regex(migratePortalLogosResponsePageThemesColorRegExp),
-  "blendColor": zod.string().regex(migratePortalLogosResponsePageThemesBlendColorRegExp),
-  "angle": zod.number().int().min(migratePortalLogosResponsePageThemesAngleMin).max(migratePortalLogosResponsePageThemesAngleMax)
-})).optional()
-})
-
-
-/**
- * @summary Load a public portal logo
- */
-export const GetPortalLogoParams = zod.object({
-  "logoId": zod.coerce.string().uuid()
-})
-
-export const GetPortalLogoResponse = zod.unknown()
 
 
 export const GetAdminApplicationHistoryParams = zod.object({
@@ -1472,7 +1197,6 @@ export const DecideApplicationResponse = zod.object({
   "reviewNote": zod.string().nullish(),
   "applicantFollowup": zod.string().nullish(),
   "outstandingRequirements": zod.array(zod.string()).optional(),
-  "missingRequiredFields": zod.array(zod.string()).optional().describe('Applicant-facing labels for configured required fields that are still missing; never includes submitted values.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "submittedAt": zod.coerce.date().nullish()
@@ -1579,120 +1303,6 @@ export const AddApplicantSupportMessageResponse = zod.object({
   "response": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-})
-
-
-/**
- * @summary List applicant archive cases (primary administrator only)
- */
-export const listApplicantArchiveQuerySearchMax = 120;
-
-
-
-export const ListApplicantArchiveQueryParams = zod.object({
-  "search": zod.coerce.string().max(listApplicantArchiveQuerySearchMax).optional()
-})
-
-export const ListApplicantArchiveResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "applicantName": zod.string(),
-  "applicantEmail": zod.string(),
-  "categoryId": zod.string(),
-  "status": zod.string(),
-  "versionCount": zod.number().int(),
-  "historyUnavailable": zod.boolean(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListApplicantArchiveResponse = zod.array(ListApplicantArchiveResponseItem)
-
-
-/**
- * @summary Read a protected applicant archive record (primary administrator only)
- */
-export const GetApplicantArchiveParams = zod.object({
-  "archiveId": zod.coerce.string().uuid()
-})
-
-export const GetApplicantArchiveResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "sourceType": zod.enum(['guest', 'application']),
-  "applicantName": zod.string(),
-  "applicantEmail": zod.string(),
-  "categoryId": zod.string(),
-  "status": zod.string(),
-  "historyUnavailable": zod.boolean(),
-  "updatedAt": zod.coerce.date(),
-  "snapshots": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "version": zod.number().int(),
-  "eventType": zod.string(),
-  "createdAt": zod.coerce.date(),
-  "payload": zod.record(zod.string(), zod.unknown()),
-  "changes": zod.array(zod.object({
-  "field": zod.string(),
-  "before": zod.unknown(),
-  "after": zod.unknown()
-}))
-})),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "fieldPath": zod.string(),
-  "fileName": zod.string(),
-  "evidenceType": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "availability": zod.enum(['available', 'missing']),
-  "createdAt": zod.coerce.date()
-}))
-})
-
-
-/**
- * @summary Download the readable archive manifest and private proof copies
- */
-export const DownloadApplicantArchiveBundleParams = zod.object({
-  "archiveId": zod.coerce.string().uuid()
-})
-
-export const DownloadApplicantArchiveBundleResponse = zod.unknown()
-
-
-/**
- * @summary Restore saved applicant fields to an existing live record
- */
-export const RestoreApplicantArchiveSnapshotParams = zod.object({
-  "archiveId": zod.coerce.string().uuid()
-})
-
-export const RestoreApplicantArchiveSnapshotBody = zod.object({
-  "snapshotId": zod.string().uuid(),
-  "confirm": zod.literal(true)
-})
-
-export const RestoreApplicantArchiveSnapshotResponse = zod.object({
-  "restored": zod.boolean(),
-  "reference": zod.string(),
-  "version": zod.number().int(),
-  "pinRestored": zod.boolean()
-})
-
-
-/**
- * @summary Permanently delete an applicant archive after explicit confirmation
- */
-export const DeleteApplicantArchiveParams = zod.object({
-  "archiveId": zod.coerce.string().uuid()
-})
-
-export const DeleteApplicantArchiveBody = zod.object({
-  "confirm": zod.literal(true)
-})
-
-export const DeleteApplicantArchiveResponse = zod.object({
-  "deleted": zod.boolean(),
-  "reference": zod.string()
 })
 
 

@@ -1,12 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCipheriv, createHmac, randomBytes } from "node:crypto";
-import { Readable } from "node:stream";
-import { gunzipSync } from "node:zlib";
 
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
   users: new Map<string, Record<string, unknown>>(),
-  storageObjects: new Map<string, { contentType: string; bytes: Buffer; public?: boolean }>(),
+  storageObjects: new Map<string, { contentType: string; bytes: Buffer }>(),
   uploadCount: 0,
   tables: (() => {
     const makeTable = (name: string) => {
@@ -23,10 +20,6 @@ const mockState = vi.hoisted(() => ({
       guestPreapplicationsTable: makeTable("guest_preapplications"),
       guestPreapplicationEvidenceTable: makeTable("guest_preapplication_evidence"),
       guestPreapplicationRevisionsTable: makeTable("guest_preapplication_revisions"),
-      applicantMasterArchiveCasesTable: makeTable("applicant_master_archive_cases"),
-      applicantMasterArchiveSnapshotsTable: makeTable("applicant_master_archive_snapshots"),
-      applicantMasterArchiveEvidenceTable: makeTable("applicant_master_archive_evidence"),
-      applicantMasterArchiveAuditTable: makeTable("applicant_master_archive_audit"),
       enrollmentApplicationsTable: makeTable("enrollment_applications"),
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
@@ -157,17 +150,8 @@ function makeDatabase() {
       const tableName = source.__tableName;
       let values: Record<string, unknown> = {};
       let ignoreConflict = false;
-      let conflictUpdate: { target: any; set: Record<string, unknown> } | undefined;
       const run = () => {
         const rows = tableRows(tableName);
-        if (conflictUpdate) {
-          const conflictName = conflictUpdate.target?.name;
-          const existing = rows.find((row) => conflictName && row[conflictName] === values[conflictName]);
-          if (existing) {
-            Object.assign(existing, conflictUpdate.set);
-            return [existing];
-          }
-        }
         const uniqueFields: Record<string, string[]> = {
           guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
           enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
@@ -191,10 +175,6 @@ function makeDatabase() {
         },
         onConflictDoNothing() {
           ignoreConflict = true;
-          return builder;
-        },
-        onConflictDoUpdate(input: { target: any; set: Record<string, unknown> }) {
-          conflictUpdate = input;
           return builder;
         },
         returning() {
@@ -289,59 +269,21 @@ vi.mock("@clerk/express", () => ({
   getAuth: vi.fn((request: any) => ({ userId: request.headers["x-test-user"] ?? null })),
 }));
 
-vi.mock("../lib/objectStorage", () => {
-  const TestObjectNotFoundError = class ObjectNotFoundError extends Error {};
-  return {
-  ObjectNotFoundError: TestObjectNotFoundError,
+vi.mock("../lib/objectStorage", () => ({
+  ObjectNotFoundError: class ObjectNotFoundError extends Error {},
   ObjectStorageService: class {
     async getObjectEntityUploadURL() {
       mockState.uploadCount += 1;
-      return `https://storage.test/upload/${crypto.randomUUID()}`;
+      return `https://storage.test/upload/${mockState.uploadCount}`;
     }
 
     normalizeObjectEntityPath(uploadUrl: string) {
-      return `/objects/uploads/${uploadUrl.split("/").at(-1)}`;
-    }
-
-    async storePublicLogo(bytes: Buffer, contentType: string) {
-      const path = `/objects/uploads/${crypto.randomUUID()}`;
-      mockState.storageObjects.set(path, { contentType, bytes, public: true });
-      return path;
-    }
-
-    async trySetObjectEntityAclPolicy(path: string) {
-      const object = mockState.storageObjects.get(path);
-      if (!object) throw new Error(`Missing mocked object ${path}`);
-      object.public = true;
-      return path;
-    }
-
-    async canAccessObjectEntity({ objectFile }: { objectFile: { objectPath: string } }) {
-      return mockState.storageObjects.get(objectFile.objectPath)?.public === true;
-    }
-
-    async deleteObjectEntity(path: string) {
-      mockState.storageObjects.delete(path);
-    }
-
-    async copyPrivateObjectEntity(sourcePath: string, folder: "archive" | "uploads") {
-      const source = mockState.storageObjects.get(sourcePath);
-      if (!source) throw new TestObjectNotFoundError(`Missing mocked object ${sourcePath}`);
-      const destination = `/objects/${folder}/${crypto.randomUUID()}`;
-      mockState.storageObjects.set(destination, { ...source, public: false });
-      return destination;
-    }
-
-    async deleteArchiveObjectEntity(path: string) {
-      if (!/^\/objects\/archive\/[0-9a-f-]+$/i.test(path)) {
-        throw new Error("Invalid archive object path.");
-      }
-      mockState.storageObjects.delete(path);
+      return `/objects/test/${uploadUrl.split("/").at(-1)}`;
     }
 
     async getObjectEntityFile(path: string) {
       const object = mockState.storageObjects.get(path);
-      if (!object) throw new TestObjectNotFoundError(`Missing mocked object ${path}`);
+      if (!object) throw new Error(`Missing mocked object ${path}`);
       const stream: any = {
         on() {
           return stream;
@@ -356,64 +298,26 @@ vi.mock("../lib/objectStorage", () => {
           size: String(object.bytes.length),
           contentType: object.contentType,
         }],
-        objectPath: path,
-        download: async (range?: { start: number; end: number }) => [
-          range ? object.bytes.subarray(range.start, range.end + 1) : object.bytes,
+        download: async ({ start, end }: { start: number; end: number }) => [
+          object.bytes.subarray(start, end + 1),
         ],
         delete: async () => {
           mockState.storageObjects.delete(path);
         },
-        createReadStream: () => Readable.from([object.bytes]),
+        createReadStream: () => stream,
       };
     }
   },
-  };
-});
+}));
 
 import express from "express";
 import router from "./enrollment";
-import { captureGuestApplicantArchive } from "../lib/applicantArchive";
 import { cleanupExpiredGuestEvidence } from "../lib/guestEvidenceCleanup";
 
 const accessKey = "a".repeat(43);
 const contactEmail = "applicant@example.test";
 const privatePng = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const privateMp4 = Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
-const testArchiveKeyring = JSON.stringify({
-  activeKeyId: "test-archive-key",
-  keys: { "test-archive-key": "test-only-archive-key-material-0123456789" },
-});
-
-function encryptLegacyFixture(value: unknown, context: string): string {
-  const key = createHmac("sha256", "test-session-secret").update(context).digest();
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify(value), "utf8"),
-    cipher.final(),
-  ]);
-  return [
-    "enc:v1",
-    iv.toString("base64url"),
-    cipher.getAuthTag().toString("base64url"),
-    ciphertext.toString("base64url"),
-  ].join(":");
-}
-
-function encryptLegacyBankFixture(value: string): string {
-  const key = createHmac("sha256", "test-session-secret")
-    .update("civic-enroll-bank-v1")
-    .digest();
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  return [
-    "enc:v1",
-    iv.toString("base64url"),
-    cipher.getAuthTag().toString("base64url"),
-    ciphertext.toString("base64url"),
-  ].join(":");
-}
 
 describe("guest application verification and persistence", () => {
   const app = express();
@@ -424,7 +328,6 @@ describe("guest application verification and persistence", () => {
     process.env.PRIVATE_OBJECT_DIR = "test-private";
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "test-bucket";
     process.env.SESSION_SECRET = "test-session-secret";
-    process.env.APPLICANT_ARCHIVE_KEYS = testArchiveKeyring;
     app.use(express.json());
     app.use((request: any, _response: any, next: () => void) => {
       request.log = { error: () => undefined, warn: () => undefined, info: () => undefined };
@@ -445,17 +348,11 @@ describe("guest application verification and persistence", () => {
   });
 
   beforeEach(() => {
-    process.env.SESSION_SECRET = "test-session-secret";
-    process.env.APPLICANT_ARCHIVE_KEYS = testArchiveKeyring;
     mockState.rows.clear();
     for (const name of [
       "guest_preapplications",
       "guest_preapplication_evidence",
       "guest_preapplication_revisions",
-      "applicant_master_archive_cases",
-      "applicant_master_archive_snapshots",
-      "applicant_master_archive_evidence",
-      "applicant_master_archive_audit",
       "enrollment_applications",
       "application_events",
       "portal_settings",
@@ -495,14 +392,6 @@ describe("guest application verification and persistence", () => {
         verification: { status: "verified" },
       },
       publicMetadata: { role: "sub_admin" },
-    });
-    mockState.users.set("primary-admin", {
-      id: "primary-admin",
-      primaryEmailAddress: {
-        emailAddress: "admin@example.test",
-        verification: { status: "verified" },
-      },
-      publicMetadata: { role: "admin" },
     });
     mockState.users.set("administrator", {
       id: "administrator",
@@ -547,7 +436,7 @@ describe("guest application verification and persistence", () => {
       },
     );
     expect(prepared.response.status).toBe(200);
-    const objectPath = `/objects/uploads/${prepared.body.uploadUrl.split("/").at(-1)}`;
+    const objectPath = `/objects/test/${mockState.uploadCount}`;
     mockState.storageObjects.set(objectPath, { contentType, bytes });
     const evidenceId = prepared.body.evidenceId as string;
     const completed = await request(
@@ -959,291 +848,6 @@ describe("guest application verification and persistence", () => {
     expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
   });
 
-  it("preserves legacy settings and blocks only final submission on configured required fields", async () => {
-    const settings = {
-      hero: {
-        title: "Enrollment",
-        description: "Apply online.",
-        getStartedLabel: "Get started",
-        loginLabel: "Sign in",
-      },
-      cards: ["category-1", "category-2", "category-3", "category-4"].map((id, index) => ({
-        id,
-        title: id,
-        description: "Enrollment category",
-        buttonLabel: "Continue",
-        backgroundColor: "#ffffff",
-        logoDataUrl: null,
-        cardLogoSize: 48 + index * 16,
-        cardLogoFit: index % 2 === 0 ? "cover" : "contain",
-        entryLogoSize: 96 + index * 16,
-        entryLogoFit: index % 2 === 0 ? "contain" : "cover",
-        pinLogoSize: 144 + index * 16,
-        pinLogoFit: index % 2 === 0 ? "cover" : "contain",
-      })),
-      theme: {
-        pinScreenBackground: "#ffffff",
-        buttonSize: "standard",
-        buttonPlacement: "center",
-        categoryInputTransparent: true,
-      },
-      screenCopy: {
-        "guest-contact": {
-          title: "Start an application",
-          description: "Enter the details used for this application.",
-          fullNameLabel: "Applicant's legal name",
-        },
-        "guest-status": { title: "Check your progress" },
-      },
-      requiredFields: ["personalInformation.firstName"],
-    };
-    const unauthorizedSettingsUpdate = await request(
-      "/admin/settings",
-      { method: "PUT", body: JSON.stringify(settings) },
-      "reviewer",
-    );
-    expect(unauthorizedSettingsUpdate.response.status).toBe(403);
-
-    const legacySettings = { ...settings };
-    delete (legacySettings as Partial<typeof settings>).requiredFields;
-    mockState.rows.set("portal_settings", [{
-      key: "portal",
-      value: legacySettings,
-      updatedAt: new Date(),
-      updatedByUserId: "administrator",
-    }]);
-    const legacyRead = await request("/portal/settings");
-    expect(legacyRead.response.status).toBe(200);
-    expect(legacyRead.body.requiredFields).toEqual([]);
-
-    const savedSettings = await request(
-      "/admin/settings",
-      { method: "PUT", body: JSON.stringify(settings) },
-      "administrator",
-    );
-    expect(savedSettings.response.status).toBe(200);
-    expect(savedSettings.body.requiredFields).toEqual(["personalInformation.firstName"]);
-    expect(savedSettings.body.screenCopy["guest-contact"]).toEqual({
-      title: "Start an application",
-      description: "Enter the details used for this application.",
-      fullNameLabel: "Applicant's legal name",
-    });
-    expect(savedSettings.body.screenCopy["guest-status"].title).toBe("Check your progress");
-    const publicSettings = await request("/portal/settings");
-    expect(publicSettings.response.status).toBe(200);
-    expect(publicSettings.body.screenCopy["guest-contact"]).toEqual({
-      title: "Start an application",
-      description: "Enter the details used for this application.",
-      fullNameLabel: "Applicant's legal name",
-    });
-    const blankCopySettings = {
-      ...settings,
-      screenCopy: {
-        ...settings.screenCopy,
-        "guest-contact": {
-          title: " ",
-          description: "",
-          fullNameLabel: " ",
-        },
-      },
-    };
-    const savedBlankCopy = await request(
-      "/admin/settings",
-      { method: "PUT", body: JSON.stringify(blankCopySettings) },
-      "administrator",
-    );
-    expect(savedBlankCopy.response.status).toBe(200);
-    expect(savedBlankCopy.body.screenCopy["guest-contact"]).toEqual({
-      title: " ",
-      description: "",
-      fullNameLabel: " ",
-    });
-    const publicBlankCopy = await request("/portal/settings");
-    expect(publicBlankCopy.body.screenCopy["guest-contact"]).toEqual({
-      title: " ",
-      description: "",
-      fullNameLabel: " ",
-    });
-    expect(savedSettings.body.cards.map((card: Record<string, unknown>) => [
-      card.cardLogoSize,
-      card.cardLogoFit,
-      card.entryLogoSize,
-      card.entryLogoFit,
-      card.pinLogoSize,
-      card.pinLogoFit,
-    ])).toEqual([
-      [48, "cover", 96, "contain", 144, "cover"],
-      [64, "contain", 112, "cover", 160, "contain"],
-      [80, "cover", 128, "contain", 176, "cover"],
-      [96, "contain", 144, "cover", 192, "contain"],
-    ]);
-
-    const created = await request("/guest/preapplications", {
-      method: "POST",
-      body: JSON.stringify({
-        submissionId: crypto.randomUUID(),
-        accessKey,
-        categoryId: "category-2",
-        fullName: "Required Field Applicant",
-        email: contactEmail,
-      }),
-    });
-    expect(created.response.status).toBe(201);
-    const { id: applicationId, reference } = created.body as { id: string; reference: string };
-    const partial = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        accessKey,
-        currentStep: 0,
-        complete: false,
-        pin: "739102",
-        answers: { personalInformation: { email: contactEmail } },
-      }),
-    });
-    expect(partial.response.status).toBe(200);
-    expect(partial.body.missingRequiredFields).toEqual(["First name"]);
-    expect(partial.body.detailsComplete).toBe(false);
-    const publicProgress = await request("/guest/preapplications/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference, accessKey }),
-    });
-    expect(publicProgress.response.status).toBe(200);
-    expect(publicProgress.body.missingRequiredFields).toEqual(["First name"]);
-    expect(publicProgress.body.applicantFollowup).toBeNull();
-
-    const blocked = await request(
-      `/guest/preapplications/${applicationId}/submit`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
-      "applicant-verified",
-    );
-    expect(blocked.response.status).toBe(400);
-    expect(blocked.body.error).toContain("First name");
-
-    const completedRequirement = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        accessKey,
-        currentStep: 0,
-        complete: false,
-        answers: { personalInformation: { firstName: "Ada", email: contactEmail } },
-      }),
-    });
-    expect(completedRequirement.response.status).toBe(200);
-    expect(completedRequirement.body.missingRequiredFields).toEqual([]);
-    const submitted = await request(
-      `/guest/preapplications/${applicationId}/submit`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
-      "applicant-verified",
-    );
-    expect(submitted.response.status).toBe(200);
-    expect(submitted.body.status).toBe("submitted");
-    const linkedApplication = mockState.rows.get("enrollment_applications")?.find(
-      (row) => row.id === submitted.body.id,
-    );
-    if (linkedApplication) linkedApplication.reviewNote = "Internal reviewer-only note";
-    const publicSubmittedStatus = await request("/guest/preapplications/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference, accessKey }),
-    });
-    expect(publicSubmittedStatus.body.applicantFollowup).toBeNull();
-    expect(JSON.stringify(publicSubmittedStatus.body)).not.toContain("Internal reviewer-only note");
-  });
-
-  it("migrates legacy logos and deletes replaced or cleared public logo objects", async () => {
-    const imageDataUrl = `data:image/png;base64,${privatePng.toString("base64")}`;
-    const settings = {
-      hero: {
-        title: "Enrollment",
-        description: "Apply online.",
-        getStartedLabel: "Get started",
-        loginLabel: "Sign in",
-      },
-      cards: ["category-1", "category-2", "category-3", "category-4"].map((id, index) => ({
-        id,
-        title: id,
-        description: "Enrollment category",
-        buttonLabel: "Continue",
-        backgroundColor: "#ffffff",
-        logoDataUrl: index === 0 ? imageDataUrl : null,
-      })),
-      theme: {
-        pinScreenBackground: "#ffffff",
-        buttonSize: "standard",
-        buttonPlacement: "center",
-        categoryInputTransparent: true,
-      },
-      screenCopy: {},
-      requiredFields: [],
-    };
-    mockState.rows.set("portal_settings", [{
-      key: "portal",
-      value: settings,
-      updatedAt: new Date(),
-      updatedByUserId: "administrator",
-    }]);
-
-    const deniedUpload = await request("/admin/settings/logos/upload-url", {
-      method: "POST",
-    }, "reviewer");
-    expect(deniedUpload.response.status).toBe(403);
-
-    const migrated = await request("/admin/settings/migrate-logos", {
-      method: "POST",
-    }, "administrator");
-    expect(migrated.response.status).toBe(200);
-    const savedLogoUrl = migrated.body.cards[0].logoDataUrl as string;
-    expect(savedLogoUrl).toMatch(/^\/api\/enrollment\/logos\//);
-    expect(savedLogoUrl).not.toContain("base64");
-    const savedObjectPath = `/objects/uploads/${savedLogoUrl.split("/").at(-1)}`;
-    expect(mockState.storageObjects.has(savedObjectPath)).toBe(true);
-
-    const publicLogoResponse = await fetch(
-      `${baseUrl}${savedLogoUrl.replace("/api", "")}`,
-    );
-    expect(publicLogoResponse.status).toBe(200);
-    expect(Buffer.from(await publicLogoResponse.arrayBuffer())).toEqual(privatePng);
-
-    const uploadRequest = await request("/admin/settings/logos/upload-url", {
-      method: "POST",
-    }, "administrator");
-    expect(uploadRequest.response.status).toBe(200);
-    const uploadedObjectPath = uploadRequest.body.objectPath as string;
-    mockState.storageObjects.set(uploadedObjectPath, {
-      contentType: "image/png",
-      bytes: privatePng,
-    });
-    const completedUpload = await request("/admin/settings/logos/complete", {
-      method: "POST",
-      body: JSON.stringify({
-        objectPath: uploadedObjectPath,
-        contentType: "image/png",
-      }),
-    }, "administrator");
-    expect(completedUpload.response.status).toBe(200);
-    const replacementUrl = completedUpload.body.logoUrl as string;
-
-    const replacementSettings = structuredClone(migrated.body);
-    replacementSettings.cards[0].logoDataUrl = replacementUrl;
-    const replaced = await request("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify(replacementSettings),
-    }, "administrator");
-    expect(replaced.response.status).toBe(200);
-    expect(mockState.storageObjects.has(savedObjectPath)).toBe(false);
-    expect(mockState.storageObjects.has(uploadedObjectPath)).toBe(true);
-
-    const clearedSettings = structuredClone(replaced.body);
-    clearedSettings.cards[0].logoDataUrl = null;
-    const cleared = await request("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify(clearedSettings),
-    }, "administrator");
-    expect(cleared.response.status).toBe(200);
-    expect(mockState.storageObjects.has(uploadedObjectPath)).toBe(false);
-  });
-
   it("cleans expired guest evidence but preserves evidence linked to submitted applications", async () => {
     const now = new Date("2026-10-12T12:00:00.000Z");
     const old = new Date(now.getTime() - 100 * 24 * 60 * 60 * 1000);
@@ -1359,265 +963,4 @@ describe("guest application verification and persistence", () => {
     expect(mockState.storageObjects.has("/objects/test/submitted-file")).toBe(true);
     expect(inactiveDraft.answers).toEqual({ proofOfIdentity: {} });
   });
-
-  it("restricts archive access to the primary admin, retains evidence privately, and excludes PIN values", async () => {
-    const guest = newRow("guest_preapplications", {
-      id: "guest-archive-case",
-      submissionId: "guest-archive-submission",
-      reference: "ENR-ARCHIVE-001",
-      fullName: "Archive Applicant",
-      email: "archive@example.test",
-      phone: null,
-      categoryId: "category-1",
-      currentStep: 3,
-      answers: {
-        proofOfIdentity: { frontObjectPath: "/objects/test-private/evidence" },
-        pin: "432109",
-        pinHash: "scrypt$guest-pin-hash",
-      },
-      pinHash: "scrypt$top-level-pin-hash",
-      submissionStatus: "draft",
-      emailVerified: false,
-    }) as Record<string, unknown>;
-    tableRows("guest_preapplications").push(guest);
-    mockState.storageObjects.set("/objects/test-private/evidence", {
-      contentType: "image/png",
-      bytes: privatePng,
-    });
-
-    const unauthenticated = await fetch(`${baseUrl}/admin/archive`);
-    expect(unauthenticated.status).toBe(401);
-    const reviewerResponse = await fetch(`${baseUrl}/admin/archive`, {
-      headers: { "x-test-user": "reviewer" },
-    });
-    expect(reviewerResponse.status).toBe(403);
-
-    const listResponse = await fetch(`${baseUrl}/admin/archive`, {
-      headers: { "x-test-user": "primary-admin" },
-    });
-    expect(listResponse.status).toBe(200);
-    const list = await listResponse.json() as Array<{ id: string; reference: string }>;
-    expect(list).toHaveLength(1);
-    const recordId = list[0]!.id;
-
-    const archiveEvidence = tableRows("applicant_master_archive_evidence");
-    expect(archiveEvidence).toHaveLength(1);
-    const archiveObjectPath = archiveEvidence[0]!.archiveObjectPath as string;
-    expect(archiveObjectPath).toMatch(/^\/objects\/archive\//);
-    expect(mockState.storageObjects.get(archiveObjectPath)?.public).toBe(false);
-
-    const detailResponse = await fetch(`${baseUrl}/admin/archive/${recordId}`, {
-      headers: { "x-test-user": "primary-admin" },
-    });
-    expect(detailResponse.status).toBe(200);
-    const detail = await detailResponse.json() as {
-      snapshots: Array<{ id: string; payload: Record<string, unknown> }>;
-      evidence: Array<{ availability: string }>;
-    };
-    const detailText = JSON.stringify(detail);
-    expect(detailText).not.toContain("432109");
-    expect(detailText).not.toContain("scrypt$");
-    expect(detail.evidence[0]?.availability).toBe("available");
-    const snapshotId = detail.snapshots[0]!.id;
-    expect(String(tableRows("applicant_master_archive_snapshots")[0]!.payloadEncrypted))
-      .not.toContain("Archive Applicant");
-
-    const bundleResponse = await fetch(`${baseUrl}/admin/archive/${recordId}/bundle`, {
-      headers: { "x-test-user": "primary-admin" },
-    });
-    expect(bundleResponse.status).toBe(200);
-    const tar = gunzipSync(Buffer.from(await bundleResponse.arrayBuffer()));
-    const manifestLength = Number.parseInt(
-      tar.subarray(124, 136).toString("ascii").replace(/\0.*$/, "").trim(),
-      8,
-    );
-    const manifest = tar.subarray(512, 512 + manifestLength).toString("utf8");
-    expect(manifest).toContain("Archive Applicant");
-    expect(manifest).not.toContain("432109");
-    expect(manifest).not.toContain("scrypt$");
-    expect(tar.includes(privatePng)).toBe(true);
-
-    guest.fullName = "Changed Applicant";
-    guest.status = "closed";
-    const restoreResponse = await fetch(`${baseUrl}/admin/archive/${recordId}/restore`, {
-      method: "POST",
-      headers: { "x-test-user": "primary-admin", "content-type": "application/json" },
-      body: JSON.stringify({ snapshotId, confirm: true }),
-    });
-    expect(restoreResponse.status).toBe(200);
-    expect(guest.fullName).toBe("Archive Applicant");
-    expect(guest.status).toBe("closed");
-    expect(guest.pinHash).toBe("scrypt$top-level-pin-hash");
-
-    const deleteResponse = await fetch(`${baseUrl}/admin/archive/${recordId}/delete`, {
-      method: "POST",
-      headers: { "x-test-user": "primary-admin", "content-type": "application/json" },
-      body: JSON.stringify({ confirm: true }),
-    });
-    expect(deleteResponse.status).toBe(200);
-    expect(mockState.rows.get("applicant_master_archive_audit")?.map((row) => row.action))
-      .toContain("delete_completed");
-    expect([...mockState.storageObjects.keys()].some((path) => path.startsWith("/objects/archive/")))
-      .toBe(false);
-  }, 15000);
-
-  it("rewraps legacy archive data before session-secret rotation and stays readable after retiring its old archive key", async () => {
-    const sessionSecretBefore = process.env.SESSION_SECRET;
-    const archiveKeysBefore = process.env.APPLICANT_ARCHIVE_KEYS;
-    const sessionSecret = "test-session-secret";
-    const oldArchiveKey = "rotation-test-key-a-material-0123456789";
-    const newArchiveKey = "rotation-test-key-b-material-0123456789";
-    const archiveId = crypto.randomUUID();
-    const guestId = crypto.randomUUID();
-    const snapshotId = crypto.randomUUID();
-    const accountNumberEncrypted = encryptLegacyBankFixture("001234567890");
-
-    try {
-      process.env.SESSION_SECRET = sessionSecret;
-      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
-        activeKeyId: "archive-key-a",
-        keys: { "archive-key-a": oldArchiveKey },
-      });
-
-      const guest = newRow("guest_preapplications", {
-        id: guestId,
-        submissionId: crypto.randomUUID(),
-        reference: "ENR-ROTATION-001",
-        fullName: "Rotation Applicant",
-        email: "rotation@example.test",
-        categoryId: "category-1",
-        answers: { bankDetails: { accountNumberEncrypted } },
-      }) as Record<string, unknown>;
-      tableRows("guest_preapplications").push(guest);
-      const proofPath = "/objects/test-private/legacy-proof";
-      const archivedProofPath = `/objects/archive/${crypto.randomUUID()}`;
-      const evidenceId = crypto.randomUUID();
-      mockState.storageObjects.set(archivedProofPath, {
-        contentType: "application/pdf",
-        bytes: privatePng,
-        public: false,
-      });
-      tableRows("applicant_master_archive_evidence").push(newRow(
-        "applicant_master_archive_evidence",
-        {
-          id: evidenceId,
-          archiveId,
-          sourceFingerprint: "legacy-proof-fingerprint",
-          sourcePathEncrypted: encryptLegacyFixture(
-            proofPath,
-            "civic-enroll-applicant-archive-v1",
-          ),
-          archiveObjectPath: archivedProofPath,
-          fieldPath: "proofOfIdentity.front",
-          fileName: encryptLegacyFixture(
-            "identity-card.pdf",
-            "civic-enroll-applicant-archive-v1",
-          ),
-          evidenceType: "identity_document",
-          contentType: "application/pdf",
-          sizeBytes: privatePng.length,
-          availability: "available",
-        },
-      ));
-      tableRows("applicant_master_archive_cases").push(newRow(
-        "applicant_master_archive_cases",
-        {
-          id: archiveId,
-          sourceType: "guest",
-          sourceId: guestId,
-          reference: "ENR-ROTATION-001",
-          historyUnavailable: false,
-        },
-      ));
-      const oldPayload = {
-        recordType: "guest",
-        reference: "ENR-ROTATION-001",
-        categoryId: "category-1",
-        currentStep: 4,
-        answers: {
-          bankDetails: {
-            bankName: "Test Bank",
-            accountNumberEncrypted,
-          },
-        },
-        status: "received",
-        fullName: "Rotation Applicant",
-        email: "rotation@example.test",
-        correctionHistory: [],
-      };
-      tableRows("applicant_master_archive_snapshots").push(newRow(
-        "applicant_master_archive_snapshots",
-        {
-          id: snapshotId,
-          archiveId,
-          version: 1,
-          eventType: "initial_archive_snapshot",
-          actorUserId: null,
-          payloadEncrypted: encryptLegacyFixture(
-            oldPayload,
-            "civic-enroll-applicant-archive-v1",
-          ),
-          changesEncrypted: encryptLegacyFixture(
-            [],
-            "civic-enroll-applicant-archive-v1",
-          ),
-        },
-      ));
-
-      const firstRead = await fetch(`${baseUrl}/admin/archive`, {
-        headers: { "x-test-user": "primary-admin" },
-      });
-      expect(firstRead.status).toBe(200);
-      let snapshot = tableRows("applicant_master_archive_snapshots")[0]!;
-      expect(String(snapshot.payloadEncrypted)).toMatch(/^enc:v2:archive-key-a:/);
-
-      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
-        activeKeyId: "archive-key-b",
-        keys: {
-          "archive-key-a": oldArchiveKey,
-          "archive-key-b": newArchiveKey,
-        },
-      });
-      process.env.SESSION_SECRET = "rotated-session-secret";
-
-      const rotatedRead = await fetch(`${baseUrl}/admin/archive/${archiveId}`, {
-        headers: { "x-test-user": "primary-admin" },
-      });
-      expect(rotatedRead.status).toBe(200);
-      const detail = await rotatedRead.json() as {
-        snapshots: Array<{ payload: { answers: { bankDetails: { accountNumber: string } } } }>;
-        evidence: Array<{ fileName: string }>;
-      };
-      expect(detail.snapshots[0]?.payload.answers.bankDetails.accountNumber).toBe("001234567890");
-      expect(detail.evidence[0]?.fileName).toBe("identity-card.pdf");
-      snapshot = tableRows("applicant_master_archive_snapshots")[0]!;
-      expect(String(snapshot.payloadEncrypted)).toMatch(/^enc:v2:archive-key-b:/);
-      const evidence = tableRows("applicant_master_archive_evidence")[0]!;
-      expect(String(evidence.sourcePathEncrypted)).toMatch(/^enc:v2:archive-key-b:/);
-      expect(String(evidence.fileName)).toMatch(/^enc:v2:archive-key-b:/);
-
-      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
-        activeKeyId: "archive-key-b",
-        keys: { "archive-key-b": newArchiveKey },
-      });
-      guest.currentStep = 5;
-      const progressCapture = await captureGuestApplicantArchive(
-        guest as any,
-        { eventType: "guest_progress_saved" },
-      );
-      expect(progressCapture.created).toBe(true);
-      const afterRetirementRead = await fetch(`${baseUrl}/admin/archive/${archiveId}`, {
-        headers: { "x-test-user": "primary-admin" },
-      });
-      expect(afterRetirementRead.status).toBe(200);
-      const retained = await afterRetirementRead.json() as typeof detail;
-      expect(retained.snapshots[0]?.payload.answers.bankDetails.accountNumber).toBe("001234567890");
-      expect(retained.evidence[0]?.fileName).toBe("identity-card.pdf");
-    } finally {
-      if (sessionSecretBefore === undefined) delete process.env.SESSION_SECRET;
-      else process.env.SESSION_SECRET = sessionSecretBefore;
-      if (archiveKeysBefore === undefined) delete process.env.APPLICANT_ARCHIVE_KEYS;
-      else process.env.APPLICANT_ARCHIVE_KEYS = archiveKeysBefore;
-    }
-  }, 15000);
 });

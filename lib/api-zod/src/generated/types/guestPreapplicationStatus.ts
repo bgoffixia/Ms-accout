@@ -38,6 +38,4 @@ export interface GuestPreapplicationStatus {
   /** @nullable */
   applicantFollowup: string | null;
   outstandingRequirements: string[];
-  /** Applicant-facing labels for configured required fields that are still missing; never includes submitted values. */
-  missingRequiredFields?: string[];
 }

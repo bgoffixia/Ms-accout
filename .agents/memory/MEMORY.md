@@ -3,8 +3,3 @@
 - [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.
 - [Optional enrollment sections](optional-enrollment-sections.md) — Keep completion gates aligned with sections the applicant is told they may skip.
 - [Applicant viewport locking](applicant-viewport-lock.md) — Root overflow hidden alone may leave a programmatic document scroll range; keep scrolling inside panels.
-- [Portal settings compatibility](portal-settings-compatibility.md) — Normalize missing settings with safe defaults and retain existing screen-copy keys.
-- [Generated API type freshness](generated-api-type-freshness.md) — Regenerate API client declarations from OpenAPI when schema fields exist but leaf typechecks still miss them.
-- [Portal logo storage](portal-logo-storage.md) — Portal branding images are public assets; applicant identity evidence must stay private and separately access-controlled.
-- [Browser test authentication](browser-test-auth.md) — Keep fake staff sessions isolated to a dedicated Playwright server; never alter production authentication for browser coverage.
-- [Applicant logo spacing](applicant-logo-spacing.md) — Reserve dynamic vertical space for logos on absolute-positioned entry screens.

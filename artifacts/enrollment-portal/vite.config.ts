@@ -49,13 +49,6 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      ...(process.env.E2E_AUTH_MOCK === '1' && process.env.NODE_ENV !== 'production'
-        ? {
-            '@clerk/react/legacy': path.resolve(import.meta.dirname, 'src/testing/clerkLegacyMock.ts'),
-            '@clerk/react/internal': path.resolve(import.meta.dirname, 'src/testing/clerkInternalMock.ts'),
-            '@clerk/react': path.resolve(import.meta.dirname, 'src/testing/clerkMock.tsx'),
-          }
-        : {}),
       '@': path.resolve(import.meta.dirname, 'src'),
       '@assets': path.resolve(
         import.meta.dirname,

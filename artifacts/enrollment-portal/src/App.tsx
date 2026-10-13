@@ -6,7 +6,7 @@ import { useSignIn, useSignUp } from '@clerk/react/legacy';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import {
-  Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
+  Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
   ChevronDown, CircleHelp, FileCheck2, FileText, Headphones, Home, LifeBuoy,
   GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Upload, X,
 } from 'lucide-react';
@@ -49,12 +49,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { CategoryEntryForm, type CategoryEntryAnswers } from './components/CategoryEntryForm';
-import { AdminApplicantArchive } from './components/AdminApplicantArchive';
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityHeroVisual, SecurityLoadingIndicator } from './components/SecurityVisuals';
 import { DEFAULT_PAGE_THEME, PAGE_THEME_SCREENS, normalizePageThemes, pageThemeBackground, pageThemeKeyForRoute } from './pageTheme';
-import { applicantFieldCopy, applicantPlaceholderKey, applicantValidationKey, guestContactFieldCopy } from './applicantFieldCopy';
 import categoryOneLogo from './assets/category-one-national-bank-logo-updated.png';
 import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
 import categoryThreeLogo from './assets/category-three-anz-logo.jpg';
@@ -75,12 +73,6 @@ const clerkPubKey = publishableKeyFromHost(
 );
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const defaultCategoryLogos: Record<string, string> = {
-  'category-1': categoryOneLogo,
-  'category-2': categoryTwoLogo,
-  'category-3': categoryThreeLogo,
-  'category-4': categoryFourLogo,
-};
 
 function stripBase(path: string) {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
@@ -179,121 +171,20 @@ function copyText(settings: PortalSettings | undefined, screen: string, key: str
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
-const requiredFieldCopyKeys: Record<string, { screen: string; key: string }> = {
-  'Category entry name': { screen: 'category-entry', key: 'nameLabel' },
-  'Category entry nickname': { screen: 'category-entry', key: 'nicknameLabel' },
-  'Category entry surname': { screen: 'category-entry', key: 'surnameLabel' },
-  'First name': { screen: 'workflow-step-1', key: 'field_personalInformation_firstName' },
-  'Middle name': { screen: 'workflow-step-1', key: 'field_personalInformation_middleName' },
-  Surname: { screen: 'workflow-step-1', key: 'field_personalInformation_surname' },
-  'Date of birth': { screen: 'workflow-step-1', key: 'field_personalInformation_dateOfBirth' },
-  Nationality: { screen: 'workflow-step-1', key: 'field_personalInformation_nationality' },
-  'Personal phone number': { screen: 'workflow-step-1', key: 'field_personalInformation_phone' },
-  'Email address': { screen: 'workflow-step-1', key: 'field_personalInformation_email' },
-  'Residential address': { screen: 'workflow-step-1', key: 'field_personalInformation_residentialAddress' },
-  'State or region': { screen: 'workflow-step-1', key: 'field_personalInformation_stateRegion' },
-  City: { screen: 'workflow-step-1', key: 'field_personalInformation_city' },
-  'Postal code': { screen: 'workflow-step-1', key: 'field_personalInformation_postalCode' },
-  'Next-of-kin full name': { screen: 'workflow-step-2', key: 'field_nextOfKin_fullName' },
-  'Next-of-kin relationship': { screen: 'workflow-step-2', key: 'field_nextOfKin_relationship' },
-  'Next-of-kin phone number': { screen: 'workflow-step-2', key: 'field_nextOfKin_phone' },
-  'Next-of-kin email address': { screen: 'workflow-step-2', key: 'field_nextOfKin_email' },
-  'Next-of-kin residential address': { screen: 'workflow-step-2', key: 'field_nextOfKin_residentialAddress' },
-  'Next-of-kin city': { screen: 'workflow-step-2', key: 'field_nextOfKin_city' },
-  'Next-of-kin state or region': { screen: 'workflow-step-2', key: 'field_nextOfKin_stateRegion' },
-  'Highest qualification': { screen: 'workflow-step-3', key: 'field_education_highestQualification' },
-  Institution: { screen: 'workflow-step-3', key: 'field_education_institution' },
-  'Course or field': { screen: 'workflow-step-3', key: 'field_education_courseField' },
-  'Education start year': { screen: 'workflow-step-3', key: 'field_education_startYear' },
-  'Education completion year': { screen: 'workflow-step-3', key: 'field_education_completionYear' },
-  'Certification status': { screen: 'workflow-step-3', key: 'field_education_certificationStatus' },
-  'Additional qualifications': { screen: 'workflow-step-3', key: 'field_education_additionalQualifications' },
-  'Education certificate': { screen: 'workflow-step-3', key: 'field_education_certificateObjectPath' },
-  'Employment status': { screen: 'workflow-step-4', key: 'field_workInformation_employmentStatus' },
-  Occupation: { screen: 'workflow-step-4', key: 'field_workInformation_occupation' },
-  Employer: { screen: 'workflow-step-4', key: 'field_workInformation_employer' },
-  'Business name': { screen: 'workflow-step-4', key: 'field_workInformation_businessName' },
-  'Business or work address': { screen: 'workflow-step-4', key: 'field_workInformation_workAddress' },
-  'Work phone': { screen: 'workflow-step-4', key: 'field_workInformation_workPhone' },
-  'Years of experience': { screen: 'workflow-step-4', key: 'field_workInformation_yearsExperience' },
-  'Identity document type': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_documentType' },
-  'Identity document number': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_documentNumber' },
-  'Identity document front': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_frontObjectPath' },
-  'Identity document back': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_backObjectPath' },
-  'Video recording consent': { screen: 'workflow-step-6', key: 'field_liveVideoRecording_consentAccepted' },
-  'Verification video': { screen: 'workflow-step-6', key: 'field_liveVideoRecording_objectPath' },
-  'Bank name': { screen: 'workflow-step-7', key: 'field_bankDetails_bankName' },
-  'Account holder': { screen: 'workflow-step-7', key: 'field_bankDetails_accountHolder' },
-  'Account number': { screen: 'workflow-step-7', key: 'field_bankDetails_accountNumber' },
-  'Account type': { screen: 'workflow-step-7', key: 'field_bankDetails_accountType' },
-};
-
-function requiredFieldDisplayText(settings: PortalSettings | undefined, label: string, categoryId: string) {
-  const copyKey = requiredFieldCopyKeys[label];
-  if (!copyKey) return label;
-  const screen = copyKey.screen === 'category-entry'
-    ? `category-entry-${categoryId}`
-    : copyKey.screen;
-  return copyText(settings, screen, copyKey.key, label);
-}
-
-function categoryCardLogoStyle(card: PortalSettings['cards'][number] | undefined): CSSProperties {
-  const alignment = card?.cardLogoAlignment ?? 'left';
-  const verticalOffset = Number(card?.cardLogoVerticalOffset ?? 0);
-  const offset = Number.isFinite(verticalOffset) ? Math.max(-60, Math.min(60, verticalOffset)) : 0;
-  const size = Number(card?.cardLogoSize);
-  return {
-    alignSelf: alignment === 'center' ? 'center' : alignment === 'right' ? 'flex-end' : 'flex-start',
-    transform: offset ? `translateY(${offset}px)` : undefined,
-    ...(Number.isFinite(size) && size > 0 ? { width: `${size}px`, height: `${size}px`, maxWidth: '100%', maxHeight: 'min(28vh, 180px)' } : {}),
-    objectFit: card?.cardLogoFit === 'cover' ? 'cover' : 'contain',
-  };
-}
-
-function defaultLogoSize(categoryId: string, slot: 'card' | 'entry' | 'pin') {
-  const sizes: Record<string, Record<'card' | 'entry' | 'pin', number>> = {
-    'category-1': { card: 110, entry: 176, pin: 160 },
-    'category-2': { card: 53, entry: 104, pin: 78 },
-    'category-3': { card: 48, entry: 98, pin: 78 },
-    'category-4': { card: 78, entry: 110, pin: 150 },
-  };
-  return sizes[categoryId]?.[slot] ?? (slot === 'card' ? 56 : 100);
-}
-
-function logoFitStyle(size: number, fit: string): CSSProperties {
-  return {
-    width: `${size}px`,
-    height: `${size}px`,
-    maxWidth: 'min(90vw, 320px)',
-    maxHeight: 'min(28vh, 180px)',
-    objectFit: fit === 'cover' ? 'cover' : 'contain',
-  };
-}
-
-function AppFrame({ children, active = 'dashboard', fitDashboard = false, currentApplication }: {
+function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
   children: ReactNode;
   active?: string;
   fitDashboard?: boolean;
-  currentApplication?: Pick<EnrollmentApplication, 'id' | 'status'>;
 }) {
   const { signOut } = useClerk();
   const { user } = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const links: { label: string; href: string; key: string; icon: typeof Home }[] = [
+  const links = [
     { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
-    { label: 'Applications', href: '/dashboard#applications', key: 'applications', icon: FileCheck2 },
+    { label: 'Applications', href: '/dashboard', key: 'applications', icon: FileCheck2 },
+    { label: 'Support', href: '/support', key: 'support', icon: LifeBuoy },
   ];
-  if (currentApplication) {
-    const editable = ['draft', 'needs_information'].includes(currentApplication.status);
-    links.push({
-      label: editable ? 'Continue enrollment' : 'Application status',
-      href: editable ? `/apply/${currentApplication.id}` : `/applications/${currentApplication.id}`,
-      key: editable ? 'enrollment' : 'applicationStatus',
-      icon: editable ? FileText : FileCheck2,
-    });
-  }
-  links.push({ label: 'Support', href: '/support', key: 'support', icon: LifeBuoy });
   return (
     <div className="app-shell portal-frame">
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
@@ -301,13 +192,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, curren
         <div className="workspace-label">APPLICANT PORTAL</div>
         <nav className="side-nav" aria-label="Applicant navigation">
           {links.map(({ label, href, key, icon: Icon }) => (
-            <Link href={href} key={key} onClick={() => {
-              setMenuOpen(false);
-              if (key === 'applications') {
-                setLocation('/dashboard#applications');
-                requestAnimationFrame(() => document.getElementById('applications')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-              }
-            }}
+            <Link href={href} key={key} onClick={() => { setMenuOpen(false); if (key === 'applications') setLocation('/dashboard'); }}
               className={`nav-link ${active === key ? 'nav-link-active' : ''}`} data-testid={`link-nav-${key}`}>
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
             </Link>
@@ -355,11 +240,11 @@ function PublicLanding() {
         <PortalWordmark className="portal-wordmark-landing" />
         <div className="landing-content rise">
           <div className="eyebrow"><span className="eyebrow-rule" />SECURE ENROLLMENT</div>
-          <h1>{hero?.title ?? 'Welcome to Our Enrollment Portal'}</h1>
-          <p className="landing-lede">{hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.'}</p>
+          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to Our Enrollment Portal')}</h1>
+          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.')}</p>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
-              {primaryLabel} <ArrowRight size={17} />
+              {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
             </Link>
             <Link href="/guest/track" className="landing-secondary-link" data-testid="link-track-application">
               Track an application <ArrowRight size={15} />
@@ -585,8 +470,6 @@ function Dashboard() {
   const palette = ['#0EAD46', '#0C4DA1', '#0072AE', '#FFFFFF'];
   const iconColors = ['#168341', '#244fc7', '#087eaf', '#174d80'];
   const activeStatuses = ['draft', 'submitted', 'under_review', 'needs_information'];
-  const currentApplication = allApplications.find((application) =>
-    ['draft', 'needs_information'].includes(application.status));
   const applicationsForCategory = (categoryId: string) =>
     allApplications.filter((application) => application.categoryId === categoryId);
   const orderedCategories = useMemo(() => {
@@ -632,14 +515,14 @@ function Dashboard() {
   };
   const busy = !userLoaded || summary.isLoading || applications.isLoading || categories.isLoading;
   const failure = summary.isError || applications.isError || categories.isError;
-  return <AppFrame active="dashboard" fitDashboard currentApplication={currentApplication}>
+  return <AppFrame active="dashboard" fitDashboard>
     <div className="dashboard-layout">
       <div className="dashboard-main">
          <PageHeading eyebrow="YOUR ENROLLMENT" title={copyText(portalSettings.data, 'dashboard', 'title', 'A good place to begin.')} detail={copyText(portalSettings.data, 'dashboard', 'description', `Signed in as ${user?.fullName || user?.primaryEmailAddress?.emailAddress || 'your account'}. Start a separate application for each enrollment category.`)} />
         {failure ? <ErrorPanel message="Your enrollment information is temporarily unavailable." retry={() => { void summary.refetch(); void applications.refetch(); void categories.refetch(); }} /> :
           busy ? <LoadingPanel /> : <>
             <section className="selection-section rise-delay">
-              <div className="section-line"><div><h2>Select an enrollment path</h2><p>Choose the option that best matches your application.</p></div><span className="step-indicator">{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'STEP 01 / 03')}</span></div>
+              <div className="section-line"><div><h2>{copyText(portalSettings.data, 'dashboard', 'title', 'Select an enrollment path')}</h2><p>{copyText(portalSettings.data, 'dashboard', 'description', 'Choose the option that best matches your application.')}</p></div><span className="step-indicator">{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'STEP 01 / 03')}</span></div>
               <div className="category-grid">
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
@@ -669,15 +552,15 @@ function Dashboard() {
                     data-testid={`card-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
                     {cardSettings?.logoDataUrl
-                      ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={categoryCardLogoStyle(cardSettings)} />
+                      ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" />
                       : category.id === 'category-1'
-                        ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                        ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" />
                         : category.id === 'category-2'
-                        ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                        ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" />
                         : category.id === 'category-3'
-                          ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                          ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" />
                           : category.id === 'category-4'
-                            ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                            ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" />
                             : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
                     <span className="category-title">{cardSettings?.title ?? category.name}</span>
                     <span className="category-select">{selectionAction} <ArrowUpRight size={15} /></span>
@@ -686,7 +569,7 @@ function Dashboard() {
               </div>
               {categories.data?.length === 0 && <EmptyPanel title="Enrollment paths are unavailable" message="Please return later or contact support for help." />}
             </section>
-            <section className="recent-section" id="applications">
+            <section className="recent-section">
               <div className="section-line">
                 <div><h2>Your applications</h2><p>Each saved step is stored securely so you can return later. Authorized enrollment reviewers can see your progress.</p></div>
                 <div className="section-line-actions">
@@ -910,18 +793,10 @@ function DraftApplication() {
       pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
       categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
       screenCopy={categoryEntryCopy}
-      requiredFields={portalSettings.data?.requiredFields ?? []}
       pageTheme={portalSettings.data?.pageThemes?.[categoryEntryScreenId]}
-      entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
-      pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
-      entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
-      entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
-      entryLogoSize={categoryEntryCard?.entryLogoSize}
-      entryLogoFit={categoryEntryCard?.entryLogoFit}
-      pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment ?? categoryEntryCard?.entryLogoAlignment}
-      pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset ?? categoryEntryCard?.entryLogoVerticalOffset}
-      pinLogoSize={categoryEntryCard?.pinLogoSize}
-      pinLogoFit={categoryEntryCard?.pinLogoFit}
+      entryLogoDataUrl={categoryEntryCard?.logoDataUrl}
+      entryLogoAlignment={categoryEntryCopy.entryLogoAlignment}
+      entryLogoVerticalOffset={categoryEntryCopy.entryLogoVerticalOffset}
       onComplete={(entryAnswers: CategoryEntryAnswers, entryPin: string) => {
         setFeedback('');
         if (sessionOnlyRoute) {
@@ -997,7 +872,6 @@ function DraftApplication() {
     onChangeCategory={changeCategoryFromWizard}
     onBackToCategoryEntry={backToCategoryEntry}
     screenCopy={portalSettings.data?.screenCopy}
-    requiredFields={portalSettings.data?.requiredFields ?? []}
     pageThemes={portalSettings.data?.pageThemes}
   />;
 }
@@ -1010,14 +884,14 @@ function ApplicationDetail() {
   if (app.isLoading) return <AppFrame><LoadingPanel /></AppFrame>;
   if (app.isError || !app.data) return <AppFrame><ErrorPanel message="We could not retrieve this application." retry={() => void app.refetch()} /></AppFrame>;
   const record = app.data;
-  return <AppFrame active="applicationStatus" currentApplication={record}>
+  return <AppFrame>
     <div className="detail-page">
-      <PageHeading
-        eyebrow="APPLICATION STATUS"
-        title={copyText(portalSettings.data, 'application-status', 'title', record.categoryName)}
-        detail={copyText(portalSettings.data, 'application-status', 'description', `Reference ${record.reference} · Last updated ${formatDate(record.updatedAt)}`)}
-        action={<StatusPill status={applicationDisplayStatus(record)} testId={`status-detail-${record.id}`} />}
-      />
+      <Link href="/dashboard" className="back-link" data-testid="link-detail-back"><ArrowLeft size={16} /> Your applications</Link>
+      <section className="detail-hero">
+        <div className="detail-meta"><span className="eyebrow">APPLICATION RECORD</span><StatusPill status={applicationDisplayStatus(record)} testId={`status-detail-${record.id}`} /></div>
+        <h1>{copyText(portalSettings.data, 'application-status', 'title', record.categoryName)}</h1><p className="mono detail-reference">{record.reference}</p>
+        <div className="detail-created">Last updated {formatDate(record.updatedAt)}</div>
+      </section>
       <div className="detail-grid">
         <section className="detail-card"><div className="detail-card-title"><Activity size={17} /><h2>Verification progress</h2></div>
           <div className="status-timeline">
@@ -1028,10 +902,7 @@ function ApplicationDetail() {
           {record.outstandingRequirements?.length ? <div className="review-note" data-testid="application-outstanding-requirements">
             <b>Items still needed</b><ul>{record.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>
           </div> : null}
-          {(record.missingRequiredFields?.length ?? 0) > 0 && <div className="review-note" data-testid="application-configured-requirements">
-            <b>Required items still missing</b><ul>{record.missingRequiredFields?.map((item) => <li key={item}>{requiredFieldDisplayText(portalSettings.data, item, record.categoryId)}</li>)}</ul>
-          </div>}
-          {record.applicantFollowup && <div className="review-note"><b>Update from the review team</b><p>{record.applicantFollowup}</p></div>}
+          {(record.applicantFollowup ?? record.reviewNote) && <div className="review-note"><b>Update from the review team</b><p>{record.applicantFollowup ?? record.reviewNote}</p></div>}
           {['draft', 'needs_information'].includes(record.status) && <Link href={`/apply/${record.id}`} className="button button-primary" data-testid="link-continue-draft">{record.status === 'needs_information' ? 'Provide requested information' : 'Continue application'} <ArrowRight size={15} /></Link>}
         </section>
         <section className="detail-card detail-help"><span className="help-icon"><MessageCircle size={18} /></span><h2>Questions about this application?</h2><p>Send a note to the support team and follow the reply here.</p><Link href="/support" className="text-action" data-testid="link-detail-support">Contact support <ArrowRight size={14} /></Link></section>
@@ -1041,7 +912,6 @@ function ApplicationDetail() {
 }
 
 function SupportPage() {
-  const portalSettings = useGetPortalSettings();
   const tickets = useListMySupportTickets();
   const applications = useListMyApplications();
   const create = useCreateSupportTicket();
@@ -1067,11 +937,7 @@ function SupportPage() {
   };
   return <AppFrame active="support">
     <div className="support-page">
-      <PageHeading
-        eyebrow="APPLICANT SUPPORT"
-        title={copyText(portalSettings.data, 'support', 'title', 'We’re here to help.')}
-        detail={copyText(portalSettings.data, 'support', 'description', 'Send a secure message about your enrollment or an application.')}
-      />
+      <PageHeading eyebrow="APPLICANT SUPPORT" title="We’re here to help." detail="Send a secure message about your enrollment or an application." />
       <div className="support-grid">
         <section className="support-form-card">
           <div className="form-card-heading"><span className="form-card-icon"><MessageCircle size={18} /></span><div><h2>Send a message</h2><p>Replies will appear in your support history.</p></div></div>
@@ -1162,7 +1028,6 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
       { href: '/admin', key: 'overview', label: 'Admin home', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
       { href: '/admin/settings', key: 'settings', label: 'Portal settings', icon: Settings, testId: 'link-admin-settings' },
-      { href: '/admin/archive', key: 'archive', label: 'Applicant archive', icon: Archive, testId: 'link-admin-archive' },
     ] : []),
     { href: '/admin/support', key: 'support', label: 'Support inbox', icon: Headphones, testId: 'link-admin-support' },
   ];
@@ -1198,7 +1063,6 @@ function AdminGate({ children }: { children: ReactNode }) {
   if (!isSignedIn) return <SignedOutNotice />;
   const role = user?.publicMetadata?.role;
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
-  if (location === '/admin/archive' && role !== 'admin') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">SUPER ADMIN ONLY</div><h1>Applicant archive access required</h1><p>The master archive is restricted to the primary administrator.</p><Link href={role === 'sub_admin' ? '/admin/review' : '/admin/support'} className="button button-primary">Return to your staff workspace <ArrowRight size={15} /></Link></div></main>;
   const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
   if (role === 'admin' && reviewerOnlyRoute) return <AdminReviewRestricted />;
   if (role === 'moderator' && location !== '/admin/support') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><Headphones size={21} /></span><div className="eyebrow">SUPPORT STAFF</div><h1>Support workspace</h1><p>Moderator access is limited to support requests.</p><Link href="/admin/support" className="button button-primary" data-testid="link-moderator-support">Open support inbox <ArrowRight size={15} /></Link></div></main>;
@@ -1220,14 +1084,9 @@ function AdminReviewRestricted() {
 }
 
 function AdminManagementHome() {
-  const portalSettings = useGetPortalSettings();
   return <AdminShell active="overview">
     <div className="admin-page">
-      <PageHeading
-        eyebrow="SECURE STAFF WORKSPACE"
-        title={copyText(portalSettings.data, 'admin-overview', 'title', 'Admin home')}
-        detail={copyText(portalSettings.data, 'admin-overview', 'description', 'Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff.')}
-      />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff." />
       <section className="admin-overview-actions" aria-label="Administration actions">
         <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-admin-home-users">
           <span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} />
@@ -1258,7 +1117,6 @@ function draftProgressLabel(application: {
 }
 
 function AdminQueue() {
-  const portalSettings = useGetPortalSettings();
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ ...(status ? { status: status as 'draft' | 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' } : {}), ...(search.trim() ? { search: search.trim() } : {}) }), [status, search]);
@@ -1267,12 +1125,7 @@ function AdminQueue() {
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   return <AdminShell active="review">
     <div className="admin-page">
-      <PageHeading
-        eyebrow="SECURE STAFF WORKSPACE"
-        title={copyText(portalSettings.data, 'admin-review', 'title', 'Review queue')}
-        detail={copyText(portalSettings.data, 'admin-review', 'description', 'See saved applicant progress and review applications when they are submitted.')}
-        action={<div className="server-access"><span className="server-dot" /> Service access</div>}
-      />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Review queue" detail="See saved applicant progress and review applications when they are submitted." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reference or applicant" aria-label="Search applications" data-testid="input-review-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter by status</span><select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-review-status">
@@ -1298,7 +1151,6 @@ function AccessError({ retry }: { retry: () => void }) {
 }
 
 function AdminOverview() {
-  const portalSettings = useGetPortalSettings();
   const overview = useGetAdminOverview();
   const recentQuery = useListApplicationsForReview();
   const { user } = useUser();
@@ -1317,10 +1169,7 @@ function AdminOverview() {
     ['Unresolved support requests', overview.data?.unresolvedSupportRequests, 'support'],
   ] as const;
   return <AdminShell active="overview"><div className="admin-page">
-    <PageHeading eyebrow="SECURE STAFF WORKSPACE"
-      title={copyText(portalSettings.data, 'admin-overview', 'title', 'Overview')}
-      detail={copyText(portalSettings.data, 'admin-overview', 'description', 'Live enrollment and support totals from the service.')}
-      action={<div className="admin-overview-heading-actions">
+    <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Overview" detail="Live enrollment and support totals from the service." action={<div className="admin-overview-heading-actions">
       {canEditPortal && <Link href="/admin/settings" className="button button-primary" data-testid="link-overview-edit-modifications"><Settings size={16} /> Edit &amp; modifications</Link>}
       {canReview && <Link href="/admin/review" className={`button ${canEditPortal ? 'button-quiet' : 'button-primary'}`} data-testid="link-overview-review">Open review queue <ArrowRight size={15} /></Link>}
     </div>} />
@@ -1475,54 +1324,13 @@ function AdminSettings() {
   const [draft, setDraft] = useState<PortalSettings | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [migrationError, setMigrationError] = useState('');
-  const [uploadingLogoKey, setUploadingLogoKey] = useState<string | null>(null);
-  const [logoPreview, setLogoPreview] = useState<{ categoryId: string; screen: 'entry' | 'pin' } | null>(null);
-  const [logoPreviewSize, setLogoPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
-  const legacyMigrationPending = useRef(false);
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!logoPreview) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setLogoPreview(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [logoPreview]);
-  const migrateLegacyLogos = async () => {
-    if (legacyMigrationPending.current) return;
-    legacyMigrationPending.current = true;
-    setMigrationError('');
-    try {
-      const response = await fetch(`${basePath}/api/admin/settings/migrate-logos`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Logo migration request failed.');
-      const saved = await response.json() as PortalSettings;
-      queryClient.setQueryData<PortalSettings>(getGetPortalSettingsQueryKey(), saved);
-      setDraft({
-        ...saved,
-        pageThemes: normalizePageThemes(saved.pageThemes),
-        requiredFields: saved.requiredFields ?? [],
-      });
-    } catch {
-      setMigrationError('Some saved logos could not be moved to storage. Existing logos remain visible. Retry, or clear the saved logo images before saving.');
-    } finally {
-      legacyMigrationPending.current = false;
-    }
-  };
   useEffect(() => {
     if (settingsQuery.data) {
       setDraft({
         ...settingsQuery.data,
         pageThemes: normalizePageThemes(settingsQuery.data.pageThemes),
-        requiredFields: settingsQuery.data.requiredFields ?? [],
       });
-      const hasLegacyLogos = settingsQuery.data.cards.some((card) =>
-        [card.logoDataUrl, card.entryLogoDataUrl, card.pinLogoDataUrl]
-          .some((logo) => typeof logo === 'string' && logo.startsWith('data:image/')),
-      );
-      if (hasLegacyLogos) void migrateLegacyLogos();
     }
   }, [settingsQuery.data]);
   const updateHero = (key: keyof PortalSettings['hero'], value: string) => {
@@ -1531,7 +1339,7 @@ function AdminSettings() {
   const updateTheme = (key: keyof PortalSettings['theme'], value: string | boolean) => {
     setDraft((current) => current ? { ...current, theme: { ...current.theme, [key]: value } } : current);
   };
-  const updateCard = (id: string, key: string, value: string | number | null) => {
+  const updateCard = (id: string, key: string, value: string | null) => {
     setDraft((current) => current ? {
       ...current,
       cards: current.cards.map((card) => card.id === id ? { ...card, [key]: value } : card),
@@ -1570,18 +1378,6 @@ function AdminSettings() {
       },
     } : current);
   };
-  const updateRequiredField = (
-    field: NonNullable<PortalSettings['requiredFields']>[number],
-    enabled: boolean,
-  ) => {
-    setDraft((current) => {
-      if (!current) return current;
-      const requiredFields = new Set<NonNullable<PortalSettings['requiredFields']>[number]>(current.requiredFields ?? []);
-      if (enabled) requiredFields.add(field);
-      else requiredFields.delete(field);
-      return { ...current, requiredFields: [...requiredFields] };
-    });
-  };
   const updatePageTheme = (screen: string, key: keyof PortalPageTheme, value: PortalPageTheme[keyof PortalPageTheme]) => {
     setDraft((current) => current ? {
       ...current,
@@ -1594,158 +1390,24 @@ function AdminSettings() {
       },
     } : current);
   };
-  const uploadLogo = async (cardId: string, assetKey: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl', file?: File) => {
+  const uploadLogo = (cardId: string, file?: File) => {
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
       setError('Choose a PNG, JPEG, or WebP image no larger than 2 MB.');
       return;
     }
-    const uploadKey = `${cardId}:${assetKey}`;
-    setUploadingLogoKey(uploadKey);
-    setError('');
-    try {
-      const uploadRequest = await fetch(`${basePath}/api/admin/settings/logos/upload-url`, {
-        method: 'POST',
-      });
-      if (!uploadRequest.ok) throw new Error('Could not prepare the logo upload.');
-      const { uploadUrl, objectPath } = await uploadRequest.json() as {
-        uploadUrl: string;
-        objectPath: string;
-      };
-      const upload = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-      if (!upload.ok) throw new Error('The image could not be uploaded.');
-      const completion = await fetch(`${basePath}/api/admin/settings/logos/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ objectPath, contentType: file.type }),
-      });
-      if (!completion.ok) throw new Error('The uploaded image could not be verified.');
-      const { logoUrl } = await completion.json() as { logoUrl: string };
-      updateCard(cardId, assetKey, logoUrl);
-    } catch {
-      setError('The logo could not be uploaded. Please try again.');
-    } finally {
-      setUploadingLogoKey(null);
-    }
-  };
-  const renderLogoSettings = (card: PortalSettings['cards'][number], slot: 'card' | 'entry' | 'pin') => {
-    const categoryNumber = card.id.replace('category-', '');
-    const screen = `category-entry-${categoryNumber}`;
-    const legacyCopy = draft?.screenCopy?.[screen] ?? {};
-    const assetKey: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl' = slot === 'card'
-      ? 'logoDataUrl'
-      : slot === 'entry' ? 'entryLogoDataUrl' : 'pinLogoDataUrl';
-    const alignmentKey = slot === 'card' ? 'cardLogoAlignment' : slot === 'entry' ? 'entryLogoAlignment' : 'pinLogoAlignment';
-    const offsetKey = slot === 'card' ? 'cardLogoVerticalOffset' : slot === 'entry' ? 'entryLogoVerticalOffset' : 'pinLogoVerticalOffset';
-    const sizeKey = slot === 'card' ? 'cardLogoSize' : slot === 'entry' ? 'entryLogoSize' : 'pinLogoSize';
-    const fitKey = slot === 'card' ? 'cardLogoFit' : slot === 'entry' ? 'entryLogoFit' : 'pinLogoFit';
-    const ownLogo = slot === 'card' ? card.logoDataUrl : slot === 'entry' ? card.entryLogoDataUrl : card.pinLogoDataUrl;
-    const logoSource = slot === 'card'
-      ? card.logoDataUrl || defaultCategoryLogos[card.id]
-      : slot === 'entry'
-        ? card.entryLogoDataUrl ?? card.logoDataUrl ?? defaultCategoryLogos[card.id]
-        : card.pinLogoDataUrl ?? card.entryLogoDataUrl ?? card.logoDataUrl ?? defaultCategoryLogos[card.id];
-    const alignment = slot === 'card'
-      ? card.cardLogoAlignment ?? 'left'
-      : slot === 'entry'
-        ? card.entryLogoAlignment ?? legacyCopy.entryLogoAlignment ?? 'center'
-        : card.pinLogoAlignment ?? legacyCopy.entryLogoAlignment ?? card.entryLogoAlignment ?? 'center';
-    const offset = slot === 'card'
-      ? Number(card.cardLogoVerticalOffset ?? 0)
-      : slot === 'entry'
-        ? Number(card.entryLogoVerticalOffset ?? legacyCopy.entryLogoVerticalOffset ?? 0)
-        : Number(card.pinLogoVerticalOffset ?? legacyCopy.entryLogoVerticalOffset ?? card.entryLogoVerticalOffset ?? 0);
-    const size = Number(card[sizeKey] ?? defaultLogoSize(card.id, slot));
-    const fit = card[fitKey] ?? 'contain';
-    const maxOffset = slot === 'card' ? 60 : 120;
-    const title = slot === 'card' ? 'Category card logo' : slot === 'entry' ? 'Entry fields logo' : 'PIN screen logo';
-    const inheritedLabel = slot === 'entry' ? 'Using the category card logo'
-      : slot === 'pin' ? 'Using the entry fields logo'
-        : 'Using the built-in category logo';
-    return <fieldset className="settings-logo-editor" key={slot} data-testid={`settings-logo-${slot}-${card.id}`}>
-      <legend>{title}</legend>
-      <label className="field-label">{title} (PNG, JPEG, WebP; up to 2 MB)
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          disabled={uploadingLogoKey === `${card.id}:${assetKey}`}
-          onChange={(event) => uploadLogo(card.id, assetKey, event.target.files?.[0])}
-          data-testid={slot === 'card' ? `input-settings-logo-${card.id}` : `input-settings-logo-${card.id}-${slot}`}
-        />
-      </label>
-      <div className="settings-logo-preview">
-        <div className="settings-logo-preview-frame">
-          <img src={logoSource} alt={`${card.title} ${title.toLowerCase()} preview`} style={logoFitStyle(size, fit)} />
-        </div>
-        {ownLogo
-          ? <button type="button" className="text-action" onClick={() => updateCard(card.id, assetKey, null)}>{slot === 'card' ? 'Use built-in logo' : inheritedLabel}</button>
-          : <small>{inheritedLabel}</small>}
-      </div>
-      {slot !== 'card' && <button
-        type="button"
-        className="text-action settings-logo-context-preview"
-        onClick={() => {
-          setLogoPreview({ categoryId: card.id, screen: slot });
-          setLogoPreviewSize('desktop');
-        }}
-        data-testid={`button-preview-logo-screen-${slot}-${card.id}`}
-      >
-        Preview full {slot === 'entry' ? 'entry' : 'PIN'} screen
-      </button>}
-      <div className="settings-inline-fields">
-        <label className="field-label settings-logo-size-field">
-          <span>{title} size <b>{size}px</b></span>
-          <input
-            type="range"
-            min="24"
-            max="240"
-            step="4"
-            value={Math.max(24, Math.min(240, size))}
-            onChange={(event) => updateCard(card.id, sizeKey, Number(event.target.value))}
-            aria-label={`${card.title} ${title.toLowerCase()} size`}
-            data-testid={`input-logo-size-${slot}-${card.id}`}
-          />
-        </label>
-        <label className="field-label">Image fit
-          <select className="text-input select-input" value={fit} onChange={(event) => updateCard(card.id, fitKey, event.target.value)} data-testid={`select-logo-fit-${slot}-${card.id}`}>
-            <option value="contain">Show full logo</option><option value="cover">Fill frame (crop edges)</option>
-          </select>
-        </label>
-        <label className="field-label">{title} horizontal position
-          <select className="text-input select-input" value={alignment} onChange={(event) => updateCard(card.id, alignmentKey, event.target.value)} data-testid={`select-logo-alignment-${slot}-${card.id}`}>
-            <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
-          </select>
-        </label>
-        <label className="field-label settings-logo-offset-field">
-          <span>{title} vertical position <b>{offset > 0 ? `${offset}px down` : offset < 0 ? `${Math.abs(offset)}px up` : 'Centered'}</b></span>
-          <input
-            type="range"
-            min={-maxOffset}
-            max={maxOffset}
-            step="2"
-            value={Number.isFinite(offset) ? Math.max(-maxOffset, Math.min(maxOffset, offset)) : 0}
-            onChange={(event) => updateCard(card.id, offsetKey, Number(event.target.value))}
-            aria-label={`${card.title} ${title.toLowerCase()} vertical position`}
-            data-testid={`input-logo-offset-${slot}-${card.id}`}
-          />
-          <small>Negative values move the logo up; positive values move it down.</small>
-        </label>
-      </div>
-    </fieldset>;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        updateCard(cardId, 'logoDataUrl', reader.result);
+        setError('');
+      }
+    };
+    reader.onerror = () => setError('The image could not be read.');
+    reader.readAsDataURL(file);
   };
   const screenLabels = [
     ['dashboard', 'User dashboard'],
-    ['guest-intro', 'Guest application introduction'],
-    ['guest-contact', 'Guest contact details'],
-    ['guest-dashboard', 'Guest category selection'],
-    ['guest-category', 'Guest category confirmation'],
-    ['guest-preview', 'Guest application preview and declaration'],
-    ['guest-verification', 'Guest email verification'],
-    ['guest-status', 'Guest status lookup and results'],
     ['category-entry-1', 'Category One entry form'],
     ['category-entry-2', 'Category Two entry form'],
     ['category-entry-3', 'Category Three entry form'],
@@ -1800,46 +1462,6 @@ function AdminSettings() {
       ],
     },
   ] as const;
-  const categoryEntryInputSettings: Record<string, [string, string, string][]> = {
-    'category-entry-1': [
-      ['namePlaceholder', 'Name input hint', 'Enter your name'],
-      ['nicknamePlaceholder', 'Nickname input hint', 'Enter your nickname'],
-    ],
-    'category-entry-2': [
-      ['namePlaceholder', 'Login input hint', 'Enter your login'],
-      ['surnamePlaceholder', 'Surname input hint', 'Enter your surname'],
-    ],
-    'category-entry-3': [
-      ['namePlaceholder', 'Name input hint', 'Enter your name'],
-      ['surnamePlaceholder', 'Surname input hint', 'Enter your surname'],
-    ],
-    'category-entry-4': [
-      ['namePlaceholder', 'Name input hint', 'Enter your name'],
-      ['surnamePlaceholder', 'Surname input hint', 'Enter your surname'],
-    ],
-  };
-  const categoryEntryValidationSettings: Record<string, [string, string, string][]> = {
-    'category-entry-1': [
-      ['nameValidationMessage', 'Name validation message', 'Enter your name to continue.'],
-      ['nicknameValidationMessage', 'Nickname validation message', 'Enter your nickname to continue.'],
-      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 4 digits.'],
-    ],
-    'category-entry-2': [
-      ['nameValidationMessage', 'Login validation message', 'Enter your name to continue.'],
-      ['surnameValidationMessage', 'Surname validation message', 'Enter your surname to continue.'],
-      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 6 digits.'],
-    ],
-    'category-entry-3': [
-      ['nameValidationMessage', 'Name validation message', 'Enter your name to continue.'],
-      ['surnameValidationMessage', 'Surname validation message', 'Enter your surname to continue.'],
-      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 4 digits.'],
-    ],
-    'category-entry-4': [
-      ['nameValidationMessage', 'Name validation message', 'Enter your name to continue.'],
-      ['surnameValidationMessage', 'Surname validation message', 'Enter your surname to continue.'],
-      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 4 digits.'],
-    ],
-  };
   const workflowFieldLabels: Record<string, [string, string][]> = {
     'workflow-step-1': [
       ['field_personalInformation_firstName', 'First name'], ['field_personalInformation_middleName', 'Middle name'],
@@ -1871,169 +1493,19 @@ function AdminSettings() {
       ['field_proofOfIdentity_documentType', 'Document type'], ['field_proofOfIdentity_documentNumber', 'Document number'],
       ['field_proofOfIdentity_frontObjectPath', 'Front image upload label'], ['field_proofOfIdentity_backObjectPath', 'Back image upload label'],
     ],
-    'workflow-step-6': [
-      ['field_liveVideoRecording_consentAccepted', 'Video recording consent label'],
-      ['field_liveVideoRecording_objectPath', 'Verification video upload label'],
-      ['field_liveVideoRecording_durationSeconds', 'Recording length label'],
-    ],
     'workflow-step-7': [
       ['field_bankDetails_bankName', 'Bank'], ['field_bankDetails_accountHolder', 'Account holder'],
       ['field_bankDetails_accountNumber', 'Account number'], ['field_bankDetails_accountType', 'Account type'],
     ],
   };
-  const guestPageFields: Record<string, [string, string][]> = {
-    'guest-intro': [
-      ['eyebrow', 'Intro label'], ['step1Title', 'Step 1 title'], ['step1Description', 'Step 1 description'],
-      ['step2Title', 'Step 2 title'], ['step2Description', 'Step 2 description'],
-      ['step3Title', 'Step 3 title'], ['step3Description', 'Step 3 description'],
-      ['step4Title', 'Step 4 title'], ['step4Description', 'Step 4 description'],
-      ['securityNote', 'Privacy note'],
-    ],
-    'guest-contact': [
-      ['fullNameLabel', 'Full name field label'], ['emailLabel', 'Email field label'],
-      ['fullNamePlaceholder', 'Full name input hint'], ['fullNameValidationMessage', 'Full name validation message'],
-      ['emailPlaceholder', 'Email input hint'], ['emailValidationMessage', 'Email validation message'],
-      ['continueLabel', 'Continue button label'], ['privacyText', 'Privacy message'],
-    ],
-    'guest-dashboard': [
-      ['contactHint', 'Contact details hint'], ['contactDetailsTitle', 'Contact details heading'],
-      ['changeContactLabel', 'Change details button label'],
-      ['startLabel', 'Category action label'], ['enterContactLabel', 'Enter contact action label'],
-      ['trackLabel', 'Track application link label'],
-    ],
-    'guest-category': [
-      ['confirmTitle', 'Confirm category heading'], ['confirmDescription', 'Confirm category description'],
-      ['chooseTitle', 'Choose category heading'], ['chooseDescription', 'Choose category description'],
-      ['backButtonLabel', 'Back button label'],
-    ],
-    'guest-preview': [
-      ['declarationTitle', 'Declaration heading'], ['declarationDescription', 'Declaration explanation'],
-      ['declarationCheckboxLabel', 'Declaration checkbox label'], ['submitButtonLabel', 'Submit button label'],
-      ['missingRequirementsTitle', 'Missing requirements heading'],
-      ['submitReadyMessage', 'Ready-to-submit message'], ['verifyEmailMessage', 'Email verification message'],
-      ['missingRequirementsMessage', 'Missing requirements message'],
-    ],
-    'guest-verification': [
-      ['codeLabel', 'Email code field label'], ['verifyButtonLabel', 'Verify button label'],
-      ['resendButtonLabel', 'Resend button label'], ['sendingMessage', 'Sending message'],
-    ],
-    'guest-status': [
-      ['referenceLabel', 'Reference field label'], ['keyLabel', 'Tracking key field label'],
-      ['lookupButtonLabel', 'Lookup button label'], ['securityText', 'Privacy message'],
-      ['submittedMessage', 'Submitted status message'], ['draftMessage', 'Draft status message'],
-      ['missingRequirementsTitle', 'Missing requirements heading'], ['resumeButtonLabel', 'Resume button label'],
-      ['trackLinkLabel', 'Track application link label'], ['appStatusEyebrow', 'Result heading'],
-      ['categoryLabel', 'Category label'], ['currentStatusLabel', 'Current status label'],
-      ['emailVerificationLabel', 'Email verification label'], ['verifiedLabel', 'Verified label'],
-      ['notVerifiedLabel', 'Not verified label'], ['lastUpdatedLabel', 'Last updated label'],
-      ['closedMessage', 'Closed status message'], ['resumeReviewLabel', 'Review saved draft label'],
-      ['continueLabel', 'Continue draft label'], ['startPromptLabel', 'Start application prompt'],
-      ['beginLinkLabel', 'Start application link label'], ['outstandingItemsTitle', 'Review items heading'],
-      ['reviewTeamUpdateTitle', 'Review team update heading'],
-      ['lookupErrorMessage', 'Lookup error message'], ['lookupPendingLabel', 'Lookup pending button label'],
-    ],
-  };
-  const requiredFieldOptions = ([
-    ['name', 'Category entry name'], ['nickname', 'Category entry nickname'], ['surname', 'Category entry surname'],
-    ['personalInformation.firstName', 'First name'], ['personalInformation.middleName', 'Middle name'],
-    ['personalInformation.surname', 'Surname'], ['personalInformation.dateOfBirth', 'Date of birth'],
-    ['personalInformation.nationality', 'Nationality'], ['personalInformation.phone', 'Personal phone number'],
-    ['personalInformation.email', 'Email address'], ['personalInformation.residentialAddress', 'Residential address'],
-    ['personalInformation.stateRegion', 'State or region'], ['personalInformation.city', 'City'],
-    ['personalInformation.postalCode', 'Postal code'],
-    ['nextOfKin.fullName', 'Next-of-kin full name'], ['nextOfKin.relationship', 'Next-of-kin relationship'],
-    ['nextOfKin.phone', 'Next-of-kin phone number'], ['nextOfKin.email', 'Next-of-kin email address'],
-    ['nextOfKin.residentialAddress', 'Next-of-kin residential address'], ['nextOfKin.city', 'Next-of-kin city'],
-    ['nextOfKin.stateRegion', 'Next-of-kin state or region'],
-    ['education.highestQualification', 'Highest qualification'], ['education.institution', 'Institution'],
-    ['education.courseField', 'Course or field'], ['education.startYear', 'Education start year'],
-    ['education.completionYear', 'Education completion year'], ['education.certificationStatus', 'Certification status'],
-    ['education.additionalQualifications', 'Additional qualifications'], ['education.certificateObjectPath', 'Education certificate'],
-    ['workInformation.employmentStatus', 'Employment status'], ['workInformation.occupation', 'Occupation'],
-    ['workInformation.employer', 'Employer'], ['workInformation.businessName', 'Business name'],
-    ['workInformation.workAddress', 'Business or work address'], ['workInformation.workPhone', 'Work phone'],
-    ['workInformation.yearsExperience', 'Years of experience'],
-    ['proofOfIdentity.documentType', 'Identity document type'], ['proofOfIdentity.documentNumber', 'Identity document number'],
-    ['proofOfIdentity.frontObjectPath', 'Identity document front (evidence)'],
-    ['proofOfIdentity.backObjectPath', 'Identity document back (evidence)'],
-    ['liveVideoRecording.consentAccepted', 'Video recording consent'],
-    ['liveVideoRecording.objectPath', 'Verification video (evidence)'],
-    ['bankDetails.bankName', 'Bank name'], ['bankDetails.accountHolder', 'Account holder'],
-    ['bankDetails.accountNumber', 'Account number'], ['bankDetails.accountType', 'Account type'],
-  ] as [NonNullable<PortalSettings['requiredFields']>[number], string][]).map(([id, label]) => ({ id, label }));
-  const copyKeysForScreen = (screen: string) => {
-    if (screen === 'dashboard') return ['title', 'description', 'sectionIdLabel', 'buttonLabel'];
-    if (guestPageFields[screen]) {
-      return [
-        'title',
-        'description',
-        ...(screen === 'guest-dashboard' ? ['sectionIdLabel'] : []),
-        ...(screen === 'guest-category' ? ['buttonLabel'] : []),
-        ...guestPageFields[screen].map(([key]) => key),
-      ];
-    }
-    if (screen.startsWith('category-entry-')) return ['title', 'description', 'backButtonLabel'];
-    if (screen === 'application-status' || screen === 'support' || screen.startsWith('admin-')) {
-      return ['title', 'description'];
-    }
-    if (screen.startsWith('workflow-step-')) {
-      return [
-        'title', 'description', 'sectionIdLabel', 'buttonLabel', 'backButtonLabel',
-        ...(workflowFieldLabels[screen] ?? []).map(([key]) => key),
-        ...(applicantFieldCopy[screen] ?? []).flatMap(({ path, placeholderDefault, validationDefault }) => [
-          ...(placeholderDefault !== undefined ? [applicantPlaceholderKey(path)] : []),
-          ...(validationDefault !== undefined ? [applicantValidationKey(path)] : []),
-        ]),
-      ];
-    }
-    return ['title', 'description'];
-  };
-  const isValidationMessageKey = (key: string) =>
-    key.startsWith('validation_') || key.endsWith('ValidationMessage');
-  const currentCopyPreview = (screen: string, label: string) => {
-    const publishedCopy = settingsQuery.data?.screenCopy?.[screen] ?? {};
-    const keyLabels = (key: string) => {
-      const settings = applicantFieldCopy[screen] ?? [];
-      const inputSetting = settings.find(({ path }) =>
-        key === applicantPlaceholderKey(path) || key === applicantValidationKey(path),
-      );
-      if (inputSetting) return `${inputSetting.label} ${key.startsWith('placeholder_') ? 'input hint' : 'validation message'}`;
-      return key === 'sectionIdLabel' ? 'Section ID label'
-      : key === 'buttonLabel' ? 'Primary button label'
-        : key === 'backButtonLabel' ? 'Back button label'
-          : key === 'title' ? 'Title'
-            : key === 'description' ? 'Description'
-              : guestPageFields[screen]?.find(([fieldKey]) => fieldKey === key)?.[1]
-                ?? workflowFieldLabels[screen]?.find(([fieldKey]) => fieldKey === key)?.[1]
-                ?? key.replace(/^field_/, '').replaceAll('_', ' ').replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
-    };
-    return <aside className="settings-current-copy" aria-label={`Current published text for ${label}`} data-testid={`current-copy-${screen}`}>
-      <div className="settings-current-copy-heading"><b>Currently published on this page</b><span>Saved text stays live until you save edits.</span></div>
-      <dl>{copyKeysForScreen(screen).map((key) => <div key={key}>
-        <dt>{keyLabels(key)}</dt>
-        <dd>{publishedCopy[key]?.trim() || 'Using the page’s built-in text'}</dd>
-      </div>)}</dl>
-    </aside>;
-  };
   const save = () => {
     if (!draft) return;
-    if (draft.cards.some((card) =>
-      [card.logoDataUrl, card.entryLogoDataUrl, card.pinLogoDataUrl]
-        .some((logo) => typeof logo === 'string' && logo.startsWith('data:image/')),
-    )) {
-      setMigrationError('Saved logos must finish moving to storage before settings can be saved.');
-      return;
-    }
     setMessage('');
     setError('');
     saveSettings.mutate({ data: draft }, {
       onSuccess: (saved) => {
         queryClient.setQueryData<PortalSettings>(getGetPortalSettingsQueryKey(), saved);
-        setDraft({
-          ...saved,
-          pageThemes: normalizePageThemes(saved.pageThemes),
-          requiredFields: saved.requiredFields ?? [],
-        });
+        setDraft({ ...saved, pageThemes: normalizePageThemes(saved.pageThemes) });
         setMessage('Portal settings saved.');
       },
       onError: () => setError('Settings could not be saved. Please try again.'),
@@ -2042,10 +1514,9 @@ function AdminSettings() {
   if (settingsQuery.isError) return <AdminShell active="settings"><AccessError retry={() => void settingsQuery.refetch()} /></AdminShell>;
   if (!draft) return <AdminShell active="settings"><LoadingPanel label="Loading portal settings" /></AdminShell>;
   return <AdminShell active="settings"><div className="admin-page admin-settings-page">
-    <PageHeading eyebrow="PORTAL CONFIGURATION" title="Portal settings" detail="Edit the home page, enrollment cards, screen copy, and visual settings." action={<button className="button button-primary" onClick={save} disabled={saveSettings.isPending || uploadingLogoKey !== null || draft.cards.some((card) => [card.logoDataUrl, card.entryLogoDataUrl, card.pinLogoDataUrl].some((logo) => typeof logo === 'string' && logo.startsWith('data:image/')))} data-testid="button-save-portal-settings">{saveSettings.isPending ? 'Saving…' : 'Save changes'} <Check size={15} /></button>} />
+    <PageHeading eyebrow="PORTAL CONFIGURATION" title="Portal settings" detail="Edit the home page, enrollment cards, screen copy, and visual settings." action={<button className="button button-primary" onClick={save} disabled={saveSettings.isPending} data-testid="button-save-portal-settings">{saveSettings.isPending ? 'Saving…' : 'Save changes'} <Check size={15} /></button>} />
     {message && <p className="success-message" role="status" data-testid="text-settings-success">{message}</p>}
     {error && <p className="inline-error" role="alert" data-testid="text-settings-error">{error}</p>}
-    {migrationError && <p className="inline-error" role="alert" data-testid="text-logo-migration-error">{migrationError} <button type="button" className="text-action" onClick={() => void migrateLegacyLogos()}>Retry</button></p>}
     <nav className="settings-jump-nav" aria-label="Settings sections">
       <span>JUMP TO</span>
       <a href="#settings-landing">Landing</a>
@@ -2054,7 +1525,6 @@ function AdminSettings() {
       <a href="#settings-backgrounds">Backgrounds</a>
       <a href="#settings-category-copy">Category forms</a>
       <a href="#settings-workflow-copy">Workflow text</a>
-      <a href="#settings-required-fields">Required fields</a>
     </nav>
     <section className="detail-card settings-panel" id="settings-landing" aria-labelledby="settings-landing-title">
       <div className="detail-card-title"><Home size={17} /><h2 id="settings-landing-title">Landing page</h2></div>
@@ -2111,11 +1581,9 @@ function AdminSettings() {
         <label className="field-label">Description<textarea className="text-input form-textarea" value={card.description} maxLength={240} rows={2} onChange={(event) => updateCard(card.id, 'description', event.target.value)} /></label>
         <label className="field-label">Selection button label<input className="text-input" value={card.buttonLabel} maxLength={60} onChange={(event) => updateCard(card.id, 'buttonLabel', event.target.value)} /></label>
         <label className="field-label settings-color-field">Dashboard card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
-         <div className="settings-logo-editor-grid">
-           {renderLogoSettings(card, 'card')}
-           {renderLogoSettings(card, 'entry')}
-           {renderLogoSettings(card, 'pin')}
-         </div>
+        <label className="field-label">Dashboard and entry logo (PNG, JPEG, WebP; up to 2 MB)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadLogo(card.id, event.target.files?.[0])} data-testid={`input-settings-logo-${card.id}`} /></label>
+        <p className="field-help">This category’s logo also appears on its entry and PIN screens.</p>
+        {card.logoDataUrl && <div className="settings-logo-preview"><img src={card.logoDataUrl} alt={`${card.title} logo preview`} /><button type="button" className="text-action" onClick={() => updateCard(card.id, 'logoDataUrl', null)}>Remove logo</button></div>}
       </article>)}
     </section>
     <section className="detail-card settings-panel" id="settings-appearance" aria-labelledby="settings-appearance-title">
@@ -2162,24 +1630,17 @@ function AdminSettings() {
       </div>
     </section>
     <section className="detail-card settings-panel" id="settings-category-copy" aria-labelledby="settings-category-copy-title">
-      <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Category entry form copy</h2></div>
-      <p className="field-help">Customize field labels, input hints, validation messages, PIN prompts, and action buttons for each category. Leave a field blank to use its current default.</p>
+      <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Category entry form labels and buttons</h2></div>
+      <p className="field-help">Customize the visible field labels, PIN prompts, and action buttons for each category. Leave a field blank to use its current default.</p>
       <div className="settings-screen-list">
         {categoryEntrySettings.map(({ screen, title, fields }) => {
           const copy = draft.screenCopy[screen] ?? {};
           const resolvedText = (key: string, fallback: string) => copy[key]?.trim() || fallback;
-          const inputSettings = categoryEntryInputSettings[screen] ?? [];
-          const validationSettings = categoryEntryValidationSettings[screen] ?? [];
           const offsetValue = Number.parseInt(copy.entryLogoVerticalOffset ?? '0', 10);
           const logoVerticalOffset = Number.isFinite(offsetValue) ? Math.max(-120, Math.min(120, offsetValue)) : 0;
           const previewFields = fields.filter(([key]) => ['nameLabel', 'nicknameLabel', 'surnameLabel'].includes(key));
           const previewButtons = fields.filter(([key]) => key.startsWith('buttonLabel'));
           const pinPrompt = fields.find(([key]) => key === 'pinLabel');
-          const inputHintForLabel = (key: string) => {
-            const hintKey = key.replace('Label', 'Placeholder');
-            const fallback = inputSettings.find(([inputKey]) => inputKey === hintKey)?.[2] ?? 'No built-in hint';
-            return resolvedText(hintKey, fallback);
-          };
           return <details className="settings-screen" key={screen} data-testid={`settings-category-entry-${screen}`}>
             <summary>{title}<span>{screen}</span></summary>
             <div className="settings-inline-fields">
@@ -2188,27 +1649,6 @@ function AdminSettings() {
                   className="text-input"
                   value={copy[key] ?? ''}
                   maxLength={key.startsWith('buttonLabel') ? 60 : 120}
-                  placeholder={`Default: ${defaultText}`}
-                  onChange={(event) => updateScreenCopy(screen, key, event.target.value)}
-                  data-testid={`input-copy-${screen}-${key}`}
-                />
-              </label>)}
-              {inputSettings.map(([key, label, defaultText]) => <label className="field-label" key={key}>{label}
-                <input
-                  className="text-input"
-                  value={copy[key] ?? ''}
-                  maxLength={500}
-                  placeholder={`Default: ${defaultText}`}
-                  onChange={(event) => updateScreenCopy(screen, key, event.target.value)}
-                  data-testid={`input-copy-${screen}-${key}`}
-                />
-              </label>)}
-              {validationSettings.map(([key, label, defaultText]) => <label className="field-label" key={key}>{label}
-                <textarea
-                  className="text-input form-textarea"
-                  rows={2}
-                  value={copy[key] ?? ''}
-                  maxLength={500}
                   placeholder={`Default: ${defaultText}`}
                   onChange={(event) => updateScreenCopy(screen, key, event.target.value)}
                   data-testid={`input-copy-${screen}-${key}`}
@@ -2239,12 +1679,8 @@ function AdminSettings() {
               <div className="settings-category-preview-fields">
                 {previewFields.map(([key, , defaultText]) => <div className="settings-category-preview-field" key={key}>
                   <span>{resolvedText(key, defaultText)}</span>
-                  <small>Hint: {inputHintForLabel(key)}</small>
                   <div aria-hidden="true" />
                 </div>)}
-                <div className="settings-category-preview-validation">
-                  {validationSettings.map(([key, label, defaultText]) => <small key={key} role="status">{label}: {resolvedText(key, defaultText)}</small>)}
-                </div>
               </div>
               {pinPrompt && <div className="settings-category-preview-pin">
                 <span>{resolvedText(pinPrompt[0], pinPrompt[2])}</span>
@@ -2262,152 +1698,23 @@ function AdminSettings() {
     </section>
     <section className="detail-card settings-panel" id="settings-workflow-copy" aria-labelledby="settings-workflow-copy-title">
       <div className="detail-card-title"><FileText size={17} /><h2 id="settings-workflow-copy-title">Page and workflow text</h2></div>
-      <p className="field-help">Edit page copy, applicant input hints, and field validation messages. Leave a field blank to use its current built-in text.</p>
+      <p className="field-help">Edit the main copy for each page or workflow step. Empty values use the portal’s default labels.</p>
       <div className="settings-screen-list">{screenLabels.map(([screen, label]) => <details className="settings-screen" key={screen}>
         <summary>{label}<span>{screen}</span></summary>
-        {currentCopyPreview(screen, label)}
         <div className="settings-inline-fields">
-          {copyKeysForScreen(screen).map((key) => {
-            const matchingInput = (applicantFieldCopy[screen] ?? []).find(({ path }) =>
-              key === applicantPlaceholderKey(path) || key === applicantValidationKey(path),
-            );
-            const contactInput = screen === 'guest-contact' ? guestContactFieldCopy.find(({ path }) =>
-              key === `${path}Placeholder` || key === `${path}ValidationMessage`,
-            ) : undefined;
-            const descriptionField = ['description', 'privacyText', 'securityText', 'confirmDescription', 'chooseDescription', 'declarationDescription', 'submittedMessage', 'draftMessage', 'securityNote', 'missingRequirementsMessage'].includes(key);
-            const validationField = isValidationMessageKey(key);
-            const placeholderFallback = contactInput?.placeholderDefault;
-            const fieldLabel = key === 'sectionIdLabel' ? 'Section ID label'
-              : key === 'buttonLabel' ? 'Primary button label'
-                : key === 'backButtonLabel' ? 'Back button label'
-                  : key === 'title' ? 'Screen title'
-                    : key === 'description' ? 'Description'
-                      : matchingInput ? `${matchingInput.label} ${key.startsWith('placeholder_') ? 'input hint' : 'validation message'}`
-                        : contactInput ? `${contactInput.label} ${key.endsWith('Placeholder') ? 'input hint' : 'validation message'}`
-                          : [...(workflowFieldLabels[screen] ?? []), ...(guestPageFields[screen] ?? [])].find(([fieldKey]) => fieldKey === key)?.[1]
-                            ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
-            const inputPlaceholder = key.startsWith('placeholder_')
-              ? 'No placeholder by default'
-              : key.endsWith('Placeholder') && placeholderFallback
-                ? `Default: ${placeholderFallback}`
-                : 'Use portal default';
-            return <label className="field-label" key={key}>{fieldLabel}
-              {descriptionField
-                ? <textarea className="text-input form-textarea" rows={3} value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
-                : validationField
-                  ? <textarea className="text-input form-textarea" rows={2} value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
-                  : <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key.endsWith('Label') ? 60 : 500} placeholder={inputPlaceholder} onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />}
-            </label>;
-          })}
+          {([
+            'title', 'description', 'sectionIdLabel',
+            ...(screen.startsWith('category-entry-')
+              ? ['backButtonLabel']
+              : ['buttonLabel', ...(screen.startsWith('workflow-step-') ? ['backButtonLabel', ...(workflowFieldLabels[screen] ?? []).map(([key]) => key)] : [])]),
+          ] as string[]).map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
+            <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key === 'backButtonLabel' ? 60 : 500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
+          </label>)}
         </div>
-        {screen === 'guest-contact' && (
-          <section className="settings-field-copy-preview" aria-label="Guest contact field copy preview" data-testid="preview-field-copy-guest-contact">
-            <b>Live field preview · updates as you edit</b>
-            <div className="settings-field-copy-preview-grid">
-              {guestContactFieldCopy.map(({ path, label: fieldLabel, placeholderDefault, validationDefault }) => {
-                const placeholder = draft.screenCopy[screen]?.[`${path}Placeholder`]?.trim() || placeholderDefault;
-                const validation = draft.screenCopy[screen]?.[`${path}ValidationMessage`]?.trim() || validationDefault;
-                const configuredLabel = draft.screenCopy[screen]?.[`${path}Label`]?.trim() || fieldLabel;
-                return <article key={path} className="settings-field-copy-preview-item">
-                  <span>{configuredLabel}</span>
-                  <input disabled aria-label={`${configuredLabel} placeholder preview`} placeholder={placeholder} />
-                  {validation && <small role="status">{validation}</small>}
-                </article>;
-              })}
-            </div>
-          </section>
-        )}
-        {screen.startsWith('workflow-step-') && (applicantFieldCopy[screen] ?? []).length > 0 && (
-          <section className="settings-field-copy-preview" aria-label={`${label} field copy preview`} data-testid={`preview-field-copy-${screen}`}>
-            <b>Live field preview · updates as you edit</b>
-            <div className="settings-field-copy-preview-grid">
-              {(applicantFieldCopy[screen] ?? []).map(({ path, label: fieldLabel, placeholderDefault, validationDefault }) => {
-                const fieldId = path.replaceAll('.', '_');
-                const placeholder = draft.screenCopy[screen]?.[applicantPlaceholderKey(path)]?.trim() || placeholderDefault;
-                const validation = draft.screenCopy[screen]?.[applicantValidationKey(path)]?.trim() || validationDefault;
-                const configuredLabel = draft.screenCopy[screen]?.[`field_${fieldId}`]?.trim() || fieldLabel;
-                return <article key={path} className="settings-field-copy-preview-item">
-                  <span>{configuredLabel}</span>
-                  {placeholderDefault !== undefined && <input disabled aria-label={`${configuredLabel} placeholder preview`} placeholder={placeholder || 'No built-in hint'} />}
-                  {validation && <small role="status">{validation}</small>}
-                </article>;
-              })}
-            </div>
-          </section>
-        )}
       </details>)}</div>
     </section>
-    <section className="detail-card settings-panel" id="settings-required-fields" aria-labelledby="settings-required-fields-title">
-      <div className="detail-card-title"><FileCheck2 size={17} /><h2 id="settings-required-fields-title">Required applicant fields</h2></div>
-      <p className="field-help">Selected fields block final submission until provided. Applicants can still move through steps and save incomplete progress. Email verification and the category PIN remain required independently.</p>
-      <div className="settings-required-grid">
-        {requiredFieldOptions.map(({ id, label }) => <label className="settings-check" key={id}>
-          <input type="checkbox" checked={(draft.requiredFields ?? []).includes(id)} onChange={(event) => updateRequiredField(id, event.target.checked)} data-testid={`check-required-${id.replaceAll('.', '-')}`} />
-          <span>{label}</span>
-        </label>)}
-      </div>
-    </section>
     <div className="settings-save-bottom"><button className="button button-primary" onClick={save} disabled={saveSettings.isPending} data-testid="button-save-portal-settings-bottom">{saveSettings.isPending ? 'Saving…' : 'Save portal settings'} <Check size={15} /></button></div>
-  </div>
-    {logoPreview && (() => {
-      const previewCard = draft.cards.find((card) => card.id === logoPreview.categoryId);
-      if (!previewCard) return null;
-      const categoryNumber = previewCard.id.replace('category-', '');
-      const screenKey = `category-entry-${categoryNumber}`;
-      const previewCopy = draft.screenCopy?.[screenKey] ?? {};
-      const previewEntryLogo = previewCard.entryLogoDataUrl ?? previewCard.logoDataUrl ?? defaultCategoryLogos[previewCard.id];
-      const previewPinLogo = previewCard.pinLogoDataUrl ?? previewCard.entryLogoDataUrl ?? previewCard.logoDataUrl ?? defaultCategoryLogos[previewCard.id];
-      return <div
-        className="settings-screen-preview-overlay"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setLogoPreview(null);
-        }}
-        data-testid="dialog-logo-screen-preview"
-      >
-        <section className="settings-screen-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-screen-preview-title">
-          <header className="settings-screen-preview-header">
-            <div>
-              <h2 id="settings-screen-preview-title">{previewCard.title} · {logoPreview.screen === 'entry' ? 'Entry screen' : 'PIN screen'}</h2>
-              <p>Previewing current settings, including unsaved logo changes.</p>
-            </div>
-            <button type="button" className="settings-screen-preview-close" onClick={() => setLogoPreview(null)} aria-label="Close screen preview" data-testid="button-close-logo-screen-preview"><X size={19} /></button>
-          </header>
-          <div className="settings-screen-preview-toolbar" role="group" aria-label="Preview size">
-            <button type="button" className={logoPreviewSize === 'desktop' ? 'active' : ''} aria-pressed={logoPreviewSize === 'desktop'} onClick={() => setLogoPreviewSize('desktop')} data-testid="button-preview-size-desktop">Desktop</button>
-            <button type="button" className={logoPreviewSize === 'mobile' ? 'active' : ''} aria-pressed={logoPreviewSize === 'mobile'} onClick={() => setLogoPreviewSize('mobile')} data-testid="button-preview-size-mobile">Mobile</button>
-          </div>
-          <div className={`settings-screen-preview-stage settings-screen-preview-stage-${logoPreviewSize}`}>
-            <div className={`settings-screen-preview-viewport settings-screen-preview-viewport-${logoPreviewSize}`} role="img" aria-label={`${previewCard.title} ${logoPreview.screen} screen preview`}>
-              <CategoryEntryForm
-                categoryId={previewCard.id as EnrollmentCategory['id']}
-                reference="PREVIEW"
-                savedAnswers={{ name: 'Avery', nickname: 'Avery', surname: 'Morgan' }}
-                isSaving={false}
-                error=""
-                pinScreenBackground={draft.theme.pinScreenBackground}
-                categoryInputTransparent={draft.theme.categoryInputTransparent}
-                screenCopy={previewCopy}
-                requiredFields={draft.requiredFields ?? []}
-                pageTheme={draft.pageThemes?.[screenKey]}
-                entryLogoDataUrl={previewEntryLogo}
-                pinLogoDataUrl={previewPinLogo}
-                entryLogoAlignment={previewCard.entryLogoAlignment ?? previewCopy.entryLogoAlignment}
-                entryLogoVerticalOffset={previewCard.entryLogoVerticalOffset ?? previewCopy.entryLogoVerticalOffset}
-                entryLogoSize={previewCard.entryLogoSize ?? defaultLogoSize(previewCard.id, 'entry')}
-                entryLogoFit={previewCard.entryLogoFit ?? 'contain'}
-                pinLogoAlignment={previewCard.pinLogoAlignment ?? previewCopy.entryLogoAlignment ?? previewCard.entryLogoAlignment}
-                pinLogoVerticalOffset={previewCard.pinLogoVerticalOffset ?? previewCopy.entryLogoVerticalOffset ?? previewCard.entryLogoVerticalOffset}
-                pinLogoSize={previewCard.pinLogoSize ?? defaultLogoSize(previewCard.id, 'pin')}
-                pinLogoFit={previewCard.pinLogoFit ?? 'contain'}
-                previewScreen={logoPreview.screen}
-                onComplete={() => undefined}
-              />
-            </div>
-          </div>
-        </section>
-      </div>;
-    })()}
-  </AdminShell>;
+  </div></AdminShell>;
 }
 
 function readAnswerGroup(answers: Record<string, unknown> | undefined, key: string): Record<string, unknown> {
@@ -2505,10 +1812,6 @@ function AdminApplicationReview() {
           <div className="review-field"><span>Created</span><b>{formatDate(application.createdAt)}</b></div>
           <div className="review-field"><span>Submitted</span><b>{formatDate(application.submittedAt)}</b></div>
           {application.status === 'draft' && <div className="review-field" data-testid="text-draft-progress"><span>Saved progress</span><b>{draftProgressLabel(application)}</b></div>}
-          {(application.missingRequiredFields?.length ?? 0) > 0 && <div className="review-note" data-testid="admin-configured-requirements">
-            <b>Administrator-required items still missing</b>
-            <ul>{application.missingRequiredFields?.map((field) => <li key={field}>{field}</li>)}</ul>
-          </div>}
           <div className="review-field review-context"><span>Additional context</span><b>{String(application.answers?.additionalContext ?? 'No additional context provided')}</b></div>
           {application.reviewNote && <div className="review-note"><b>Previous review note</b><p>{application.reviewNote}</p></div>}
         </section>
@@ -2575,7 +1878,6 @@ function AdminApplicationReview() {
 }
 
 function AdminSupport() {
-  const portalSettings = useGetPortalSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const filters = useMemo(() => ({
@@ -2618,11 +1920,7 @@ function AdminSupport() {
   };
   return <AdminShell active="support">
     <div className="support-admin-page">
-      <PageHeading
-        eyebrow="SECURE STAFF WORKSPACE"
-        title={copyText(portalSettings.data, 'admin-support', 'title', 'Support inbox')}
-        detail={copyText(portalSettings.data, 'admin-support', 'description', 'Manage applicant messages and send a considered reply.')}
-      />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Support inbox" detail="Manage applicant messages and send a considered reply." />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference or user" aria-label="Search support requests" data-testid="input-support-search" /></label>
         <label className="filter-select"><span className="sr-only">Filter support status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} data-testid="select-support-status"><option value="">All request statuses</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option></select><ChevronDown size={15} /></label>
@@ -2717,15 +2015,12 @@ const guestLookupSchema = z.object({
 type GuestLookupValues = z.infer<typeof guestLookupSchema>;
 
 function GuestPublicHeader() {
-  const portalSettings = useGetPortalSettings();
   return <header className="guest-public-header">
     <Link href="/" className="guest-brand-link" aria-label="Enrollment portal home" data-testid="link-guest-home">
       <PortalWordmark />
     </Link>
     <nav aria-label="Public navigation">
-      <Link href="/guest/track" className="guest-header-link" data-testid="link-guest-track">
-        {copyText(portalSettings.data, 'guest-status', 'trackLinkLabel', 'Track an application')} <ArrowRight size={14} />
-      </Link>
+      <Link href="/guest/track" className="guest-header-link" data-testid="link-guest-track">Track an application <ArrowRight size={14} /></Link>
     </nav>
   </header>;
 }
@@ -2778,7 +2073,6 @@ function PublicApplicantDashboard() {
   const changeContact = () => {
     try {
       window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
-      window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
     } catch {
       setStartError('Your category selection could not be cleared in this browser.');
       return;
@@ -2790,14 +2084,14 @@ function PublicApplicantDashboard() {
     <GuestPublicHeader />
     <section className="guest-dashboard-shell">
       <div className="guest-dashboard-heading">
-        <div className="eyebrow"><span className="eyebrow-rule" />{copyText(portalSettings.data, 'guest-dashboard', 'sectionIdLabel', copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'APPLICANT DASHBOARD'))}</div>
-        <h1>{copyText(portalSettings.data, 'guest-dashboard', 'title', copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.'))}</h1>
-        <p>{copyText(portalSettings.data, 'guest-dashboard', 'description', copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.'))}</p>
+        <div className="eyebrow"><span className="eyebrow-rule" />APPLICANT DASHBOARD</div>
+        <h1>Choose an enrollment category.</h1>
+        <p>Start or continue your application without creating an account. Identity files and verification video are collected later.</p>
       </div>
       {contact ? <div className="guest-dashboard-contact">
-        <div><span>{copyText(portalSettings.data, 'guest-dashboard', 'contactDetailsTitle', 'CONTACT DETAILS')}</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
-        <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">{copyText(portalSettings.data, 'guest-dashboard', 'changeContactLabel', 'Change details')}</button>
-      </div> : <p className="guest-dashboard-contact-hint">{copyText(portalSettings.data, 'guest-dashboard', 'contactHint', 'You can browse categories now. Enter your name and email when you’re ready to start.')}</p>}
+        <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
+        <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">Change details</button>
+      </div> : <p className="guest-dashboard-contact-hint">You can browse categories now. Enter your name and email when you’re ready to start.</p>}
       {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
       {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
         categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
@@ -2813,20 +2107,18 @@ function PublicApplicantDashboard() {
                 aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
                 <span className="category-number">0{index + 1}</span>
                 {cardSettings?.logoDataUrl
-                  ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={categoryCardLogoStyle(cardSettings)} />
+                  ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" />
                   : category.id === 'category-1'
-                    ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                    ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" />
                     : category.id === 'category-2'
-                      ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                      ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" />
                       : category.id === 'category-3'
-                        ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                        ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" />
                         : category.id === 'category-4'
-                          ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                          ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" />
                           : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
                 <span className="category-title">{cardSettings?.title ?? category.name}</span>
-                <span className="category-select">{contact
-                  ? copyText(portalSettings.data, 'guest-dashboard', 'startLabel', copyText(portalSettings.data, 'dashboard', 'buttonLabel', 'Start application'))
-                  : copyText(portalSettings.data, 'guest-dashboard', 'enterContactLabel', copyText(portalSettings.data, 'dashboard', 'buttonLabel', 'Enter contact details'))} <ArrowUpRight size={15} /></span>
+                <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
               </button>;
             })}
           </div>}
@@ -2835,16 +2127,14 @@ function PublicApplicantDashboard() {
       <span>SECURE ENROLLMENT PORTAL</span>
       <nav className="guest-footer-actions" aria-label="Dashboard links">
         <Link href="/staff/sign-up" className="guest-footer-admin-link" data-testid="link-dashboard-admin-access"><ShieldCheck size={13} /> Admin access</Link>
-        <Link href="/guest/track" data-testid="link-dashboard-track">{copyText(portalSettings.data, 'guest-dashboard', 'trackLabel', 'Already started? Track your application')}</Link>
+        <Link href="/guest/track" data-testid="link-dashboard-track">Already started? Track your application</Link>
       </nav>
     </footer>
   </main>;
 }
 
 function ApplicantDashboardRoute() {
-  const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the applicant dashboard" /></main>;
-  return isSignedIn ? <Dashboard /> : <PublicApplicantDashboard />;
+  return <PublicApplicantDashboard />;
 }
 
 function clerkMessage(error: unknown) {
@@ -2867,13 +2157,11 @@ function GuestEmailVerificationDialog({
   fullName,
   onClose,
   onVerified,
-  screenCopy = {},
 }: {
   email: string;
   fullName: string;
   onClose: () => void;
   onVerified: () => void;
-  screenCopy?: Record<string, Record<string, string>>;
 }) {
   const { isLoaded: signUpLoaded, signUp } = useSignUp();
   const { isLoaded: signInLoaded, signIn } = useSignIn();
@@ -2884,8 +2172,6 @@ function GuestEmailVerificationDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const started = useRef(false);
-  const verifyCopy = (key: string, fallback: string) =>
-    screenCopy['guest-verification']?.[key]?.trim() || fallback;
 
   const startVerification = async () => {
     if (!signUp || !signIn) return;
@@ -2997,19 +2283,19 @@ function GuestEmailVerificationDialog({
       <button type="button" className="modal-close" onClick={onClose} aria-label="Close email verification"><span aria-hidden="true">×</span></button>
       <div className="success-dialog-icon"><ShieldCheck size={25} /></div>
       <span className="eyebrow">EMAIL VERIFICATION</span>
-      <h2 id="guest-otp-title">{verifyCopy('title', 'Check your inbox')}</h2>
-      <p>{verifyCopy('description', 'We sent a one-time code to {email}. Enter it here to unlock the separate Submit button. Your saved application remains available if verification fails.').replaceAll('{email}', email)}</p>
+      <h2 id="guest-otp-title">Check your inbox</h2>
+      <p>We sent a one-time code to <strong>{email}</strong>. Enter it here to unlock the separate Submit button. Your saved application remains available if verification fails.</p>
       <form onSubmit={(event) => void verifyCode(event)} className="otp-entry-form">
-        <label className="field-label" htmlFor="guest-email-otp">{verifyCopy('codeLabel', 'Email code')}</label>
+        <label className="field-label" htmlFor="guest-email-otp">Email code</label>
         <input id="guest-email-otp" className="text-input otp-entry-input" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 8))} inputMode="numeric" autoComplete="one-time-code" autoFocus data-testid="input-guest-email-otp" />
         {error && <p className="inline-error" role="alert" data-testid="text-guest-otp-error">{error}</p>}
-        {!flow && !error && <p className="field-help" role="status">{verifyCopy('sendingMessage', 'Sending your verification code…')}</p>}
+        {!flow && !error && <p className="field-help" role="status">Sending your verification code…</p>}
         <button type="submit" className="button button-primary" disabled={busy || !flow || code.trim().length < 4} data-testid="button-verify-guest-email">
-          {busy ? 'Verifying…' : verifyCopy('verifyButtonLabel', 'Verify email')} <ArrowRight size={15} />
+          {busy ? 'Verifying…' : 'Verify email'} <ArrowRight size={15} />
         </button>
       </form>
       <button type="button" className="text-action otp-resend" onClick={() => void resendCode()} disabled={busy} data-testid="button-resend-guest-otp">
-        {busy ? 'Sending…' : verifyCopy('resendButtonLabel', 'Send a new code')}
+        {busy ? 'Sending…' : 'Send a new code'}
       </button>
     </section>
   </div>;
@@ -3017,7 +2303,6 @@ function GuestEmailVerificationDialog({
 
 function GuestApplicationPage() {
   const categories = useListEnrollmentCategories();
-  const portalSettings = useGetPortalSettings();
   const createGuest = useCreateGuestPreapplication();
   const updateGuest = useUpdateGuestPreapplicationProgress();
   const updateGuestEmail = useUpdateGuestPreapplicationEmail();
@@ -3030,10 +2315,9 @@ function GuestApplicationPage() {
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
   const [applicationAnswers, setApplicationAnswers] = useState<Record<string, unknown>>({});
   const [copied, setCopied] = useState(false);
-  const [stage, setStage] = useState<'contact' | 'category' | 'key' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
+  const [stage, setStage] = useState<'contact' | 'category' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState('');
-  const [startedFromDashboard, setStartedFromDashboard] = useState(false);
   const [progressError, setProgressError] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
   const [verificationOpen, setVerificationOpen] = useState(false);
@@ -3046,9 +2330,6 @@ function GuestApplicationPage() {
     fingerprint: string;
     input: GuestPreapplicationInput;
   } | null>(null);
-  const [retryMismatch, setRetryMismatch] = useState(false);
-  const guestCopy = (screen: string, key: string, fallback: string) =>
-    copyText(portalSettings.data, screen, key, fallback);
   const form = useForm<GuestApplicationValues>({
     resolver: zodResolver(guestApplicationSchema),
     defaultValues: {
@@ -3116,24 +2397,6 @@ function GuestApplicationPage() {
     }).catch(() => {
       setResumeError('The reference and private key could not be verified. Return to status lookup and try again.');
     }).finally(() => setResumeLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (dashboardStartStarted.current) return;
-    if (new URLSearchParams(window.location.search).get('dashboardStart') !== '1') return;
-    let storedStart: unknown;
-    try {
-      storedStart = JSON.parse(window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? 'null');
-    } catch {
-      storedStart = null;
-    }
-    const start = guestDashboardStartSchema.safeParse(storedStart);
-    if (!start.success) {
-      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
-      return;
-    }
-    form.reset(start.data);
-    setDashboardStartValues(start.data);
   }, []);
 
   const saveGuestProgress = async (
@@ -3222,10 +2485,7 @@ function GuestApplicationPage() {
       window.sessionStorage.setItem(GUEST_DASHBOARD_CONTACT_KEY, JSON.stringify(contactDetails.data));
       const pendingCategoryId = window.sessionStorage.getItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
       if (pendingCategoryId) {
-        const start = guestDashboardStartSchema.safeParse({
-          ...contactDetails.data,
-          categoryId: pendingCategoryId,
-        });
+        const start = guestDashboardStartSchema.safeParse({ ...contactDetails.data, categoryId: pendingCategoryId });
         if (!start.success) {
           window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
           setContactSaveError('Your selected category could not be restored. Return to the dashboard and choose it again.');
@@ -3234,7 +2494,6 @@ function GuestApplicationPage() {
         }
         window.sessionStorage.setItem(GUEST_DASHBOARD_START_KEY, JSON.stringify(start.data));
         window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
-        form.reset(start.data);
         dashboardStartStarted.current = false;
         setDashboardStartValues(start.data);
         startAfterContact = true;
@@ -3248,25 +2507,21 @@ function GuestApplicationPage() {
     }
     setContactSaveError('');
     setIsContinuing(false);
-    if (!startAfterContact) setLocation('/dashboard');
+    if (startAfterContact) {
+      setStage('category');
+      setLocation('/guest/apply?dashboardStart=1');
+    } else {
+      setLocation('/dashboard');
+    }
   };
 
-  const onSubmit = async (
-    values: GuestApplicationValues,
-    fromDashboard = startedFromDashboard,
-  ) => {
+  const onSubmit = async (values: GuestApplicationValues) => {
     const details = {
       categoryId: values.categoryId as GuestPreapplicationInput['categoryId'],
       fullName: values.fullName.trim(),
       email: values.email.trim(),
     };
     const fingerprint = JSON.stringify(details);
-    if (pendingSubmission && pendingSubmission.fingerprint !== fingerprint) {
-      setRetryMismatch(true);
-      return;
-    }
-
-    setRetryMismatch(false);
     let input = pendingSubmission?.input;
     let accessKey = input?.accessKey;
     if (!input || !accessKey) {
@@ -3300,7 +2555,7 @@ function GuestApplicationPage() {
         setProgressError('Your private key could not be saved for this session. Copy it before continuing.');
       }
       setApplicationAnswers({});
-      setStage(fromDashboard ? 'categoryEntry' : 'key');
+      setStage('categoryEntry');
       setPendingSubmission(null);
       setDashboardStartValues(null);
       dashboardStartStarted.current = false;
@@ -3310,11 +2565,27 @@ function GuestApplicationPage() {
   };
 
   useEffect(() => {
+    if (dashboardStartStarted.current) return;
+    if (new URLSearchParams(window.location.search).get('dashboardStart') !== '1') return;
+    let storedStart: unknown;
+    try {
+      storedStart = JSON.parse(window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? 'null');
+    } catch {
+      storedStart = null;
+    }
+    const start = guestDashboardStartSchema.safeParse(storedStart);
+    if (!start.success) {
+      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
+      return;
+    }
+    setDashboardStartValues(start.data);
+  }, []);
+
+  useEffect(() => {
     if (!dashboardStartValues || dashboardStartStarted.current) return;
     dashboardStartStarted.current = true;
-    setStartedFromDashboard(true);
     setStage('category');
-    void onSubmit(dashboardStartValues, true);
+    void onSubmit(dashboardStartValues);
   }, [dashboardStartValues]);
 
   const uploadGuestEvidence = async (
@@ -3393,14 +2664,6 @@ function GuestApplicationPage() {
     }
   };
 
-  const categoryEntryScreenId = created
-    ? `category-entry-${created.application.categoryId.replace('category-', '')}`
-    : '';
-  const categoryEntryCopy = portalSettings.data?.screenCopy?.[categoryEntryScreenId] ?? {};
-  const categoryEntryCard = created
-    ? portalSettings.data?.cards.find((card) => card.id === created.application.categoryId)
-    : undefined;
-
   if (stage === 'application' && created) {
     const wizardApplication: EnrollmentApplication = {
       id: created.application.id,
@@ -3441,13 +2704,10 @@ function GuestApplicationPage() {
         if (saved) setStage('categoryEntry');
         return saved;
       })}
-      screenCopy={portalSettings.data?.screenCopy}
-      requiredFields={portalSettings.data?.requiredFields ?? []}
       />
       {verificationOpen && <GuestEmailVerificationDialog
         email={created.application.email}
         fullName={created.application.fullName}
-        screenCopy={portalSettings.data?.screenCopy}
         onClose={() => setVerificationOpen(false)}
         onVerified={() => {
           setEmailVerified(true);
@@ -3461,18 +2721,16 @@ function GuestApplicationPage() {
     <GuestPublicHeader />
     <div className="guest-page-grid">
       <section className="guest-intro rise">
-        <div className="eyebrow"><span className="eyebrow-rule" />{guestCopy('guest-intro', 'eyebrow', 'START WITHOUT AN ACCOUNT')}</div>
-        <h1>{guestCopy('guest-intro', 'title', 'Apply without an account.')}</h1>
-        <p>{guestCopy('guest-intro', 'description', 'Enter your name and email, choose a category, then complete the application online. Upload your evidence and verify your email before submission. Unfinished and replaced uploads are removed within 24 hours. Saved evidence is kept for 90 days after the last activity on an unsubmitted draft.')}</p>
+        <div className="eyebrow"><span className="eyebrow-rule" />START WITHOUT AN ACCOUNT</div>
+        <h1>Apply without an account.</h1>
+        <p>Enter your name and email, choose a category, then complete the application online. Upload your evidence and verify your email before submission. Unfinished and replaced uploads are removed within 24 hours. Saved evidence is kept for 90 days after the last activity on an unsubmitted draft.</p>
         <div className="guest-process">
-          {[['Share your contact details', 'Start with your name and email address.'], ['Choose an enrollment category', 'Select the category that matches your application.'], ['Complete your details', 'Your answers save as you move through each section.'], ['Upload evidence and verify email', 'Submit your PIN, private identity files, and video; an email code links your application to your account.']].map(([title, detail], index) => (
-            <div className="guest-process-step" key={index}><span>0{index + 1}</span><div>
-              <b>{guestCopy('guest-intro', `step${index + 1}Title`, title)}</b>
-              <small>{guestCopy('guest-intro', `step${index + 1}Description`, detail)}</small>
-            </div></div>
-          ))}
+          <div className="guest-process-step"><span>01</span><div><b>Share your contact details</b><small>Start with your name and email address.</small></div></div>
+          <div className="guest-process-step"><span>02</span><div><b>Choose an enrollment category</b><small>Select the category that matches your application.</small></div></div>
+          <div className="guest-process-step"><span>03</span><div><b>Complete your details</b><small>Your answers save as you move through each section.</small></div></div>
+          <div className="guest-process-step"><span>04</span><div><b>Upload evidence and verify email</b><small>Submit your PIN, private identity files, and video; an email code links your application to your account.</small></div></div>
         </div>
-        <div className="guest-intro-note"><LockKeyhole size={16} /><span>{guestCopy('guest-intro', 'securityNote', 'You can complete every application step before creating an account. Keep your private tracking key to resume.')}</span></div>
+        <div className="guest-intro-note"><LockKeyhole size={16} /><span>You can complete every application step before creating an account. Keep your private tracking key to resume.</span></div>
       </section>
 
       <section className="guest-form-card rise-delay" aria-labelledby="guest-apply-heading">
@@ -3504,26 +2762,11 @@ function GuestApplicationPage() {
           <h2 id="guest-apply-heading">This application is closed.</h2>
           <p>Contact the enrollment team if you believe this was closed in error.</p>
           <Link href="/guest/track" className="button button-primary guest-success-track">Return to status lookup <ArrowRight size={16} /></Link>
-        </div> : stage === 'key' && created ? <div className="guest-success" data-testid="guest-tracking-key-step">
-          <span className="guest-success-mark"><LockKeyhole size={20} /></span>
-          <div className="eyebrow">SAVE YOUR PRIVATE KEY</div>
-          <h2 id="guest-apply-heading">Keep access to your application.</h2>
-          <p>You can resume without an account using this key and your application reference. Save both before continuing.</p>
-          <div className="guest-reference-box">
-            <span>APPLICATION REFERENCE</span>
-            <strong data-testid="text-guest-reference">{created.application.reference}</strong>
-          </div>
-          <div className="guest-key-box">
-            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
-            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
-            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
-              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
-            </button>
-          </div>
-          <p className="guest-key-warning">This key is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
-          <button type="button" className="button button-primary guest-success-track" onClick={() => setStage('categoryEntry')} data-testid="button-continue-to-category-details">Continue to category details <ArrowRight size={16} /></button>
         </div> : stage === 'categoryEntry' && created ? <>
-          {startedFromDashboard && <div className="guest-key-inline" data-testid="guest-tracking-key-step">
+          <div className="guest-form-topline"><span>CATEGORY DETAILS</span><span>STEP 3 OF 4</span></div>
+          {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
+          <div className="guest-access-reminder" data-testid="guest-tracking-key-step">
+            <div className="guest-access-reminder-copy"><LockKeyhole size={15} /><span>Save these details to securely resume later.</span></div>
             <div className="guest-reference-box">
               <span>APPLICATION REFERENCE</span>
               <strong data-testid="text-guest-reference">{created.application.reference}</strong>
@@ -3535,10 +2778,8 @@ function GuestApplicationPage() {
                 {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
               </button>
             </div>
-            <p className="guest-key-warning">Save this key now. It is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
-          </div>}
-          <div className="guest-form-topline"><span>CATEGORY DETAILS</span><span>STEP 3 OF 4</span></div>
-          {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
+            <p className="guest-key-warning">Keep the key private. It is not emailed and cannot be recovered if lost.</p>
+          </div>
           <CategoryEntryForm
             categoryId={created.application.categoryId}
             reference={created.application.reference}
@@ -3546,21 +2787,6 @@ function GuestApplicationPage() {
             isSaving={updateGuest.isPending}
             error={progressError}
             guestMode
-            pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
-            categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
-            screenCopy={categoryEntryCopy}
-            requiredFields={portalSettings.data?.requiredFields ?? []}
-            pageTheme={portalSettings.data?.pageThemes?.[categoryEntryScreenId]}
-            entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
-            pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
-            entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
-            entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
-            entryLogoSize={categoryEntryCard?.entryLogoSize}
-            entryLogoFit={categoryEntryCard?.entryLogoFit}
-            pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment ?? categoryEntryCard?.entryLogoAlignment}
-            pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset ?? categoryEntryCard?.entryLogoVerticalOffset}
-            pinLogoSize={categoryEntryCard?.pinLogoSize}
-            pinLogoFit={categoryEntryCard?.pinLogoFit}
             onComplete={async (entryAnswers, pin) => {
               const personal = applicationAnswers.personalInformation &&
                 typeof applicationAnswers.personalInformation === 'object' &&
@@ -3582,81 +2808,39 @@ function GuestApplicationPage() {
               if (await saveGuestProgress(nextAnswers, 0, false, pin)) setStage('application');
             }}
           />
-        </> : <>
-          <div className="guest-form-topline"><span>APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 4' : 'STEP 2 OF 4'}</span></div>
-          {stage === 'contact' ? <>
-            <h2 id="guest-apply-heading">{guestCopy('guest-contact', 'title', 'Your contact details')}</h2>
-            <p className="guest-form-subtitle">{guestCopy('guest-contact', 'description', 'Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.')}</p>
+        </> : stage === 'category' ? <div className="guest-starting-category" role="status" data-testid="guest-application-starting">
+          <span className="guest-success-mark">{createGuest.isError ? <LockKeyhole size={20} /> : <ArrowRight size={20} />}</span>
+          <div className="eyebrow">{createGuest.isError ? 'APPLICATION NOT STARTED' : 'OPENING YOUR APPLICATION'}</div>
+          <h2 id="guest-apply-heading">{createGuest.isError ? 'We couldn’t start this application.' : 'Preparing your category form…'}</h2>
+          <p>{createGuest.isError
+            ? 'Your category selection and contact details are saved. Retry to continue without creating a duplicate.'
+            : 'Your secure application is being prepared. This usually takes a moment.'}</p>
+          {createGuest.isError && dashboardStartValues && <button type="button" className="button button-primary guest-success-track" onClick={() => void onSubmit(dashboardStartValues)} disabled={createGuest.isPending}>
+            Retry application setup <ArrowRight size={16} />
+          </button>}
+          {createGuest.isError && <button type="button" className="text-action" onClick={() => setLocation('/dashboard')}>Choose another category</button>}
+        </div> : <>
+          <div className="guest-form-topline"><span>APPLICATION</span><span>STEP 1 OF 4</span></div>
+            <h2 id="guest-apply-heading">Your contact details</h2>
+            <p className="guest-form-subtitle">Start with only your name and email. You’ll continue to the public category dashboard.</p>
             {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
                 event.preventDefault();
                 void continueToCategory();
               }} noValidate>
-                <FormField control={form.control} name="fullName" render={({ field, fieldState }) => <FormItem className="guest-field">
-                  <FormLabel>{guestCopy('guest-contact', 'fullNameLabel', 'Full name')}</FormLabel><FormControl><Input {...field} autoComplete="name" placeholder={guestCopy('guest-contact', 'fullNamePlaceholder', 'As shown on your identity document')} data-testid="input-guest-full-name" /></FormControl>
-                  <FormMessage message={guestCopy('guest-contact', 'fullNameValidationMessage', fieldState.error?.message ?? 'Enter your full name.')} />
+                <FormField control={form.control} name="fullName" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Full name</FormLabel><FormControl><Input {...field} autoComplete="name" placeholder="As shown on your identity document" data-testid="input-guest-full-name" /></FormControl><FormMessage />
                 </FormItem>} />
-                <FormField control={form.control} name="email" render={({ field, fieldState }) => <FormItem className="guest-field">
-                  <FormLabel>{guestCopy('guest-contact', 'emailLabel', 'Email address')}</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder={guestCopy('guest-contact', 'emailPlaceholder', 'you@example.com')} data-testid="input-guest-email" /></FormControl>
-                  <FormMessage message={guestCopy('guest-contact', 'emailValidationMessage', fieldState.error?.message ?? 'Enter a valid email address.')} />
+                <FormField control={form.control} name="email" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : guestCopy('guest-contact', 'continueLabel', 'Continue to dashboard')} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : 'Continue to categories'} <ArrowRight size={16} />
                 </button>
-                <p className="guest-form-privacy"><LockKeyhole size={14} /> {guestCopy('guest-contact', 'privacyText', 'Your details are shared only with enrollment staff.')}</p>
+                <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
             </Form>
-          </> : <>
-            <h2 id="guest-apply-heading">{startedFromDashboard
-              ? guestCopy('guest-category', 'confirmTitle', 'Confirm your category')
-              : guestCopy('guest-category', 'chooseTitle', 'Choose your category')}</h2>
-            <p className="guest-form-subtitle">{startedFromDashboard
-              ? guestCopy('guest-category', 'confirmDescription', 'Confirm the category you chose on the applicant dashboard to start your account-free application.')
-              : guestCopy('guest-category', 'chooseDescription', 'Select the enrollment category, then continue to your account-free application details.')}</p>
-            {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
-              categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
-                <p>Enrollment categories could not be loaded.</p>
-                <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-categories">Try again <ArrowRight size={14} /></button>
-                <button type="button" className="text-action" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back to contact details</button>
-              </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status" data-testid="guest-category-empty">
-                <p>No enrollment categories are available right now.</p>
-                <button type="button" className="text-action" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">Back to contact details</button>
-              </div> :
-              <Form {...form}>
-                <form className="guest-form" onSubmit={form.handleSubmit((values) => onSubmit(values))} noValidate>
-                  <div className="guest-contact-summary">
-                    <span>CONTACT DETAILS</span>
-                    <strong>{form.getValues('fullName')}</strong>
-                    <small>{form.getValues('email')}</small>
-                  </div>
-                  <FormField control={form.control} name="categoryId" render={({ field }) => <FormItem className="guest-field">
-                    <FormLabel>Enrollment category</FormLabel>
-                    <FormControl><select {...field} id="guest-category" className="guest-select" data-testid="select-guest-category">
-                      <option value="">Select a category</option>
-                      {(categories.data ?? []).map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
-                    </select></FormControl><FormMessage />
-                  </FormItem>} />
-                  {createGuest.isError && <div className="guest-inline-error" role="alert" data-testid="guest-submit-error">
-                    <p>We couldn’t confirm receipt. Retry with the same details to safely reuse this submission attempt.</p>
-                    <button type="button" className="text-action" onClick={() => {
-                      if (!window.confirm('The last request may already have reached the portal. Starting over could create a duplicate application. Continue?')) return;
-                      setPendingSubmission(null);
-                      setRetryMismatch(false);
-                      createGuest.reset();
-                    }} data-testid="button-reset-guest-attempt">Start over with different details</button>
-                  </div>}
-                  {retryMismatch && <p className="guest-inline-error" role="alert" data-testid="guest-retry-mismatch">This request may already have been received. Restore the same details to retry safely, or use “Start over” if you accept that a duplicate may be created.</p>}
-                  <div className="guest-step-actions">
-                    <button type="button" className="button button-quiet" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">{guestCopy('guest-category', 'backButtonLabel', 'Back')}</button>
-                    <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-submit-guest-application">
-                      {createGuest.isPending ? 'Starting your application…' : guestCopy('guest-category', 'buttonLabel', createGuest.isError ? 'Retry application setup' : startedFromDashboard ? 'Start account-free application' : 'Continue to category details')} <ArrowRight size={16} />
-                    </button>
-                  </div>
-                  <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
-                </form>
-              </Form>}
-          </>}
         </>}
       </section>
     </div>
@@ -3665,14 +2849,11 @@ function GuestApplicationPage() {
 }
 
 function GuestTrackingPage() {
-  const portalSettings = useGetPortalSettings();
   const lookup = useLookupGuestPreapplication();
   const [, setLocation] = useLocation();
   const [status, setStatus] = useState<GuestPreapplicationStatus | null>(null);
   const [lastAccessKey, setLastAccessKey] = useState('');
   const [lookupError, setLookupError] = useState('');
-  const guestCopy = (key: string, fallback: string) =>
-    copyText(portalSettings.data, 'guest-status', key, fallback);
   const form = useForm<GuestLookupValues>({
     resolver: zodResolver(guestLookupSchema),
     defaultValues: { reference: '', accessKey: '' },
@@ -3686,54 +2867,52 @@ function GuestTrackingPage() {
       setLastAccessKey(values.accessKey);
       form.reset({ reference: values.reference.trim(), accessKey: '' });
     } catch {
-      setLookupError(guestCopy('lookupErrorMessage', 'We couldn’t find a matching application with those details. Check your reference and private key, then try again.'));
+      setLookupError('We couldn’t find a matching application with those details. Check your reference and private key, then try again.');
     }
   };
   return <main className="guest-page guest-track-page portal-frame">
     <GuestPublicHeader />
     <div className="guest-track-wrap">
       <div className="guest-track-heading rise">
-        <div className="eyebrow"><span className="eyebrow-rule" />{guestCopy('eyebrow', 'PRIVATE STATUS LOOKUP')}</div>
-        <h1>{guestCopy('title', 'Your progress, clearly.')}</h1>
-        <p>{guestCopy('description', 'Use the reference and private tracking key you saved when you started. The key is required to view or resume your application.')}</p>
+        <div className="eyebrow"><span className="eyebrow-rule" />PRIVATE STATUS LOOKUP</div>
+        <h1>Your progress, clearly.</h1>
+        <p>Use the reference and private tracking key you saved when you started. The key is required to view or resume your application.</p>
       </div>
       <section className="guest-track-card rise-delay">
         <Form {...form}><form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <FormField control={form.control} name="reference" render={({ field }) => <FormItem className="guest-field">
-            <FormLabel>{guestCopy('referenceLabel', 'Application reference')}</FormLabel><FormControl><Input {...field} autoComplete="off" placeholder="PRE-..." data-testid="input-track-reference" /></FormControl><FormMessage />
+            <FormLabel>Application reference</FormLabel><FormControl><Input {...field} autoComplete="off" placeholder="PRE-..." data-testid="input-track-reference" /></FormControl><FormMessage />
           </FormItem>} />
           <FormField control={form.control} name="accessKey" render={({ field }) => <FormItem className="guest-field">
-            <FormLabel>{guestCopy('keyLabel', 'Private tracking key')}</FormLabel><FormControl><Input {...field} type="password" autoComplete="new-password" placeholder="Paste the key you saved" data-testid="input-track-key" /></FormControl><FormMessage />
+            <FormLabel>Private tracking key</FormLabel><FormControl><Input {...field} type="password" autoComplete="new-password" placeholder="Paste the key you saved" data-testid="input-track-key" /></FormControl><FormMessage />
           </FormItem>} />
           {lookupError && <p className="guest-inline-error" role="alert" data-testid="track-lookup-error">{lookupError}</p>}
           <button type="submit" className="button button-primary guest-submit" disabled={lookup.isPending} data-testid="button-lookup-guest-status">
-            {lookup.isPending ? guestCopy('lookupPendingLabel', 'Checking status…') : guestCopy('lookupButtonLabel', 'Look up status')} <ArrowRight size={16} />
+            {lookup.isPending ? 'Checking status…' : 'Look up status'} <ArrowRight size={16} />
           </button>
         </form></Form>
-        <p className="guest-track-security"><LockKeyhole size={14} /> {guestCopy('securityText', 'Your private key is never included in a link. Keep your own copy to return later.')}</p>
+        <p className="guest-track-security"><LockKeyhole size={14} /> Your private key is never included in a link. Keep your own copy to return later.</p>
       </section>
       {status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
-        <div className="guest-status-head"><div><span className="eyebrow">{guestCopy('appStatusEyebrow', 'APPLICATION STATUS')}</span><h2>{status.reference}</h2></div><StatusPill status={status.reviewStatus ?? status.status} testId="status-guest-application" /></div>
+        <div className="guest-status-head"><div><span className="eyebrow">APPLICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.reviewStatus ?? status.status} testId="status-guest-application" /></div>
         <div className="guest-status-details">
-          <div><span>{guestCopy('categoryLabel', 'Enrollment category')}</span><strong>{status.categoryName}</strong></div>
-          <div><span>{guestCopy('currentStatusLabel', 'Current status')}</span><strong className="guest-status-capitalize">{(status.reviewStatus ?? status.status).replaceAll('_', ' ')}</strong></div>
-          <div><span>{guestCopy('emailVerificationLabel', 'Email verification')}</span><strong>{status.emailVerified ? guestCopy('verifiedLabel', 'Verified') : guestCopy('notVerifiedLabel', 'Not verified')}</strong></div>
-          <div><span>{guestCopy('lastUpdatedLabel', 'Last updated')}</span><strong>{formatDate(status.updatedAt)}</strong></div>
+          <div><span>Enrollment category</span><strong>{status.categoryName}</strong></div>
+          <div><span>Current status</span><strong className="guest-status-capitalize">{(status.reviewStatus ?? status.status).replaceAll('_', ' ')}</strong></div>
+          <div><span>Email verification</span><strong>{status.emailVerified ? 'Verified' : 'Not verified'}</strong></div>
+          <div><span>Last updated</span><strong>{formatDate(status.updatedAt)}</strong></div>
         </div>
         <div className="guest-status-next"><ShieldCheck size={17} /><p>{status.status === 'closed'
-          ? guestCopy('closedMessage', 'This application is closed. Contact the enrollment team if you need help.')
+          ? 'This application is closed. Contact the enrollment team if you need help.'
           : status.submissionStatus === 'submitted'
-            ? guestCopy('submittedMessage', `Your email-verified application has been submitted. Current review status: ${(status.reviewStatus ?? 'submitted').replaceAll('_', ' ')}. Check this page for progress and follow-up.`)
-              .replaceAll('{status}', (status.reviewStatus ?? 'submitted').replaceAll('_', ' '))
+            ? `Your email-verified application has been submitted. Current review status: ${(status.reviewStatus ?? 'submitted').replaceAll('_', ' ')}. Check this page for progress and follow-up.`
             : status.detailsComplete
-              ? guestCopy('draftMessage', 'Your details and PIN are saved. Confirm the declaration and verify your email before submitting; any remaining items can follow later.')
-              : guestCopy('draftMessage', 'Your progress is saved as an unsubmitted draft. Continue when ready; incomplete fields and failed email verification do not remove saved progress.')}</p></div>
-        {(status.missingRequiredFields?.length ?? 0) > 0 && <div className="review-note" data-testid="guest-configured-requirements">
-          <b>{guestCopy('missingRequirementsTitle', 'Required items still missing')}</b>
-          <ul>{status.missingRequiredFields?.map((item) => <li key={item}>{requiredFieldDisplayText(portalSettings.data, item, status.categoryId)}</li>)}</ul>
-        </div>}
+              ? 'Your details and PIN are saved. Confirm the declaration and verify your email before submitting; any remaining items can follow later.'
+              : 'Your progress is saved as an unsubmitted draft. Continue when ready; incomplete fields and failed email verification do not remove saved progress.'}</p></div>
         {status.submissionStatus === 'submitted' && status.outstandingRequirements.length > 0 && <div className="review-note" data-testid="guest-outstanding-requirements">
-          <b>{guestCopy('outstandingItemsTitle', 'Items still needed')}</b><ul>{status.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>
+          <b>Items still needed</b><ul>{status.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>
+        </div>}
+        {status.submissionStatus === 'submitted' && status.applicantFollowup && <div className="review-note" data-testid="guest-reviewer-followup">
+          <b>Update from the review team</b><p>{status.applicantFollowup}</p>
         </div>}
         {status.submissionStatus !== 'submitted' && status.status !== 'closed' && <button type="button" className="button button-primary guest-submit"
           disabled={!lastAccessKey} onClick={() => {
@@ -3744,10 +2923,10 @@ function GuestTrackingPage() {
             saveGuestResume(status.reference, lastAccessKey);
             setLocation('/guest/apply?resume=1');
           }} data-testid="button-resume-guest-application">
-          {status.detailsComplete ? guestCopy('resumeReviewLabel', 'Review saved application') : guestCopy('continueLabel', 'Continue application')} <ArrowRight size={16} />
+          {status.detailsComplete ? 'Review saved application' : 'Continue application'} <ArrowRight size={16} />
         </button>}
       </section>}
-      <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">{guestCopy('startPromptLabel', 'Need to start an application?')} <span>{guestCopy('beginLinkLabel', 'Begin here')} <ArrowRight size={14} /></span></Link></p>
+      <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">Need to start an application? <span>Begin here <ArrowRight size={14} /></span></Link></p>
     </div>
   </main>;
 }
@@ -3788,7 +2967,6 @@ function GuestFollowupPage() {
       !application.hasPin && 'category PIN',
       !hasFront && 'identity front',
       !hasVideo && 'verification video',
-      ...(application.missingRequiredFields ?? []).map((field) => `required: ${field}`),
     ].filter(Boolean);
     const detailStatus = application.detailsComplete
       ? 'Details complete'
@@ -3908,10 +3086,6 @@ function GuestFollowupPage() {
                         {' '}Required before submission: PIN, identity front, and 12-second video.
                       </small>
                     </div>
-                    {(application.missingRequiredFields?.length ?? 0) > 0 && <div className="guest-review-required" data-testid={`guest-required-fields-${application.id}`}>
-                      <b>Administrator-required fields still missing</b>
-                      <ul>{application.missingRequiredFields?.map((field) => <li key={field}>{field}</li>)}</ul>
-                    </div>}
                     <div className="guest-evidence-upload-actions">
                       <label className="guest-evidence-upload">
                         <Upload size={15} />
@@ -3980,13 +3154,6 @@ function RetiredApplicantRoute() {
   return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the shared applicant dashboard" /></main>;
 }
 
-function ApplicantApplicationRoute({ view }: { view: 'enrollment' | 'status' }) {
-  const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your application" /></main>;
-  if (!isSignedIn) return <RetiredApplicantRoute />;
-  return view === 'enrollment' ? <DraftApplication /> : <ApplicationDetail />;
-}
-
 function RoutedPages() {
   const [location, setLocation] = useLocation();
   const portalSettings = useGetPortalSettings();
@@ -4019,14 +3186,13 @@ function RoutedPages() {
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
     <Route path="/dashboard" component={ApplicantDashboardRoute} />
-    <Route path="/apply/:applicationId" component={() => <ApplicantApplicationRoute view="enrollment" />} />
-    <Route path="/applications/:applicationId" component={() => <ApplicantApplicationRoute view="status" />} />
+    <Route path="/apply/:applicationId" component={RetiredApplicantRoute} />
+    <Route path="/applications/:applicationId" component={RetiredApplicantRoute} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
     <Route path="/admin" component={() => <AdminGate><AdminLanding /></AdminGate>} />
     <Route path="/admin/review" component={() => <AdminGate><AdminQueue /></AdminGate>} />
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
-    <Route path="/admin/archive" component={() => <AdminGate><AdminShell active="archive"><AdminApplicantArchive /></AdminShell></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />
     <Route path="/admin/pre-applications" component={() => <AdminGate><GuestFollowupPage /></AdminGate>} />

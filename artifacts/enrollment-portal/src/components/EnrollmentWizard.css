@@ -27,10 +27,6 @@
   border-bottom: 1px solid #dce7e7;
   background: #fcfdfc;
 }
-.ew-applicant-nav { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; }
-.ew-applicant-nav a { display: inline-flex; min-height: 34px; align-items: center; padding: 0 11px; border-radius: 8px; color: #557080; font-size: 10px; font-weight: 600; text-decoration: none; white-space: nowrap; }
-.ew-applicant-nav a:hover { color: #174d80; background: #f0f5f5; }
-.ew-applicant-nav .ew-applicant-nav-active { color: #174d80; background: #eaf3ef; box-shadow: inset 0 -2px #4a9a78; }
 .ew-top-meta { display: flex; align-items: center; gap: 15px; }
 .ew-copy-tracking-key { min-height: 29px; padding: 0 9px; border: 1px solid #cbdcd4; border-radius: 7px; color: #2d6f58; background: #f4faf6; font: 600 9px var(--app-font-sans, sans-serif); cursor: pointer; }
 .ew-copy-tracking-key:hover { background: #e9f5ee; }
@@ -97,9 +93,6 @@
 .ew-field { display: grid; min-width: 0; align-content: start; gap: 7px; }
 .ew-label { display: flex; align-items: center; gap: 8px; color: #334f63; font-size: 10px; font-weight: 700; }
 .ew-label small { color: #96a4aa; font-size: 9px; font-weight: 500; }
-.ew-label .ew-required-tag { color: #9a4b31; font-weight: 700; }
-.ew-configured-missing { margin: 0 0 14px; padding: 13px 15px; border: 1px solid #eed9b6; border-radius: 10px; color: #75582d; background: #fffbf2; font-size: 10px; line-height: 1.5; }
-.ew-configured-missing ul { margin: 7px 0 0; padding-left: 18px; }
 .ew-input { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #d8e3e4; border-radius: 9px; outline: 0; color: #254258; background: #fff; font: 11px var(--app-font-sans, sans-serif); transition: border-color .18s ease, box-shadow .18s ease; }
 .ew-input::placeholder { color: #9ca9ad; }
 .ew-input:focus { border-color: #6ca78f; box-shadow: 0 0 0 3px #3e99731b; }
@@ -225,12 +218,7 @@
 }
 @media (max-width: 640px) {
   .ew-shell { height: 100dvh; min-height: 100dvh; }
-  .ew-topbar { display: grid; min-height: 55px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 7px 10px; padding: 9px 15px; }
-  .ew-topbar > .portal-wordmark { grid-column: 1; grid-row: 1; }
-  .ew-applicant-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
-  .ew-applicant-nav::-webkit-scrollbar { display: none; }
-  .ew-applicant-nav a { min-height: 29px; padding-inline: 9px; font-size: 9px; }
-  .ew-top-meta { grid-column: 2; grid-row: 1; }
+  .ew-topbar { min-height: 55px; padding-inline: 15px; }
   .ew-topbar .portal-wordmark-primary { font-size: 12px; }
   .ew-topbar .portal-wordmark-secondary { font-size: 7px; }
   .ew-top-meta { gap: 8px; }

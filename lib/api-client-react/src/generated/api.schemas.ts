@@ -5,98 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface ApplicantArchiveListItem {
-  id: string;
-  reference: string;
-  applicantName: string;
-  applicantEmail: string;
-  categoryId: string;
-  status: string;
-  versionCount: number;
-  historyUnavailable: boolean;
-  updatedAt: string;
-}
-
-export interface ApplicantArchiveChange {
-  field: string;
-  before: unknown;
-  after: unknown;
-}
-
-export type ApplicantArchiveSnapshotPayload = { [key: string]: unknown };
-
-export interface ApplicantArchiveSnapshot {
-  id: string;
-  version: number;
-  eventType: string;
-  createdAt: string;
-  payload: ApplicantArchiveSnapshotPayload;
-  changes: ApplicantArchiveChange[];
-}
-
-export type ApplicantArchiveEvidenceAvailability = typeof ApplicantArchiveEvidenceAvailability[keyof typeof ApplicantArchiveEvidenceAvailability];
-
-
-export const ApplicantArchiveEvidenceAvailability = {
-  available: 'available',
-  missing: 'missing',
-} as const;
-
-export interface ApplicantArchiveEvidence {
-  id: string;
-  fieldPath: string;
-  fileName: string;
-  evidenceType: string;
-  contentType: string;
-  sizeBytes: number;
-  availability: ApplicantArchiveEvidenceAvailability;
-  createdAt: string;
-}
-
-export type ApplicantArchiveDetailSourceType = typeof ApplicantArchiveDetailSourceType[keyof typeof ApplicantArchiveDetailSourceType];
-
-
-export const ApplicantArchiveDetailSourceType = {
-  guest: 'guest',
-  application: 'application',
-} as const;
-
-export interface ApplicantArchiveDetail {
-  id: string;
-  reference: string;
-  sourceType: ApplicantArchiveDetailSourceType;
-  applicantName: string;
-  applicantEmail: string;
-  categoryId: string;
-  status: string;
-  historyUnavailable: boolean;
-  updatedAt: string;
-  snapshots: ApplicantArchiveSnapshot[];
-  evidence: ApplicantArchiveEvidence[];
-}
-
-export interface ApplicantArchiveRestoreInput {
-  snapshotId: string;
-  confirm: true;
-}
-
-export interface ApplicantArchiveRestoreResult {
-  restored: boolean;
-  reference: string;
-  version: number;
-  pinRestored: boolean;
-}
-
-export const ApplicantArchiveDeleteInputValue = {
-  confirm: true,
-} as const;
-export type ApplicantArchiveDeleteInput = typeof ApplicantArchiveDeleteInputValue;
-
-export interface ApplicantArchiveDeleteResult {
-  deleted: boolean;
-  reference: string;
-}
-
 export interface HealthStatus {
   status: string;
 }
@@ -265,8 +173,6 @@ export interface GuestPreapplicationStatus {
   /** @nullable */
   applicantFollowup: string | null;
   outstandingRequirements: string[];
-  /** Applicant-facing labels for configured required fields that are still missing; never includes submitted values. */
-  missingRequiredFields?: string[];
 }
 
 export type GuestPreapplicationRevisionChangesItem = {
@@ -517,8 +423,6 @@ export interface EnrollmentApplication {
   /** @nullable */
   applicantFollowup?: string | null;
   outstandingRequirements?: string[];
-  /** Applicant-facing labels for configured required fields that are still missing; never includes submitted values. */
-  missingRequiredFields?: string[];
   createdAt: string;
   updatedAt: string;
   /** @nullable */
@@ -824,57 +728,6 @@ export const PortalSettingsCardsItemId = {
   'category-4': 'category-4',
 } as const;
 
-export type PortalSettingsCardsItemCardLogoAlignment = typeof PortalSettingsCardsItemCardLogoAlignment[keyof typeof PortalSettingsCardsItemCardLogoAlignment];
-
-
-export const PortalSettingsCardsItemCardLogoAlignment = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
-} as const;
-
-export type PortalSettingsCardsItemCardLogoFit = typeof PortalSettingsCardsItemCardLogoFit[keyof typeof PortalSettingsCardsItemCardLogoFit];
-
-
-export const PortalSettingsCardsItemCardLogoFit = {
-  contain: 'contain',
-  cover: 'cover',
-} as const;
-
-export type PortalSettingsCardsItemEntryLogoAlignment = typeof PortalSettingsCardsItemEntryLogoAlignment[keyof typeof PortalSettingsCardsItemEntryLogoAlignment];
-
-
-export const PortalSettingsCardsItemEntryLogoAlignment = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
-} as const;
-
-export type PortalSettingsCardsItemEntryLogoFit = typeof PortalSettingsCardsItemEntryLogoFit[keyof typeof PortalSettingsCardsItemEntryLogoFit];
-
-
-export const PortalSettingsCardsItemEntryLogoFit = {
-  contain: 'contain',
-  cover: 'cover',
-} as const;
-
-export type PortalSettingsCardsItemPinLogoAlignment = typeof PortalSettingsCardsItemPinLogoAlignment[keyof typeof PortalSettingsCardsItemPinLogoAlignment];
-
-
-export const PortalSettingsCardsItemPinLogoAlignment = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
-} as const;
-
-export type PortalSettingsCardsItemPinLogoFit = typeof PortalSettingsCardsItemPinLogoFit[keyof typeof PortalSettingsCardsItemPinLogoFit];
-
-
-export const PortalSettingsCardsItemPinLogoFit = {
-  contain: 'contain',
-  cover: 'cover',
-} as const;
-
 export type PortalSettingsCardsItem = {
   id: PortalSettingsCardsItemId;
   /** @maxLength 100 */
@@ -890,52 +743,6 @@ export type PortalSettingsCardsItem = {
      * @nullable
      */
   logoDataUrl: string | null;
-  /**
-     * @maxLength 6000000
-     * @nullable
-     */
-  entryLogoDataUrl?: string | null;
-  /**
-     * @maxLength 6000000
-     * @nullable
-     */
-  pinLogoDataUrl?: string | null;
-  cardLogoAlignment?: PortalSettingsCardsItemCardLogoAlignment;
-  /**
-     * @minimum -60
-     * @maximum 60
-     */
-  cardLogoVerticalOffset?: number;
-  /**
-     * @minimum 24
-     * @maximum 240
-     */
-  cardLogoSize?: number;
-  cardLogoFit?: PortalSettingsCardsItemCardLogoFit;
-  entryLogoAlignment?: PortalSettingsCardsItemEntryLogoAlignment;
-  /**
-     * @minimum -120
-     * @maximum 120
-     */
-  entryLogoVerticalOffset?: number;
-  /**
-     * @minimum 24
-     * @maximum 240
-     */
-  entryLogoSize?: number;
-  entryLogoFit?: PortalSettingsCardsItemEntryLogoFit;
-  pinLogoAlignment?: PortalSettingsCardsItemPinLogoAlignment;
-  /**
-     * @minimum -120
-     * @maximum 120
-     */
-  pinLogoVerticalOffset?: number;
-  /**
-     * @minimum 24
-     * @maximum 240
-     */
-  pinLogoSize?: number;
-  pinLogoFit?: PortalSettingsCardsItemPinLogoFit;
 };
 
 export type PortalSettingsThemeButtonSize = typeof PortalSettingsThemeButtonSize[keyof typeof PortalSettingsThemeButtonSize];
@@ -965,58 +772,6 @@ export type PortalSettingsTheme = {
 };
 
 export type PortalSettingsScreenCopy = {[key: string]: {[key: string]: string}};
-
-export type PortalSettingsRequiredFieldsItem = typeof PortalSettingsRequiredFieldsItem[keyof typeof PortalSettingsRequiredFieldsItem];
-
-
-export const PortalSettingsRequiredFieldsItem = {
-  name: 'name',
-  nickname: 'nickname',
-  surname: 'surname',
-  personalInformationfirstName: 'personalInformation.firstName',
-  personalInformationmiddleName: 'personalInformation.middleName',
-  personalInformationsurname: 'personalInformation.surname',
-  personalInformationdateOfBirth: 'personalInformation.dateOfBirth',
-  personalInformationnationality: 'personalInformation.nationality',
-  personalInformationphone: 'personalInformation.phone',
-  personalInformationemail: 'personalInformation.email',
-  personalInformationresidentialAddress: 'personalInformation.residentialAddress',
-  personalInformationstateRegion: 'personalInformation.stateRegion',
-  personalInformationcity: 'personalInformation.city',
-  personalInformationpostalCode: 'personalInformation.postalCode',
-  nextOfKinfullName: 'nextOfKin.fullName',
-  nextOfKinrelationship: 'nextOfKin.relationship',
-  nextOfKinphone: 'nextOfKin.phone',
-  nextOfKinemail: 'nextOfKin.email',
-  nextOfKinresidentialAddress: 'nextOfKin.residentialAddress',
-  nextOfKincity: 'nextOfKin.city',
-  nextOfKinstateRegion: 'nextOfKin.stateRegion',
-  educationhighestQualification: 'education.highestQualification',
-  educationinstitution: 'education.institution',
-  educationcourseField: 'education.courseField',
-  educationstartYear: 'education.startYear',
-  educationcompletionYear: 'education.completionYear',
-  educationcertificationStatus: 'education.certificationStatus',
-  educationadditionalQualifications: 'education.additionalQualifications',
-  educationcertificateObjectPath: 'education.certificateObjectPath',
-  workInformationemploymentStatus: 'workInformation.employmentStatus',
-  workInformationoccupation: 'workInformation.occupation',
-  workInformationemployer: 'workInformation.employer',
-  workInformationbusinessName: 'workInformation.businessName',
-  workInformationworkAddress: 'workInformation.workAddress',
-  workInformationworkPhone: 'workInformation.workPhone',
-  workInformationyearsExperience: 'workInformation.yearsExperience',
-  proofOfIdentitydocumentType: 'proofOfIdentity.documentType',
-  proofOfIdentitydocumentNumber: 'proofOfIdentity.documentNumber',
-  proofOfIdentityfrontObjectPath: 'proofOfIdentity.frontObjectPath',
-  proofOfIdentitybackObjectPath: 'proofOfIdentity.backObjectPath',
-  liveVideoRecordingconsentAccepted: 'liveVideoRecording.consentAccepted',
-  liveVideoRecordingobjectPath: 'liveVideoRecording.objectPath',
-  bankDetailsbankName: 'bankDetails.bankName',
-  bankDetailsaccountHolder: 'bankDetails.accountHolder',
-  bankDetailsaccountNumber: 'bankDetails.accountNumber',
-  bankDetailsaccountType: 'bankDetails.accountType',
-} as const;
 
 export type PortalPageThemeMode = typeof PortalPageThemeMode[keyof typeof PortalPageThemeMode];
 
@@ -1051,38 +806,7 @@ export interface PortalSettings {
   cards: PortalSettingsCardsItem[];
   theme: PortalSettingsTheme;
   screenCopy: PortalSettingsScreenCopy;
-  /**
-     * Applicant answer or evidence fields that must be present before final submission.
-     * @maxItems 46
-     */
-  requiredFields?: PortalSettingsRequiredFieldsItem[];
   pageThemes?: PortalSettingsPageThemes;
-}
-
-export interface PortalLogoUploadRequest {
-  uploadUrl: string;
-  /** @pattern ^/objects/uploads/[0-9a-fA-F-]{36}$ */
-  objectPath: string;
-}
-
-export type PortalLogoUploadCompletionInputContentType = typeof PortalLogoUploadCompletionInputContentType[keyof typeof PortalLogoUploadCompletionInputContentType];
-
-
-export const PortalLogoUploadCompletionInputContentType = {
-  'image/png': 'image/png',
-  'image/jpeg': 'image/jpeg',
-  'image/webp': 'image/webp',
-} as const;
-
-export interface PortalLogoUploadCompletionInput {
-  /** @pattern ^/objects/uploads/[0-9a-fA-F-]{36}$ */
-  objectPath: string;
-  contentType: PortalLogoUploadCompletionInputContentType;
-}
-
-export interface PortalLogoUploadCompletion {
-  /** @pattern ^/api/enrollment/logos/[0-9a-fA-F-]{36}$ */
-  logoUrl: string;
 }
 
 export interface ApplicantSummary {
@@ -1238,13 +962,6 @@ export const ListAdminUsersAccountStatus = {
   active: 'active',
   suspended: 'suspended',
 } as const;
-
-export type ListApplicantArchiveParams = {
-/**
- * @maxLength 120
- */
-search?: string;
-};
 
 export type ListSupportTicketsForAdminParams = {
 search?: string;

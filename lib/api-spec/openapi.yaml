@@ -689,72 +689,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PortalSettings"
-  /admin/settings/logos/upload-url:
-    post:
-      operationId: requestPortalLogoUpload
-      tags: [administration]
-      summary: Request a direct upload URL for an administrator logo
-      responses:
-        "200":
-          description: Temporary upload URL and storage path
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PortalLogoUploadRequest"
-  /admin/settings/logos/complete:
-    post:
-      operationId: completePortalLogoUpload
-      tags: [administration]
-      summary: Verify an uploaded portal logo and make it publicly viewable
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PortalLogoUploadCompletionInput"
-      responses:
-        "200":
-          description: Stable public image reference
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PortalLogoUploadCompletion"
-  /admin/settings/migrate-logos:
-    post:
-      operationId: migratePortalLogos
-      tags: [administration]
-      summary: Move legacy base64 portal logos into durable object storage
-      responses:
-        "200":
-          description: Updated settings with stable logo references
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PortalSettings"
-  /enrollment/logos/{logoId}:
-    get:
-      operationId: getPortalLogo
-      tags: [enrollment]
-      summary: Load a public portal logo
-      parameters:
-        - name: logoId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Public PNG, JPEG, or WebP logo
-          content:
-            image/png:
-              schema: { type: string, format: binary }
-            image/jpeg:
-              schema: { type: string, format: binary }
-            image/webp:
-              schema: { type: string, format: binary }
-        "404":
-          description: Logo not found
   /admin/applications/{applicationId}/history:
     get:
       operationId: getAdminApplicationHistory
@@ -895,115 +829,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SupportTicket"
-  /admin/archive:
-    get:
-      operationId: listApplicantArchive
-      tags: [administration]
-      summary: List applicant archive cases (primary administrator only)
-      parameters:
-        - name: search
-          in: query
-          schema:
-            type: string
-            maxLength: 120
-      responses:
-        "200":
-          description: Applicant archive records
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ApplicantArchiveListItem"
-  /admin/archive/{archiveId}:
-    parameters:
-      - name: archiveId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    get:
-      operationId: getApplicantArchive
-      tags: [administration]
-      summary: Read a protected applicant archive record (primary administrator only)
-      responses:
-        "200":
-          description: Decrypted archive record and correction history
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApplicantArchiveDetail"
-  /admin/archive/{archiveId}/bundle:
-    get:
-      operationId: downloadApplicantArchiveBundle
-      tags: [administration]
-      summary: Download the readable archive manifest and private proof copies
-      parameters:
-        - name: archiveId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Gzipped tar archive with manifest and proof files
-          content:
-            application/gzip:
-              schema:
-                type: string
-                format: binary
-  /admin/archive/{archiveId}/restore:
-    post:
-      operationId: restoreApplicantArchiveSnapshot
-      tags: [administration]
-      summary: Restore saved applicant fields to an existing live record
-      parameters:
-        - name: archiveId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApplicantArchiveRestoreInput"
-      responses:
-        "200":
-          description: Restored application fields; PIN was not restored
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApplicantArchiveRestoreResult"
-  /admin/archive/{archiveId}/delete:
-    post:
-      operationId: deleteApplicantArchive
-      tags: [administration]
-      summary: Permanently delete an applicant archive after explicit confirmation
-      parameters:
-        - name: archiveId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApplicantArchiveDeleteInput"
-      responses:
-        "200":
-          description: Archive record and private proof copies deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApplicantArchiveDeleteResult"
   /admin/support/tickets:
     get:
       operationId: listSupportTicketsForAdmin
@@ -1077,152 +902,6 @@ paths:
                 $ref: "#/components/schemas/SupportTicket"
 components:
   schemas:
-    ApplicantArchiveListItem:
-      type: object
-      required: [id, reference, applicantName, applicantEmail, categoryId, status, versionCount, historyUnavailable, updatedAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        reference:
-          type: string
-        applicantName:
-          type: string
-        applicantEmail:
-          type: string
-        categoryId:
-          type: string
-        status:
-          type: string
-        versionCount:
-          type: integer
-        historyUnavailable:
-          type: boolean
-        updatedAt:
-          type: string
-          format: date-time
-    ApplicantArchiveChange:
-      type: object
-      required: [field, before, after]
-      properties:
-        field:
-          type: string
-        before: {}
-        after: {}
-    ApplicantArchiveSnapshot:
-      type: object
-      required: [id, version, eventType, createdAt, payload, changes]
-      properties:
-        id:
-          type: string
-          format: uuid
-        version:
-          type: integer
-        eventType:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        payload:
-          type: object
-          additionalProperties: true
-        changes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ApplicantArchiveChange"
-    ApplicantArchiveEvidence:
-      type: object
-      required: [id, fieldPath, fileName, evidenceType, contentType, sizeBytes, availability, createdAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        fieldPath:
-          type: string
-        fileName:
-          type: string
-        evidenceType:
-          type: string
-        contentType:
-          type: string
-        sizeBytes:
-          type: integer
-        availability:
-          type: string
-          enum: [available, missing]
-        createdAt:
-          type: string
-          format: date-time
-    ApplicantArchiveDetail:
-      type: object
-      required: [id, reference, sourceType, applicantName, applicantEmail, categoryId, status, historyUnavailable, updatedAt, snapshots, evidence]
-      properties:
-        id:
-          type: string
-          format: uuid
-        reference:
-          type: string
-        sourceType:
-          type: string
-          enum: [guest, application]
-        applicantName:
-          type: string
-        applicantEmail:
-          type: string
-        categoryId:
-          type: string
-        status:
-          type: string
-        historyUnavailable:
-          type: boolean
-        updatedAt:
-          type: string
-          format: date-time
-        snapshots:
-          type: array
-          items:
-            $ref: "#/components/schemas/ApplicantArchiveSnapshot"
-        evidence:
-          type: array
-          items:
-            $ref: "#/components/schemas/ApplicantArchiveEvidence"
-    ApplicantArchiveRestoreInput:
-      type: object
-      required: [snapshotId, confirm]
-      properties:
-        snapshotId:
-          type: string
-          format: uuid
-        confirm:
-          type: boolean
-          const: true
-    ApplicantArchiveRestoreResult:
-      type: object
-      required: [restored, reference, version, pinRestored]
-      properties:
-        restored:
-          type: boolean
-        reference:
-          type: string
-        version:
-          type: integer
-        pinRestored:
-          type: boolean
-    ApplicantArchiveDeleteInput:
-      type: object
-      required: [confirm]
-      properties:
-        confirm:
-          type: boolean
-          const: true
-    ApplicantArchiveDeleteResult:
-      type: object
-      required: [deleted, reference]
-      properties:
-        deleted:
-          type: boolean
-        reference:
-          type: string
     HealthStatus:
       type: object
       properties:
@@ -1378,11 +1057,6 @@ components:
           type: ["string", "null"]
         outstandingRequirements:
           type: array
-          items:
-            type: string
-        missingRequiredFields:
-          type: array
-          description: Applicant-facing labels for configured required fields that are still missing; never includes submitted values.
           items:
             type: string
     GuestPreapplicationRevision:
@@ -1616,11 +1290,6 @@ components:
           type: ["string", "null"]
         outstandingRequirements:
           type: array
-          items:
-            type: string
-        missingRequiredFields:
-          type: array
-          description: Applicant-facing labels for configured required fields that are still missing; never includes submitted values.
           items:
             type: string
         createdAt:
@@ -1859,20 +1528,6 @@ components:
               buttonLabel: { type: string, maxLength: 60 }
               backgroundColor: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
               logoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
-              entryLogoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
-              pinLogoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
-              cardLogoAlignment: { type: string, enum: [left, center, right] }
-              cardLogoVerticalOffset: { type: integer, minimum: -60, maximum: 60 }
-              cardLogoSize: { type: integer, minimum: 24, maximum: 240 }
-              cardLogoFit: { type: string, enum: [contain, cover] }
-              entryLogoAlignment: { type: string, enum: [left, center, right] }
-              entryLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
-              entryLogoSize: { type: integer, minimum: 24, maximum: 240 }
-              entryLogoFit: { type: string, enum: [contain, cover] }
-              pinLogoAlignment: { type: string, enum: [left, center, right] }
-              pinLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
-              pinLogoSize: { type: integer, minimum: 24, maximum: 240 }
-              pinLogoFit: { type: string, enum: [contain, cover] }
         theme:
           type: object
           required: [pinScreenBackground, buttonSize, buttonPlacement, categoryInputTransparent]
@@ -1888,81 +1543,10 @@ components:
             additionalProperties:
               type: string
               maxLength: 500
-        requiredFields:
-          type: array
-          description: Applicant answer or evidence fields that must be present before final submission.
-          uniqueItems: true
-          maxItems: 46
-          items:
-            type: string
-            enum:
-              - name
-              - nickname
-              - surname
-              - personalInformation.firstName
-              - personalInformation.middleName
-              - personalInformation.surname
-              - personalInformation.dateOfBirth
-              - personalInformation.nationality
-              - personalInformation.phone
-              - personalInformation.email
-              - personalInformation.residentialAddress
-              - personalInformation.stateRegion
-              - personalInformation.city
-              - personalInformation.postalCode
-              - nextOfKin.fullName
-              - nextOfKin.relationship
-              - nextOfKin.phone
-              - nextOfKin.email
-              - nextOfKin.residentialAddress
-              - nextOfKin.city
-              - nextOfKin.stateRegion
-              - education.highestQualification
-              - education.institution
-              - education.courseField
-              - education.startYear
-              - education.completionYear
-              - education.certificationStatus
-              - education.additionalQualifications
-              - education.certificateObjectPath
-              - workInformation.employmentStatus
-              - workInformation.occupation
-              - workInformation.employer
-              - workInformation.businessName
-              - workInformation.workAddress
-              - workInformation.workPhone
-              - workInformation.yearsExperience
-              - proofOfIdentity.documentType
-              - proofOfIdentity.documentNumber
-              - proofOfIdentity.frontObjectPath
-              - proofOfIdentity.backObjectPath
-              - liveVideoRecording.consentAccepted
-              - liveVideoRecording.objectPath
-              - bankDetails.bankName
-              - bankDetails.accountHolder
-              - bankDetails.accountNumber
-              - bankDetails.accountType
         pageThemes:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/PortalPageTheme"
-    PortalLogoUploadRequest:
-      type: object
-      required: [uploadUrl, objectPath]
-      properties:
-        uploadUrl: { type: string, format: uri }
-        objectPath: { type: string, pattern: "^/objects/uploads/[0-9a-fA-F-]{36}$" }
-    PortalLogoUploadCompletionInput:
-      type: object
-      required: [objectPath, contentType]
-      properties:
-        objectPath: { type: string, pattern: "^/objects/uploads/[0-9a-fA-F-]{36}$" }
-        contentType: { type: string, enum: [image/png, image/jpeg, image/webp] }
-    PortalLogoUploadCompletion:
-      type: object
-      required: [logoUrl]
-      properties:
-        logoUrl: { type: string, pattern: "^/api/enrollment/logos/[0-9a-fA-F-]{36}$" }
     PortalPageTheme:
       type: object
       required: [mode, color, blendColor, angle]

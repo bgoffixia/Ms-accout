@@ -76,9 +76,6 @@ import {
   RequestGuestApplicantEvidenceUploadBody,
   RequestGuestApplicantEvidenceUploadParams,
   RequestGuestApplicantEvidenceUploadResponse,
-  RequestPortalLogoUploadResponse,
-  CompletePortalLogoUploadBody,
-  CompletePortalLogoUploadResponse,
   CompleteGuestApplicantEvidenceUploadBody,
   CompleteGuestApplicantEvidenceUploadParams,
   CompleteGuestApplicantEvidenceUploadResponse,
@@ -134,20 +131,7 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
 import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
-import {
-  captureEnrollmentApplicantArchive,
-  captureGuestApplicantArchive,
-  createApplicantArchiveBundle,
-  deleteApplicantArchiveCase,
-  ensureInitialApplicantArchive,
-  getApplicantArchiveCase,
-  getApplicantArchiveDetail,
-  listApplicantArchive,
-  recordApplicantArchiveAudit,
-  restoreApplicantArchiveSnapshot,
-} from "../lib/applicantArchive";
 
 type ApplicationStatus =
   | "draft"
@@ -203,14 +187,6 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#0EAD46",
       logoDataUrl: null,
-      entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
-      cardLogoAlignment: "left",
-      cardLogoVerticalOffset: 0,
-      entryLogoAlignment: "center",
-      entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-2",
@@ -219,14 +195,6 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#0C4DA1",
       logoDataUrl: null,
-      entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
-      cardLogoAlignment: "left",
-      cardLogoVerticalOffset: 0,
-      entryLogoAlignment: "center",
-      entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-3",
@@ -235,14 +203,6 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#0072AE",
       logoDataUrl: null,
-      entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
-      cardLogoAlignment: "left",
-      cardLogoVerticalOffset: 0,
-      entryLogoAlignment: "center",
-      entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-4",
@@ -251,14 +211,6 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#FFFFFF",
       logoDataUrl: null,
-      entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
-      cardLogoAlignment: "left",
-      cardLogoVerticalOffset: 0,
-      entryLogoAlignment: "center",
-      entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
   ],
   theme: {
@@ -268,57 +220,7 @@ const defaultPortalSettings = {
     categoryInputTransparent: true,
   },
   screenCopy: {},
-  requiredFields: [],
   pageThemes: {},
-};
-
-const requiredFieldLabels: Record<string, string> = {
-  name: "Category entry name",
-  nickname: "Category entry nickname",
-  surname: "Category entry surname",
-  "personalInformation.firstName": "First name",
-  "personalInformation.middleName": "Middle name",
-  "personalInformation.surname": "Surname",
-  "personalInformation.dateOfBirth": "Date of birth",
-  "personalInformation.nationality": "Nationality",
-  "personalInformation.phone": "Personal phone number",
-  "personalInformation.email": "Email address",
-  "personalInformation.residentialAddress": "Residential address",
-  "personalInformation.stateRegion": "State or region",
-  "personalInformation.city": "City",
-  "personalInformation.postalCode": "Postal code",
-  "nextOfKin.fullName": "Next-of-kin full name",
-  "nextOfKin.relationship": "Next-of-kin relationship",
-  "nextOfKin.phone": "Next-of-kin phone number",
-  "nextOfKin.email": "Next-of-kin email address",
-  "nextOfKin.residentialAddress": "Next-of-kin residential address",
-  "nextOfKin.city": "Next-of-kin city",
-  "nextOfKin.stateRegion": "Next-of-kin state or region",
-  "education.highestQualification": "Highest qualification",
-  "education.institution": "Institution",
-  "education.courseField": "Course or field",
-  "education.startYear": "Education start year",
-  "education.completionYear": "Education completion year",
-  "education.certificationStatus": "Certification status",
-  "education.additionalQualifications": "Additional qualifications",
-  "education.certificateObjectPath": "Education certificate",
-  "workInformation.employmentStatus": "Employment status",
-  "workInformation.occupation": "Occupation",
-  "workInformation.employer": "Employer",
-  "workInformation.businessName": "Business name",
-  "workInformation.workAddress": "Business or work address",
-  "workInformation.workPhone": "Work phone",
-  "workInformation.yearsExperience": "Years of experience",
-  "proofOfIdentity.documentType": "Identity document type",
-  "proofOfIdentity.documentNumber": "Identity document number",
-  "proofOfIdentity.frontObjectPath": "Identity document front",
-  "proofOfIdentity.backObjectPath": "Identity document back",
-  "liveVideoRecording.consentAccepted": "Video recording consent",
-  "liveVideoRecording.objectPath": "Verification video",
-  "bankDetails.bankName": "Bank name",
-  "bankDetails.accountHolder": "Account holder",
-  "bankDetails.accountNumber": "Account number",
-  "bankDetails.accountType": "Account type",
 };
 
 type CategoryId = (typeof categories)[number]["id"];
@@ -408,90 +310,18 @@ function requirePrimaryAdmin(
   res.status(403).json({ error: "Administrator access is required." });
 }
 
-const PORTAL_LOGO_FIELDS = [
-  "logoDataUrl",
-  "entryLogoDataUrl",
-  "pinLogoDataUrl",
-] as const;
-const PORTAL_LOGO_REFERENCE_PREFIX = "/api/enrollment/logos/";
-const PORTAL_LOGO_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function parsePublicImageDataUrl(value: string): {
-  bytes: Buffer;
-  contentType: string;
-} | null {
-  const match =
-    /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(value);
-  if (!match) return null;
-  const bytes = Buffer.from(match[2]!, "base64");
-  const contentType = `image/${match[1]}`;
-  return validatePublicImageBytes(bytes, contentType)
-    ? { bytes, contentType }
-    : null;
-}
-
-function validatePublicImageBytes(bytes: Buffer, contentType: string): boolean {
-  if (!bytes.length || bytes.length > 2 * 1024 * 1024) return false;
-  if (contentType === "image/png") {
-    return (
-      bytes.length >= 8 &&
-      bytes
-        .subarray(0, 8)
-        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    );
-  }
-  if (contentType === "image/jpeg") {
-    return (
-      bytes[0] === 0xff &&
-      bytes[1] === 0xd8 &&
-      bytes.at(-2) === 0xff &&
-      bytes.at(-1) === 0xd9
-    );
-  }
-  return (
-    contentType === "image/webp" &&
-    bytes.length >= 12 &&
-    bytes.toString("ascii", 0, 4) === "RIFF" &&
-    bytes.toString("ascii", 8, 12) === "WEBP"
-  );
-}
-
-function portalLogoObjectPath(value: unknown): string | null {
-  if (typeof value !== "string" || !value.startsWith(PORTAL_LOGO_REFERENCE_PREFIX)) {
-    return null;
-  }
-  const id = value.slice(PORTAL_LOGO_REFERENCE_PREFIX.length);
-  return PORTAL_LOGO_ID_PATTERN.test(id) ? `/objects/uploads/${id}` : null;
-}
-
-function portalLogoUrl(objectPath: string): string {
-  const id = objectPath.split("/").at(-1);
-  if (!id || !PORTAL_LOGO_ID_PATTERN.test(id)) {
-    throw new Error("Stored logo path is invalid.");
-  }
-  return `${PORTAL_LOGO_REFERENCE_PREFIX}${id}`;
-}
-
-function collectPortalLogoObjectPaths(settings: {
-  cards: Array<Record<string, unknown>>;
-}): Set<string> {
-  const paths = new Set<string>();
-  for (const card of settings.cards) {
-    for (const field of PORTAL_LOGO_FIELDS) {
-      const path = portalLogoObjectPath(card[field]);
-      if (path) paths.add(path);
-    }
-  }
-  return paths;
-}
-
 function validatePublicImageDataUrl(value: string | null): boolean {
-  return (
-    value === null ||
-    portalLogoObjectPath(value) !== null ||
-    parsePublicImageDataUrl(value) !== null
-  );
+  if (value === null) return true;
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(value);
+  if (!match) return false;
+  const bytes = Buffer.from(match[2]!, "base64");
+  if (!bytes.length || bytes.length > 2 * 1024 * 1024) return false;
+  const type = match[1];
+  if (type === "png") {
+    return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  }
+  if (type === "jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes.at(-2) === 0xff && bytes.at(-1) === 0xd9;
+  return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
 }
 
 function categoryName(categoryId: string): string {
@@ -510,10 +340,8 @@ function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
 
 function serializeGuestPreapplicationStatus(
   application: typeof guestPreapplicationsTable.$inferSelect,
-  requiredFields: string[] = [],
 ) {
   const answers = application.answers ?? {};
-  const missingRequiredFields = getMissingRequiredFields(answers, requiredFields);
   return {
     id: application.id,
     reference: application.reference,
@@ -527,7 +355,7 @@ function serializeGuestPreapplicationStatus(
     hasPin: Boolean(application.pinHash),
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
-    detailsComplete: application.detailsComplete && missingRequiredFields.length === 0,
+    detailsComplete: application.detailsComplete,
     answers: applicantSafeAnswers(answers),
     reviewStatus: application.submissionStatus === "submitted" ? "submitted" : null,
     applicantFollowup: null,
@@ -536,7 +364,6 @@ function serializeGuestPreapplicationStatus(
       answers,
       Boolean(application.pinHash),
     ),
-    missingRequiredFields,
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
   };
@@ -544,9 +371,8 @@ function serializeGuestPreapplicationStatus(
 
 async function serializeGuestPreapplicationStatusWithReview(
   application: typeof guestPreapplicationsTable.$inferSelect,
-  requiredFields: string[] = [],
 ) {
-  const status = serializeGuestPreapplicationStatus(application, requiredFields);
+  const status = serializeGuestPreapplicationStatus(application);
   if (!application.linkedApplicationId) return status;
   const [linkedApplication] = await db
     .select()
@@ -554,21 +380,15 @@ async function serializeGuestPreapplicationStatusWithReview(
     .where(eq(enrollmentApplicationsTable.id, application.linkedApplicationId))
     .limit(1);
   if (!linkedApplication) return status;
-  const missingRequiredFields = getMissingRequiredFields(
-    linkedApplication.answers ?? {},
-    requiredFields,
-  );
   return {
     ...status,
     reviewStatus: linkedApplication.status,
-    detailsComplete: status.detailsComplete && missingRequiredFields.length === 0,
-    applicantFollowup: null,
+    applicantFollowup: linkedApplication.reviewNote ?? null,
     outstandingRequirements: outstandingApplicationRequirements(
       linkedApplication.categoryId,
       linkedApplication.answers ?? {},
       Boolean(linkedApplication.pinHash),
     ),
-    missingRequiredFields,
   };
 }
 
@@ -576,7 +396,6 @@ function serializeAdminGuestPreapplication(
   application: typeof guestPreapplicationsTable.$inferSelect,
   evidence: Array<typeof guestPreapplicationEvidenceTable.$inferSelect> = [],
   history: Array<typeof guestPreapplicationRevisionsTable.$inferSelect> = [],
-  requiredFields: string[] = [],
 ) {
   const uploadedEvidence = evidence.filter((item) => item.uploadedAt !== null);
   const hasIdentityFront = uploadedEvidence.some((item) => item.evidenceSlot === "identity_front");
@@ -584,14 +403,12 @@ function serializeAdminGuestPreapplication(
     (item) => item.evidenceSlot === "verification_video",
   );
   return {
-    ...serializeGuestPreapplicationStatus(application, requiredFields),
+    ...serializeGuestPreapplicationStatus(application),
     fullName: application.fullName,
     email: application.email,
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
     reviewReady:
-      application.detailsComplete &&
-      getMissingRequiredFields(application.answers ?? {}, requiredFields).length === 0 &&
-      Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
+      application.detailsComplete && Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
     evidence: evidence.map(serializeGuestEvidence),
     history: history.map((revision) => ({
       id: revision.id,
@@ -604,7 +421,6 @@ function serializeAdminGuestPreapplication(
 
 async function serializeAdminGuestPreapplicationWithEvidence(
   application: typeof guestPreapplicationsTable.$inferSelect,
-  requiredFields: string[] = [],
 ) {
   const evidence = await db
     .select()
@@ -616,7 +432,7 @@ async function serializeAdminGuestPreapplicationWithEvidence(
     .from(guestPreapplicationRevisionsTable)
     .where(eq(guestPreapplicationRevisionsTable.applicationId, application.id))
     .orderBy(guestPreapplicationRevisionsTable.createdAt);
-  return serializeAdminGuestPreapplication(application, evidence, history, requiredFields);
+  return serializeAdminGuestPreapplication(application, evidence, history);
 }
 
 function revisionValue(value: unknown, field: string): string {
@@ -1202,46 +1018,6 @@ function outstandingApplicationRequirements(
   return missing;
 }
 
-function requiredFieldValue(
-  answers: Record<string, unknown>,
-  field: string,
-): unknown {
-  if (["name", "nickname", "surname"].includes(field)) return answers[field];
-  const [section, key] = field.split(".", 2);
-  if (!section || !key) return undefined;
-  const values = asRecord(answers[section]);
-  if (section === "bankDetails" && key === "accountNumber") {
-    return typeof values.accountNumberEncrypted === "string"
-      ? values.accountNumberEncrypted
-      : undefined;
-  }
-  return values[key];
-}
-
-function isRequiredFieldComplete(value: unknown): boolean {
-  if (typeof value === "string") return value.trim().length > 0;
-  return value === true;
-}
-
-function getMissingRequiredFields(
-  answers: Record<string, unknown>,
-  requiredFields: string[],
-): string[] {
-  return requiredFields
-    .filter((field) => !isRequiredFieldComplete(requiredFieldValue(answers, field)))
-    .map((field) => requiredFieldLabels[field] ?? "Required applicant information");
-}
-
-function validateConfiguredRequiredFields(
-  answers: Record<string, unknown>,
-  requiredFields: string[],
-): string | null {
-  const missing = getMissingRequiredFields(answers, requiredFields);
-  return missing.length
-    ? `Complete these required items before submitting: ${missing.join(", ")}.`
-    : null;
-}
-
 function isPrivateStorageConfigured(): boolean {
   return Boolean(
     process.env.PRIVATE_OBJECT_DIR &&
@@ -1265,7 +1041,6 @@ function hasRequiredCategoryDetails(
 function serializeApplication(
   application: typeof enrollmentApplicationsTable.$inferSelect,
   includeSensitiveBankDetails = false,
-  requiredFields: string[] = [],
 ) {
   const answers = application.answers ?? {};
   const applicantAnswers = includeSensitiveBankDetails
@@ -1301,30 +1076,17 @@ function serializeApplication(
       (typeof personalInformation.email === "string"
         ? personalInformation.email
         : null),
-    reviewNote: includeSensitiveBankDetails ? application.reviewNote : null,
-    applicantFollowup: null,
+    reviewNote: application.reviewNote,
+    applicantFollowup: application.reviewNote,
     outstandingRequirements: outstandingApplicationRequirements(
       application.categoryId,
       answers,
       Boolean(application.pinHash),
     ),
-    missingRequiredFields: getMissingRequiredFields(answers, requiredFields),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
     submittedAt: application.submittedAt?.toISOString() ?? null,
   };
-}
-
-async function serializeApplicationWithPortalSettings(
-  application: typeof enrollmentApplicationsTable.$inferSelect,
-  includeSensitiveBankDetails = false,
-) {
-  const settings = await loadPortalSettings();
-  return serializeApplication(
-    application,
-    includeSensitiveBankDetails,
-    settings.requiredFields ?? [],
-  );
 }
 
 function serializeTicket(
@@ -1354,12 +1116,7 @@ async function loadPortalSettings() {
     .from(portalSettingsTable)
     .where(eq(portalSettingsTable.key, "portal"))
     .limit(1);
-  const stored = record?.value ?? {};
-  return GetPortalSettingsResponse.parse({
-    ...defaultPortalSettings,
-    ...stored,
-    requiredFields: stored.requiredFields ?? defaultPortalSettings.requiredFields,
-  });
+  return GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
 }
 
 router.get("/portal/settings", async (req, res): Promise<void> => {
@@ -1369,46 +1126,6 @@ router.get("/portal/settings", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ err: error }, "Failed to load portal settings");
     res.status(503).json({ error: "Portal settings are temporarily unavailable." });
-  }
-});
-
-router.get("/enrollment/logos/:logoId", async (req, res): Promise<void> => {
-  const logoId = Array.isArray(req.params.logoId)
-    ? req.params.logoId[0]
-    : req.params.logoId;
-  if (!logoId || !PORTAL_LOGO_ID_PATTERN.test(logoId)) {
-    res.status(404).json({ error: "Logo not found." });
-    return;
-  }
-  const objectPath = `/objects/uploads/${logoId}`;
-  try {
-    const objectFile = await objectStorage.getObjectEntityFile(objectPath);
-    const canRead = await objectStorage.canAccessObjectEntity({
-      objectFile,
-      requestedPermission: ObjectPermission.READ,
-    });
-    if (!canRead) {
-      res.status(404).json({ error: "Logo not found." });
-      return;
-    }
-    const [metadata] = await objectFile.getMetadata();
-    const contentType = metadata.contentType as string | undefined;
-    if (!contentType || !["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
-      res.status(404).json({ error: "Logo not found." });
-      return;
-    }
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
-    objectFile.createReadStream().pipe(res);
-  } catch (error) {
-    if (error instanceof ObjectNotFoundError) {
-      res.status(404).json({ error: "Logo not found." });
-      return;
-    }
-    req.log.error({ err: error }, "Failed to serve portal logo");
-    res.status(503).json({ error: "The logo could not be loaded." });
   }
 });
 
@@ -1495,9 +1212,6 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       return;
     }
 
-    await captureGuestApplicantArchive(created, {
-      eventType: "guest_application_started",
-    });
     res.status(201).json(
       CreateGuestPreapplicationResponse.parse(
         serializeGuestPreapplicationStatus(created),
@@ -1518,7 +1232,6 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
   }
 
   try {
-    const portalSettings = await loadPortalSettings();
     const [application] = await db
       .select()
       .from(guestPreapplicationsTable)
@@ -1581,8 +1294,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       });
     }
     const detailsComplete =
-      validateFinalApplication(application.categoryId, prepared.answers, true) === null &&
-      getMissingRequiredFields(prepared.answers, portalSettings.requiredFields ?? []).length === 0;
+      validateFinalApplication(application.categoryId, prepared.answers, true) === null;
     const updated = await db.transaction(async (transaction) => {
       const [row] = await transaction
         .update(guestPreapplicationsTable)
@@ -1608,12 +1320,9 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(404).json({ error: "Guest application not found." });
       return;
     }
-    await captureGuestApplicantArchive(updated, {
-      eventType: "guest_progress_saved",
-    });
     res.json(
       UpdateGuestPreapplicationProgressResponse.parse(
-        serializeGuestPreapplicationStatus(updated, portalSettings.requiredFields ?? []),
+        serializeGuestPreapplicationStatus(updated),
       ),
     );
   } catch (error) {
@@ -1630,7 +1339,6 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
   }
 
   try {
-    const portalSettings = await loadPortalSettings();
     const [application] = await db
       .select()
       .from(guestPreapplicationsTable)
@@ -1643,10 +1351,7 @@ router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => 
 
     res.json(
       LookupGuestPreapplicationResponse.parse(
-        await serializeGuestPreapplicationStatusWithReview(
-          application,
-          portalSettings.requiredFields ?? [],
-        ),
+        await serializeGuestPreapplicationStatusWithReview(application),
       ),
     );
   } catch (error) {
@@ -1666,7 +1371,6 @@ router.patch(
     }
 
     try {
-      const portalSettings = await loadPortalSettings();
       const [application] = await db
         .select()
         .from(guestPreapplicationsTable)
@@ -1720,15 +1424,9 @@ router.patch(
         res.status(409).json({ error: "This guest application has already been submitted or closed." });
         return;
       }
-      await captureGuestApplicantArchive(updated, {
-        eventType: "guest_contact_corrected",
-      });
       res.json(
         UpdateGuestPreapplicationEmailResponse.parse(
-          serializeGuestPreapplicationStatus(
-            updated,
-            portalSettings.requiredFields ?? [],
-          ),
+          serializeGuestPreapplicationStatus(updated),
         ),
       );
     } catch (error) {
@@ -1942,16 +1640,6 @@ router.post(
           });
         }
       });
-      const [updatedApplication] = await db
-        .select()
-        .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, application.id))
-        .limit(1);
-      if (updatedApplication) {
-        await captureGuestApplicantArchive(updatedApplication, {
-          eventType: "guest_evidence_saved",
-        });
-      }
       res.json(CompleteGuestApplicantEvidenceUploadResponse.parse({
         evidenceId: completed.id,
         evidenceType: completed.evidenceType,
@@ -2002,7 +1690,6 @@ router.post(
     }
 
     try {
-      const portalSettings = await loadPortalSettings();
       const user = res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
       const primaryEmail = user.primaryEmailAddress;
       const normalizedEmail = primaryEmail?.emailAddress
@@ -2050,9 +1737,7 @@ router.post(
             ))
             .limit(1);
           if (existingApplication) {
-            res.json(SubmitGuestPreapplicationResponse.parse(
-              await serializeApplicationWithPortalSettings(existingApplication),
-            ));
+            res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(existingApplication)));
             return;
           }
         }
@@ -2064,14 +1749,6 @@ router.post(
         return;
       }
       const answers = preapplication.answers ?? {};
-      const requiredFieldError = validateConfiguredRequiredFields(
-        answers,
-        portalSettings.requiredFields ?? [],
-      );
-      if (requiredFieldError) {
-        res.status(400).json({ error: requiredFieldError });
-        return;
-      }
       if (!(await guestEvidencePathsAreOwned(preapplication.id, answers))) {
         res.status(400).json({ error: "One or more evidence references are not attached to this application." });
         return;
@@ -2159,13 +1836,7 @@ router.post(
         res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
         return;
       }
-      await captureEnrollmentApplicantArchive(submitted, {
-        actorUserId: userId,
-        eventType: "guest_application_submitted",
-      });
-      res.json(SubmitGuestPreapplicationResponse.parse(
-        await serializeApplicationWithPortalSettings(submitted),
-      ));
+      res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(submitted)));
     } catch (error) {
       req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit verified guest application");
       res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
@@ -2248,14 +1919,8 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
       res.status(500).json({ error: "The application draft could not be created." });
       return;
     }
-    await captureEnrollmentApplicantArchive(created, {
-      actorUserId: res.locals.userId as string,
-      eventType: "application_draft_created",
-    });
     res.status(201).json(
-      CreateApplicationDraftResponse.parse(
-        await serializeApplicationWithPortalSettings(created),
-      ),
+      CreateApplicationDraftResponse.parse(serializeApplication(created)),
     );
   } catch (error) {
     req.log.error({ err: error }, "Failed to create application draft");
@@ -2269,10 +1934,7 @@ router.get("/me/applications", async (req, res): Promise<void> => {
     .from(enrollmentApplicationsTable)
     .where(eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId))
     .orderBy(desc(enrollmentApplicationsTable.updatedAt));
-  const settings = await loadPortalSettings();
-  res.json(ListMyApplicationsResponse.parse(applications.map((application) =>
-    serializeApplication(application, false, settings.requiredFields ?? []),
-  )));
+  res.json(ListMyApplicationsResponse.parse(applications.map((application) => serializeApplication(application))));
 });
 
 router.delete("/me/drafts", async (_req, res): Promise<void> => {
@@ -2306,9 +1968,7 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
       res.status(409).json({ error: "This submission request has already been used." });
       return;
     }
-    res.json(SubmitNewApplicationResponse.parse(
-      await serializeApplicationWithPortalSettings(existing),
-    ));
+    res.json(SubmitNewApplicationResponse.parse(serializeApplication(existing)));
     return;
   }
 
@@ -2353,15 +2013,6 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   const validationError = validateFinalApplication(categoryId, answers);
   if (validationError) {
     res.status(400).json({ error: validationError });
-    return;
-  }
-  const portalSettings = await loadPortalSettings();
-  const requiredFieldError = validateConfiguredRequiredFields(
-    answers,
-    portalSettings.requiredFields ?? [],
-  );
-  if (requiredFieldError) {
-    res.status(400).json({ error: requiredFieldError });
     return;
   }
   if (!isPrivateStorageConfigured()) {
@@ -2422,15 +2073,9 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     res.status(409).json({ error: "This submission request could not be completed." });
     return;
   }
-  await captureEnrollmentApplicantArchive(outcome.application, {
-    actorUserId: res.locals.userId as string,
-    eventType: "application_submitted",
-  });
   res
     .status(outcome.created ? 201 : 200)
-    .json(SubmitNewApplicationResponse.parse(
-      await serializeApplicationWithPortalSettings(outcome.application),
-    ));
+    .json(SubmitNewApplicationResponse.parse(serializeApplication(outcome.application)));
 });
 
 router.get("/applications/:applicationId", async (req, res): Promise<void> => {
@@ -2453,9 +2098,7 @@ router.get("/applications/:applicationId", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Application not found." });
     return;
   }
-  res.json(GetApplicationResponse.parse(
-    await serializeApplicationWithPortalSettings(application),
-  ));
+  res.json(GetApplicationResponse.parse(serializeApplication(application)));
 });
 
 router.patch("/applications/:applicationId", async (req, res): Promise<void> => {
@@ -2685,13 +2328,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     res.status(500).json({ error: "The application could not be saved." });
     return;
   }
-  await captureEnrollmentApplicantArchive(updated, {
-    actorUserId: res.locals.userId as string,
-    eventType: "application_progress_saved",
-  });
-  res.json(UpdateApplicationResponse.parse(
-    await serializeApplicationWithPortalSettings(updated),
-  ));
+  res.json(UpdateApplicationResponse.parse(serializeApplication(updated)));
 });
 
 router.post("/applications/:applicationId/submit", async (req, res): Promise<void> => {
@@ -2718,9 +2355,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     return;
   }
   if (application.status === "submitted") {
-    res.json(SubmitApplicationResponse.parse(
-      await serializeApplicationWithPortalSettings(application),
-    ));
+    res.json(SubmitApplicationResponse.parse(serializeApplication(application)));
     return;
   }
   if (!["draft", "needs_information"].includes(application.status)) {
@@ -2796,15 +2431,6 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     res.status(400).json({ error: validationError });
     return;
   }
-  const portalSettings = await loadPortalSettings();
-  const requiredFieldError = validateConfiguredRequiredFields(
-    answers,
-    portalSettings.requiredFields ?? [],
-  );
-  if (requiredFieldError) {
-    res.status(400).json({ error: requiredFieldError });
-    return;
-  }
   if (!isPrivateStorageConfigured()) {
     res.status(503).json({
       error:
@@ -2853,13 +2479,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     });
     return;
   }
-  await captureEnrollmentApplicantArchive(submitted, {
-    actorUserId: res.locals.userId as string,
-    eventType: "application_submitted",
-  });
-  res.json(SubmitApplicationResponse.parse(
-    await serializeApplicationWithPortalSettings(submitted),
-  ));
+  res.json(SubmitApplicationResponse.parse(serializeApplication(submitted)));
 });
 
 router.get("/dashboard/summary", async (_req, res): Promise<void> => {
@@ -3033,185 +2653,8 @@ router.post(
 );
 router.use("/admin", requireAdmin);
 
-router.get("/admin/archive", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  try {
-    await ensureInitialApplicantArchive();
-    const rawSearch = typeof req.query.search === "string" ? req.query.search : "";
-    const search = rawSearch.trim().slice(0, 120);
-    const records = await listApplicantArchive(search);
-    await recordApplicantArchiveAudit({
-      actorUserId: res.locals.userId as string,
-      action: "archive_list_viewed",
-      details: { resultCount: records.length },
-    });
-    res.setHeader("Cache-Control", "private, no-store, max-age=0");
-    res.json(records);
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to read applicant archive");
-    res.status(503).json({ error: "The applicant archive could not be loaded securely." });
-  }
-});
-
-router.get(
-  "/admin/archive/:archiveId",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
-    if (!/^[0-9a-f-]{36}$/i.test(archiveId)) {
-      res.status(400).json({ error: "Archive record not found." });
-      return;
-    }
-    try {
-      const detail = await getApplicantArchiveDetail(archiveId);
-      if (!detail) {
-        res.status(404).json({ error: "Archive record not found." });
-        return;
-      }
-      await recordApplicantArchiveAudit({
-        archiveId,
-        reference: detail.reference,
-        actorUserId: res.locals.userId as string,
-        action: "archive_record_viewed",
-      });
-      res.setHeader("Cache-Control", "private, no-store, max-age=0");
-      res.json(detail);
-    } catch (error) {
-      req.log.error({ err: error, archiveId }, "Failed to read applicant archive record");
-      res.status(503).json({ error: "The applicant archive record could not be loaded securely." });
-    }
-  },
-);
-
-router.get(
-  "/admin/archive/:archiveId/bundle",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
-    if (!/^[0-9a-f-]{36}$/i.test(archiveId)) {
-      res.status(400).json({ error: "Archive record not found." });
-      return;
-    }
-    try {
-      const archiveCase = await getApplicantArchiveCase(archiveId);
-      if (!archiveCase) {
-        res.status(404).json({ error: "Archive record not found." });
-        return;
-      }
-      const bundle = await createApplicantArchiveBundle(archiveId);
-      if (!bundle) {
-        res.status(404).json({ error: "Archive record not found." });
-        return;
-      }
-      await recordApplicantArchiveAudit({
-        archiveId,
-        reference: archiveCase.reference,
-        actorUserId: res.locals.userId as string,
-        action: "archive_bundle_exported",
-      });
-      const safeReference = archiveCase.reference.replace(/[^A-Za-z0-9_-]/g, "_");
-      res.setHeader("Content-Type", "application/gzip");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="applicant-${safeReference}-archive.tar.gz"`,
-      );
-      res.setHeader("Cache-Control", "private, no-store, max-age=0");
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      bundle.on("error", (error) => {
-        req.log.error({ err: error, archiveId }, "Failed to stream applicant archive bundle");
-        if (res.headersSent) res.destroy(error);
-        else res.status(503).json({ error: "The archive bundle could not be downloaded." });
-      });
-      bundle.pipe(res);
-    } catch (error) {
-      req.log.error({ err: error, archiveId }, "Failed to create applicant archive bundle");
-      if (!res.headersSent) {
-        res.status(503).json({ error: "The archive bundle could not be downloaded." });
-      } else {
-        res.destroy(error as Error);
-      }
-    }
-  },
-);
-
-router.post(
-  "/admin/archive/:archiveId/restore",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
-    const snapshotId = typeof req.body?.snapshotId === "string" ? req.body.snapshotId : "";
-    if (
-      !/^[0-9a-f-]{36}$/i.test(archiveId) ||
-      !/^[0-9a-f-]{36}$/i.test(snapshotId) ||
-      req.body?.confirm !== true
-    ) {
-      res.status(400).json({ error: "Choose a saved version and confirm the restore." });
-      return;
-    }
-    try {
-      const restored = await restoreApplicantArchiveSnapshot(
-        archiveId,
-        snapshotId,
-        res.locals.userId as string,
-      );
-      await recordApplicantArchiveAudit({
-        archiveId,
-        reference: restored.reference,
-        actorUserId: res.locals.userId as string,
-        action: "archive_snapshot_restored",
-        details: { snapshotId, version: restored.version, pinRestored: false },
-      });
-      res.setHeader("Cache-Control", "private, no-store, max-age=0");
-      res.json({
-        restored: true,
-        reference: restored.reference,
-        version: restored.version,
-        pinRestored: false,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (message.includes("not found")) {
-        res.status(404).json({ error: message });
-        return;
-      }
-      if (message.includes("no longer exists")) {
-        res.status(409).json({ error: message });
-        return;
-      }
-      req.log.error({ err: error, archiveId, snapshotId }, "Failed to restore applicant archive snapshot");
-      res.status(503).json({ error: "The saved version could not be restored." });
-    }
-  },
-);
-
-router.post(
-  "/admin/archive/:archiveId/delete",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
-    if (!/^[0-9a-f-]{36}$/i.test(archiveId) || req.body?.confirm !== true) {
-      res.status(400).json({ error: "Confirm that this archive should be permanently deleted." });
-      return;
-    }
-    try {
-      const reference = await deleteApplicantArchiveCase(
-        archiveId,
-        res.locals.userId as string,
-      );
-      if (!reference) {
-        res.status(404).json({ error: "Archive record not found." });
-        return;
-      }
-      res.json({ deleted: true, reference });
-    } catch (error) {
-      req.log.error({ err: error, archiveId }, "Failed to delete applicant archive record");
-      res.status(503).json({ error: "The archive could not be fully deleted." });
-    }
-  },
-);
-
 router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Promise<void> => {
   try {
-    const portalSettings = await loadPortalSettings();
     const applications = await db
       .select()
       .from(guestPreapplicationsTable)
@@ -3257,7 +2700,6 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
             application,
             evidenceByApplication.get(application.id) ?? [],
             historyByApplication.get(application.id) ?? [],
-            portalSettings.requiredFields ?? [],
           ),
         ),
       ),
@@ -3475,17 +2917,6 @@ router.post(
         .update(guestPreapplicationsTable)
         .set({ updatedAt: new Date(), updatedByUserId: res.locals.userId as string })
         .where(eq(guestPreapplicationsTable.id, applicationId));
-      const [updatedApplication] = await db
-        .select()
-        .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, applicationId))
-        .limit(1);
-      if (updatedApplication) {
-        await captureGuestApplicantArchive(updatedApplication, {
-          actorUserId: res.locals.userId as string,
-          eventType: "reviewer_evidence_saved",
-        });
-      }
       res.json(
         CompleteGuestPreapplicationEvidenceUploadResponse.parse(
           serializeGuestEvidence(completed),
@@ -3563,7 +2994,6 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
   }
 
   try {
-    const portalSettings = await loadPortalSettings();
     const [updated] = await db
       .update(guestPreapplicationsTable)
       .set({
@@ -3577,16 +3007,9 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
       res.status(404).json({ error: "Guest pre-application not found." });
       return;
     }
-    await captureGuestApplicantArchive(updated, {
-      actorUserId: res.locals.userId as string,
-      eventType: "reviewer_status_changed",
-    });
     res.json(
       UpdateAdminGuestPreapplicationResponse.parse(
-        await serializeAdminGuestPreapplicationWithEvidence(
-          updated,
-          portalSettings.requiredFields ?? [],
-        ),
+        await serializeAdminGuestPreapplicationWithEvidence(updated),
       ),
     );
   } catch (error) {
@@ -3594,154 +3017,6 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
     res.status(503).json({ error: "Guest pre-application could not be updated." });
   }
 });
-
-router.post(
-  "/admin/settings/logos/upload-url",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    try {
-      const uploadUrl = await objectStorage.getObjectEntityUploadURL();
-      const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
-      if (!/^\/objects\/uploads\/[0-9a-f-]{36}$/i.test(objectPath)) {
-        throw new Error("Logo upload path is invalid.");
-      }
-      res.json(
-        RequestPortalLogoUploadResponse.parse({ uploadUrl, objectPath }),
-      );
-    } catch (error) {
-      req.log.error({ err: error }, "Failed to prepare portal logo upload");
-      res.status(503).json({ error: "A logo upload could not be prepared." });
-    }
-  },
-);
-
-router.post(
-  "/admin/settings/logos/complete",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    const parsed = CompletePortalLogoUploadBody.safeParse(req.body);
-    const objectPath = parsed.success ? parsed.data.objectPath : "";
-    if (
-      !parsed.success ||
-      !/^\/objects\/uploads\/[0-9a-f-]{36}$/i.test(objectPath) ||
-      !["image/png", "image/jpeg", "image/webp"].includes(parsed.data.contentType)
-    ) {
-      res.status(400).json({ error: "Choose a valid uploaded PNG, JPEG, or WebP logo." });
-      return;
-    }
-    try {
-      const objectFile = await objectStorage.getObjectEntityFile(objectPath);
-      const [metadata] = await objectFile.getMetadata();
-      if (
-        Number(metadata.size) > 2 * 1024 * 1024 ||
-        metadata.contentType !== parsed.data.contentType
-      ) {
-        await objectStorage.deleteObjectEntity(objectPath);
-        res.status(400).json({ error: "The uploaded logo did not match its declared type or size." });
-        return;
-      }
-      const [bytes] = await objectFile.download();
-      if (!validatePublicImageBytes(bytes, parsed.data.contentType)) {
-        await objectStorage.deleteObjectEntity(objectPath);
-        res.status(400).json({ error: "The uploaded file is not a valid PNG, JPEG, or WebP image." });
-        return;
-      }
-      await objectStorage.trySetObjectEntityAclPolicy(objectPath, {
-        owner: res.locals.userId as string,
-        visibility: "public",
-      });
-      res.json(
-        CompletePortalLogoUploadResponse.parse({
-          logoUrl: portalLogoUrl(objectPath),
-        }),
-      );
-    } catch (error) {
-      if (error instanceof ObjectNotFoundError) {
-        res.status(404).json({ error: "The uploaded logo was not found." });
-        return;
-      }
-      req.log.error({ err: error }, "Failed to verify portal logo upload");
-      res.status(503).json({ error: "The uploaded logo could not be verified." });
-    }
-  },
-);
-
-router.post(
-  "/admin/settings/migrate-logos",
-  requirePrimaryAdmin,
-  async (req, res): Promise<void> => {
-    let storedObjectPaths: string[] = [];
-    try {
-      const previousSettings = await loadPortalSettings();
-      const settingsToSave = structuredClone(previousSettings);
-      const legacyImages = new Map<string, { bytes: Buffer; contentType: string }>();
-      for (const card of settingsToSave.cards) {
-        for (const field of PORTAL_LOGO_FIELDS) {
-          const value = card[field];
-          if (typeof value !== "string" || !value.startsWith("data:") || legacyImages.has(value)) {
-            continue;
-          }
-          const image = parsePublicImageDataUrl(value);
-          if (!image) {
-            res.status(400).json({ error: "A saved logo is not a valid supported image." });
-            return;
-          }
-          legacyImages.set(value, image);
-        }
-      }
-      const migratedUrls = new Map<string, string>();
-      for (const card of settingsToSave.cards) {
-        for (const field of PORTAL_LOGO_FIELDS) {
-          const value = card[field];
-          if (typeof value !== "string" || !value.startsWith("data:")) continue;
-          const existingUrl = migratedUrls.get(value);
-          if (existingUrl) {
-            card[field] = existingUrl;
-            continue;
-          }
-          const image = legacyImages.get(value)!;
-          const objectPath = await objectStorage.storePublicLogo(
-            image.bytes,
-            image.contentType,
-            res.locals.userId as string,
-          );
-          storedObjectPaths.push(objectPath);
-          const logoUrl = portalLogoUrl(objectPath);
-          migratedUrls.set(value, logoUrl);
-          card[field] = logoUrl;
-        }
-      }
-      const [record] = await db
-        .insert(portalSettingsTable)
-        .values({
-          key: "portal",
-          value: settingsToSave,
-          updatedByUserId: res.locals.userId,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: portalSettingsTable.key,
-          set: {
-            value: settingsToSave,
-            updatedByUserId: res.locals.userId,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ value: portalSettingsTable.value });
-      res.json(
-        UpdatePortalSettingsResponse.parse(record?.value ?? settingsToSave),
-      );
-    } catch (error) {
-      await Promise.all(
-        storedObjectPaths.map((path) =>
-          objectStorage.deleteObjectEntity(path).catch(() => undefined),
-        ),
-      );
-      req.log.error({ err: error }, "Failed to migrate saved portal logos");
-      res.status(503).json({ error: "Saved logos could not be moved to storage." });
-    }
-  },
-);
 
 router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
@@ -3755,49 +3030,29 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
     res.status(400).json({ error: "Settings must contain each of the four enrollment cards exactly once." });
     return;
   }
-  if (parsed.data.cards.some((card) => [
-    card.logoDataUrl,
-    card.entryLogoDataUrl ?? null,
-    card.pinLogoDataUrl ?? null,
-  ].some((logo) => !validatePublicImageDataUrl(logo)))) {
-    res.status(400).json({ error: "Category card, entry, and PIN logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
+  if (parsed.data.cards.some((card) => !validatePublicImageDataUrl(card.logoDataUrl))) {
+    res.status(400).json({ error: "Card logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
     return;
   }
   try {
-    const previousSettings = await loadPortalSettings();
-    const settingsToSave = {
-      ...parsed.data,
-      requiredFields: parsed.data.requiredFields ?? previousSettings.requiredFields ?? [],
-    };
     const [record] = await db
       .insert(portalSettingsTable)
       .values({
         key: "portal",
-        value: settingsToSave,
+        value: parsed.data,
         updatedByUserId: res.locals.userId,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: portalSettingsTable.key,
         set: {
-          value: settingsToSave,
+          value: parsed.data,
           updatedByUserId: res.locals.userId,
           updatedAt: new Date(),
         },
       })
       .returning({ value: portalSettingsTable.value });
-    const savedSettings = UpdatePortalSettingsResponse.parse(record?.value ?? settingsToSave);
-    const retainedLogoPaths = collectPortalLogoObjectPaths(settingsToSave);
-    const replacedLogoPaths = [...collectPortalLogoObjectPaths(previousSettings)]
-      .filter((path) => !retainedLogoPaths.has(path));
-    for (const path of replacedLogoPaths) {
-      try {
-        await objectStorage.deleteObjectEntity(path);
-      } catch (error) {
-        req.log.warn({ err: error, objectPath: path }, "Failed to remove replaced portal logo");
-      }
-    }
-    res.json(savedSettings);
+    res.json(UpdatePortalSettingsResponse.parse(record?.value ?? parsed.data));
   } catch (error) {
     req.log.error({ err: error }, "Failed to save portal settings");
     res.status(503).json({ error: "Portal settings could not be saved." });
@@ -4137,7 +3392,7 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
   }
   res.json(
     GetAdminApplicationResponse.parse(
-      await serializeApplicationWithPortalSettings(application, true),
+      serializeApplication(application, true),
     ),
   );
 });
@@ -4235,10 +3490,7 @@ router.get("/admin/applications", requireReviewer, async (req, res): Promise<voi
     .where(and(...filters))
     .orderBy(desc(enrollmentApplicationsTable.updatedAt))
     .limit(300);
-  const settings = await loadPortalSettings();
-  const serialized = applications.map((application) =>
-    serializeApplication(application, false, settings.requiredFields ?? []),
-  );
+  const serialized = applications.map((application) => serializeApplication(application));
   const search = parsed.data.search?.trim().toLowerCase();
   const results = search
     ? serialized.filter((application) =>
@@ -4351,13 +3603,7 @@ router.post(
       });
       return;
     }
-    await captureEnrollmentApplicantArchive(updated, {
-      actorUserId: res.locals.userId as string,
-      eventType: "reviewer_decision_recorded",
-    });
-    res.json(DecideApplicationResponse.parse(
-      await serializeApplicationWithPortalSettings(updated),
-    ));
+    res.json(DecideApplicationResponse.parse(serializeApplication(updated)));
   },
 );
 

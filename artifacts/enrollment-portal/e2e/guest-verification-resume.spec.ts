@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 const applicationId = "1f7ad041-05af-4fcb-971b-c913287a11a8";
 const reference = "GUEST-2026-TEST";
@@ -15,7 +15,6 @@ type GuestDraft = {
   submissionStatus: "draft" | "submitted";
   emailVerified: boolean;
   hasPin: boolean;
-  missingRequiredFields?: string[];
   linkedApplicationId: string | null;
   currentStep: number;
   detailsComplete: boolean;
@@ -29,9 +28,6 @@ class GuestApiFixture {
   accessKey = "";
   createCount = 0;
   lookupCount = 0;
-  screenCopy: Record<string, Record<string, string>> = {};
-  logoOverrides: Record<string, Record<string, unknown>> = {};
-  savedSettings: Record<string, any> | null = null;
   readonly uploadedEvidence: { id: string; slot: string; objectPath: string }[] = [];
   private evidenceId = 0;
 
@@ -44,15 +40,15 @@ class GuestApiFixture {
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
     if (method === "GET" && path === "/api/enrollment/categories") {
-      return json(["Category One", "Category Two", "Category Three", "Category Four"].map((name, index) => ({
-        id: `category-${index + 1}`,
-        name,
+      return json([{
+        id: "category-1",
+        name: "Category One",
         description: "Enrollment application category.",
-        accent: ["#168341", "#2454bd", "#1688b8", "#2b7667"][index],
-      })));
+        accent: "#168341",
+      }]);
     }
     if (method === "GET" && path === "/api/portal/settings") {
-      const defaults = {
+      return json({
         hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
         cards: ["category-1", "category-2", "category-3", "category-4"].map((id) => ({
           id,
@@ -61,9 +57,6 @@ class GuestApiFixture {
           buttonLabel: "Start application",
           backgroundColor: "#F5F8FA",
           logoDataUrl: null,
-          cardLogoAlignment: "left",
-          cardLogoVerticalOffset: 0,
-          ...this.logoOverrides[id],
         })),
         theme: {
           pinScreenBackground: "#FFFFFF",
@@ -71,18 +64,9 @@ class GuestApiFixture {
           buttonPlacement: "right",
           categoryInputTransparent: true,
         },
-        screenCopy: this.screenCopy,
+        screenCopy: {},
         pageThemes: {},
-      };
-      return json(this.savedSettings
-        ? { ...defaults, ...this.savedSettings, screenCopy: this.savedSettings.screenCopy ?? this.screenCopy }
-        : defaults);
-    }
-    if (method === "PUT" && path === "/api/admin/settings") {
-      const settings = request.postDataJSON();
-      this.savedSettings = settings;
-      this.screenCopy = settings.screenCopy ?? this.screenCopy;
-      return json(settings);
+      });
     }
     if (method === "POST" && path === "/api/guest/preapplications") {
       const body = request.postDataJSON();
@@ -283,47 +267,6 @@ async function expectNoDocumentOverflow(page: Page) {
   }
 }
 
-async function expectControlInsideViewport(page: Page, locator: ReturnType<Page["getByTestId"]>) {
-  await locator.scrollIntoViewIfNeeded();
-  const bounds = await locator.boundingBox();
-  const viewport = page.viewportSize();
-  expect(bounds, "primary action should have a visible bounding box").not.toBeNull();
-  expect(viewport).not.toBeNull();
-  expect(bounds!.x).toBeGreaterThanOrEqual(0);
-  expect(bounds!.y).toBeGreaterThanOrEqual(0);
-  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport!.width);
-  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
-}
-
-async function expectReadableLogo(locator: Locator) {
-  const dimensions = await locator.evaluate((element) => {
-    const image = element as HTMLImageElement;
-    const bounds = image.getBoundingClientRect();
-    return {
-      naturalWidth: image.naturalWidth,
-      naturalHeight: image.naturalHeight,
-      width: bounds.width,
-      height: bounds.height,
-    };
-  });
-  expect(dimensions.naturalWidth, "logo image must load").toBeGreaterThan(0);
-  expect(dimensions.naturalHeight, "logo image must load").toBeGreaterThan(0);
-  expect(dimensions.width, "logo must remain visible at a readable size").toBeGreaterThanOrEqual(24);
-  expect(dimensions.height, "logo must remain visible at a readable size").toBeGreaterThanOrEqual(24);
-}
-
-async function expectNoOverlap(logo: Locator, control: Locator, message: string) {
-  const logoBounds = await logo.boundingBox();
-  const controlBounds = await control.boundingBox();
-  expect(logoBounds).not.toBeNull();
-  expect(controlBounds).not.toBeNull();
-  const overlaps = logoBounds!.x < controlBounds!.x + controlBounds!.width
-    && logoBounds!.x + logoBounds!.width > controlBounds!.x
-    && logoBounds!.y < controlBounds!.y + controlBounds!.height
-    && logoBounds!.y + logoBounds!.height > controlBounds!.y;
-  expect(overlaps, `${message}; logo=${JSON.stringify(logoBounds)}, control=${JSON.stringify(controlBounds)}`).toBe(false);
-}
-
 test("keeps public guest pages inside the viewport on phone and desktop", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -369,449 +312,22 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
 
 test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
   const api = new GuestApiFixture();
-  api.screenCopy["guest-contact"] = {
-    title: "Who is applying?",
-    description: "Use your own contact details.",
-    fullNameLabel: "Applicant name",
-    emailLabel: "Applicant email",
-    continueLabel: "Choose a category",
-    privacyText: "Only enrollment staff can view these details.",
-    fullNamePlaceholder: "Use the name on your ID",
-    fullNameValidationMessage: "Enter the applicant’s full legal name.",
-    emailPlaceholder: "name@your-domain.test",
-    emailValidationMessage: "Enter a working email address.",
-  };
-  api.screenCopy["category-entry-1"] = {
-    title: "Identity details",
-    description: "Enter the name associated with this category.",
-    nameLabel: "Applicant record name",
-    namePlaceholder: "Name exactly as printed on your card",
-    pinLabel: "Create your secure PIN",
-    pinValidationMessage: "Use four numbers for your PIN.",
-  };
-  api.screenCopy["workflow-step-1"] = {
-    title: "Personal details",
-    description: "Enter your legal information.",
-    sectionIdLabel: "PERSONAL DETAILS",
-    field_personalInformation_firstName: "Applicant given name",
-    placeholder_personalInformation_firstName: "Given name on your ID",
-    validation_personalInformation_firstName: "Please enter your given name.",
-  };
-  api.screenCopy["workflow-step-7"] = {
-    validation_bankDetails_accountNumber: "Use 8–20 digits for the account number.",
-  };
-  const testLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jv2sAAAAASUVORK5CYII=";
-  api.logoOverrides["category-1"] = {
-    entryLogoDataUrl: testLogo,
-    pinLogoDataUrl: testLogo,
-    entryLogoAlignment: "left",
-    entryLogoVerticalOffset: 12,
-    pinLogoAlignment: "right",
-    pinLogoVerticalOffset: -14,
-  };
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
 
   await page.goto("/dashboard");
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await expect(page.getByRole("heading", { name: "Who is applying?" })).toBeVisible();
-  await expect(page.getByText("Use your own contact details.", { exact: true })).toBeVisible();
-  await expect(page.getByText("Applicant name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Applicant email", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("input-guest-full-name")).toHaveAttribute("placeholder", "Use the name on your ID");
-  await expect(page.getByTestId("input-guest-email")).toHaveAttribute("placeholder", "name@your-domain.test");
-  await page.getByTestId("button-continue-guest-contact").click();
-  await expect(page.getByText("Enter the applicant’s full legal name.", { exact: true })).toBeVisible();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
-  await page.getByTestId("input-guest-email").fill("not-an-email");
-  await page.getByTestId("button-continue-guest-contact").click();
-  await expect(page.getByText("Enter a working email address.", { exact: true })).toBeVisible();
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
 
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  await expect(page.getByTestId("entry-configured-copy")).toContainText("Identity details");
-  await expect(page.getByTestId("entry-configured-copy")).toContainText("Enter the name associated with this category.");
-  await expect(page.getByText("Applicant record name", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("input-entry-name")).toHaveAttribute("placeholder", "Name exactly as printed on your card");
-  await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
-  await expect(page.getByRole("img", { name: "Category One entry logo" })).toHaveAttribute("src", testLogo);
-  await expect(page.getByTestId("form-entry-category-1")).toHaveClass(/entry-logo-align-left/);
-  await expect(page.getByTestId("form-entry-category-1")).toHaveCSS("--entry-logo-offset-y", "12px");
   expect(api.createCount).toBe(1);
   expect(api.draft?.categoryId).toBe("category-1");
-
-  await page.getByTestId("button-entry-continue").click();
-  await expect(page.locator("#pin-entry-heading")).toHaveText("Create your secure PIN");
-  await page.getByTestId("button-pin-key-confirm").click();
-  await expect(page.getByTestId("text-entry-error")).toContainText("Use four numbers for your PIN.");
-  await expectNoDocumentOverflow(page);
-  await expect(page.getByRole("img", { name: "Category One PIN logo" })).toHaveAttribute("src", testLogo);
-  await expect(page.getByTestId("form-entry-category-1")).toHaveClass(/entry-logo-align-right/);
-  await expect(page.getByTestId("form-entry-category-1")).toHaveCSS("--entry-logo-offset-y", "-14px");
-  for (const digit of ["4", "8", "2", "6"]) {
-    await page.getByTestId(`button-pin-key-${digit}`).click();
-  }
-  await page.getByTestId("button-pin-key-confirm").click();
-  await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Personal details" })).toBeVisible();
-  await expect(page.locator(".ew-stage-heading .ew-stage-number")).toContainText("PERSONAL DETAILS");
-  await expect(page.getByLabel("Applicant given name")).toBeVisible();
-  await expect(page.getByLabel("Applicant given name")).toHaveAttribute("placeholder", "Given name on your ID");
-  await expect(page.getByText("Enter your legal information.", { exact: true })).toBeVisible();
-  for (let step = 0; step < 6; step += 1) {
-    await page.getByTestId("button-save-next").click();
-  }
-  await expect(page.getByTestId("input-accountNumber")).toBeVisible();
-  await page.getByTestId("input-accountNumber").fill("123");
-  await expect(page.getByTestId("error-accountNumber")).toHaveText("Use 8–20 digits for the account number.");
-});
-
-test("falls back to built-in contact copy when configured text is blank", async ({ page }) => {
-  const api = new GuestApiFixture();
-  api.screenCopy["guest-contact"] = {
-    title: "   ",
-    description: "",
-    fullNameLabel: " ",
-  };
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  await page.goto("/guest/apply");
-
-  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
-  await expect(page.getByText("Full name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
-});
-
-test("shows updated contact copy without a manual refresh, preserves it after reload, and restores defaults for blanks", async ({ page }) => {
-  const api = new GuestApiFixture();
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  await page.goto("/guest/apply");
-  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
-  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
-
-  api.screenCopy["guest-contact"] = {
-    title: "Applicant information",
-    description: "Use the contact details associated with this request.",
-    fullNameLabel: "Applicant's legal name",
-  };
-  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible({ timeout: 8_000 });
-  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible();
-  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
-
-  api.screenCopy["guest-contact"] = {
-    title: "   ",
-    description: "",
-    fullNameLabel: " ",
-  };
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
-  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
-});
-
-test("an admin can preview entry and PIN screens at desktop and mobile sizes without saving", async ({ page }) => {
-  test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
-  const api = new GuestApiFixture();
-  await page.addInitScript(() => localStorage.setItem("e2e-clerk-role", "admin"));
-  await page.route("**/api/**", (route) => api.handle(route));
-  let settingsWrites = 0;
-  page.on("request", (request) => {
-    if (request.method() === "PUT" && new URL(request.url()).pathname === "/api/admin/settings") settingsWrites += 1;
-  });
-
-  await page.goto("/admin/settings");
-  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
-
-  const entrySize = page.getByTestId("input-logo-size-entry-category-1");
-  await entrySize.focus();
-  await entrySize.press("ArrowRight");
-  await expect(entrySize).toHaveValue("180");
-  await page.getByTestId("button-preview-logo-screen-entry-category-1").click();
-  const preview = page.getByRole("dialog");
-  await expect(preview.getByRole("heading", { name: "Category One · Entry screen" })).toBeVisible();
-  await expect(page.locator(".category-one-bank-brand img")).toHaveAttribute("style", /width: 180px/);
-  const previewFrame = page.getByLabel("Category One entry screen preview");
-  const desktopBounds = await previewFrame.boundingBox();
-  expect(desktopBounds?.width).toBeGreaterThan(500);
-  await page.getByTestId("button-preview-size-mobile").click();
-  await expect(previewFrame).toHaveClass(/settings-screen-preview-viewport-mobile/);
-  const mobileBounds = await previewFrame.boundingBox();
-  expect(mobileBounds?.width).toBeLessThan(400);
-  expect(mobileBounds?.height).toBeGreaterThan(mobileBounds?.width ?? 0);
-  await page.getByTestId("button-close-logo-screen-preview").click();
-
-  const pinSize = page.getByTestId("input-logo-size-pin-category-1");
-  await pinSize.focus();
-  await pinSize.press("ArrowRight");
-  await expect(pinSize).toHaveValue("164");
-  await page.getByTestId("button-preview-logo-screen-pin-category-1").click();
-  await expect(preview.getByRole("heading", { name: "Category One · PIN screen" })).toBeVisible();
-  await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("style", /width: 164px/);
-  expect(settingsWrites).toBe(0);
-});
-
-test("publishes independent logo settings for every category and keeps applicant controls clear on mobile", async ({ page }) => {
-  test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
-  const api = new GuestApiFixture();
-  await page.addInitScript(() => {
-    if (location.pathname === "/admin/settings") localStorage.setItem("e2e-clerk-role", "admin");
-  });
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  const categoryIds = ["category-1", "category-2", "category-3", "category-4"];
-  const slots = ["card", "entry", "pin"] as const;
-  const settingsFor = (categoryId: string, slot: typeof slots[number]) => ({
-    size: page.getByTestId(`input-logo-size-${slot}-${categoryId}`),
-    fit: page.getByTestId(`select-logo-fit-${slot}-${categoryId}`),
-  });
-  const readSlot = async (categoryId: string, slot: typeof slots[number]) => {
-    const controls = settingsFor(categoryId, slot);
-    return { size: await controls.size.inputValue(), fit: await controls.fit.inputValue() };
-  };
-
-  await page.goto("/admin/settings");
-  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
-  for (const categoryId of categoryIds) {
-    for (const slot of slots) {
-      const before = Object.fromEntries(await Promise.all(
-        slots.map(async (otherSlot) => [otherSlot, await readSlot(categoryId, otherSlot)] as const),
-      )) as Record<typeof slots[number], { size: string; fit: string }>;
-      const target = settingsFor(categoryId, slot);
-      await target.size.focus();
-      await target.size.press("ArrowRight");
-      await target.fit.selectOption("cover");
-      await expect(target.size).toHaveValue(String(Number(before[slot].size) + 4));
-      await expect(target.fit).toHaveValue("cover");
-      for (const otherSlot of slots.filter((candidate) => candidate !== slot)) {
-        expect(await readSlot(categoryId, otherSlot), `${categoryId} ${slot} edits must not change ${otherSlot}`)
-          .toEqual(before[otherSlot]);
-      }
-    }
-  }
-
-  // Leave the PIN setting on contain so the published values demonstrate that
-  // each slot retains its own crop mode.
-  await settingsFor("category-1", "pin").fit.selectOption("contain");
-  const saveResponse = page.waitForResponse((response) =>
-    response.request().method() === "PUT" && new URL(response.url()).pathname === "/api/admin/settings",
-  );
-  await page.getByTestId("button-save-portal-settings").click();
-  expect((await saveResponse).ok()).toBe(true);
-  const savedValues = Object.fromEntries(await Promise.all(
-    categoryIds.map(async (categoryId) => Promise.all(
-      slots.map(async (slot) => [slot, await readSlot(categoryId, slot)] as const),
-    ).then((slotValues) => [categoryId, Object.fromEntries(slotValues)] as const)),
-  )) as Record<string, Record<typeof slots[number], { size: string; fit: string }>>;
-
-  await page.reload();
-  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
-  for (const categoryId of categoryIds) {
-    for (const slot of slots) {
-      const controls = settingsFor(categoryId, slot);
-      await expect(controls.size).toHaveValue(savedValues[categoryId][slot].size);
-      await expect(controls.fit).toHaveValue(savedValues[categoryId][slot].fit);
-    }
-  }
-
-  for (const categoryId of categoryIds) {
-    for (const screen of ["entry", "pin"] as const) {
-      await page.getByTestId(`button-preview-logo-screen-${screen}-${categoryId}`).click();
-      const dialog = page.getByRole("dialog");
-      await page.getByTestId("button-preview-size-mobile").click();
-      const previewScreen = page.locator(".settings-screen-preview-viewport-mobile .category-entry-screen");
-      const logo = previewScreen.locator("img").first();
-      await expect(logo).toHaveCSS("object-fit", savedValues[categoryId][screen].fit);
-      await expect(logo).toHaveAttribute("style", new RegExp(`width: ${savedValues[categoryId][screen].size}px`));
-      await expectReadableLogo(logo);
-      if (screen === "entry") {
-        await expectNoOverlap(logo, previewScreen.locator(".entry-line-input").first(), `${categoryId} entry logo must not cover its field`);
-        await expectNoOverlap(logo, previewScreen.locator(".entry-primary-button"), `${categoryId} entry logo must not cover its continue button`);
-      } else {
-        await expectNoOverlap(logo, previewScreen.locator(".pin-entry-keypad"), `${categoryId} PIN logo must not cover its keypad`);
-      }
-      await page.getByTestId("button-close-logo-screen-preview").click();
-      await expect(dialog).toHaveCount(0);
-    }
-  }
-
-  await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/dashboard");
-  await page.reload();
-  for (const categoryId of categoryIds) {
-    const logo = page.getByTestId(`guest-dashboard-category-${categoryId}`).locator("img.category-logo");
-    await expect(logo).toHaveCSS("object-fit", "cover");
-    await expect(logo).toHaveCSS("width", `${savedValues[categoryId].card.size}px`);
-    await expectReadableLogo(logo);
-  }
-
-  await page.setViewportSize({ width: 390, height: 568 });
-  await page.reload();
-  for (const categoryId of categoryIds) {
-    const logo = page.getByTestId(`guest-dashboard-category-${categoryId}`).locator("img.category-logo");
-    await expect(logo).toHaveCSS("object-fit", "cover");
-    await expect(logo).toHaveCSS("width", `${savedValues[categoryId].card.size}px`);
-    await expectReadableLogo(logo);
-  }
-
-  await page.getByTestId("guest-dashboard-category-category-1").click();
-  await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
-  await page.getByTestId("input-guest-email").fill("jordan@example.test");
-  await page.getByTestId("button-continue-guest-contact").click();
-  await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  const entryLogo = page.getByRole("img", { name: "Category One entry logo" });
-  await expect(entryLogo).toHaveCSS("object-fit", "cover");
-  await expect(entryLogo).toHaveAttribute("style", new RegExp(`width: ${savedValues["category-1"].entry.size}px`));
-  await expectReadableLogo(entryLogo);
-  await expectNoOverlap(entryLogo, page.getByTestId("input-entry-name"), "entry logo must not cover applicant form fields");
-  await expectNoOverlap(entryLogo, page.getByTestId("button-entry-continue"), "entry logo must not cover applicant form actions");
-
-  await page.getByTestId("input-entry-name").fill("Jordan Applicant");
-  await page.getByTestId("button-entry-continue").click();
-  await expect(page.getByTestId("button-pin-key-confirm")).toBeVisible();
-  const pinLogo = page.getByRole("img", { name: "Category One PIN logo" });
-  await expect(pinLogo).toHaveCSS("object-fit", "contain");
-  await expect(pinLogo).toHaveAttribute("style", new RegExp(`width: ${savedValues["category-1"].pin.size}px`));
-  await expectReadableLogo(pinLogo);
-  await expectNoOverlap(pinLogo, page.locator(".pin-entry-keypad"), "PIN logo must not cover the applicant keypad");
-});
-
-test("an admin can publish applicant copy, and blank overrides restore built-in text", async ({ page }) => {
-  test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
-  const api = new GuestApiFixture();
-  await page.addInitScript(() => localStorage.setItem("e2e-clerk-role", "admin"));
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  await page.goto("/admin/settings");
-  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
-  await page.locator("#settings-workflow-copy details").filter({ hasText: "guest-contact" }).locator("summary").click();
-  await page.getByTestId("input-copy-guest-contact-title").fill("Applicant information");
-  await page.getByTestId("input-copy-guest-contact-description").fill("Use the contact details associated with this request.");
-  await page.getByTestId("input-copy-guest-contact-fullNameLabel").fill("Applicant's legal name");
-  const publishResponse = page.waitForResponse((response) =>
-    response.request().method() === "PUT" && new URL(response.url()).pathname === "/api/admin/settings",
-  );
-  await page.getByTestId("button-save-portal-settings").click();
-  expect((await publishResponse).ok()).toBe(true);
-  expect(api.screenCopy["guest-contact"]).toMatchObject({
-    title: "Applicant information",
-    description: "Use the contact details associated with this request.",
-    fullNameLabel: "Applicant's legal name",
-  });
-
-  await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
-  await page.goto("/guest/apply");
-  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible();
-  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible();
-  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
-
-  await page.evaluate(() => localStorage.setItem("e2e-clerk-role", "admin"));
-  await page.goto("/admin/settings");
-  await page.locator("#settings-workflow-copy details").filter({ hasText: "guest-contact" }).locator("summary").click();
-  await page.getByTestId("input-copy-guest-contact-title").fill("");
-  await page.getByTestId("input-copy-guest-contact-description").fill("");
-  await page.getByTestId("input-copy-guest-contact-fullNameLabel").fill("");
-  const resetResponse = page.waitForResponse((response) =>
-    response.request().method() === "PUT" && new URL(response.url()).pathname === "/api/admin/settings",
-  );
-  await page.getByTestId("button-save-portal-settings").click();
-  expect((await resetResponse).ok()).toBe(true);
-
-  await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
-  await page.goto("/guest/apply");
-  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
-  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
-  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
-});
-
-test("shows configured dashboard copy once in its designated locations", async ({ page }) => {
-  const api = new GuestApiFixture();
-  api.screenCopy.dashboard = {
-    title: "Choose your enrollment path",
-    description: "This configured description should appear once.",
-    sectionIdLabel: "PUBLIC CATEGORY SELECTION",
-  };
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  await page.goto("/dashboard");
-
-  await expect(page.getByRole("heading", { name: "Choose your enrollment path" })).toBeVisible();
-  await expect(page.getByText("This configured description should appear once.", { exact: true })).toHaveCount(1);
-  await expect(page.getByText("PUBLIC CATEGORY SELECTION", { exact: true })).toHaveCount(1);
-});
-
-test("shows a private application status without reviewer-only details", async ({ page }) => {
-  const api = new GuestApiFixture();
-  api.screenCopy["guest-status"] = {
-    title: "Your enrollment progress",
-    description: "Enter your secure details to check the application.",
-    referenceLabel: "File reference",
-    keyLabel: "Private access key",
-    lookupButtonLabel: "Check my progress",
-    currentStatusLabel: "Review stage",
-  };
-  api.screenCopy["workflow-step-1"] = {
-    field_personalInformation_firstName: "Applicant given name",
-  };
-  api.accessKey = "test-private-tracking-key";
-  api.draft = {
-    id: applicationId,
-    reference,
-    categoryId: "category-1",
-    categoryName: "Category One",
-    fullName: "Jordan Applicant",
-    email: "jordan@example.test",
-    status: "received",
-    submissionStatus: "draft",
-    emailVerified: false,
-    hasPin: true,
-    linkedApplicationId: null,
-    currentStep: 3,
-    detailsComplete: false,
-    answers: {},
-    createdAt: "2026-10-12T12:00:00.000Z",
-    updatedAt: "2026-10-12T12:02:00.000Z",
-    missingRequiredFields: ["First name"],
-  };
-  await page.setViewportSize({ width: 390, height: 568 });
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  await page.goto("/guest/track");
-  await expect(page.getByRole("heading", { name: "Your enrollment progress" })).toBeVisible();
-  await expect(page.getByText("Enter your secure details to check the application.", { exact: true })).toBeVisible();
-  await expect(page.getByText("File reference", { exact: true })).toBeVisible();
-  await expect(page.getByText("Private access key", { exact: true })).toBeVisible();
-  await page.getByTestId("input-track-reference").fill(reference);
-  await page.getByTestId("input-track-key").fill(api.accessKey);
-  await page.getByRole("button", { name: /Check my progress/ }).click();
-
-  const status = page.getByTestId("guest-public-status");
-  await expect(status).toBeVisible();
-  await expect(status).toContainText(reference);
-  await expect(status).toContainText("Not verified");
-  await expect(status).toContainText("Applicant given name");
-  await expect(status).not.toContainText(reviewerOnlyNote);
-  await expectControlInsideViewport(page, page.getByTestId("button-resume-guest-application"));
-  await expectNoDocumentOverflow(page);
 });
 
 test("redirects retired account-based applicant URLs to the shared dashboard", async ({ page }) => {
@@ -896,9 +412,6 @@ test("preserves the same guest application across verification failure, reload, 
   await expect(page.getByTestId("enrollment-wizard")).toHaveCount(0);
   await page.getByTestId("button-pin-key-confirm").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 568 });
-  await expectNoDocumentOverflow(page);
-  await expectControlInsideViewport(page, page.getByTestId("button-save-next"));
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoDocumentOverflow(page);
 
@@ -946,7 +459,6 @@ test("preserves the same guest application across verification failure, reload, 
   await page.locator("form.ew-form button[type=submit]").click();
   await expect.poll(() => api.uploadedEvidence.length).toBe(2);
   await page.locator("form.ew-form button[type=submit]").click();
-  await expectControlInsideViewport(page, page.getByTestId("button-submit-enrollment"));
   await page.getByTestId("section-declaration").locator("label").click();
   await expect(page.getByTestId("check-declaration")).toBeChecked();
   const sectionStatuses = await Promise.all(
