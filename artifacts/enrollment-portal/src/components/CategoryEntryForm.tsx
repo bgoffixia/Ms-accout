@@ -27,8 +27,11 @@ type CategoryEntryFormProps = {
   screenCopy?: Record<string, string>;
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
+  pinLogoDataUrl?: string | null;
   entryLogoAlignment?: string;
-  entryLogoVerticalOffset?: string;
+  entryLogoVerticalOffset?: string | number;
+  pinLogoAlignment?: string;
+  pinLogoVerticalOffset?: string | number;
   onComplete: (answers: CategoryEntryAnswers, pin: string) => void;
 };
 
@@ -49,8 +52,11 @@ export function CategoryEntryForm({
   screenCopy = {},
   pageTheme,
   entryLogoDataUrl,
+  pinLogoDataUrl,
   entryLogoAlignment = "center",
   entryLogoVerticalOffset = "0",
+  pinLogoAlignment = "center",
+  pinLogoVerticalOffset = "0",
   onComplete,
 }: CategoryEntryFormProps) {
   const isCategoryOne = categoryId === "category-1";
@@ -65,11 +71,7 @@ export function CategoryEntryForm({
       : isCategoryThree
         ? categoryThreeLogo
         : categoryFourLogo);
-  const logoAlignment = ["left", "center", "right"].includes(entryLogoAlignment) ? entryLogoAlignment : "center";
-  const parsedLogoVerticalOffset = Number.parseInt(entryLogoVerticalOffset, 10);
-  const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
-    ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
-    : 0;
+  const pinLogo = pinLogoDataUrl || entryLogo;
   const pinLength = isCategoryTwo ? 6 : 4;
   const lastDetailsStep = isCategoryTwo ? 1 : 0;
   const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
@@ -83,6 +85,12 @@ export function CategoryEntryForm({
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
   const isPinStep = pinRequired && step === lastStep;
+  const activeLogoAlignment = isPinStep ? pinLogoAlignment : entryLogoAlignment;
+  const logoAlignment = ["left", "center", "right"].includes(activeLogoAlignment) ? activeLogoAlignment : "center";
+  const parsedLogoVerticalOffset = Number.parseInt(String(isPinStep ? pinLogoVerticalOffset : entryLogoVerticalOffset), 10);
+  const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
+    ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
+    : 0;
 
   const activePinValue = pin;
   const setActivePinValue = setPin;
@@ -403,18 +411,18 @@ export function CategoryEntryForm({
                 </h1>
                 {isCategoryThree && (
                   <div className="category-three-pin-brand">
-                    <img src={entryLogo} alt="Category Three PIN logo" />
+                    <img src={pinLogo} alt="Category Three PIN logo" />
                   </div>
                 )}
                 {isCategoryOne && (
                   <div className="category-one-pin-brand">
-                    <img src={entryLogo} alt="Category One PIN logo" />
+                    <img src={pinLogo} alt="Category One PIN logo" />
                   </div>
                 )}
                 {isCategoryTwo && (
                   <>
                     <div className="category-two-pin-brand">
-                      <img className="category-two-pin-logo" src={entryLogo} alt="Category Two PIN logo" />
+                      <img className="category-two-pin-logo" src={pinLogo} alt="Category Two PIN logo" />
                     </div>
                     <div className="category-two-pin-actions">
                       <Link href="/support" data-testid="link-category-two-pin-help">Need help?</Link>
@@ -423,7 +431,7 @@ export function CategoryEntryForm({
                   </>
                 )}
                 {isCategoryFour && (
-                  <div className="category-four-pin-brand"><img src={entryLogo} alt="Category Four PIN logo" /></div>
+                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Category Four PIN logo" /></div>
                 )}
                 <p className="sr-only" id="pin-entry-help">
                   Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.

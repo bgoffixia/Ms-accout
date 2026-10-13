@@ -28,6 +28,8 @@ class GuestApiFixture {
   accessKey = "";
   createCount = 0;
   lookupCount = 0;
+  screenCopy: Record<string, Record<string, string>> = {};
+  logoOverrides: Record<string, Record<string, unknown>> = {};
   readonly uploadedEvidence: { id: string; slot: string; objectPath: string }[] = [];
   private evidenceId = 0;
 
@@ -57,6 +59,9 @@ class GuestApiFixture {
           buttonLabel: "Start application",
           backgroundColor: "#F5F8FA",
           logoDataUrl: null,
+          cardLogoAlignment: "left",
+          cardLogoVerticalOffset: 0,
+          ...this.logoOverrides[id],
         })),
         theme: {
           pinScreenBackground: "#FFFFFF",
@@ -64,7 +69,7 @@ class GuestApiFixture {
           buttonPlacement: "right",
           categoryInputTransparent: true,
         },
-        screenCopy: {},
+        screenCopy: this.screenCopy,
         pageThemes: {},
       });
     }
@@ -312,6 +317,15 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
 
 test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
   const api = new GuestApiFixture();
+  const testLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jv2sAAAAASUVORK5CYII=";
+  api.logoOverrides["category-1"] = {
+    entryLogoDataUrl: testLogo,
+    pinLogoDataUrl: testLogo,
+    entryLogoAlignment: "left",
+    entryLogoVerticalOffset: 12,
+    pinLogoAlignment: "right",
+    pinLogoVerticalOffset: -14,
+  };
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
 
@@ -326,8 +340,32 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
+  await expect(page.getByRole("img", { name: "Category One entry logo" })).toHaveAttribute("src", testLogo);
+  await expect(page.getByTestId("form-entry-category-1")).toHaveClass(/entry-logo-align-left/);
+  await expect(page.getByTestId("form-entry-category-1")).toHaveCSS("--entry-logo-offset-y", "12px");
   expect(api.createCount).toBe(1);
   expect(api.draft?.categoryId).toBe("category-1");
+
+  await page.getByTestId("button-entry-continue").click();
+  await expect(page.getByRole("img", { name: "Category One PIN logo" })).toHaveAttribute("src", testLogo);
+  await expect(page.getByTestId("form-entry-category-1")).toHaveClass(/entry-logo-align-right/);
+  await expect(page.getByTestId("form-entry-category-1")).toHaveCSS("--entry-logo-offset-y", "-14px");
+});
+
+test("shows configured dashboard copy once in its designated locations", async ({ page }) => {
+  const api = new GuestApiFixture();
+  api.screenCopy.dashboard = {
+    title: "Choose your enrollment path",
+    description: "This configured description should appear once.",
+    sectionIdLabel: "PUBLIC CATEGORY SELECTION",
+  };
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/dashboard");
+
+  await expect(page.getByRole("heading", { name: "Choose your enrollment path" })).toBeVisible();
+  await expect(page.getByText("This configured description should appear once.", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("PUBLIC CATEGORY SELECTION", { exact: true })).toHaveCount(1);
 });
 
 test("redirects retired account-based applicant URLs to the shared dashboard", async ({ page }) => {

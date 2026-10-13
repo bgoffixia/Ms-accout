@@ -728,6 +728,33 @@ export const PortalSettingsCardsItemId = {
   'category-4': 'category-4',
 } as const;
 
+export type PortalSettingsCardsItemCardLogoAlignment = typeof PortalSettingsCardsItemCardLogoAlignment[keyof typeof PortalSettingsCardsItemCardLogoAlignment];
+
+
+export const PortalSettingsCardsItemCardLogoAlignment = {
+  left: 'left',
+  center: 'center',
+  right: 'right',
+} as const;
+
+export type PortalSettingsCardsItemEntryLogoAlignment = typeof PortalSettingsCardsItemEntryLogoAlignment[keyof typeof PortalSettingsCardsItemEntryLogoAlignment];
+
+
+export const PortalSettingsCardsItemEntryLogoAlignment = {
+  left: 'left',
+  center: 'center',
+  right: 'right',
+} as const;
+
+export type PortalSettingsCardsItemPinLogoAlignment = typeof PortalSettingsCardsItemPinLogoAlignment[keyof typeof PortalSettingsCardsItemPinLogoAlignment];
+
+
+export const PortalSettingsCardsItemPinLogoAlignment = {
+  left: 'left',
+  center: 'center',
+  right: 'right',
+} as const;
+
 export type PortalSettingsCardsItem = {
   id: PortalSettingsCardsItemId;
   /** @maxLength 100 */
@@ -743,6 +770,34 @@ export type PortalSettingsCardsItem = {
      * @nullable
      */
   logoDataUrl: string | null;
+  /**
+     * @maxLength 6000000
+     * @nullable
+     */
+  entryLogoDataUrl?: string | null;
+  /**
+     * @maxLength 6000000
+     * @nullable
+     */
+  pinLogoDataUrl?: string | null;
+  cardLogoAlignment?: PortalSettingsCardsItemCardLogoAlignment;
+  /**
+     * @minimum -60
+     * @maximum 60
+     */
+  cardLogoVerticalOffset?: number;
+  entryLogoAlignment?: PortalSettingsCardsItemEntryLogoAlignment;
+  /**
+     * @minimum -120
+     * @maximum 120
+     */
+  entryLogoVerticalOffset?: number;
+  pinLogoAlignment?: PortalSettingsCardsItemPinLogoAlignment;
+  /**
+     * @minimum -120
+     * @maximum 120
+     */
+  pinLogoVerticalOffset?: number;
 };
 
 export type PortalSettingsThemeButtonSize = typeof PortalSettingsThemeButtonSize[keyof typeof PortalSettingsThemeButtonSize];

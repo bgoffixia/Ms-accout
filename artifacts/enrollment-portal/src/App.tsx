@@ -73,6 +73,12 @@ const clerkPubKey = publishableKeyFromHost(
 );
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const defaultCategoryLogos: Record<string, string> = {
+  'category-1': categoryOneLogo,
+  'category-2': categoryTwoLogo,
+  'category-3': categoryThreeLogo,
+  'category-4': categoryFourLogo,
+};
 
 function stripBase(path: string) {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
@@ -171,6 +177,16 @@ function copyText(settings: PortalSettings | undefined, screen: string, key: str
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
+function categoryCardLogoStyle(card: PortalSettings['cards'][number] | undefined): CSSProperties {
+  const alignment = card?.cardLogoAlignment ?? 'left';
+  const verticalOffset = Number(card?.cardLogoVerticalOffset ?? 0);
+  const offset = Number.isFinite(verticalOffset) ? Math.max(-60, Math.min(60, verticalOffset)) : 0;
+  return {
+    alignSelf: alignment === 'center' ? 'center' : alignment === 'right' ? 'flex-end' : 'flex-start',
+    transform: offset ? `translateY(${offset}px)` : undefined,
+  };
+}
+
 function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
   children: ReactNode;
   active?: string;
@@ -240,11 +256,11 @@ function PublicLanding() {
         <PortalWordmark className="portal-wordmark-landing" />
         <div className="landing-content rise">
           <div className="eyebrow"><span className="eyebrow-rule" />SECURE ENROLLMENT</div>
-          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to Our Enrollment Portal')}</h1>
-          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.')}</p>
+          <h1>{hero?.title ?? 'Welcome to Our Enrollment Portal'}</h1>
+          <p className="landing-lede">{hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.'}</p>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
-              {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
+              {hero?.getStartedLabel ?? primaryLabel} <ArrowRight size={17} />
             </Link>
             <Link href="/guest/track" className="landing-secondary-link" data-testid="link-track-application">
               Track an application <ArrowRight size={15} />
@@ -522,7 +538,7 @@ function Dashboard() {
         {failure ? <ErrorPanel message="Your enrollment information is temporarily unavailable." retry={() => { void summary.refetch(); void applications.refetch(); void categories.refetch(); }} /> :
           busy ? <LoadingPanel /> : <>
             <section className="selection-section rise-delay">
-              <div className="section-line"><div><h2>{copyText(portalSettings.data, 'dashboard', 'title', 'Select an enrollment path')}</h2><p>{copyText(portalSettings.data, 'dashboard', 'description', 'Choose the option that best matches your application.')}</p></div><span className="step-indicator">{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'STEP 01 / 03')}</span></div>
+              <div className="section-line"><div><h2>Select an enrollment path</h2><p>Choose the option that best matches your application.</p></div><span className="step-indicator">{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'STEP 01 / 03')}</span></div>
               <div className="category-grid">
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
@@ -551,16 +567,16 @@ function Dashboard() {
                     aria-label={`${cardSettings?.title ?? category.name}: ${selectionAction}`}
                     data-testid={`card-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
-                    {cardSettings?.logoDataUrl
-                      ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" />
+                     {cardSettings?.logoDataUrl
+                       ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={categoryCardLogoStyle(cardSettings)} />
                       : category.id === 'category-1'
-                        ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" />
+                         ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                         : category.id === 'category-2'
-                        ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" />
+                         ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                         : category.id === 'category-3'
-                          ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" />
+                           ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                           : category.id === 'category-4'
-                            ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" />
+                             ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                             : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
                     <span className="category-title">{cardSettings?.title ?? category.name}</span>
                     <span className="category-select">{selectionAction} <ArrowUpRight size={15} /></span>
@@ -794,9 +810,12 @@ function DraftApplication() {
       categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
       screenCopy={categoryEntryCopy}
       pageTheme={portalSettings.data?.pageThemes?.[categoryEntryScreenId]}
-      entryLogoDataUrl={categoryEntryCard?.logoDataUrl}
-      entryLogoAlignment={categoryEntryCopy.entryLogoAlignment}
-      entryLogoVerticalOffset={categoryEntryCopy.entryLogoVerticalOffset}
+      entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
+      pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
+      entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
+      entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
+      pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment ?? categoryEntryCard?.entryLogoAlignment}
+      pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset ?? categoryEntryCard?.entryLogoVerticalOffset}
       onComplete={(entryAnswers: CategoryEntryAnswers, entryPin: string) => {
         setFeedback('');
         if (sessionOnlyRoute) {
@@ -912,6 +931,7 @@ function ApplicationDetail() {
 }
 
 function SupportPage() {
+  const portalSettings = useGetPortalSettings();
   const tickets = useListMySupportTickets();
   const applications = useListMyApplications();
   const create = useCreateSupportTicket();
@@ -937,7 +957,7 @@ function SupportPage() {
   };
   return <AppFrame active="support">
     <div className="support-page">
-      <PageHeading eyebrow="APPLICANT SUPPORT" title="We’re here to help." detail="Send a secure message about your enrollment or an application." />
+      <PageHeading eyebrow="APPLICANT SUPPORT" title={copyText(portalSettings.data, 'support', 'title', 'We’re here to help.')} detail={copyText(portalSettings.data, 'support', 'description', 'Send a secure message about your enrollment or an application.')} />
       <div className="support-grid">
         <section className="support-form-card">
           <div className="form-card-heading"><span className="form-card-icon"><MessageCircle size={18} /></span><div><h2>Send a message</h2><p>Replies will appear in your support history.</p></div></div>
@@ -1084,9 +1104,10 @@ function AdminReviewRestricted() {
 }
 
 function AdminManagementHome() {
+  const portalSettings = useGetPortalSettings();
   return <AdminShell active="overview">
     <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff." />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title={copyText(portalSettings.data, 'admin-overview', 'title', 'Admin home')} detail={copyText(portalSettings.data, 'admin-overview', 'description', 'Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff.')} />
       <section className="admin-overview-actions" aria-label="Administration actions">
         <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-admin-home-users">
           <span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} />
@@ -1117,6 +1138,7 @@ function draftProgressLabel(application: {
 }
 
 function AdminQueue() {
+  const portalSettings = useGetPortalSettings();
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ ...(status ? { status: status as 'draft' | 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' } : {}), ...(search.trim() ? { search: search.trim() } : {}) }), [status, search]);
@@ -1125,7 +1147,7 @@ function AdminQueue() {
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   return <AdminShell active="review">
     <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Review queue" detail="See saved applicant progress and review applications when they are submitted." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title={copyText(portalSettings.data, 'admin-review', 'title', 'Review queue')} detail={copyText(portalSettings.data, 'admin-review', 'description', 'See saved applicant progress and review applications when they are submitted.')} action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reference or applicant" aria-label="Search applications" data-testid="input-review-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter by status</span><select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-review-status">
@@ -1151,6 +1173,7 @@ function AccessError({ retry }: { retry: () => void }) {
 }
 
 function AdminOverview() {
+  const portalSettings = useGetPortalSettings();
   const overview = useGetAdminOverview();
   const recentQuery = useListApplicationsForReview();
   const { user } = useUser();
@@ -1169,7 +1192,7 @@ function AdminOverview() {
     ['Unresolved support requests', overview.data?.unresolvedSupportRequests, 'support'],
   ] as const;
   return <AdminShell active="overview"><div className="admin-page">
-    <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Overview" detail="Live enrollment and support totals from the service." action={<div className="admin-overview-heading-actions">
+    <PageHeading eyebrow="SECURE STAFF WORKSPACE" title={copyText(portalSettings.data, 'admin-overview', 'title', 'Overview')} detail={copyText(portalSettings.data, 'admin-overview', 'description', 'Live enrollment and support totals from the service.')} action={<div className="admin-overview-heading-actions">
       {canEditPortal && <Link href="/admin/settings" className="button button-primary" data-testid="link-overview-edit-modifications"><Settings size={16} /> Edit &amp; modifications</Link>}
       {canReview && <Link href="/admin/review" className={`button ${canEditPortal ? 'button-quiet' : 'button-primary'}`} data-testid="link-overview-review">Open review queue <ArrowRight size={15} /></Link>}
     </div>} />
@@ -1339,7 +1362,7 @@ function AdminSettings() {
   const updateTheme = (key: keyof PortalSettings['theme'], value: string | boolean) => {
     setDraft((current) => current ? { ...current, theme: { ...current.theme, [key]: value } } : current);
   };
-  const updateCard = (id: string, key: string, value: string | null) => {
+  const updateCard = (id: string, key: string, value: string | number | null) => {
     setDraft((current) => current ? {
       ...current,
       cards: current.cards.map((card) => card.id === id ? { ...card, [key]: value } : card),
@@ -1390,7 +1413,7 @@ function AdminSettings() {
       },
     } : current);
   };
-  const uploadLogo = (cardId: string, file?: File) => {
+  const uploadLogo = (cardId: string, key: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl', file?: File) => {
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
       setError('Choose a PNG, JPEG, or WebP image no larger than 2 MB.');
@@ -1399,7 +1422,7 @@ function AdminSettings() {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        updateCard(cardId, 'logoDataUrl', reader.result);
+         updateCard(cardId, key, reader.result);
         setError('');
       }
     };
@@ -1498,6 +1521,141 @@ function AdminSettings() {
       ['field_bankDetails_accountNumber', 'Account number'], ['field_bankDetails_accountType', 'Account type'],
     ],
   };
+  const copyKeysForScreen = (screen: string) => {
+    if (screen === 'dashboard') return ['title', 'description', 'sectionIdLabel', 'buttonLabel'];
+    if (screen.startsWith('category-entry-')) return ['title', 'description', 'backButtonLabel'];
+    if (screen === 'application-status') return ['title'];
+    if (screen.startsWith('workflow-step-')) {
+      return ['title', 'description', 'sectionIdLabel', 'buttonLabel', 'backButtonLabel', ...(workflowFieldLabels[screen] ?? []).map(([key]) => key)];
+    }
+    return ['title', 'description'];
+  };
+  const currentCopyPreview = (screen: string, label: string) => {
+    const publishedCopy = settingsQuery.data?.screenCopy?.[screen] ?? {};
+    const keys = copyKeysForScreen(screen);
+    const keyLabels = (key: string) => key === 'sectionIdLabel' ? 'Section ID label'
+      : key === 'buttonLabel' ? 'Primary button label'
+        : key === 'backButtonLabel' ? 'Back button label'
+          : key === 'title' ? 'Title'
+            : key === 'description' ? 'Description'
+              : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1]
+                ?? key.replace(/^field_/, '').replaceAll('_', ' ').replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
+    const defaultFor = (key: string) => {
+      if (screen === 'dashboard') {
+        return {
+          title: 'Choose an enrollment category.',
+          description: 'Start or continue your application without creating an account. Identity files and verification video are collected later.',
+          buttonLabel: 'Choose category',
+          sectionIdLabel: 'APPLICANT DASHBOARD',
+        }[key as 'title' | 'description' | 'buttonLabel'];
+      }
+      if (screen.startsWith('category-entry-')) {
+        return key === 'backButtonLabel' ? 'Back to details or previous step' : undefined;
+      }
+      if (screen === 'application-status' && key === 'title') return 'Application category name';
+      if (screen === 'support') {
+        return {
+          title: 'We’re here to help.',
+          description: 'Send a secure message about your enrollment or an application.',
+        }[key as 'title' | 'description'];
+      }
+      if (screen === 'admin-overview') {
+        return {
+          title: 'Admin home',
+          description: 'Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff.',
+        }[key as 'title' | 'description'];
+      }
+      if (screen === 'admin-review') {
+        return {
+          title: 'Review queue',
+          description: 'See saved applicant progress and review applications when they are submitted.',
+        }[key as 'title' | 'description'];
+      }
+      if (screen === 'admin-support') {
+        return {
+          title: 'Support inbox',
+          description: 'Manage applicant messages and send a considered reply.',
+        }[key as 'title' | 'description'];
+      }
+      return workflowFieldLabels[screen]?.find(([fieldKey]) => fieldKey === key)?.[1];
+    };
+    return <aside className="settings-current-copy" aria-label={`Current published text for ${label}`} data-testid={`current-copy-${screen}`}>
+      <div className="settings-current-copy-heading"><b>Currently published on this page</b><span>Saved text stays live until you save edits.</span></div>
+      <dl>{keys.map((key) => <div key={key}>
+        <dt>{keyLabels(key)}</dt>
+        <dd>{publishedCopy[key]?.trim() || defaultFor(key) || 'Using the page’s built-in text'}</dd>
+      </div>)}</dl>
+    </aside>;
+  };
+  const renderLogoSettings = (card: PortalSettings['cards'][number], slot: 'card' | 'entry' | 'pin') => {
+    const categoryNumber = card.id.replace('category-', '');
+    const screen = `category-entry-${categoryNumber}`;
+    const legacyCopy = draft?.screenCopy?.[screen] ?? {};
+    const assetKey: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl' = slot === 'card'
+      ? 'logoDataUrl'
+      : slot === 'entry' ? 'entryLogoDataUrl' : 'pinLogoDataUrl';
+    const alignmentKey = slot === 'card' ? 'cardLogoAlignment' : slot === 'entry' ? 'entryLogoAlignment' : 'pinLogoAlignment';
+    const offsetKey = slot === 'card' ? 'cardLogoVerticalOffset' : slot === 'entry' ? 'entryLogoVerticalOffset' : 'pinLogoVerticalOffset';
+    const ownLogo = slot === 'card' ? card.logoDataUrl : slot === 'entry' ? card.entryLogoDataUrl : card.pinLogoDataUrl;
+    const logoSource = slot === 'card'
+      ? card.logoDataUrl || defaultCategoryLogos[card.id]
+      : slot === 'entry'
+        ? card.entryLogoDataUrl ?? card.logoDataUrl ?? defaultCategoryLogos[card.id]
+        : card.pinLogoDataUrl ?? card.entryLogoDataUrl ?? card.logoDataUrl ?? defaultCategoryLogos[card.id];
+    const alignment = slot === 'card'
+      ? card.cardLogoAlignment ?? 'left'
+      : slot === 'entry'
+        ? card.entryLogoAlignment ?? legacyCopy.entryLogoAlignment ?? 'center'
+        : card.pinLogoAlignment ?? legacyCopy.entryLogoAlignment ?? card.entryLogoAlignment ?? 'center';
+    const offset = slot === 'card'
+      ? Number(card.cardLogoVerticalOffset ?? 0)
+      : slot === 'entry'
+        ? Number(card.entryLogoVerticalOffset ?? legacyCopy.entryLogoVerticalOffset ?? 0)
+        : Number(card.pinLogoVerticalOffset ?? legacyCopy.entryLogoVerticalOffset ?? card.entryLogoVerticalOffset ?? 0);
+    const maxOffset = slot === 'card' ? 60 : 120;
+    const title = slot === 'card' ? 'Category card logo' : slot === 'entry' ? 'Entry fields logo' : 'PIN screen logo';
+    const inheritedLabel = slot === 'entry' ? 'Using the category card logo'
+      : slot === 'pin' ? 'Using the entry fields logo'
+        : 'Using the built-in category logo';
+    return <fieldset className="settings-logo-editor" key={slot} data-testid={`settings-logo-${slot}-${card.id}`}>
+      <legend>{title}</legend>
+      <label className="field-label">{title} (PNG, JPEG, WebP; up to 2 MB)
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={(event) => uploadLogo(card.id, assetKey, event.target.files?.[0])}
+          data-testid={slot === 'card' ? `input-settings-logo-${card.id}` : `input-settings-logo-${card.id}-${slot}`}
+        />
+      </label>
+      <div className="settings-logo-preview">
+        <img src={logoSource} alt={`${card.title} ${title.toLowerCase()} preview`} />
+        {ownLogo
+          ? <button type="button" className="text-action" onClick={() => updateCard(card.id, assetKey, null)}>{slot === 'card' ? 'Use built-in logo' : inheritedLabel}</button>
+          : <small>{inheritedLabel}</small>}
+      </div>
+      <div className="settings-inline-fields">
+        <label className="field-label">{title} horizontal position
+          <select className="text-input select-input" value={alignment} onChange={(event) => updateCard(card.id, alignmentKey, event.target.value)} data-testid={`select-logo-alignment-${slot}-${card.id}`}>
+            <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+          </select>
+        </label>
+        <label className="field-label settings-logo-offset-field">
+          <span>{title} vertical position <b>{offset > 0 ? `${offset}px down` : offset < 0 ? `${Math.abs(offset)}px up` : 'Centered'}</b></span>
+          <input
+            type="range"
+            min={-maxOffset}
+            max={maxOffset}
+            step="2"
+            value={Number.isFinite(offset) ? Math.max(-maxOffset, Math.min(maxOffset, offset)) : 0}
+            onChange={(event) => updateCard(card.id, offsetKey, Number(event.target.value))}
+            aria-label={`${card.title} ${title.toLowerCase()} vertical position`}
+            data-testid={`input-logo-offset-${slot}-${card.id}`}
+          />
+          <small>Negative values move the logo up; positive values move it down.</small>
+        </label>
+      </div>
+    </fieldset>;
+  };
   const save = () => {
     if (!draft) return;
     setMessage('');
@@ -1528,6 +1686,14 @@ function AdminSettings() {
     </nav>
     <section className="detail-card settings-panel" id="settings-landing" aria-labelledby="settings-landing-title">
       <div className="detail-card-title"><Home size={17} /><h2 id="settings-landing-title">Landing page</h2></div>
+      <aside className="settings-current-copy" aria-label="Current published landing page text">
+        <div className="settings-current-copy-heading"><b>Currently published on the landing page</b><span>Saved text remains live until you save edits.</span></div>
+        <dl>
+          <div><dt>Hero heading</dt><dd>{settingsQuery.data?.hero.title ?? 'Welcome to Our Enrollment Portal'}</dd></div>
+          <div><dt>Hero description</dt><dd>{settingsQuery.data?.hero.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.'}</dd></div>
+          <div><dt>Primary button</dt><dd>{settingsQuery.data?.hero.getStartedLabel ?? 'Get Started'}</dd></div>
+        </dl>
+      </aside>
       <label className="field-label">Hero heading<input className="text-input" value={draft.hero.title} maxLength={160} onChange={(event) => updateHero('title', event.target.value)} data-testid="input-settings-hero-title" /></label>
       <label className="field-label">Hero description<textarea className="text-input form-textarea" value={draft.hero.description} maxLength={500} rows={3} onChange={(event) => updateHero('description', event.target.value)} data-testid="input-settings-hero-description" /></label>
       <div className="settings-inline-fields">
@@ -1581,9 +1747,11 @@ function AdminSettings() {
         <label className="field-label">Description<textarea className="text-input form-textarea" value={card.description} maxLength={240} rows={2} onChange={(event) => updateCard(card.id, 'description', event.target.value)} /></label>
         <label className="field-label">Selection button label<input className="text-input" value={card.buttonLabel} maxLength={60} onChange={(event) => updateCard(card.id, 'buttonLabel', event.target.value)} /></label>
         <label className="field-label settings-color-field">Dashboard card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
-        <label className="field-label">Dashboard and entry logo (PNG, JPEG, WebP; up to 2 MB)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadLogo(card.id, event.target.files?.[0])} data-testid={`input-settings-logo-${card.id}`} /></label>
-        <p className="field-help">This category’s logo also appears on its entry and PIN screens.</p>
-        {card.logoDataUrl && <div className="settings-logo-preview"><img src={card.logoDataUrl} alt={`${card.title} logo preview`} /><button type="button" className="text-action" onClick={() => updateCard(card.id, 'logoDataUrl', null)}>Remove logo</button></div>}
+        <div className="settings-logo-editor-grid">
+          {renderLogoSettings(card, 'card')}
+          {renderLogoSettings(card, 'entry')}
+          {renderLogoSettings(card, 'pin')}
+        </div>
       </article>)}
     </section>
     <section className="detail-card settings-panel" id="settings-appearance" aria-labelledby="settings-appearance-title">
@@ -1635,14 +1803,19 @@ function AdminSettings() {
       <div className="settings-screen-list">
         {categoryEntrySettings.map(({ screen, title, fields }) => {
           const copy = draft.screenCopy[screen] ?? {};
+          const publishedCopy = settingsQuery.data?.screenCopy?.[screen] ?? {};
           const resolvedText = (key: string, fallback: string) => copy[key]?.trim() || fallback;
-          const offsetValue = Number.parseInt(copy.entryLogoVerticalOffset ?? '0', 10);
-          const logoVerticalOffset = Number.isFinite(offsetValue) ? Math.max(-120, Math.min(120, offsetValue)) : 0;
           const previewFields = fields.filter(([key]) => ['nameLabel', 'nicknameLabel', 'surnameLabel'].includes(key));
           const previewButtons = fields.filter(([key]) => key.startsWith('buttonLabel'));
           const pinPrompt = fields.find(([key]) => key === 'pinLabel');
           return <details className="settings-screen" key={screen} data-testid={`settings-category-entry-${screen}`}>
             <summary>{title}<span>{screen}</span></summary>
+            <aside className="settings-current-copy" aria-label={`Current published text for ${title}`} data-testid={`current-copy-${screen}`}>
+              <div className="settings-current-copy-heading"><b>Currently published on this page</b><span>Saved text stays live until you save edits.</span></div>
+              <dl>{fields.map(([key, label, defaultText]) => <div key={key}>
+                <dt>{label}</dt><dd>{publishedCopy[key]?.trim() || defaultText}</dd>
+              </div>)}</dl>
+            </aside>
             <div className="settings-inline-fields">
               {fields.map(([key, label, defaultText]) => <label className="field-label" key={key}>{label}
                 <input
@@ -1654,25 +1827,6 @@ function AdminSettings() {
                   data-testid={`input-copy-${screen}-${key}`}
                 />
               </label>)}
-              <label className="field-label">Entry and PIN logo horizontal position
-                <select className="text-input select-input" value={copy.entryLogoAlignment || 'center'} onChange={(event) => updateScreenCopy(screen, 'entryLogoAlignment', event.target.value)} data-testid={`select-entry-logo-alignment-${screen}`}>
-                  <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
-                </select>
-              </label>
-              <label className="field-label settings-logo-offset-field">
-                <span>Entry and PIN logo vertical position <b>{logoVerticalOffset > 0 ? `${logoVerticalOffset}px down` : logoVerticalOffset < 0 ? `${Math.abs(logoVerticalOffset)}px up` : 'Centered'}</b></span>
-                <input
-                  type="range"
-                  min="-120"
-                  max="120"
-                  step="2"
-                  value={logoVerticalOffset}
-                  onChange={(event) => updateScreenCopy(screen, 'entryLogoVerticalOffset', event.target.value)}
-                  aria-label={`${title} entry and PIN logo vertical position`}
-                  data-testid={`input-entry-logo-offset-${screen}`}
-                />
-                <small>Negative values move the logo up; positive values move it down.</small>
-              </label>
             </div>
             <section className={`settings-category-preview category-preview-${screen}`} aria-label={`${title} live preview`} data-testid={`preview-${screen}`}>
               <span className="settings-category-preview-caption">Live preview · updates as you edit</span>
@@ -1701,13 +1855,9 @@ function AdminSettings() {
       <p className="field-help">Edit the main copy for each page or workflow step. Empty values use the portal’s default labels.</p>
       <div className="settings-screen-list">{screenLabels.map(([screen, label]) => <details className="settings-screen" key={screen}>
         <summary>{label}<span>{screen}</span></summary>
+        {currentCopyPreview(screen, label)}
         <div className="settings-inline-fields">
-          {([
-            'title', 'description', 'sectionIdLabel',
-            ...(screen.startsWith('category-entry-')
-              ? ['backButtonLabel']
-              : ['buttonLabel', ...(screen.startsWith('workflow-step-') ? ['backButtonLabel', ...(workflowFieldLabels[screen] ?? []).map(([key]) => key)] : [])]),
-          ] as string[]).map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
+          {copyKeysForScreen(screen).map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
             <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key === 'backButtonLabel' ? 60 : 500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
           </label>)}
         </div>
@@ -1878,6 +2028,7 @@ function AdminApplicationReview() {
 }
 
 function AdminSupport() {
+  const portalSettings = useGetPortalSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const filters = useMemo(() => ({
@@ -1920,7 +2071,7 @@ function AdminSupport() {
   };
   return <AdminShell active="support">
     <div className="support-admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Support inbox" detail="Manage applicant messages and send a considered reply." />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title={copyText(portalSettings.data, 'admin-support', 'title', 'Support inbox')} detail={copyText(portalSettings.data, 'admin-support', 'description', 'Manage applicant messages and send a considered reply.')} />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference or user" aria-label="Search support requests" data-testid="input-support-search" /></label>
         <label className="filter-select"><span className="sr-only">Filter support status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} data-testid="select-support-status"><option value="">All request statuses</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option></select><ChevronDown size={15} /></label>
@@ -2083,10 +2234,10 @@ function PublicApplicantDashboard() {
   return <main className="guest-page portal-frame guest-dashboard-page">
     <GuestPublicHeader />
     <section className="guest-dashboard-shell">
-      <div className="guest-dashboard-heading">
-        <div className="eyebrow"><span className="eyebrow-rule" />APPLICANT DASHBOARD</div>
-        <h1>Choose an enrollment category.</h1>
-        <p>Start or continue your application without creating an account. Identity files and verification video are collected later.</p>
+         <div className="guest-dashboard-heading">
+          <div className="eyebrow"><span className="eyebrow-rule" />{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'APPLICANT DASHBOARD')}</div>
+         <h1>{copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.')}</h1>
+         <p>{copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.')}</p>
       </div>
       {contact ? <div className="guest-dashboard-contact">
         <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
@@ -2106,19 +2257,19 @@ function PublicApplicantDashboard() {
                 className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
                 aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
                 <span className="category-number">0{index + 1}</span>
-                {cardSettings?.logoDataUrl
-                  ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" />
+                 {cardSettings?.logoDataUrl
+                   ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={categoryCardLogoStyle(cardSettings)} />
                   : category.id === 'category-1'
-                    ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" />
+                     ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                     : category.id === 'category-2'
-                      ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" />
+                       ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                       : category.id === 'category-3'
-                        ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" />
+                         ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                         : category.id === 'category-4'
-                          ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" />
+                           ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={categoryCardLogoStyle(cardSettings)} />
                           : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
                 <span className="category-title">{cardSettings?.title ?? category.name}</span>
-                <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
+                 <span className="category-select">{copyText(portalSettings.data, 'dashboard', 'buttonLabel', cardSettings?.buttonLabel ?? (contact ? 'Start application' : 'Choose category'))} <ArrowUpRight size={15} /></span>
               </button>;
             })}
           </div>}
@@ -2310,6 +2461,7 @@ function GuestApplicationPage() {
   const requestEvidenceUpload = useRequestGuestApplicantEvidenceUpload();
   const completeEvidenceUpload = useCompleteGuestApplicantEvidenceUpload();
   const submitGuest = useSubmitGuestPreapplication();
+  const portalSettings = useGetPortalSettings();
   const { user } = useUser();
   const [, setLocation] = useLocation();
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
@@ -2338,6 +2490,15 @@ function GuestApplicationPage() {
       email: readGuestDashboardContact()?.email ?? '',
     },
   });
+  const categoryEntryScreenId = created
+    ? `category-entry-${created.application.categoryId.replace('category-', '')}`
+    : null;
+  const categoryEntryCard = created
+    ? portalSettings.data?.cards.find((card) => card.id === created.application.categoryId)
+    : undefined;
+  const categoryEntryCopy = categoryEntryScreenId
+    ? portalSettings.data?.screenCopy[categoryEntryScreenId] ?? {}
+    : {};
 
   useEffect(() => {
     if (!created) {
@@ -2786,6 +2947,16 @@ function GuestApplicationPage() {
             savedAnswers={applicationAnswers}
             isSaving={updateGuest.isPending}
             error={progressError}
+            pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
+            categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
+            screenCopy={categoryEntryCopy}
+            pageTheme={categoryEntryScreenId ? portalSettings.data?.pageThemes?.[categoryEntryScreenId] : undefined}
+            entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
+            pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
+            entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
+            entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
+            pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment ?? categoryEntryCard?.entryLogoAlignment}
+            pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset ?? categoryEntryCard?.entryLogoVerticalOffset}
             guestMode
             onComplete={async (entryAnswers, pin) => {
               const personal = applicationAnswers.personalInformation &&

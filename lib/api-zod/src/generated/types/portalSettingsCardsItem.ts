@@ -5,7 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PortalSettingsCardsItemCardLogoAlignment } from './portalSettingsCardsItemCardLogoAlignment';
+import type { PortalSettingsCardsItemEntryLogoAlignment } from './portalSettingsCardsItemEntryLogoAlignment';
 import type { PortalSettingsCardsItemId } from './portalSettingsCardsItemId';
+import type { PortalSettingsCardsItemPinLogoAlignment } from './portalSettingsCardsItemPinLogoAlignment';
 
 export type PortalSettingsCardsItem = {
   id: PortalSettingsCardsItemId;
@@ -22,4 +25,32 @@ export type PortalSettingsCardsItem = {
      * @nullable
      */
   logoDataUrl: string | null;
+  /**
+     * @maxLength 6000000
+     * @nullable
+     */
+  entryLogoDataUrl?: string | null;
+  /**
+     * @maxLength 6000000
+     * @nullable
+     */
+  pinLogoDataUrl?: string | null;
+  cardLogoAlignment?: PortalSettingsCardsItemCardLogoAlignment;
+  /**
+     * @minimum -60
+     * @maximum 60
+     */
+  cardLogoVerticalOffset?: number;
+  entryLogoAlignment?: PortalSettingsCardsItemEntryLogoAlignment;
+  /**
+     * @minimum -120
+     * @maximum 120
+     */
+  entryLogoVerticalOffset?: number;
+  pinLogoAlignment?: PortalSettingsCardsItemPinLogoAlignment;
+  /**
+     * @minimum -120
+     * @maximum 120
+     */
+  pinLogoVerticalOffset?: number;
 };

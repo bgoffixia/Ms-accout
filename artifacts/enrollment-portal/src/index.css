@@ -1250,6 +1250,11 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .settings-inline-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: end; }
 .settings-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .settings-card-grid .settings-panel { align-content: start; }
+.settings-logo-editor-grid { display: grid; gap: 10px; }
+.settings-logo-editor { display: grid; min-width: 0; gap: 10px; margin: 0; padding: 12px; border: 1px solid #e5ebee; border-radius: 10px; }
+.settings-logo-editor legend { padding: 0 5px; color: #31546a; font-size: 10px; font-weight: 700; }
+.settings-logo-editor .field-label { margin: 0; }
+.settings-logo-editor .settings-inline-fields { padding-top: 2px; }
 .settings-card-order { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .settings-card-order-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 6px 9px; border: 1px solid #e5ebee; border-radius: 9px; background: #fff; cursor: grab; transition: border-color .15s ease, opacity .15s ease, box-shadow .15s ease; }
 .settings-card-order-item:active { cursor: grabbing; }
@@ -1269,12 +1274,20 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .settings-panel input[type="file"] { width: 100%; color: #657c8b; font-size: 9px; }
 .settings-logo-preview { display: flex; align-items: center; gap: 10px; }
 .settings-logo-preview img { width: 46px; height: 46px; object-fit: contain; border: 1px solid #e5ebee; border-radius: 8px; }
+.settings-logo-preview small { color: #718590; font-size: 9px; }
 .settings-check { display: flex; align-items: center; gap: 8px; color: #526c7c; font-size: 10px; }
 .settings-screen-list { display: grid; gap: 7px; }
 .settings-screen { padding: 10px 12px; border: 1px solid #e5ebee; border-radius: 8px; background: #fff; }
 .settings-screen summary { display: flex; align-items: center; justify-content: space-between; color: #31546a; font-size: 10px; font-weight: 700; cursor: pointer; }
 .settings-screen summary span { color: #8a9aa4; font: 8px var(--app-font-mono); }
 .settings-screen .settings-inline-fields { padding-top: 12px; }
+.settings-current-copy { display: grid; gap: 8px; margin-top: 12px; padding: 10px 12px; border: 1px solid #dfe8ec; border-radius: 8px; background: #f6f9fa; }
+.settings-current-copy-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; color: #36586c; font-size: 9px; }
+.settings-current-copy-heading span { color: #7b8c96; font-weight: 400; }
+.settings-current-copy dl { display: grid; gap: 6px; margin: 0; }
+.settings-current-copy dl > div { display: grid; grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr); gap: 8px; }
+.settings-current-copy dt { color: #7b8c96; font-size: 9px; }
+.settings-current-copy dd { min-width: 0; margin: 0; color: #36566a; font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }
 .settings-category-preview { display: grid; gap: 14px; margin-top: 13px; padding: 18px; border-radius: 10px; background: #0e8b45; color: #fff; }
 .settings-category-preview.category-preview-category-entry-2 { background: #0c4da1; }
 .settings-category-preview.category-preview-category-entry-3 { background: #0072ae; }
