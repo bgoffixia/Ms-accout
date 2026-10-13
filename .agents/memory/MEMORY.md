@@ -2,3 +2,4 @@
 - [Staff access](staff-access.md) — The two allowlisted accounts have separate management and enrollment-review roles; other staff remain invitation-only.
 - [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.
 - [Optional enrollment sections](optional-enrollment-sections.md) — Keep completion gates aligned with sections the applicant is told they may skip.
+- [Applicant viewport locking](applicant-viewport-lock.md) — Root overflow hidden alone may leave a programmatic document scroll range; keep scrolling inside panels.

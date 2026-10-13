@@ -102,7 +102,7 @@ class GuestApiFixture {
       this.draft.answers = body.answers;
       this.draft.currentStep = body.currentStep;
       this.draft.hasPin ||= Boolean(body.pin);
-      this.draft.detailsComplete ||= Boolean(body.complete);
+      this.draft.detailsComplete = this.detailsAreComplete();
       this.draft.updatedAt = new Date().toISOString();
       return json(this.statusResponse());
     }
@@ -170,6 +170,36 @@ class GuestApiFixture {
     this.draft.linkedApplicationId = "7aed516d-1e70-41a9-a239-4568b8fbc7c2";
   }
 
+  private detailsAreComplete() {
+    const answers = this.draft?.answers as Record<string, any> | undefined;
+    if (!answers || answers.categoryEntryComplete !== true || answers.reviewDeclarationAccepted !== true) return false;
+    const person = answers.personalInformation ?? {};
+    const nextOfKin = answers.nextOfKin ?? {};
+    const education = answers.education ?? {};
+    const work = answers.workInformation ?? {};
+    const identity = answers.proofOfIdentity ?? {};
+    const video = answers.liveVideoRecording ?? {};
+    const hasText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+    const completeFields = [
+      [person, ["firstName", "surname", "dateOfBirth", "nationality", "phone", "email", "residentialAddress", "stateRegion", "city"]],
+      [nextOfKin, ["fullName", "relationship", "phone", "residentialAddress", "city", "stateRegion"]],
+      [education, ["highestQualification", "institution", "courseField", "startYear", "completionYear", "certificationStatus"]],
+    ] as const;
+    if (!completeFields.every(([section, keys]) => keys.every((key) => hasText(section[key])))) return false;
+    const startYear = Number(education.startYear);
+    const completionYear = Number(education.completionYear);
+    if (!Number.isInteger(startYear) || !Number.isInteger(completionYear) || startYear < 1900 || completionYear < startYear) return false;
+    const employmentStatus = String(work.employmentStatus ?? "").toLowerCase();
+    if (!employmentStatus) return false;
+    if (employmentStatus === "employed" && !["occupation", "employer", "workAddress"].every((key) => hasText(work[key]))) return false;
+    if (employmentStatus === "self-employed" && !["businessName", "workAddress"].every((key) => hasText(work[key]))) return false;
+    if (!hasText(identity.documentType) || !hasText(identity.frontObjectPath)) return false;
+    if (["National ID", "Driver license", "Passport card"].includes(identity.documentType) && !hasText(identity.backObjectPath)) return false;
+    if (video.consentAccepted !== true || video.durationSeconds !== 12 || !hasText(video.objectPath)) return false;
+    return this.uploadedEvidence.some((item) => item.objectPath === identity.frontObjectPath)
+      && this.uploadedEvidence.some((item) => item.objectPath === video.objectPath);
+  }
+
   private createdResponse() {
     const { answers: _answers, ...response } = this.draft!;
     return response;
@@ -201,23 +231,40 @@ async function expectNoDocumentOverflow(page: Page) {
     const geometry = (element: HTMLElement | null) => element ? {
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
-      height: getComputedStyle(element).height,
       overflowY: getComputedStyle(element).overflowY,
       rectHeight: element.getBoundingClientRect().height,
     } : null;
+    const htmlStyle = getComputedStyle(document.documentElement);
+    const bodyStyle = getComputedStyle(document.body);
+    const previousX = window.scrollX;
+    const previousY = window.scrollY;
+    window.scrollTo({ left: documentScroller.scrollWidth, top: documentScroller.scrollHeight, behavior: "instant" });
+    const attemptedDocumentScroll = { x: window.scrollX, y: window.scrollY };
+    window.scrollTo({ left: previousX, top: previousY, behavior: "instant" });
     return {
       clientHeight: documentScroller.clientHeight,
       scrollHeight: documentScroller.scrollHeight,
       clientWidth: documentScroller.clientWidth,
       scrollWidth: documentScroller.scrollWidth,
+      htmlOverflowX: htmlStyle.overflowX,
+      htmlOverflowY: htmlStyle.overflowY,
+      bodyOverflowX: bodyStyle.overflowX,
+      bodyOverflowY: bodyStyle.overflowY,
+      attemptedDocumentScroll,
       shell: geometry(shell),
       previewScroll: geometry(previewScroll),
     };
   });
-  expect(dimensions.scrollHeight, `document height overflow: ${JSON.stringify(dimensions)}`)
-    .toBeLessThanOrEqual(dimensions.clientHeight + 1);
   expect(dimensions.scrollWidth, `document width overflow: ${JSON.stringify(dimensions)}`)
     .toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  expect(["hidden", "clip"]).toContain(dimensions.htmlOverflowY);
+  expect(["hidden", "clip"]).toContain(dimensions.bodyOverflowY);
+  expect(dimensions.attemptedDocumentScroll, `document should not scroll: ${JSON.stringify(dimensions)}`)
+    .toEqual({ x: 0, y: 0 });
+  if (dimensions.shell) {
+    expect(dimensions.shell.rectHeight, `application shell should fit viewport: ${JSON.stringify(dimensions)}`)
+      .toBeLessThanOrEqual(dimensions.clientHeight + 1);
+  }
 }
 
 test("keeps public guest pages inside the viewport on phone and desktop", async ({ page }) => {

@@ -738,7 +738,7 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 @layer base {
   * { @apply border-border; }
   html, body, #root { width: 100%; min-height: 0; height: 100%; overflow: hidden; }
-  body { @apply font-sans antialiased bg-background text-foreground; overflow: hidden; }
+  body { @apply font-sans antialiased bg-background text-foreground; position: fixed; inset: 0; overflow: hidden; }
   button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
   :focus-visible { outline: 3px solid hsl(var(--ring) / .42); outline-offset: 3px; }
 }
