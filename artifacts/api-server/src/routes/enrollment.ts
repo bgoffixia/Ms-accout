@@ -187,6 +187,14 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#0EAD46",
       logoDataUrl: null,
+      entryLogoDataUrl: null,
+      pinLogoDataUrl: null,
+      cardLogoAlignment: "left",
+      cardLogoVerticalOffset: 0,
+      entryLogoAlignment: "center",
+      entryLogoVerticalOffset: 0,
+      pinLogoAlignment: "center",
+      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-2",
@@ -195,6 +203,14 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#0C4DA1",
       logoDataUrl: null,
+      entryLogoDataUrl: null,
+      pinLogoDataUrl: null,
+      cardLogoAlignment: "left",
+      cardLogoVerticalOffset: 0,
+      entryLogoAlignment: "center",
+      entryLogoVerticalOffset: 0,
+      pinLogoAlignment: "center",
+      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-3",
@@ -203,6 +219,14 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#0072AE",
       logoDataUrl: null,
+      entryLogoDataUrl: null,
+      pinLogoDataUrl: null,
+      cardLogoAlignment: "left",
+      cardLogoVerticalOffset: 0,
+      entryLogoAlignment: "center",
+      entryLogoVerticalOffset: 0,
+      pinLogoAlignment: "center",
+      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-4",
@@ -211,6 +235,14 @@ const defaultPortalSettings = {
       buttonLabel: "Select Category",
       backgroundColor: "#FFFFFF",
       logoDataUrl: null,
+      entryLogoDataUrl: null,
+      pinLogoDataUrl: null,
+      cardLogoAlignment: "left",
+      cardLogoVerticalOffset: 0,
+      entryLogoAlignment: "center",
+      entryLogoVerticalOffset: 0,
+      pinLogoAlignment: "center",
+      pinLogoVerticalOffset: 0,
     },
   ],
   theme: {
@@ -3030,8 +3062,11 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
     res.status(400).json({ error: "Settings must contain each of the four enrollment cards exactly once." });
     return;
   }
-  if (parsed.data.cards.some((card) => !validatePublicImageDataUrl(card.logoDataUrl))) {
-    res.status(400).json({ error: "Card logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
+  if (parsed.data.cards.some((card) =>
+    !validatePublicImageDataUrl(card.logoDataUrl)
+    || !validatePublicImageDataUrl(card.entryLogoDataUrl ?? null)
+    || !validatePublicImageDataUrl(card.pinLogoDataUrl ?? null))) {
+    res.status(400).json({ error: "Card, entry, and PIN logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
     return;
   }
   try {

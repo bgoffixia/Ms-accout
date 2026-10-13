@@ -228,6 +228,7 @@ async function expectNoDocumentOverflow(page: Page) {
     const documentScroller = document.scrollingElement ?? document.documentElement;
     const shell = document.querySelector<HTMLElement>(".ew-shell");
     const previewScroll = document.querySelector<HTMLElement>(".ew-preview .ew-content-scroll");
+    const singlePage = document.querySelector<HTMLElement>(".guest-dashboard-shell, .category-entry-screen");
     const geometry = (element: HTMLElement | null) => element ? {
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
@@ -253,6 +254,7 @@ async function expectNoDocumentOverflow(page: Page) {
       attemptedDocumentScroll,
       shell: geometry(shell),
       previewScroll: geometry(previewScroll),
+      singlePage: geometry(singlePage),
     };
   });
   expect(dimensions.scrollWidth, `document width overflow: ${JSON.stringify(dimensions)}`)
@@ -264,6 +266,10 @@ async function expectNoDocumentOverflow(page: Page) {
   if (dimensions.shell) {
     expect(dimensions.shell.rectHeight, `application shell should fit viewport: ${JSON.stringify(dimensions)}`)
       .toBeLessThanOrEqual(dimensions.clientHeight + 1);
+  }
+  if (dimensions.singlePage) {
+    expect(dimensions.singlePage.scrollHeight, `applicant page should not require scrolling: ${JSON.stringify(dimensions)}`)
+      .toBeLessThanOrEqual(dimensions.singlePage.clientHeight + 1);
   }
 }
 
@@ -312,11 +318,12 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
 
 test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
   const api = new GuestApiFixture();
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 390, height: 568 });
   await page.route("**/api/**", (route) => api.handle(route));
 
   await page.goto("/dashboard");
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
+  await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
   await page.getByTestId("input-guest-email").fill("jordan@example.test");

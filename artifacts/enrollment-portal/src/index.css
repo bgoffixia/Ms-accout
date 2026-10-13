@@ -1149,9 +1149,11 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
   inset: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: hidden;
   padding: clamp(18px, 3.5vh, 36px) clamp(18px, 5vw, 64px);
   color: #fff;
   background-color: var(--entry-background);
@@ -1315,7 +1317,7 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .ticket-conversation .ticket-response, .ticket-conversation .ticket-message { padding: 9px; border-radius: 8px; }
 .ticket-conversation p { margin: 5px 0; }
 .ticket-conversation small { color: #8798a2; font-size: 8px; }
-.category-entry-screen .entry-content { display: grid; flex: 1; place-items: center; width: 100%; min-height: 0; padding: 20px clamp(18px, 5vw, 64px) 36px; }
+.category-entry-screen .entry-content { display: grid; flex: 1 1 0; place-items: center; width: 100%; min-height: 0; overflow: hidden; padding: 20px clamp(18px, 5vw, 64px) 36px; }
 .category-entry-screen .entry-card { width: min(100%, 760px); margin: 0 auto; padding: clamp(20px, 4vw, 48px); border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: none !important; }
 .category-entry-screen .entry-card::before,
 .category-entry-screen .entry-card::after { display: none !important; }
@@ -3562,6 +3564,94 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
   .guest-dashboard-shell {
     padding-block: 8px;
+  }
+}
+
+@media (max-height: 660px) {
+  .guest-dashboard-shell {
+    justify-content: flex-start;
+    padding-block: 4px;
+  }
+
+  .guest-dashboard-heading {
+    margin-bottom: 8px;
+  }
+
+  .guest-dashboard-heading h1 {
+    margin: 6px 0 4px;
+    font-size: clamp(27px, 8.5vw, 36px);
+  }
+
+  .guest-dashboard-heading > p {
+    font-size: 9px;
+    line-height: 1.35;
+  }
+
+  .guest-dashboard-contact {
+    min-height: 48px;
+    margin-bottom: 7px;
+    padding: 7px 9px;
+  }
+
+  .guest-dashboard-contact-hint {
+    margin-bottom: 7px;
+    line-height: 1.3;
+  }
+
+  .guest-dashboard-grid {
+    gap: 6px;
+  }
+
+  .guest-dashboard-grid .category-card {
+    min-height: clamp(68px, 16dvh, 104px);
+    padding: 7px 9px 6px;
+  }
+
+  .guest-dashboard-grid .category-logo {
+    width: 24px;
+    height: 22px;
+    margin-bottom: 3px;
+  }
+
+  .guest-dashboard-grid .category-title {
+    font-size: 11px;
+    line-height: 1.15;
+  }
+
+  .guest-dashboard-grid .category-select {
+    padding-top: 4px;
+    font-size: 8px;
+  }
+
+  .category-entry-screen {
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .category-entry-screen .entry-content {
+    padding: 8px 0;
+  }
+
+  .category-entry-screen .entry-card {
+    padding: 8px 4px;
+  }
+
+  .category-entry-screen:not(.category-one-reference-screen) .entry-fields {
+    gap: 12px;
+  }
+}
+
+@media (max-height: 500px) {
+  .guest-dashboard-heading > p {
+    display: none;
+  }
+
+  .guest-dashboard-grid .category-card {
+    min-height: clamp(62px, 17dvh, 82px);
+  }
+
+  .category-entry-screen.entry-pin-stage .pin-entry-keypad {
+    top: 35% !important;
+    height: clamp(186px, 47dvh, 240px) !important;
   }
 }
 
