@@ -556,6 +556,8 @@ function Dashboard() {
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
                   const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
+                  const cardTitle = cardSettings?.title ?? category.name;
+                  const categoryDescription = cardSettings?.description?.trim() || category.description;
                   const categoryApplications = applicationsForCategory(category.id);
                   const activeApplication = categoryApplications.find((application) => activeStatuses.includes(application.status));
                   const selected = Boolean(activeApplication);
@@ -577,7 +579,7 @@ function Dashboard() {
                     begin(category);
                   }}
                     className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
-                    aria-label={`${cardSettings?.title ?? category.name}: ${selectionAction}`}
+                    aria-label={`${cardTitle}. ${categoryDescription}. ${selectionAction}`}
                     data-testid={`card-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
                     {cardSettings?.logoDataUrl
@@ -591,7 +593,8 @@ function Dashboard() {
                           : category.id === 'category-4'
                             ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
                             : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
-                    <span className="category-title">{cardSettings?.title ?? category.name}</span>
+                    <span className="category-title">{cardTitle}</span>
+                    <span className="category-description">{categoryDescription}</span>
                     <span className="category-select">{selectionAction} <ArrowUpRight size={15} /></span>
                   </button>;
                 })}
@@ -2255,13 +2258,15 @@ function PublicApplicantDashboard() {
               <p>Enrollment categories could not be loaded.</p>
               <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
             </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No enrollment categories are available right now.</div> :
-              <div className="category-grid">
+              <div className={`category-grid${orderedCategories.length > 2 ? ' category-grid--with-row-divider' : ''}`}>
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
                   const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
+                  const cardTitle = cardSettings?.title ?? category.name;
+                  const categoryDescription = cardSettings?.description?.trim() || category.description;
                   return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
                     className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
-                    aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
+                    aria-label={`${cardTitle}. ${categoryDescription}. ${contact ? 'Start an application' : 'Choose category'}`} data-testid={`guest-dashboard-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
                     {cardSettings?.logoDataUrl
                       ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={cardLogoPositionStyle(cardSettings.cardLogoAlignment, cardSettings.cardLogoVerticalOffset)} />
@@ -2274,7 +2279,8 @@ function PublicApplicantDashboard() {
                             : category.id === 'category-4'
                               ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
                               : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
-                    <span className="category-title">{cardSettings?.title ?? category.name}</span>
+                    <span className="category-title">{cardTitle}</span>
+                    <span className="category-description">{categoryDescription}</span>
                     <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
                   </button>;
                 })}

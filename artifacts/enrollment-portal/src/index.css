@@ -905,11 +905,40 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .step-indicator { color: #5a788e; font: 9px var(--app-font-mono); letter-spacing: .06em; white-space: nowrap; }
 .step-indicator i { color: #a0adb6; font-style: normal; }
 .category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.category-grid--with-row-divider { position: relative; row-gap: 20px; }
+.category-grid--with-row-divider::after {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(30, 65, 91, .28);
+  content: "";
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.category-grid--with-row-divider .category-card { z-index: 1; }
 .category-card { position: relative; display: flex; min-height: 195px; flex-direction: column; align-items: flex-start; padding: 17px 16px 15px; border: 1px solid #dbe4ea; border-radius: 14px; color: #fff; background: var(--category-tone); box-shadow: 0 5px 14px #18344b12; text-align: left; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
 .category-card:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 22px #18344b22; }
 .category-card:disabled { cursor: not-allowed; opacity: .48; }
 .category-logo { width: 28px; height: 28px; object-fit: contain; margin: 0 0 10px; }
 .category-title { max-width: 100%; color: inherit; font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.category-description {
+  display: -webkit-box;
+  max-width: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  opacity: .88;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
 .category-1 { border-color: #169d46; }.category-2 { border-color: #244fc7; }.category-3 { border-color: #1198d2; }.category-4 { color: #17374e; border-color: #cbd8e1; background: #fff; box-shadow: 0 6px 16px #17374e12; }
 .category-number { position: absolute; right: 14px; top: 13px; color: #ffffffb7; font: 9px var(--app-font-mono); }
 .category-4 .category-number { color: #8999a6; }
@@ -2877,7 +2906,8 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
 .dashboard-page-content .category-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 20px;
   justify-items: center;
 }
 
@@ -2889,12 +2919,24 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 }
 
 .dashboard-page-content .category-logo {
-  margin-bottom: 6px;
+  width: 54px;
+  height: 58px;
+  margin-bottom: 8px;
 }
 
 .dashboard-page-content .category-one-default-logo {
-  width: clamp(70px, 22vw, 110px);
-  height: 34px;
+  width: clamp(94px, 22vw, 118px);
+  height: 38px;
+}
+
+.dashboard-page-content .category-four-default-logo {
+  width: clamp(84px, 22vw, 110px);
+  height: 36px;
+}
+
+.dashboard-page-content .category-title {
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .dashboard-page-content .category-symbol {
@@ -3056,7 +3098,8 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   }
 
   .dashboard-page-content .category-grid {
-    gap: 6px;
+    column-gap: 6px;
+    row-gap: 18px;
   }
 
   .dashboard-page-content .category-card {
@@ -3064,19 +3107,30 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   }
 
   .dashboard-page-content .category-logo {
-    width: 24px;
-    height: 24px;
-    margin-bottom: 3px;
+    width: 44px;
+    height: 48px;
+    margin-bottom: 5px;
   }
 
   .dashboard-page-content .category-one-default-logo {
-    width: clamp(64px, 22vw, 84px);
-    height: 26px;
+    width: clamp(88px, 25vw, 104px);
+    height: 34px;
+  }
+
+  .dashboard-page-content .category-four-default-logo {
+    width: clamp(78px, 22vw, 94px);
+    height: 32px;
   }
 
   .dashboard-page-content .category-title {
-    font-size: 11px;
-    line-height: 1.12;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .dashboard-page-content .category-description {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.16;
   }
 
   .dashboard-page-content .category-select {
