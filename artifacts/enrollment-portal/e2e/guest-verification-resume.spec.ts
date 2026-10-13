@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 
 const applicationId = "1f7ad041-05af-4fcb-971b-c913287a11a8";
 const reference = "GUEST-2026-TEST";
@@ -31,6 +31,7 @@ class GuestApiFixture {
   lookupCount = 0;
   screenCopy: Record<string, Record<string, string>> = {};
   logoOverrides: Record<string, Record<string, unknown>> = {};
+  savedSettings: Record<string, any> | null = null;
   readonly uploadedEvidence: { id: string; slot: string; objectPath: string }[] = [];
   private evidenceId = 0;
 
@@ -43,15 +44,15 @@ class GuestApiFixture {
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
     if (method === "GET" && path === "/api/enrollment/categories") {
-      return json([{
-        id: "category-1",
-        name: "Category One",
+      return json(["Category One", "Category Two", "Category Three", "Category Four"].map((name, index) => ({
+        id: `category-${index + 1}`,
+        name,
         description: "Enrollment application category.",
-        accent: "#168341",
-      }]);
+        accent: ["#168341", "#2454bd", "#1688b8", "#2b7667"][index],
+      })));
     }
     if (method === "GET" && path === "/api/portal/settings") {
-      return json({
+      const defaults = {
         hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
         cards: ["category-1", "category-2", "category-3", "category-4"].map((id) => ({
           id,
@@ -72,11 +73,15 @@ class GuestApiFixture {
         },
         screenCopy: this.screenCopy,
         pageThemes: {},
-      });
+      };
+      return json(this.savedSettings
+        ? { ...defaults, ...this.savedSettings, screenCopy: this.savedSettings.screenCopy ?? this.screenCopy }
+        : defaults);
     }
     if (method === "PUT" && path === "/api/admin/settings") {
       const settings = request.postDataJSON();
-      this.screenCopy = settings.screenCopy;
+      this.savedSettings = settings;
+      this.screenCopy = settings.screenCopy ?? this.screenCopy;
       return json(settings);
     }
     if (method === "POST" && path === "/api/guest/preapplications") {
@@ -288,6 +293,35 @@ async function expectControlInsideViewport(page: Page, locator: ReturnType<Page[
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport!.width);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+}
+
+async function expectReadableLogo(locator: Locator) {
+  const dimensions = await locator.evaluate((element) => {
+    const image = element as HTMLImageElement;
+    const bounds = image.getBoundingClientRect();
+    return {
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  });
+  expect(dimensions.naturalWidth, "logo image must load").toBeGreaterThan(0);
+  expect(dimensions.naturalHeight, "logo image must load").toBeGreaterThan(0);
+  expect(dimensions.width, "logo must remain visible at a readable size").toBeGreaterThanOrEqual(24);
+  expect(dimensions.height, "logo must remain visible at a readable size").toBeGreaterThanOrEqual(24);
+}
+
+async function expectNoOverlap(logo: Locator, control: Locator, message: string) {
+  const logoBounds = await logo.boundingBox();
+  const controlBounds = await control.boundingBox();
+  expect(logoBounds).not.toBeNull();
+  expect(controlBounds).not.toBeNull();
+  const overlaps = logoBounds!.x < controlBounds!.x + controlBounds!.width
+    && logoBounds!.x + logoBounds!.width > controlBounds!.x
+    && logoBounds!.y < controlBounds!.y + controlBounds!.height
+    && logoBounds!.y + logoBounds!.height > controlBounds!.y;
+  expect(overlaps, `${message}; logo=${JSON.stringify(logoBounds)}, control=${JSON.stringify(controlBounds)}`).toBe(false);
 }
 
 test("keeps public guest pages inside the viewport on phone and desktop", async ({ page }) => {
@@ -525,6 +559,132 @@ test("an admin can preview entry and PIN screens at desktop and mobile sizes wit
   await expect(preview.getByRole("heading", { name: "Category One · PIN screen" })).toBeVisible();
   await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("style", /width: 164px/);
   expect(settingsWrites).toBe(0);
+});
+
+test("publishes independent logo settings for every category and keeps applicant controls clear on mobile", async ({ page }) => {
+  test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
+  const api = new GuestApiFixture();
+  await page.addInitScript(() => {
+    if (location.pathname === "/admin/settings") localStorage.setItem("e2e-clerk-role", "admin");
+  });
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  const categoryIds = ["category-1", "category-2", "category-3", "category-4"];
+  const slots = ["card", "entry", "pin"] as const;
+  const settingsFor = (categoryId: string, slot: typeof slots[number]) => ({
+    size: page.getByTestId(`input-logo-size-${slot}-${categoryId}`),
+    fit: page.getByTestId(`select-logo-fit-${slot}-${categoryId}`),
+  });
+  const readSlot = async (categoryId: string, slot: typeof slots[number]) => {
+    const controls = settingsFor(categoryId, slot);
+    return { size: await controls.size.inputValue(), fit: await controls.fit.inputValue() };
+  };
+
+  await page.goto("/admin/settings");
+  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
+  for (const categoryId of categoryIds) {
+    for (const slot of slots) {
+      const before = Object.fromEntries(await Promise.all(
+        slots.map(async (otherSlot) => [otherSlot, await readSlot(categoryId, otherSlot)] as const),
+      )) as Record<typeof slots[number], { size: string; fit: string }>;
+      const target = settingsFor(categoryId, slot);
+      await target.size.focus();
+      await target.size.press("ArrowRight");
+      await target.fit.selectOption("cover");
+      await expect(target.size).toHaveValue(String(Number(before[slot].size) + 4));
+      await expect(target.fit).toHaveValue("cover");
+      for (const otherSlot of slots.filter((candidate) => candidate !== slot)) {
+        expect(await readSlot(categoryId, otherSlot), `${categoryId} ${slot} edits must not change ${otherSlot}`)
+          .toEqual(before[otherSlot]);
+      }
+    }
+  }
+
+  // Leave the PIN setting on contain so the published values demonstrate that
+  // each slot retains its own crop mode.
+  await settingsFor("category-1", "pin").fit.selectOption("contain");
+  const saveResponse = page.waitForResponse((response) =>
+    response.request().method() === "PUT" && new URL(response.url()).pathname === "/api/admin/settings",
+  );
+  await page.getByTestId("button-save-portal-settings").click();
+  expect((await saveResponse).ok()).toBe(true);
+  const savedValues = Object.fromEntries(await Promise.all(
+    categoryIds.map(async (categoryId) => Promise.all(
+      slots.map(async (slot) => [slot, await readSlot(categoryId, slot)] as const),
+    ).then((slotValues) => [categoryId, Object.fromEntries(slotValues)] as const)),
+  )) as Record<string, Record<typeof slots[number], { size: string; fit: string }>>;
+
+  await page.reload();
+  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
+  for (const categoryId of categoryIds) {
+    for (const slot of slots) {
+      const controls = settingsFor(categoryId, slot);
+      await expect(controls.size).toHaveValue(savedValues[categoryId][slot].size);
+      await expect(controls.fit).toHaveValue(savedValues[categoryId][slot].fit);
+    }
+  }
+
+  for (const categoryId of categoryIds) {
+    for (const screen of ["entry", "pin"] as const) {
+      await page.getByTestId(`button-preview-logo-screen-${screen}-${categoryId}`).click();
+      const dialog = page.getByRole("dialog");
+      await page.getByTestId("button-preview-size-mobile").click();
+      const previewScreen = page.locator(".settings-screen-preview-viewport-mobile .category-entry-screen");
+      const logo = previewScreen.locator("img").first();
+      await expect(logo).toHaveCSS("object-fit", savedValues[categoryId][screen].fit);
+      await expect(logo).toHaveAttribute("style", new RegExp(`width: ${savedValues[categoryId][screen].size}px`));
+      await expectReadableLogo(logo);
+      if (screen === "entry") {
+        await expectNoOverlap(logo, previewScreen.locator(".entry-line-input").first(), `${categoryId} entry logo must not cover its field`);
+        await expectNoOverlap(logo, previewScreen.locator(".entry-primary-button"), `${categoryId} entry logo must not cover its continue button`);
+      } else {
+        await expectNoOverlap(logo, previewScreen.locator(".pin-entry-keypad"), `${categoryId} PIN logo must not cover its keypad`);
+      }
+      await page.getByTestId("button-close-logo-screen-preview").click();
+      await expect(dialog).toHaveCount(0);
+    }
+  }
+
+  await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/dashboard");
+  await page.reload();
+  for (const categoryId of categoryIds) {
+    const logo = page.getByTestId(`guest-dashboard-category-${categoryId}`).locator("img.category-logo");
+    await expect(logo).toHaveCSS("object-fit", "cover");
+    await expect(logo).toHaveCSS("width", `${savedValues[categoryId].card.size}px`);
+    await expectReadableLogo(logo);
+  }
+
+  await page.setViewportSize({ width: 390, height: 568 });
+  await page.reload();
+  for (const categoryId of categoryIds) {
+    const logo = page.getByTestId(`guest-dashboard-category-${categoryId}`).locator("img.category-logo");
+    await expect(logo).toHaveCSS("object-fit", "cover");
+    await expect(logo).toHaveCSS("width", `${savedValues[categoryId].card.size}px`);
+    await expectReadableLogo(logo);
+  }
+
+  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
+  await page.getByTestId("input-guest-email").fill("jordan@example.test");
+  await page.getByTestId("button-continue-guest-contact").click();
+  await expect(page.getByTestId("input-entry-name")).toBeVisible();
+  const entryLogo = page.getByRole("img", { name: "Category One entry logo" });
+  await expect(entryLogo).toHaveCSS("object-fit", "cover");
+  await expect(entryLogo).toHaveAttribute("style", new RegExp(`width: ${savedValues["category-1"].entry.size}px`));
+  await expectReadableLogo(entryLogo);
+  await expectNoOverlap(entryLogo, page.getByTestId("input-entry-name"), "entry logo must not cover applicant form fields");
+  await expectNoOverlap(entryLogo, page.getByTestId("button-entry-continue"), "entry logo must not cover applicant form actions");
+
+  await page.getByTestId("input-entry-name").fill("Jordan Applicant");
+  await page.getByTestId("button-entry-continue").click();
+  await expect(page.getByTestId("button-pin-key-confirm")).toBeVisible();
+  const pinLogo = page.getByRole("img", { name: "Category One PIN logo" });
+  await expect(pinLogo).toHaveCSS("object-fit", "contain");
+  await expect(pinLogo).toHaveAttribute("style", new RegExp(`width: ${savedValues["category-1"].pin.size}px`));
+  await expectReadableLogo(pinLogo);
+  await expectNoOverlap(pinLogo, page.locator(".pin-entry-keypad"), "PIN logo must not cover the applicant keypad");
 });
 
 test("an admin can publish applicant copy, and blank overrides restore built-in text", async ({ page }) => {

@@ -1692,6 +1692,14 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
   margin-inline: auto;
 }
 
+.category-entry-screen.category-entry-screen-category-1.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+  top: calc(20% + min(var(--entry-logo-layout-size, 176px), 28dvh, 180px) + 24px);
+}
+
+.category-entry-screen.category-entry-screen-category-3.category-three-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+  top: calc(17% + min(var(--entry-logo-layout-size, 98px), 28dvh, 180px) + 24px);
+}
+
 .category-entry-screen.category-one-reference-screen .entry-fields {
   gap: 29px;
 }
@@ -1737,7 +1745,11 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 
 @media (max-height: 700px) {
   .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-brand {
-    top: 15%;
+    top: 8%;
+  }
+
+  .category-entry-screen.category-entry-screen-category-1.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+    top: calc(8% + min(var(--entry-logo-layout-size, 176px), 28dvh, 180px) + 20px);
   }
 
   .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
@@ -2205,6 +2217,10 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
 .category-entry-screen.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-content {
   top: 48%;
+}
+
+.category-entry-screen.category-entry-screen-category-2.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-content {
+  top: calc(29% + min(var(--entry-logo-layout-size, 104px), 28dvh, 180px) + 24px);
 }
 
 .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .category-two-reference-content {
@@ -2786,7 +2802,7 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
 @media (max-height: 700px) {
   .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-bank-brand {
-    top: 15%;
+    top: 8%;
   }
 
   .category-one-bank-brand img {
@@ -2812,6 +2828,10 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
   .category-entry-screen.category-three-reference-screen:not(.entry-pin-stage) .category-three-reference-brand {
     top: 11%;
+  }
+
+  .category-entry-screen.category-entry-screen-category-3.category-three-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+    top: calc(11% + min(var(--entry-logo-layout-size, 98px), 28dvh, 180px) + 20px);
   }
 
   .category-entry-screen.category-three-reference-screen.entry-pin-stage .category-three-pin-brand {
