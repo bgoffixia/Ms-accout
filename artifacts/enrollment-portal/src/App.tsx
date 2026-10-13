@@ -281,8 +281,8 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, curren
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
   const links: { label: string; href: string; key: string; icon: typeof Home }[] = [
-    { label: 'Enrollment categories', href: '/enrollment-categories', key: 'dashboard', icon: Home },
-    { label: 'Applications', href: '/guest/track', key: 'applications', icon: FileCheck2 },
+    { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
+    { label: 'Applications', href: '/dashboard#applications', key: 'applications', icon: FileCheck2 },
   ];
   if (currentApplication) {
     const editable = ['draft', 'needs_information'].includes(currentApplication.status);
@@ -303,6 +303,10 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, curren
           {links.map(({ label, href, key, icon: Icon }) => (
             <Link href={href} key={key} onClick={() => {
               setMenuOpen(false);
+              if (key === 'applications') {
+                setLocation('/dashboard#applications');
+                requestAnimationFrame(() => document.getElementById('applications')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+              }
             }}
               className={`nav-link ${active === key ? 'nav-link-active' : ''}`} data-testid={`link-nav-${key}`}>
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
@@ -509,7 +513,7 @@ function AuthComplete() {
       });
       return;
     }
-    setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/enrollment-categories', { replace: true });
+    setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard', { replace: true });
   }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isGuestSubmission, claimStaffAccess.mutate]);
 
   if (claimError) return <main className="signedout-page portal-frame" data-testid={isGuestSubmission ? 'guest-submit-error' : 'staff-claim-error'}>
@@ -524,7 +528,7 @@ function AuthComplete() {
           <Link href="/guest/apply?resume=1" className="button button-primary">Return to saved application <ArrowRight size={15} /></Link>
           <button className="text-action" type="button" onClick={() => void signOut({ redirectUrl: `${basePath}/sign-in?guestApplication=1` })}>Switch account</button>
         </>
-        : <Link href="/enrollment-categories" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>}
+        : <Link href="/dashboard" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>}
       <button className="text-action" type="button" onClick={() => window.location.reload()}>Retry</button>
     </div>
   </main>;
@@ -781,8 +785,8 @@ function DraftApplication() {
   if (showLoading) return <AppFrame><LoadingPanel /></AppFrame>;
   if (!application && sessionOnlyRoute) return <AppFrame><section className="state-card">
     <span className="state-icon"><FileText size={20} /></span><h2>This unfinished application has expired</h2>
-    <p>Unsubmitted details are held only for the current browser session. Start a new application from the enrollment categories page.</p>
-    <button className="button button-primary" onClick={() => setLocation('/enrollment-categories')}>Return to enrollment categories <ArrowRight size={15} /></button>
+    <p>Unsubmitted details are held only for the current browser session. Start a new application from your dashboard.</p>
+    <button className="button button-primary" onClick={() => setLocation('/dashboard')}>Return to dashboard <ArrowRight size={15} /></button>
   </section></AppFrame>;
   if (!application && app.isError) return <AppFrame><ErrorPanel message="This application could not be found or opened." retry={() => void app.refetch()} /></AppFrame>;
   if (!application) return <AppFrame><LoadingPanel /></AppFrame>;
@@ -800,7 +804,7 @@ function DraftApplication() {
         <div className="review-field"><span>Submission date</span><b>{formatDate(application.submittedAt)}</b></div>
         <div className="review-field"><span>Current status</span><b>Pending Review</b></div>
         <button className="button button-primary" onClick={() => setLocation(`/applications/${application.id}`)} data-testid="button-view-submitted-status">View Application Status <ArrowRight size={15} /></button>
-        <button className="button button-quiet" onClick={() => setLocation('/enrollment-categories')} data-testid="button-return-dashboard">Return to enrollment categories</button>
+        <button className="button button-quiet" onClick={() => setLocation('/dashboard')} data-testid="button-return-dashboard">Return to Dashboard</button>
       </section>
     </div>}
   </AppFrame>;
@@ -832,7 +836,7 @@ function DraftApplication() {
   };
   const backToCategoryEntry = async (answers: Record<string, unknown>) => {
     if (application.status !== 'draft') {
-      setLocation('/enrollment-categories');
+      setLocation('/dashboard');
       return true;
     }
     const entryAnswers = { ...answers, categoryEntryComplete: false };
@@ -1193,7 +1197,7 @@ function AdminGate({ children }: { children: ReactNode }) {
   if (!isLoaded || (isSignedIn && !userLoaded)) return <main className="portal-frame auth-loading"><LoadingPanel label="Checking staff access" /></main>;
   if (!isSignedIn) return <SignedOutNotice />;
   const role = user?.publicMetadata?.role;
-  if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/enrollment-categories" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to enrollment categories <ArrowRight size={15} /></Link></div></main>;
+  if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
   if (location === '/admin/archive' && role !== 'admin') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">SUPER ADMIN ONLY</div><h1>Applicant archive access required</h1><p>The master archive is restricted to the primary administrator.</p><Link href={role === 'sub_admin' ? '/admin/review' : '/admin/support'} className="button button-primary">Return to your staff workspace <ArrowRight size={15} /></Link></div></main>;
   const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
   if (role === 'admin' && reviewerOnlyRoute) return <AdminReviewRestricted />;
@@ -1734,7 +1738,7 @@ function AdminSettings() {
     </fieldset>;
   };
   const screenLabels = [
-    ['dashboard', 'Enrollment category page'],
+    ['dashboard', 'User dashboard'],
     ['guest-intro', 'Guest application introduction'],
     ['guest-contact', 'Guest contact details'],
     ['guest-dashboard', 'Guest category selection'],
@@ -2062,8 +2066,8 @@ function AdminSettings() {
     </section>
     <section className="detail-card settings-panel" id="settings-categories" aria-labelledby="settings-categories-title">
       <div className="detail-card-title"><GripVertical size={17} /><h2 id="settings-categories-title">Enrollment categories</h2></div>
-      <p className="field-help">Manage category presentation and the order shown on the enrollment categories page.</p>
-      <h3 className="settings-subheading">Enrollment category order</h3>
+      <p className="field-help">Manage category presentation and the order shown on the applicant dashboard.</p>
+      <h3 className="settings-subheading">Dashboard card order</h3>
       <p className="field-help">Drag the cards into the order applicants should see, or use the arrow buttons. Save changes to publish the new order.</p>
       <ol className="settings-card-order" aria-label="Enrollment card display order">
         {draft.cards.map((card, index) => <li
@@ -2106,7 +2110,7 @@ function AdminSettings() {
         <label className="field-label">Card title<input className="text-input" value={card.title} maxLength={100} onChange={(event) => updateCard(card.id, 'title', event.target.value)} /></label>
         <label className="field-label">Description<textarea className="text-input form-textarea" value={card.description} maxLength={240} rows={2} onChange={(event) => updateCard(card.id, 'description', event.target.value)} /></label>
         <label className="field-label">Selection button label<input className="text-input" value={card.buttonLabel} maxLength={60} onChange={(event) => updateCard(card.id, 'buttonLabel', event.target.value)} /></label>
-        <label className="field-label settings-color-field">Enrollment category card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
+        <label className="field-label settings-color-field">Dashboard card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
          <div className="settings-logo-editor-grid">
            {renderLogoSettings(card, 'card')}
            {renderLogoSettings(card, 'entry')}
@@ -2786,7 +2790,7 @@ function PublicApplicantDashboard() {
     <GuestPublicHeader />
     <section className="guest-dashboard-shell">
       <div className="guest-dashboard-heading">
-        <div className="eyebrow"><span className="eyebrow-rule" />{copyText(portalSettings.data, 'guest-dashboard', 'sectionIdLabel', copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'ENROLLMENT CATEGORIES'))}</div>
+        <div className="eyebrow"><span className="eyebrow-rule" />{copyText(portalSettings.data, 'guest-dashboard', 'sectionIdLabel', copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'APPLICANT DASHBOARD'))}</div>
         <h1>{copyText(portalSettings.data, 'guest-dashboard', 'title', copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.'))}</h1>
         <p>{copyText(portalSettings.data, 'guest-dashboard', 'description', copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.'))}</p>
       </div>
@@ -2829,7 +2833,7 @@ function PublicApplicantDashboard() {
     </section>
     <footer className="guest-footer">
       <span>SECURE ENROLLMENT PORTAL</span>
-      <nav className="guest-footer-actions" aria-label="Enrollment category links">
+      <nav className="guest-footer-actions" aria-label="Dashboard links">
         <Link href="/staff/sign-up" className="guest-footer-admin-link" data-testid="link-dashboard-admin-access"><ShieldCheck size={13} /> Admin access</Link>
         <Link href="/guest/track" data-testid="link-dashboard-track">{copyText(portalSettings.data, 'guest-dashboard', 'trackLabel', 'Already started? Track your application')}</Link>
       </nav>
@@ -2837,8 +2841,10 @@ function PublicApplicantDashboard() {
   </main>;
 }
 
-function EnrollmentCategoryPage() {
-  return <PublicApplicantDashboard />;
+function ApplicantDashboardRoute() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the applicant dashboard" /></main>;
+  return isSignedIn ? <Dashboard /> : <PublicApplicantDashboard />;
 }
 
 function clerkMessage(error: unknown) {
@@ -3123,7 +3129,7 @@ function GuestApplicationPage() {
     }
     const start = guestDashboardStartSchema.safeParse(storedStart);
     if (!start.success) {
-      setResumeError('Your selected category could not be restored. Return to the enrollment categories page and choose it again.');
+      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
       return;
     }
     form.reset(start.data);
@@ -3222,7 +3228,7 @@ function GuestApplicationPage() {
         });
         if (!start.success) {
           window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
-          setContactSaveError('Your selected category could not be restored. Return to the enrollment categories page and choose it again.');
+          setContactSaveError('Your selected category could not be restored. Return to the dashboard and choose it again.');
           setIsContinuing(false);
           return;
         }
@@ -3242,7 +3248,7 @@ function GuestApplicationPage() {
     }
     setContactSaveError('');
     setIsContinuing(false);
-    if (!startAfterContact) setLocation('/enrollment-categories');
+    if (!startAfterContact) setLocation('/dashboard');
   };
 
   const onSubmit = async (
@@ -3477,7 +3483,7 @@ function GuestApplicationPage() {
           <div className="eyebrow">{created.application.submissionStatus === 'submitted' ? 'APPLICATION SUBMITTED' : 'APPLICATION DRAFT SAVED'}</div>
           <h2 id="guest-apply-heading">{created.application.submissionStatus === 'submitted' ? 'Your application was submitted.' : 'Your details are saved.'}</h2>
           <p>{created.application.submissionStatus === 'submitted'
-            ? 'Your verified account is linked to this application. You can follow its review status on the application tracking page.'
+            ? 'Your verified account is linked to this application. You can follow its review status from your dashboard.'
             : 'Your saved draft is available to authorized reviewers. Resume it later to complete your details, evidence, and email verification.'}</p>
           <div className="guest-reference-box">
             <span>APPLICATION REFERENCE</span>
@@ -3580,7 +3586,7 @@ function GuestApplicationPage() {
           <div className="guest-form-topline"><span>APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 4' : 'STEP 2 OF 4'}</span></div>
           {stage === 'contact' ? <>
             <h2 id="guest-apply-heading">{guestCopy('guest-contact', 'title', 'Your contact details')}</h2>
-            <p className="guest-form-subtitle">{guestCopy('guest-contact', 'description', 'Start with only your name and email. You’ll continue to the enrollment categories page to choose a category.')}</p>
+            <p className="guest-form-subtitle">{guestCopy('guest-contact', 'description', 'Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.')}</p>
             {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
@@ -3596,7 +3602,7 @@ function GuestApplicationPage() {
                   <FormMessage message={guestCopy('guest-contact', 'emailValidationMessage', fieldState.error?.message ?? 'Enter a valid email address.')} />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : guestCopy('guest-contact', 'continueLabel', 'Continue to enrollment categories')} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : guestCopy('guest-contact', 'continueLabel', 'Continue to dashboard')} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> {guestCopy('guest-contact', 'privacyText', 'Your details are shared only with enrollment staff.')}</p>
               </form>
@@ -3606,7 +3612,7 @@ function GuestApplicationPage() {
               ? guestCopy('guest-category', 'confirmTitle', 'Confirm your category')
               : guestCopy('guest-category', 'chooseTitle', 'Choose your category')}</h2>
             <p className="guest-form-subtitle">{startedFromDashboard
-              ? guestCopy('guest-category', 'confirmDescription', 'Confirm the category you chose on the enrollment categories page to start your account-free application.')
+              ? guestCopy('guest-category', 'confirmDescription', 'Confirm the category you chose on the applicant dashboard to start your account-free application.')
               : guestCopy('guest-category', 'chooseDescription', 'Select the enrollment category, then continue to your account-free application details.')}</p>
             {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
               categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
@@ -3969,9 +3975,9 @@ function NotFound() {
 function RetiredApplicantRoute() {
   const [, setLocation] = useLocation();
   useEffect(() => {
-    setLocation('/enrollment-categories', { replace: true });
+    setLocation('/dashboard', { replace: true });
   }, [setLocation]);
-  return <main className="portal-frame auth-loading"><LoadingPanel label="Opening enrollment categories" /></main>;
+  return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the shared applicant dashboard" /></main>;
 }
 
 function ApplicantApplicationRoute({ view }: { view: 'enrollment' | 'status' }) {
@@ -4012,8 +4018,7 @@ function RoutedPages() {
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
-    <Route path="/enrollment-categories" component={EnrollmentCategoryPage} />
-    <Route path="/dashboard" component={EnrollmentCategoryPage} />
+    <Route path="/dashboard" component={ApplicantDashboardRoute} />
     <Route path="/apply/:applicationId" component={() => <ApplicantApplicationRoute view="enrollment" />} />
     <Route path="/applications/:applicationId" component={() => <ApplicantApplicationRoute view="status" />} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />

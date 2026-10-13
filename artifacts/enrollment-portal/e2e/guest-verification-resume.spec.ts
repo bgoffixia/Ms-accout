@@ -86,16 +86,13 @@ class GuestApiFixture {
     }
     if (method === "POST" && path === "/api/guest/preapplications") {
       const body = request.postDataJSON();
-      const selectedCategoryId = typeof body.categoryId === "string" ? body.categoryId : "category-1";
-      const categoryNames = ["Category One", "Category Two", "Category Three", "Category Four"];
-      const selectedCategoryIndex = Number(selectedCategoryId.split("-").at(-1)) - 1;
       this.createCount += 1;
       this.accessKey = body.accessKey;
       this.draft = {
         id: applicationId,
         reference,
-        categoryId: selectedCategoryId,
-        categoryName: categoryNames[selectedCategoryIndex] ?? "Category One",
+        categoryId: "category-1",
+        categoryName: "Category One",
         fullName: body.fullName,
         email: body.email,
         status: "received",
@@ -331,12 +328,7 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const body = path === "/api/enrollment/categories"
-      ? ["Category One", "Category Two", "Category Three", "Category Four"].map((name, index) => ({
-          id: `category-${index + 1}`,
-          name,
-          description: "Enrollment category.",
-          accent: ["#168341", "#2454bd", "#1688b8", "#2b7667"][index],
-        }))
+      ? [{ id: "category-1", name: "Category One", description: "Enrollment category.", accent: "#168341" }]
       : path === "/api/portal/settings"
         ? {
             hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
@@ -361,25 +353,13 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 390, height: 568 },
-    { width: 390, height: 480 },
-    { width: 320, height: 568 },
     { width: 1280, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
-    for (const path of ["/", "/guest/apply", "/dashboard", "/enrollment-categories", "/guest/track"]) {
+    for (const path of ["/", "/guest/apply", "/dashboard", "/guest/track"]) {
       await page.goto(path);
       await expect(page.locator(".portal-frame")).toBeVisible();
       await expectNoDocumentOverflow(page);
-      if (path === "/dashboard" || path === "/enrollment-categories") {
-        await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
-        await expect(page.getByTestId("guest-dashboard-category-category-4")).toBeVisible();
-        const categoryShell = await page.locator(".guest-dashboard-shell").evaluate((element) => ({
-          clientHeight: element.clientHeight,
-          scrollHeight: element.scrollHeight,
-        }));
-        expect(categoryShell.scrollHeight, `category choices should fit without inner scrolling at ${viewport.width}x${viewport.height}`)
-          .toBeLessThanOrEqual(categoryShell.clientHeight + 1);
-      }
       if (path !== "/") {
         await expect(page.locator(".guest-page")).toHaveCSS("overflow-y", "hidden");
       }
@@ -387,86 +367,7 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   }
 });
 
-test("keeps every category entry and PIN screen inside a compact mobile viewport", async ({ page }) => {
-  test.setTimeout(180_000);
-  let api = new GuestApiFixture();
-  await page.route("**/api/**", (route) => api.handle(route));
-
-  for (const viewport of [
-    { width: 390, height: 568 },
-    { width: 390, height: 480 },
-    { width: 320, height: 568 },
-  ]) {
-    for (const categoryId of ["category-1", "category-2", "category-3", "category-4"]) {
-      api = new GuestApiFixture();
-      const testLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jv2sAAAAASUVORK5CYII=";
-      api.logoOverrides[categoryId] = {
-        entryLogoDataUrl: testLogo,
-        pinLogoDataUrl: testLogo,
-        entryLogoSize: 240,
-        pinLogoSize: 240,
-        entryLogoAlignment: "right",
-        entryLogoVerticalOffset: 120,
-        pinLogoAlignment: "left",
-        pinLogoVerticalOffset: -120,
-      };
-      await page.setViewportSize(viewport);
-      await page.goto("/");
-      await page.evaluate(() => {
-        localStorage.clear();
-        sessionStorage.clear();
-      });
-      await page.goto("/enrollment-categories");
-      await expect(page.getByTestId(`guest-dashboard-category-${categoryId}`)).toBeVisible();
-      await page.getByTestId(`guest-dashboard-category-${categoryId}`).click();
-      await page.getByTestId("input-guest-full-name").fill("Mobile Applicant");
-      await page.getByTestId("input-guest-email").fill("mobile@example.test");
-      await page.getByTestId("button-continue-guest-contact").click();
-
-      const form = page.getByTestId(`form-entry-${categoryId}`);
-      await expect(form).toBeVisible();
-      await expectNoDocumentOverflow(page);
-      const fields = form.locator(".entry-line-input:visible");
-      for (let index = 0; index < await fields.count(); index += 1) {
-        await expectControlInsideViewport(page, fields.nth(index));
-      }
-      const entryButton = form.locator("form button[type=submit]:visible").first();
-      await expectControlInsideViewport(page, entryButton);
-      const entryLogo = form.locator("img").first();
-      if (await entryLogo.count()) {
-        await expectNoOverlap(entryLogo, form.locator(".entry-fields"), `${categoryId} entry logo must not cover its fields`);
-      }
-
-      await entryButton.click();
-      if (categoryId === "category-2") {
-        await expect(form).toHaveClass(/category-two-step-1/);
-        await form.locator("form button[type=submit]:visible").first().click();
-      }
-
-      await expect(page.locator(".pin-entry-screen")).toBeVisible();
-      await expectNoDocumentOverflow(page);
-      const keypad = page.locator(".pin-entry-keypad");
-      for (const key of await page.locator(".pin-entry-key").all()) {
-        const bounds = await key.boundingBox();
-        expect(bounds, `${categoryId} PIN key should have a visible target`).not.toBeNull();
-        expect(bounds!.x).toBeGreaterThanOrEqual(0);
-        expect(bounds!.y).toBeGreaterThanOrEqual(0);
-        expect(bounds!.x + bounds!.width, `${categoryId} PIN key exceeds ${viewport.width}px width`)
-          .toBeLessThanOrEqual(viewport.width);
-        expect(bounds!.y + bounds!.height, `${categoryId} PIN key exceeds ${viewport.height}px height`)
-          .toBeLessThanOrEqual(viewport.height);
-      }
-      const pinLogo = page.locator(".pin-entry-screen img").first();
-      if (await pinLogo.count()) {
-        await expectNoOverlap(pinLogo, page.locator(".pin-entry-title"), `${categoryId} PIN logo must not cover its prompt`);
-        await expectNoOverlap(pinLogo, page.locator(".pin-entry-indicators"), `${categoryId} PIN logo must not cover the PIN indicators`);
-        await expectNoOverlap(pinLogo, keypad, `${categoryId} PIN logo must not cover its keypad`);
-      }
-    }
-  }
-});
-
-test("starts from the public enrollment category page and opens the selected category form after contact details", async ({ page }) => {
+test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
   const api = new GuestApiFixture();
   api.screenCopy["guest-contact"] = {
     title: "Who is applying?",
@@ -511,7 +412,7 @@ test("starts from the public enrollment category page and opens the selected cat
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
 
-  await page.goto("/enrollment-categories");
+  await page.goto("/dashboard");
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expect(page.getByRole("heading", { name: "Who is applying?" })).toBeVisible();

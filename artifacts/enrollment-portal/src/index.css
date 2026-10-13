@@ -1692,6 +1692,14 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
   margin-inline: auto;
 }
 
+.category-entry-screen.category-entry-screen-category-1.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+  top: calc(20% + min(var(--entry-logo-layout-size, 176px), 28dvh, 180px) + 24px);
+}
+
+.category-entry-screen.category-entry-screen-category-3.category-three-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+  top: calc(17% + min(var(--entry-logo-layout-size, 98px), 28dvh, 180px) + 24px);
+}
+
 .category-entry-screen.category-one-reference-screen .entry-fields {
   gap: 29px;
 }
@@ -1737,7 +1745,11 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 
 @media (max-height: 700px) {
   .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-brand {
-    top: 15%;
+    top: 8%;
+  }
+
+  .category-entry-screen.category-entry-screen-category-1.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+    top: calc(8% + min(var(--entry-logo-layout-size, 176px), 28dvh, 180px) + 20px);
   }
 
   .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
@@ -2205,6 +2217,10 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
 .category-entry-screen.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-content {
   top: 48%;
+}
+
+.category-entry-screen.category-entry-screen-category-2.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-content {
+  top: calc(29% + min(var(--entry-logo-layout-size, 104px), 28dvh, 180px) + 24px);
 }
 
 .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .category-two-reference-content {
@@ -2786,7 +2802,7 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
 @media (max-height: 700px) {
   .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-bank-brand {
-    top: 15%;
+    top: 8%;
   }
 
   .category-one-bank-brand img {
@@ -2812,6 +2828,10 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 
   .category-entry-screen.category-three-reference-screen:not(.entry-pin-stage) .category-three-reference-brand {
     top: 11%;
+  }
+
+  .category-entry-screen.category-entry-screen-category-3.category-three-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
+    top: calc(11% + min(var(--entry-logo-layout-size, 98px), 28dvh, 180px) + 20px);
   }
 
   .category-entry-screen.category-three-reference-screen.entry-pin-stage .category-three-pin-brand {
@@ -3800,396 +3820,4 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .dashboard-page-content .application-row .status-pill { max-width: 82px; overflow: hidden; font-size: 8px; }
   .dashboard-page-content .application-row-main b { font-size: 10px; }
   .dashboard-page-content .application-row-main small { font-size: 8px; }
-}
-
-/* Keep the public category chooser and each category entry step compact on phones. */
-@media (max-width: 680px) {
-  .guest-dashboard-shell {
-    flex: 1 1 0;
-    padding-block: clamp(6px, 1.5dvh, 12px);
-    overflow-y: hidden;
-  }
-
-  .guest-dashboard-heading {
-    margin-bottom: 8px;
-  }
-
-  .guest-dashboard-heading h1 {
-    margin: 7px 0 5px;
-    font-size: clamp(30px, 8.2vw, 36px);
-    line-height: .98;
-  }
-
-  .guest-dashboard-heading > p {
-    font-size: 9px;
-    line-height: 1.35;
-  }
-
-  .guest-dashboard-contact-hint {
-    margin-bottom: 7px;
-    font-size: 9px;
-    line-height: 1.35;
-  }
-
-  .guest-dashboard-contact {
-    min-height: 0;
-    margin-bottom: 8px;
-    padding: 7px 9px;
-  }
-
-  .guest-dashboard-grid {
-    gap: 7px;
-  }
-
-  .guest-dashboard-grid .category-card {
-    min-height: clamp(74px, 13dvh, 92px);
-    padding: 7px 9px 6px;
-    border-radius: 12px;
-  }
-
-  .guest-dashboard-grid .category-logo {
-    width: 25px;
-    height: 22px;
-    margin-bottom: 4px;
-  }
-
-  .guest-dashboard-grid .category-title {
-    display: -webkit-box;
-    overflow: hidden;
-    font-size: 11px;
-    line-height: 1.15;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-
-  .guest-dashboard-grid .category-select {
-    gap: 4px;
-    padding-top: 4px;
-    font-size: 8px;
-  }
-
-  .category-entry-screen {
-    height: 100dvh;
-    min-height: 0;
-    max-height: 100dvh;
-    overflow: hidden;
-    padding: 0;
-  }
-
-  .category-entry-screen .entry-content {
-    padding-block: 8px;
-  }
-
-  .category-entry-screen .entry-card {
-    padding: 12px 14px;
-  }
-
-  .category-entry-screen .entry-configurable-copy {
-    max-height: 66px;
-    margin-bottom: 7px;
-    overflow: hidden;
-  }
-
-  .category-entry-screen .entry-configurable-copy h2 {
-    display: -webkit-box;
-    overflow: hidden;
-    font-size: 14px;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-
-  .category-entry-screen .entry-configurable-copy p {
-    font-size: 10px;
-    line-height: 1.25;
-  }
-
-  .category-entry-screen .entry-fields {
-    gap: 11px !important;
-  }
-
-  .category-entry-screen .entry-line-input {
-    min-height: 44px;
-    font-size: 14px;
-  }
-
-  .category-entry-screen .entry-actions {
-    margin-top: 12px !important;
-  }
-
-  .category-entry-screen .entry-primary-button {
-    min-height: 44px;
-  }
-
-  .category-entry-screen .category-one-bank-brand,
-  .category-entry-screen .category-one-pin-brand,
-  .category-entry-screen .category-two-reference-brand,
-  .category-entry-screen .category-two-pin-brand,
-  .category-entry-screen .category-three-reference-brand,
-  .category-entry-screen .category-three-pin-brand,
-  .category-entry-screen .category-four-entry-brand,
-  .category-entry-screen .category-four-pin-brand {
-    translate: 0 clamp(-8px, var(--entry-logo-offset-y, 0px), 8px) !important;
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
-    top: 32% !important;
-    width: min(84vw, 440px);
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .entry-fields {
-    gap: 14px !important;
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .entry-actions {
-    margin-top: 14px !important;
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .entry-line-input {
-    min-height: 43px;
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-bank-brand {
-    top: 12% !important;
-  }
-
-  .category-one-bank-brand img,
-  .category-one-pin-brand img,
-  .category-three-reference-brand img,
-  .category-three-pin-brand img {
-    max-height: 18dvh !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-brand {
-    top: 18% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .category-two-reference-brand {
-    top: 10% !important;
-  }
-
-  .category-two-reference-logo {
-    max-height: 14dvh !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-content {
-    top: 37% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .category-two-reference-content {
-    top: 30% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen:not(.entry-pin-stage) .entry-field,
-  .category-entry-screen.category-two-reference-screen:not(.entry-pin-stage) .entry-field > span {
-    font-size: 17px;
-  }
-
-  .category-entry-screen.category-two-reference-screen:not(.entry-pin-stage) .entry-actions,
-  .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .entry-actions {
-    margin-top: 20px !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen:not(.entry-pin-stage) .entry-primary-button {
-    min-height: 48px;
-  }
-
-  .category-entry-screen.category-three-reference-screen:not(.entry-pin-stage) .category-three-reference-brand {
-    top: 9% !important;
-  }
-
-  .category-entry-screen.category-three-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
-    top: 32% !important;
-  }
-
-  .category-entry-screen.category-four-reference-screen:not(.entry-pin-stage) .category-four-entry-brand {
-    width: min(54vw, 190px) !important;
-    height: min(10dvh, 52px) !important;
-    max-width: min(54vw, 190px) !important;
-    max-height: min(10dvh, 52px) !important;
-  }
-
-  .category-entry-screen.category-four-reference-screen:not(.entry-pin-stage) .category-four-entry-brand img {
-    max-width: 95% !important;
-    max-height: 88% !important;
-  }
-
-  .category-entry-screen.category-four-reference-screen:not(.entry-pin-stage) .category-four-reference-content {
-    top: 18% !important;
-    right: 20px;
-    bottom: 10% !important;
-    left: 20px;
-    padding-block: 4px;
-  }
-
-  .category-entry-screen.category-four-reference-screen:not(.entry-pin-stage) .entry-fields {
-    gap: 11px !important;
-  }
-
-  .category-entry-screen.category-four-reference-screen:not(.entry-pin-stage) .entry-actions {
-    margin-top: 12px !important;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-title {
-    top: 20% !important;
-    font-size: 12px !important;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-indicators {
-    top: 27.5% !important;
-    gap: clamp(10px, 4.5vw, 20px);
-  }
-
-  .pin-entry-indicator {
-    width: clamp(20px, 6vw, 28px);
-    height: clamp(20px, 6vw, 28px);
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-keypad {
-    top: 36% !important;
-    width: min(80vw, 286px) !important;
-    height: min(48dvh, 280px) !important;
-    gap: 0 !important;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-key {
-    width: clamp(44px, 14vw, 54px) !important;
-    height: auto !important;
-    aspect-ratio: 1;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-error {
-    top: 32%;
-    max-width: 90vw;
-    padding: 4px 8px;
-    font-size: 9px;
-    line-height: 1.2;
-  }
-
-  .category-one-pin-brand img,
-  .category-two-pin-logo,
-  .category-three-pin-brand img,
-  .category-four-pin-brand img {
-    max-height: 10dvh !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.entry-pin-stage .category-two-pin-brand {
-    top: 6% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.entry-pin-stage .category-two-pin-actions {
-    right: 8%;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    left: 8%;
-    font-size: 11px;
-  }
-}
-
-@media (max-width: 680px) and (max-height: 560px) {
-  .guest-public-header {
-    min-height: 50px;
-    padding-block: 3px;
-  }
-
-  .guest-footer {
-    min-height: 45px;
-  }
-
-  .guest-dashboard-shell {
-    padding-block: 4px;
-  }
-
-  .guest-dashboard-heading {
-    margin-bottom: 6px;
-  }
-
-  .guest-dashboard-heading h1 {
-    margin-block: 5px 4px;
-    font-size: clamp(27px, 7.8vw, 32px);
-  }
-
-  .guest-dashboard-heading > p,
-  .guest-dashboard-contact-hint {
-    font-size: 8px;
-    line-height: 1.25;
-  }
-
-  .guest-dashboard-grid {
-    gap: 6px;
-  }
-
-  .guest-dashboard-grid .category-card {
-    min-height: clamp(64px, 12dvh, 78px);
-    padding: 6px 8px 5px;
-  }
-
-  .guest-dashboard-grid .category-logo {
-    width: 22px;
-    height: 19px;
-    margin-bottom: 3px;
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-bank-brand {
-    top: 8% !important;
-  }
-
-  .category-entry-screen.category-one-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
-    top: 29% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-brand {
-    top: 14% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-0:not(.entry-pin-stage) .category-two-reference-content {
-    top: 32% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .category-two-reference-brand {
-    top: 8% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.category-two-step-1:not(.entry-pin-stage) .category-two-reference-content {
-    top: 27% !important;
-  }
-
-  .category-entry-screen.category-three-reference-screen:not(.entry-pin-stage) .category-three-reference-brand {
-    top: 7% !important;
-  }
-
-  .category-entry-screen.category-three-reference-screen:not(.entry-pin-stage) .category-one-reference-content {
-    top: 29% !important;
-  }
-
-  .category-entry-screen.category-four-reference-screen:not(.entry-pin-stage) .category-four-reference-content {
-    top: 15% !important;
-    bottom: 8% !important;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-title {
-    top: 17% !important;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-indicators {
-    top: 24% !important;
-  }
-
-  .category-entry-screen.entry-pin-stage .pin-entry-keypad {
-    top: 32% !important;
-    height: min(50dvh, 230px) !important;
-  }
-
-  .category-one-pin-brand,
-  .category-two-pin-brand,
-  .category-three-pin-brand,
-  .category-four-pin-brand {
-    top: 4% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.entry-pin-stage .category-two-pin-brand {
-    top: 2% !important;
-  }
-
-  .category-entry-screen.category-two-reference-screen.entry-pin-stage .category-two-pin-actions {
-    bottom: max(8px, env(safe-area-inset-bottom));
-  }
 }

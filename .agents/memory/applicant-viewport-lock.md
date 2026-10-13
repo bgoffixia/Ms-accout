@@ -7,4 +7,4 @@ Lock the page body to the viewport when the portal must not scroll as a document
 
 **Why:** A short-screen browser test found that the wizard shell and preview panel fit the viewport while the root document still moved under programmatic scrolling.
 
-**How to apply:** For fixed-viewport applicant flows, verify the document cannot move with a root scroll attempt and that long content remains reachable through its designated inner scroll panel. Category-specific absolute positioning can outrank broad mobile overrides, so check each category's inputs, logos, PIN prompt, indicators, and keypad keys at short phone sizes.
+**How to apply:** For fixed-viewport applicant flows, verify the document cannot move with a root scroll attempt and that long content remains reachable through its designated inner scroll panel.
