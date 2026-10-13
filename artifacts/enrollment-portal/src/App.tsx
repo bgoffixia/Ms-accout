@@ -192,22 +192,28 @@ function fallbackLogoForCategory(categoryId: PortalSettingsCardsItem['id']): str
   }
 }
 
-function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
+function AppFrame({ children, active = 'dashboard', fitDashboard = false, publicDashboard = false }: {
   children: ReactNode;
   active?: string;
   fitDashboard?: boolean;
+  publicDashboard?: boolean;
 }) {
   const { signOut } = useClerk();
   const { user } = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const links = [
-    { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
-    { label: 'Applications', href: '/dashboard', key: 'applications', icon: FileCheck2 },
-    { label: 'Support', href: '/support', key: 'support', icon: LifeBuoy },
-  ];
+  const links = publicDashboard
+    ? [
+        { label: 'Categories', href: '/dashboard', key: 'dashboard', icon: Home },
+        { label: 'Track application', href: '/guest/track', key: 'track', icon: FileCheck2 },
+      ]
+    : [
+        { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
+        { label: 'Applications', href: '/dashboard', key: 'applications', icon: FileCheck2 },
+        { label: 'Support', href: '/support', key: 'support', icon: LifeBuoy },
+      ];
   return (
-    <div className="app-shell portal-frame">
+    <div className={`app-shell portal-frame ${publicDashboard ? 'guest-shared-dashboard' : ''}`} data-testid={publicDashboard ? 'guest-applicant-dashboard-frame' : undefined}>
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-brand"><PortalWordmark inverse /></div>
         <div className="workspace-label">APPLICANT PORTAL</div>
@@ -218,7 +224,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
             </Link>
           ))}
-          {['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) && (
+          {!publicDashboard && ['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) && (
             <Link href="/admin" onClick={() => setMenuOpen(false)}
               className={`nav-link ${active === 'admin' ? 'nav-link-active' : ''}`} data-testid="link-nav-admin">
               <ShieldCheck size={18} strokeWidth={1.8} /><span>Admin panel</span>
@@ -226,10 +232,10 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
           )}
         </nav>
         <div className="sidebar-bottom">
-          <div className="privacy-note"><LockKeyhole size={17} /><div><b>Your information is protected</b><span>Secure application workspace</span></div></div>
-          <button className="nav-link signout-link" onClick={() => signOut({ redirectUrl: basePath || '/' })} data-testid="button-sign-out">
+          <div className="privacy-note"><LockKeyhole size={17} /><div><b>Your information is protected</b><span>{publicDashboard ? 'Guest applicant workspace' : 'Secure application workspace'}</span></div></div>
+          {user && <button className="nav-link signout-link" onClick={() => signOut({ redirectUrl: basePath || '/' })} data-testid="button-sign-out">
             <LogOut size={18} /><span>Sign out</span>
-          </button>
+          </button>}
         </div>
       </aside>
       {menuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} data-testid="button-close-menu" />}
@@ -237,7 +243,9 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
         <div className="compact-bar">
           <button className="menu-trigger" aria-label="Open menu" onClick={() => setMenuOpen(true)} data-testid="button-open-menu"><Menu size={20} /></button>
           <PortalWordmark className="portal-wordmark-compact" />
-          <Link href="/support" className="compact-help" data-testid="link-compact-support"><CircleHelp size={18} /></Link>
+          {publicDashboard
+            ? <Link href="/guest/track" className="compact-help" aria-label="Track an application" data-testid="link-compact-guest-track"><FileCheck2 size={18} /></Link>
+            : <Link href="/support" className="compact-help" data-testid="link-compact-support"><CircleHelp size={18} /></Link>}
         </div>
         <main className={`page-content portal-scroll ${fitDashboard ? 'dashboard-page-content' : ''}`}>{children}</main>
       </div>
@@ -2224,57 +2232,73 @@ function PublicApplicantDashboard() {
     setLocation('/guest/apply');
   };
 
-  return <main className="guest-page portal-frame guest-dashboard-page">
-    <GuestPublicHeader />
-    <section className="guest-dashboard-shell">
-      <div className="guest-dashboard-heading">
-        <div className="eyebrow"><span className="eyebrow-rule" />{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'APPLICANT DASHBOARD')}</div>
-        <h1>{copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.')}</h1>
-        <p>{copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.')}</p>
+  return <AppFrame active="dashboard" fitDashboard publicDashboard>
+    <div className="dashboard-layout guest-applicant-dashboard-content" data-testid="guest-applicant-dashboard-content">
+      <div className="dashboard-main">
+        <PageHeading
+          eyebrow={copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'APPLICANT DASHBOARD')}
+          title={copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.')}
+          detail={copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.')}
+        />
+        {contact ? <div className="guest-dashboard-contact">
+          <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
+          <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">Change details</button>
+        </div> : <p className="guest-dashboard-contact-hint">You can browse categories now. Enter your name and email when you’re ready to start.</p>}
+        {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
+        <section className="selection-section rise-delay">
+          <div className="section-line">
+            <div><h2>Enrollment categories</h2><p>Choose the option that best matches your application.</p></div>
+            <span className="step-indicator">START HERE</span>
+          </div>
+          {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
+            categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
+              <p>Enrollment categories could not be loaded.</p>
+              <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
+            </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No enrollment categories are available right now.</div> :
+              <div className="category-grid">
+                {orderedCategories.map((category, index) => {
+                  const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
+                  const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
+                  return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
+                    className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
+                    aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
+                    <span className="category-number">0{index + 1}</span>
+                    {cardSettings?.logoDataUrl
+                      ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={cardLogoPositionStyle(cardSettings.cardLogoAlignment, cardSettings.cardLogoVerticalOffset)} />
+                      : category.id === 'category-1'
+                        ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
+                        : category.id === 'category-2'
+                          ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
+                          : category.id === 'category-3'
+                            ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
+                            : category.id === 'category-4'
+                              ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
+                              : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
+                    <span className="category-title">{cardSettings?.title ?? category.name}</span>
+                    <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
+                  </button>;
+                })}
+              </div>}
+        </section>
       </div>
-      {contact ? <div className="guest-dashboard-contact">
-        <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
-        <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">Change details</button>
-      </div> : <p className="guest-dashboard-contact-hint">You can browse categories now. Enter your name and email when you’re ready to start.</p>}
-      {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
-      {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
-        categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
-          <p>Enrollment categories could not be loaded.</p>
-          <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
-        </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No enrollment categories are available right now.</div> :
-          <div className="category-grid guest-dashboard-grid">
-            {orderedCategories.map((category, index) => {
-              const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
-              const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
-              return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
-                className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
-                aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
-                <span className="category-number">0{index + 1}</span>
-                {cardSettings?.logoDataUrl
-                  ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={cardLogoPositionStyle(cardSettings.cardLogoAlignment, cardSettings.cardLogoVerticalOffset)} />
-                  : category.id === 'category-1'
-                    ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
-                    : category.id === 'category-2'
-                      ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
-                      : category.id === 'category-3'
-                        ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
-                        : category.id === 'category-4'
-                          ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={cardLogoPositionStyle(cardSettings?.cardLogoAlignment, cardSettings?.cardLogoVerticalOffset)} />
-                          : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
-                <span className="category-title">{cardSettings?.title ?? category.name}</span>
-                <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
-              </button>;
-            })}
-          </div>}
-    </section>
-    <footer className="guest-footer">
-      <span>SECURE ENROLLMENT PORTAL</span>
-      <nav className="guest-footer-actions" aria-label="Dashboard links">
-        <Link href="/staff/sign-up" className="guest-footer-admin-link" data-testid="link-dashboard-admin-access"><ShieldCheck size={13} /> Admin access</Link>
-        <Link href="/guest/track" data-testid="link-dashboard-track">Already started? Track your application</Link>
-      </nav>
-    </footer>
-  </main>;
+      <aside className="dashboard-aside guest-applicant-dashboard-aside">
+        <div className="summary-card" data-testid="guest-dashboard-overview">
+          <div className="summary-head"><span className="summary-label">GUEST ENROLLMENT</span><ShieldCheck size={17} /></div>
+          <div className="summary-total">Open<span> applicant access</span></div>
+          <div className="summary-list">
+            <div className="summary-line"><span><i className="summary-dot green" />No account required</span></div>
+            <div className="summary-line"><span><i className="summary-dot blue" />Save as you progress</span></div>
+          </div>
+          <div className="summary-foot">Email confirmation is requested before final submission.</div>
+        </div>
+        <div className="help-card">
+          <div className="help-icon"><FileCheck2 size={17} /></div>
+          <div><b>Already started?</b><p>Use your private tracking key to view saved progress.</p><Link href="/guest/track" className="text-action" data-testid="link-dashboard-track">Track application <ArrowRight size={14} /></Link></div>
+        </div>
+        <div className="aside-note"><LockKeyhole size={15} /><span>Your progress stays private and secure.</span></div>
+      </aside>
+    </div>
+  </AppFrame>;
 }
 
 function ApplicantDashboardRoute() {
