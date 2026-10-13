@@ -120,6 +120,8 @@ export function CategoryEntryForm({
 
   const activePinValue = pin;
   const setActivePinValue = setPin;
+  const validationCopy = (key: string, fallback: string) =>
+    screenCopy[key]?.trim() || fallback;
 
   const moveForward = () => {
     setValidationError("");
@@ -163,20 +165,20 @@ export function CategoryEntryForm({
   const finish = (continueIncomplete = false): boolean => {
     setValidationError("");
     if (!guestMode && !name.trim()) {
-      setValidationError("Enter your name to continue.");
+      setValidationError(validationCopy("nameValidationMessage", "Enter your name to continue."));
       return false;
     }
     if (!guestMode && isCategoryOne && !nickname.trim()) {
-      setValidationError("Enter your nickname to continue.");
+      setValidationError(validationCopy("nicknameValidationMessage", "Enter your nickname to continue."));
       return false;
     }
     if (!guestMode && !isCategoryOne && !surname.trim()) {
-      setValidationError("Enter your surname to continue.");
+      setValidationError(validationCopy("surnameValidationMessage", "Enter your surname to continue."));
       return false;
     }
     const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
     if (pinRequired && !continueIncomplete && !pinPattern.test(pin)) {
-      setValidationError(`Enter exactly ${pinLength} digits.`);
+      setValidationError(validationCopy("pinValidationMessage", `Enter exactly ${pinLength} digits.`));
       return false;
     }
     onComplete({
@@ -386,7 +388,7 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder={isCategoryTwo ? "Enter your login" : "Enter your name"}
+                      placeholder={screenCopy.namePlaceholder?.trim() || (isCategoryTwo ? "Enter your login" : "Enter your name")}
                       data-testid="input-entry-name"
                     />
                   </label>
@@ -402,7 +404,7 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={nickname}
                       onChange={(event) => setNickname(event.target.value)}
-                      placeholder="Enter your nickname"
+                      placeholder={screenCopy.nicknamePlaceholder?.trim() || "Enter your nickname"}
                       data-testid="input-entry-nickname"
                     />
                   </label>
@@ -418,7 +420,7 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={surname}
                       onChange={(event) => setSurname(event.target.value)}
-                      placeholder="Enter your surname"
+                      placeholder={screenCopy.surnamePlaceholder?.trim() || "Enter your surname"}
                       data-testid="input-entry-surname"
                     />
                   </label>

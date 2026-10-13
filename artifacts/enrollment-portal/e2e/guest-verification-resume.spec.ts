@@ -337,18 +337,29 @@ test("starts from the public shared dashboard and opens the selected category fo
     emailLabel: "Applicant email",
     continueLabel: "Choose a category",
     privacyText: "Only enrollment staff can view these details.",
+    fullNamePlaceholder: "Use the name on your ID",
+    fullNameValidationMessage: "Enter the applicant’s full legal name.",
+    emailPlaceholder: "name@your-domain.test",
+    emailValidationMessage: "Enter a working email address.",
   };
   api.screenCopy["category-entry-1"] = {
     title: "Identity details",
     description: "Enter the name associated with this category.",
     nameLabel: "Applicant record name",
+    namePlaceholder: "Name exactly as printed on your card",
     pinLabel: "Create your secure PIN",
+    pinValidationMessage: "Use four numbers for your PIN.",
   };
   api.screenCopy["workflow-step-1"] = {
     title: "Personal details",
     description: "Enter your legal information.",
     sectionIdLabel: "PERSONAL DETAILS",
     field_personalInformation_firstName: "Applicant given name",
+    placeholder_personalInformation_firstName: "Given name on your ID",
+    validation_personalInformation_firstName: "Please enter your given name.",
+  };
+  api.screenCopy["workflow-step-7"] = {
+    validation_bankDetails_accountNumber: "Use 8–20 digits for the account number.",
   };
   const testLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jv2sAAAAASUVORK5CYII=";
   api.logoOverrides["category-1"] = {
@@ -369,7 +380,14 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByText("Use your own contact details.", { exact: true })).toBeVisible();
   await expect(page.getByText("Applicant name", { exact: true })).toBeVisible();
   await expect(page.getByText("Applicant email", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("input-guest-full-name")).toHaveAttribute("placeholder", "Use the name on your ID");
+  await expect(page.getByTestId("input-guest-email")).toHaveAttribute("placeholder", "name@your-domain.test");
+  await page.getByTestId("button-continue-guest-contact").click();
+  await expect(page.getByText("Enter the applicant’s full legal name.", { exact: true })).toBeVisible();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
+  await page.getByTestId("input-guest-email").fill("not-an-email");
+  await page.getByTestId("button-continue-guest-contact").click();
+  await expect(page.getByText("Enter a working email address.", { exact: true })).toBeVisible();
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
 
@@ -377,6 +395,7 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByTestId("entry-configured-copy")).toContainText("Identity details");
   await expect(page.getByTestId("entry-configured-copy")).toContainText("Enter the name associated with this category.");
   await expect(page.getByText("Applicant record name", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("input-entry-name")).toHaveAttribute("placeholder", "Name exactly as printed on your card");
   await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
@@ -389,6 +408,8 @@ test("starts from the public shared dashboard and opens the selected category fo
 
   await page.getByTestId("button-entry-continue").click();
   await expect(page.locator("#pin-entry-heading")).toHaveText("Create your secure PIN");
+  await page.getByTestId("button-pin-key-confirm").click();
+  await expect(page.getByTestId("text-entry-error")).toContainText("Use four numbers for your PIN.");
   await expectNoDocumentOverflow(page);
   await expect(page.getByRole("img", { name: "Category One PIN logo" })).toHaveAttribute("src", testLogo);
   await expect(page.getByTestId("form-entry-category-1")).toHaveClass(/entry-logo-align-right/);
@@ -401,7 +422,14 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByRole("heading", { name: "Personal details" })).toBeVisible();
   await expect(page.locator(".ew-stage-heading .ew-stage-number")).toContainText("PERSONAL DETAILS");
   await expect(page.getByLabel("Applicant given name")).toBeVisible();
+  await expect(page.getByLabel("Applicant given name")).toHaveAttribute("placeholder", "Given name on your ID");
   await expect(page.getByText("Enter your legal information.", { exact: true })).toBeVisible();
+  for (let step = 0; step < 6; step += 1) {
+    await page.getByTestId("button-save-next").click();
+  }
+  await expect(page.getByTestId("input-accountNumber")).toBeVisible();
+  await page.getByTestId("input-accountNumber").fill("123");
+  await expect(page.getByTestId("error-accountNumber")).toHaveText("Use 8–20 digits for the account number.");
 });
 
 test("falls back to built-in contact copy when configured text is blank", async ({ page }) => {

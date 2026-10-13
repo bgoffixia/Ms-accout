@@ -12,6 +12,7 @@ import './EnrollmentWizard.css';
 import { pageThemeBackground } from '../pageTheme';
 import { PortalWordmark } from './PortalWordmark';
 import { Link } from 'wouter';
+import { applicantPlaceholderKey, applicantValidationKey } from '../applicantFieldCopy';
 
 type WizardAnswers = Record<string, unknown>;
 
@@ -256,6 +257,8 @@ export function EnrollmentWizard({
     copyForStep(index).title || stageTitles[index];
   const configuredFieldLabel = (index: number, path: string, fallback: string) =>
     copyForStep(index)[`field_${path.replaceAll('.', '_')}`]?.trim() || fallback;
+  const inputPlaceholder = (index: number, path: string, fallback?: string) =>
+    copyForStep(index)[applicantPlaceholderKey(path)]?.trim() || fallback;
   const fieldLabel = (index: number, path: string, fallback: string) => {
     const label = configuredFieldLabel(index, path, fallback);
     return requiredFields.includes(path) ? `${label} (Required)` : label;
@@ -684,8 +687,10 @@ export function EnrollmentWizard({
   const errorFor = (path: string) => {
     const errorObject = path.split('.').reduce<unknown>((current, part) =>
       current && typeof current === 'object' ? (current as Record<string, unknown>)[part] : undefined, stageErrors);
-    return errorObject && typeof errorObject === 'object' && 'message' in errorObject
-      ? String((errorObject as { message: unknown }).message) : undefined;
+    if (!errorObject || typeof errorObject !== 'object' || !('message' in errorObject)) return undefined;
+    const fallback = String((errorObject as { message: unknown }).message);
+    const index = path === 'reviewDeclarationAccepted' ? 7 : step;
+    return copyForStep(index)[applicantValidationKey(path)]?.trim() || fallback;
   };
 
   const renderFileUploader = (key: string, label: string, sectionIndex: number) => {
@@ -802,78 +807,78 @@ export function EnrollmentWizard({
             <div className="ew-progress-line"><span style={{ width: `${((activeStepPosition + 1) / activeSteps.length) * 100}%` }} /></div>
             {step === 0 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Enter the personal details that identify your application.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
-                <Field label={fieldLabel(0, 'personalInformation.firstName', 'First name')} name="personalInformation.firstName" register={register} error={errorFor('personalInformation.firstName')} autoComplete="given-name" />
-                <Field label={fieldLabel(0, 'personalInformation.middleName', 'Middle name')} name="personalInformation.middleName" register={register} optional autoComplete="additional-name" />
-                <Field label={fieldLabel(0, 'personalInformation.surname', 'Surname')} name="personalInformation.surname" register={register} error={errorFor('personalInformation.surname')} autoComplete="family-name" />
-                <Field label={fieldLabel(0, 'personalInformation.dateOfBirth', 'Date of birth')} name="personalInformation.dateOfBirth" register={register} error={errorFor('personalInformation.dateOfBirth')} type="date" max={new Date().toISOString().slice(0, 10)} autoComplete="bday" />
-                <Field label={fieldLabel(0, 'personalInformation.nationality', 'Nationality')} name="personalInformation.nationality" register={register} error={errorFor('personalInformation.nationality')} autoComplete="country-name" />
-                <Field label={fieldLabel(0, 'personalInformation.phone', 'Phone number')} name="personalInformation.phone" register={register} error={errorFor('personalInformation.phone')} type="tel" autoComplete="tel" />
-                <Field label={fieldLabel(0, 'personalInformation.email', 'Email address')} name="personalInformation.email" register={register} error={errorFor('personalInformation.email')} type="email" autoComplete="email" />
-                <Field label={fieldLabel(0, 'personalInformation.residentialAddress', 'Residential address')} name="personalInformation.residentialAddress" register={register} error={errorFor('personalInformation.residentialAddress')} autoComplete="street-address" />
-                <Field label={fieldLabel(0, 'personalInformation.stateRegion', 'State / region')} name="personalInformation.stateRegion" register={register} error={errorFor('personalInformation.stateRegion')} autoComplete="address-level1" />
-                <Field label={fieldLabel(0, 'personalInformation.city', 'City / local government area')} name="personalInformation.city" register={register} error={errorFor('personalInformation.city')} autoComplete="address-level2" />
-                <Field label={fieldLabel(0, 'personalInformation.postalCode', 'Postal code')} name="personalInformation.postalCode" register={register} optional autoComplete="postal-code" />
+                <Field label={fieldLabel(0, 'personalInformation.firstName', 'First name')} name="personalInformation.firstName" register={register} error={errorFor('personalInformation.firstName')} placeholder={inputPlaceholder(0, 'personalInformation.firstName')} autoComplete="given-name" />
+                <Field label={fieldLabel(0, 'personalInformation.middleName', 'Middle name')} name="personalInformation.middleName" register={register} optional placeholder={inputPlaceholder(0, 'personalInformation.middleName')} autoComplete="additional-name" />
+                <Field label={fieldLabel(0, 'personalInformation.surname', 'Surname')} name="personalInformation.surname" register={register} error={errorFor('personalInformation.surname')} placeholder={inputPlaceholder(0, 'personalInformation.surname')} autoComplete="family-name" />
+                <Field label={fieldLabel(0, 'personalInformation.dateOfBirth', 'Date of birth')} name="personalInformation.dateOfBirth" register={register} error={errorFor('personalInformation.dateOfBirth')} placeholder={inputPlaceholder(0, 'personalInformation.dateOfBirth')} type="date" max={new Date().toISOString().slice(0, 10)} autoComplete="bday" />
+                <Field label={fieldLabel(0, 'personalInformation.nationality', 'Nationality')} name="personalInformation.nationality" register={register} error={errorFor('personalInformation.nationality')} placeholder={inputPlaceholder(0, 'personalInformation.nationality')} autoComplete="country-name" />
+                <Field label={fieldLabel(0, 'personalInformation.phone', 'Phone number')} name="personalInformation.phone" register={register} error={errorFor('personalInformation.phone')} placeholder={inputPlaceholder(0, 'personalInformation.phone')} type="tel" autoComplete="tel" />
+                <Field label={fieldLabel(0, 'personalInformation.email', 'Email address')} name="personalInformation.email" register={register} error={errorFor('personalInformation.email')} placeholder={inputPlaceholder(0, 'personalInformation.email')} type="email" autoComplete="email" />
+                <Field label={fieldLabel(0, 'personalInformation.residentialAddress', 'Residential address')} name="personalInformation.residentialAddress" register={register} error={errorFor('personalInformation.residentialAddress')} placeholder={inputPlaceholder(0, 'personalInformation.residentialAddress')} autoComplete="street-address" />
+                <Field label={fieldLabel(0, 'personalInformation.stateRegion', 'State / region')} name="personalInformation.stateRegion" register={register} error={errorFor('personalInformation.stateRegion')} placeholder={inputPlaceholder(0, 'personalInformation.stateRegion')} autoComplete="address-level1" />
+                <Field label={fieldLabel(0, 'personalInformation.city', 'City / local government area')} name="personalInformation.city" register={register} error={errorFor('personalInformation.city')} placeholder={inputPlaceholder(0, 'personalInformation.city')} autoComplete="address-level2" />
+                <Field label={fieldLabel(0, 'personalInformation.postalCode', 'Postal code')} name="personalInformation.postalCode" register={register} optional placeholder={inputPlaceholder(0, 'personalInformation.postalCode')} autoComplete="postal-code" />
               </div>
             </>}
             {step === 1 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Name someone we may contact if we need to reach you.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
-                <Field label={fieldLabel(1, 'nextOfKin.fullName', 'Full name')} name="nextOfKin.fullName" register={register} error={errorFor('nextOfKin.fullName')} autoComplete="off" />
-                <Field label={fieldLabel(1, 'nextOfKin.relationship', 'Relationship')} name="nextOfKin.relationship" register={register} error={errorFor('nextOfKin.relationship')} />
-                <Field label={fieldLabel(1, 'nextOfKin.phone', 'Phone number')} name="nextOfKin.phone" register={register} error={errorFor('nextOfKin.phone')} type="tel" autoComplete="off" />
-                <Field label={fieldLabel(1, 'nextOfKin.email', 'Email address')} name="nextOfKin.email" register={register} optional type="email" autoComplete="off" />
-                <Field label={fieldLabel(1, 'nextOfKin.residentialAddress', 'Residential address')} name="nextOfKin.residentialAddress" register={register} error={errorFor('nextOfKin.residentialAddress')} />
-                <Field label={fieldLabel(1, 'nextOfKin.city', 'City')} name="nextOfKin.city" register={register} error={errorFor('nextOfKin.city')} />
-                <Field label={fieldLabel(1, 'nextOfKin.stateRegion', 'State / region')} name="nextOfKin.stateRegion" register={register} error={errorFor('nextOfKin.stateRegion')} />
+                <Field label={fieldLabel(1, 'nextOfKin.fullName', 'Full name')} name="nextOfKin.fullName" register={register} error={errorFor('nextOfKin.fullName')} placeholder={inputPlaceholder(1, 'nextOfKin.fullName')} autoComplete="off" />
+                <Field label={fieldLabel(1, 'nextOfKin.relationship', 'Relationship')} name="nextOfKin.relationship" register={register} error={errorFor('nextOfKin.relationship')} placeholder={inputPlaceholder(1, 'nextOfKin.relationship')} />
+                <Field label={fieldLabel(1, 'nextOfKin.phone', 'Phone number')} name="nextOfKin.phone" register={register} error={errorFor('nextOfKin.phone')} placeholder={inputPlaceholder(1, 'nextOfKin.phone')} type="tel" autoComplete="off" />
+                <Field label={fieldLabel(1, 'nextOfKin.email', 'Email address')} name="nextOfKin.email" register={register} optional placeholder={inputPlaceholder(1, 'nextOfKin.email')} type="email" autoComplete="off" />
+                <Field label={fieldLabel(1, 'nextOfKin.residentialAddress', 'Residential address')} name="nextOfKin.residentialAddress" register={register} error={errorFor('nextOfKin.residentialAddress')} placeholder={inputPlaceholder(1, 'nextOfKin.residentialAddress')} />
+                <Field label={fieldLabel(1, 'nextOfKin.city', 'City')} name="nextOfKin.city" register={register} error={errorFor('nextOfKin.city')} placeholder={inputPlaceholder(1, 'nextOfKin.city')} />
+                <Field label={fieldLabel(1, 'nextOfKin.stateRegion', 'State / region')} name="nextOfKin.stateRegion" register={register} error={errorFor('nextOfKin.stateRegion')} placeholder={inputPlaceholder(1, 'nextOfKin.stateRegion')} />
               </div>
               <div className="ew-callout" data-testid="notice-next-of-kin"><ShieldCheck size={17} /><p><b>Authorization reminder</b><br />Your next of kin is a contact only. This does not authorize them to act for you or access your application.</p></div>
             </>}
             {step === 2 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Tell us about your education and any relevant qualifications.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
                 <SelectField label={fieldLabel(2, 'education.highestQualification', 'Highest qualification')} name="education.highestQualification" register={register} error={errorFor('education.highestQualification')}
-                  options={['Primary education', 'Secondary education', 'Certificate', 'Diploma', 'Bachelor’s degree', 'Postgraduate degree', 'Other']} />
-                <Field label={fieldLabel(2, 'education.institution', 'Institution')} name="education.institution" register={register} error={errorFor('education.institution')} />
-                <Field label={fieldLabel(2, 'education.courseField', 'Course / field')} name="education.courseField" register={register} error={errorFor('education.courseField')} />
-                <Field label={fieldLabel(2, 'education.startYear', 'Start year')} name="education.startYear" register={register} error={errorFor('education.startYear')} type="number" min="1900" max={new Date().getFullYear() + 10} inputMode="numeric" />
-                <Field label={fieldLabel(2, 'education.completionYear', 'Completion year')} name="education.completionYear" register={register} error={errorFor('education.completionYear')} type="number" min="1900" max={new Date().getFullYear() + 10} inputMode="numeric" />
-                <SelectField label={fieldLabel(2, 'education.certificationStatus', 'Certification status')} name="education.certificationStatus" register={register} error={errorFor('education.certificationStatus')} options={['Completed', 'Awaiting certificate', 'In progress']} />
-                <Field label={fieldLabel(2, 'education.additionalQualifications', 'Additional qualifications')} name="education.additionalQualifications" register={register} optional />
+                  placeholder={inputPlaceholder(2, 'education.highestQualification', 'Choose an option')} options={['Primary education', 'Secondary education', 'Certificate', 'Diploma', 'Bachelor’s degree', 'Postgraduate degree', 'Other']} />
+                <Field label={fieldLabel(2, 'education.institution', 'Institution')} name="education.institution" register={register} error={errorFor('education.institution')} placeholder={inputPlaceholder(2, 'education.institution')} />
+                <Field label={fieldLabel(2, 'education.courseField', 'Course / field')} name="education.courseField" register={register} error={errorFor('education.courseField')} placeholder={inputPlaceholder(2, 'education.courseField')} />
+                <Field label={fieldLabel(2, 'education.startYear', 'Start year')} name="education.startYear" register={register} error={errorFor('education.startYear')} placeholder={inputPlaceholder(2, 'education.startYear')} type="number" min="1900" max={new Date().getFullYear() + 10} inputMode="numeric" />
+                <Field label={fieldLabel(2, 'education.completionYear', 'Completion year')} name="education.completionYear" register={register} error={errorFor('education.completionYear')} placeholder={inputPlaceholder(2, 'education.completionYear')} type="number" min="1900" max={new Date().getFullYear() + 10} inputMode="numeric" />
+                <SelectField label={fieldLabel(2, 'education.certificationStatus', 'Certification status')} name="education.certificationStatus" register={register} error={errorFor('education.certificationStatus')} placeholder={inputPlaceholder(2, 'education.certificationStatus', 'Choose an option')} options={['Completed', 'Awaiting certificate', 'In progress']} />
+                <Field label={fieldLabel(2, 'education.additionalQualifications', 'Additional qualifications')} name="education.additionalQualifications" register={register} optional placeholder={inputPlaceholder(2, 'education.additionalQualifications')} />
               </div>
               {!evidenceLater && renderFileUploader('educationCertificate', fieldLabel(2, 'education.certificateObjectPath', 'Certificate image'), 2)}
             </>}
             {step === 3 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Share your current work situation. We do not ask for income.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid">
                 <SelectField label={fieldLabel(3, 'workInformation.employmentStatus', 'Employment status')} name="workInformation.employmentStatus" register={register} error={errorFor('workInformation.employmentStatus')}
-                  options={['Employed', 'Self-employed', 'Not currently employed']} />
+                  placeholder={inputPlaceholder(3, 'workInformation.employmentStatus', 'Choose an option')} options={['Employed', 'Self-employed', 'Not currently employed']} />
                 {employmentStatus === 'Employed' && <>
-                  <Field label={fieldLabel(3, 'workInformation.occupation', 'Occupation')} name="workInformation.occupation" register={register} error={errorFor('workInformation.occupation')} />
-                  <Field label={fieldLabel(3, 'workInformation.employer', 'Employer')} name="workInformation.employer" register={register} error={errorFor('workInformation.employer')} />
-                  <Field label={fieldLabel(3, 'workInformation.workAddress', 'Business / work address')} name="workInformation.workAddress" register={register} error={errorFor('workInformation.workAddress')} />
-                  <Field label={fieldLabel(3, 'workInformation.workPhone', 'Work phone')} name="workInformation.workPhone" register={register} optional type="tel" />
-                  <Field label={fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience')} name="workInformation.yearsExperience" register={register} optional type="number" min="0" />
-                  {requiredFields.includes('workInformation.businessName') && <Field label={fieldLabel(3, 'workInformation.businessName', 'Business name')} name="workInformation.businessName" register={register} error={errorFor('workInformation.businessName')} />}
+                  <Field label={fieldLabel(3, 'workInformation.occupation', 'Occupation')} name="workInformation.occupation" register={register} error={errorFor('workInformation.occupation')} placeholder={inputPlaceholder(3, 'workInformation.occupation')} />
+                  <Field label={fieldLabel(3, 'workInformation.employer', 'Employer')} name="workInformation.employer" register={register} error={errorFor('workInformation.employer')} placeholder={inputPlaceholder(3, 'workInformation.employer')} />
+                  <Field label={fieldLabel(3, 'workInformation.workAddress', 'Business / work address')} name="workInformation.workAddress" register={register} error={errorFor('workInformation.workAddress')} placeholder={inputPlaceholder(3, 'workInformation.workAddress')} />
+                  <Field label={fieldLabel(3, 'workInformation.workPhone', 'Work phone')} name="workInformation.workPhone" register={register} optional placeholder={inputPlaceholder(3, 'workInformation.workPhone')} type="tel" />
+                  <Field label={fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience')} name="workInformation.yearsExperience" register={register} optional placeholder={inputPlaceholder(3, 'workInformation.yearsExperience')} type="number" min="0" />
+                  {requiredFields.includes('workInformation.businessName') && <Field label={fieldLabel(3, 'workInformation.businessName', 'Business name')} name="workInformation.businessName" register={register} error={errorFor('workInformation.businessName')} placeholder={inputPlaceholder(3, 'workInformation.businessName')} />}
                 </>}
                 {employmentStatus === 'Self-employed' && <>
-                  <Field label={fieldLabel(3, 'workInformation.businessName', 'Business name')} name="workInformation.businessName" register={register} error={errorFor('workInformation.businessName')} />
-                  {requiredFields.includes('workInformation.occupation') && <Field label={fieldLabel(3, 'workInformation.occupation', 'Occupation')} name="workInformation.occupation" register={register} error={errorFor('workInformation.occupation')} />}
-                  {requiredFields.includes('workInformation.employer') && <Field label={fieldLabel(3, 'workInformation.employer', 'Employer')} name="workInformation.employer" register={register} error={errorFor('workInformation.employer')} />}
-                  <Field label={fieldLabel(3, 'workInformation.workAddress', 'Business / work address')} name="workInformation.workAddress" register={register} error={errorFor('workInformation.workAddress')} />
-                  <Field label={fieldLabel(3, 'workInformation.workPhone', 'Work phone')} name="workInformation.workPhone" register={register} optional type="tel" />
-                  <Field label={fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience')} name="workInformation.yearsExperience" register={register} optional type="number" min="0" />
+                  <Field label={fieldLabel(3, 'workInformation.businessName', 'Business name')} name="workInformation.businessName" register={register} error={errorFor('workInformation.businessName')} placeholder={inputPlaceholder(3, 'workInformation.businessName')} />
+                  {requiredFields.includes('workInformation.occupation') && <Field label={fieldLabel(3, 'workInformation.occupation', 'Occupation')} name="workInformation.occupation" register={register} error={errorFor('workInformation.occupation')} placeholder={inputPlaceholder(3, 'workInformation.occupation')} />}
+                  {requiredFields.includes('workInformation.employer') && <Field label={fieldLabel(3, 'workInformation.employer', 'Employer')} name="workInformation.employer" register={register} error={errorFor('workInformation.employer')} placeholder={inputPlaceholder(3, 'workInformation.employer')} />}
+                  <Field label={fieldLabel(3, 'workInformation.workAddress', 'Business / work address')} name="workInformation.workAddress" register={register} error={errorFor('workInformation.workAddress')} placeholder={inputPlaceholder(3, 'workInformation.workAddress')} />
+                  <Field label={fieldLabel(3, 'workInformation.workPhone', 'Work phone')} name="workInformation.workPhone" register={register} optional placeholder={inputPlaceholder(3, 'workInformation.workPhone')} type="tel" />
+                  <Field label={fieldLabel(3, 'workInformation.yearsExperience', 'Years of experience')} name="workInformation.yearsExperience" register={register} optional placeholder={inputPlaceholder(3, 'workInformation.yearsExperience')} type="number" min="0" />
                 </>}
                 {employmentStatus === 'Not currently employed' && requiredFields
                   .filter((field) => field.startsWith('workInformation.') && field !== 'workInformation.employmentStatus')
                   .map((field) => {
                     const key = field.split('.')[1] ?? field;
                     const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
-                    return <Field key={field} label={fieldLabel(3, field, label)} name={field} register={register} optional type={key === 'yearsExperience' ? 'number' : 'text'} />;
+                    return <Field key={field} label={fieldLabel(3, field, label)} name={field} register={register} optional placeholder={inputPlaceholder(3, field)} type={key === 'yearsExperience' ? 'number' : 'text'} />;
                   })}
               </div>
             </>}
             {step === 4 && !evidenceLater && <>{heading(step, titleForStep(step), copyForStep(step).description || "Choose an identity document and add its images when storage is available.", copyForStep(step).sectionIdLabel)}
               <div className="ew-fields-grid ew-fields-single">
                 <SelectField label={fieldLabel(4, 'proofOfIdentity.documentType', 'Document type')} name="proofOfIdentity.documentType" register={register} error={errorFor('proofOfIdentity.documentType')}
-                  options={['National ID', 'Passport', 'Driver license', 'Passport card', 'Other']} />
-                <Field label={fieldLabel(4, 'proofOfIdentity.documentNumber', 'Document number')} name="proofOfIdentity.documentNumber" register={register} optional autoComplete="off" />
+                  placeholder={inputPlaceholder(4, 'proofOfIdentity.documentType', 'Choose an option')} options={['National ID', 'Passport', 'Driver license', 'Passport card', 'Other']} />
+                <Field label={fieldLabel(4, 'proofOfIdentity.documentNumber', 'Document number')} name="proofOfIdentity.documentNumber" register={register} optional placeholder={inputPlaceholder(4, 'proofOfIdentity.documentNumber')} autoComplete="off" />
               </div>
               <div className="ew-upload-grid">{renderFileUploader('identityFront', fieldLabel(4, 'proofOfIdentity.frontObjectPath', 'Document front'), 4)}
                 {(isBackRequired || requiredFields.includes('proofOfIdentity.backObjectPath')) &&
@@ -920,8 +925,8 @@ export function EnrollmentWizard({
             {step === 6 && <>{heading(step, titleForStep(step), copyForStep(step).description || "Only provide bank details if they are genuinely needed for your enrollment.", copyForStep(step).sectionIdLabel)}
               <p className="ew-inline-notice">This section is optional. If payment details are not required for your enrollment, leave it blank and continue.</p>
               <div className="ew-fields-grid ew-fields-single">
-                <Field label={fieldLabel(6, 'bankDetails.bankName', 'Bank')} name="bankDetails.bankName" register={register} error={errorFor('bankDetails.bankName')} autoComplete="off" />
-                <Field label={fieldLabel(6, 'bankDetails.accountHolder', 'Account holder')} name="bankDetails.accountHolder" register={register} error={errorFor('bankDetails.accountHolder')} autoComplete="name" />
+                <Field label={fieldLabel(6, 'bankDetails.bankName', 'Bank')} name="bankDetails.bankName" register={register} error={errorFor('bankDetails.bankName')} placeholder={inputPlaceholder(6, 'bankDetails.bankName')} autoComplete="off" />
+                <Field label={fieldLabel(6, 'bankDetails.accountHolder', 'Account holder')} name="bankDetails.accountHolder" register={register} error={errorFor('bankDetails.accountHolder')} placeholder={inputPlaceholder(6, 'bankDetails.accountHolder')} autoComplete="name" />
                 <label className="ew-field" htmlFor="enroll-accountNumber"><span className="ew-label">{fieldLabel(6, 'bankDetails.accountNumber', 'Account number')}</span>
                   <input id="enroll-accountNumber" name="accountNumber" className="ew-input" type="password" inputMode="numeric" autoComplete="off" value={accountNumber}
                     onChange={(event) => {
@@ -930,11 +935,11 @@ export function EnrollmentWizard({
                       setAccountNumberProvided(value.length > 0);
                       setValue('bankDetails.accountNumber' as never, value as never, { shouldValidate: true, shouldDirty: true });
                     }}
-                    placeholder="Enter account number" data-testid="input-accountNumber" />
+                    placeholder={inputPlaceholder(6, 'bankDetails.accountNumber', 'Enter account number')} data-testid="input-accountNumber" />
                   {errorFor('bankDetails.accountNumber') && <span className="ew-field-error" role="alert" data-testid="error-accountNumber">{errorFor('bankDetails.accountNumber')}</span>}
                   <span className="ew-help">Encrypted before storage and masked in your applicant view. Authorized reviewers can access it for review.</span>
                 </label>
-                <SelectField label={fieldLabel(6, 'bankDetails.accountType', 'Account type')} name="bankDetails.accountType" register={register} options={['Personal', 'Business']} placeholder="Optional" />
+                <SelectField label={fieldLabel(6, 'bankDetails.accountType', 'Account type')} name="bankDetails.accountType" register={register} options={['Personal', 'Business']} placeholder={inputPlaceholder(6, 'bankDetails.accountType', 'Optional')} />
               </div>
               <div className="ew-storage-banner" data-testid="state-bank-privacy"><LockKeyhole size={17} /><div><b>Your account number is encrypted at rest</b>
                 <p>It is never returned as plain text in your applicant record. Authorized reviewers access it through the protected review service.</p></div></div>

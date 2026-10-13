@@ -53,6 +53,7 @@ import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityHeroVisual, SecurityLoadingIndicator } from './components/SecurityVisuals';
 import { DEFAULT_PAGE_THEME, PAGE_THEME_SCREENS, normalizePageThemes, pageThemeBackground, pageThemeKeyForRoute } from './pageTheme';
+import { applicantFieldCopy, applicantPlaceholderKey, applicantValidationKey, guestContactFieldCopy } from './applicantFieldCopy';
 import categoryOneLogo from './assets/category-one-national-bank-logo-updated.png';
 import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
 import categoryThreeLogo from './assets/category-three-anz-logo.jpg';
@@ -1775,6 +1776,46 @@ function AdminSettings() {
       ],
     },
   ] as const;
+  const categoryEntryInputSettings: Record<string, [string, string, string][]> = {
+    'category-entry-1': [
+      ['namePlaceholder', 'Name input hint', 'Enter your name'],
+      ['nicknamePlaceholder', 'Nickname input hint', 'Enter your nickname'],
+    ],
+    'category-entry-2': [
+      ['namePlaceholder', 'Login input hint', 'Enter your login'],
+      ['surnamePlaceholder', 'Surname input hint', 'Enter your surname'],
+    ],
+    'category-entry-3': [
+      ['namePlaceholder', 'Name input hint', 'Enter your name'],
+      ['surnamePlaceholder', 'Surname input hint', 'Enter your surname'],
+    ],
+    'category-entry-4': [
+      ['namePlaceholder', 'Name input hint', 'Enter your name'],
+      ['surnamePlaceholder', 'Surname input hint', 'Enter your surname'],
+    ],
+  };
+  const categoryEntryValidationSettings: Record<string, [string, string, string][]> = {
+    'category-entry-1': [
+      ['nameValidationMessage', 'Name validation message', 'Enter your name to continue.'],
+      ['nicknameValidationMessage', 'Nickname validation message', 'Enter your nickname to continue.'],
+      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 4 digits.'],
+    ],
+    'category-entry-2': [
+      ['nameValidationMessage', 'Login validation message', 'Enter your name to continue.'],
+      ['surnameValidationMessage', 'Surname validation message', 'Enter your surname to continue.'],
+      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 6 digits.'],
+    ],
+    'category-entry-3': [
+      ['nameValidationMessage', 'Name validation message', 'Enter your name to continue.'],
+      ['surnameValidationMessage', 'Surname validation message', 'Enter your surname to continue.'],
+      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 4 digits.'],
+    ],
+    'category-entry-4': [
+      ['nameValidationMessage', 'Name validation message', 'Enter your name to continue.'],
+      ['surnameValidationMessage', 'Surname validation message', 'Enter your surname to continue.'],
+      ['pinValidationMessage', 'PIN validation message', 'Enter exactly 4 digits.'],
+    ],
+  };
   const workflowFieldLabels: Record<string, [string, string][]> = {
     'workflow-step-1': [
       ['field_personalInformation_firstName', 'First name'], ['field_personalInformation_middleName', 'Middle name'],
@@ -1826,6 +1867,8 @@ function AdminSettings() {
     ],
     'guest-contact': [
       ['fullNameLabel', 'Full name field label'], ['emailLabel', 'Email field label'],
+      ['fullNamePlaceholder', 'Full name input hint'], ['fullNameValidationMessage', 'Full name validation message'],
+      ['emailPlaceholder', 'Email input hint'], ['emailValidationMessage', 'Email validation message'],
       ['continueLabel', 'Continue button label'], ['privacyText', 'Privacy message'],
     ],
     'guest-dashboard': [
@@ -1910,13 +1953,28 @@ function AdminSettings() {
       return ['title', 'description'];
     }
     if (screen.startsWith('workflow-step-')) {
-      return ['title', 'description', 'sectionIdLabel', 'buttonLabel', 'backButtonLabel', ...(workflowFieldLabels[screen] ?? []).map(([key]) => key)];
+      return [
+        'title', 'description', 'sectionIdLabel', 'buttonLabel', 'backButtonLabel',
+        ...(workflowFieldLabels[screen] ?? []).map(([key]) => key),
+        ...(applicantFieldCopy[screen] ?? []).flatMap(({ path, placeholderDefault, validationDefault }) => [
+          ...(placeholderDefault !== undefined ? [applicantPlaceholderKey(path)] : []),
+          ...(validationDefault !== undefined ? [applicantValidationKey(path)] : []),
+        ]),
+      ];
     }
     return ['title', 'description'];
   };
+  const isValidationMessageKey = (key: string) =>
+    key.startsWith('validation_') || key.endsWith('ValidationMessage');
   const currentCopyPreview = (screen: string, label: string) => {
     const publishedCopy = settingsQuery.data?.screenCopy?.[screen] ?? {};
-    const keyLabels = (key: string) => key === 'sectionIdLabel' ? 'Section ID label'
+    const keyLabels = (key: string) => {
+      const settings = applicantFieldCopy[screen] ?? [];
+      const inputSetting = settings.find(({ path }) =>
+        key === applicantPlaceholderKey(path) || key === applicantValidationKey(path),
+      );
+      if (inputSetting) return `${inputSetting.label} ${key.startsWith('placeholder_') ? 'input hint' : 'validation message'}`;
+      return key === 'sectionIdLabel' ? 'Section ID label'
       : key === 'buttonLabel' ? 'Primary button label'
         : key === 'backButtonLabel' ? 'Back button label'
           : key === 'title' ? 'Title'
@@ -1924,6 +1982,7 @@ function AdminSettings() {
               : guestPageFields[screen]?.find(([fieldKey]) => fieldKey === key)?.[1]
                 ?? workflowFieldLabels[screen]?.find(([fieldKey]) => fieldKey === key)?.[1]
                 ?? key.replace(/^field_/, '').replaceAll('_', ' ').replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
+    };
     return <aside className="settings-current-copy" aria-label={`Current published text for ${label}`} data-testid={`current-copy-${screen}`}>
       <div className="settings-current-copy-heading"><b>Currently published on this page</b><span>Saved text stays live until you save edits.</span></div>
       <dl>{copyKeysForScreen(screen).map((key) => <div key={key}>
@@ -2079,17 +2138,24 @@ function AdminSettings() {
       </div>
     </section>
     <section className="detail-card settings-panel" id="settings-category-copy" aria-labelledby="settings-category-copy-title">
-      <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Category entry form labels and buttons</h2></div>
-      <p className="field-help">Customize the visible field labels, PIN prompts, and action buttons for each category. Leave a field blank to use its current default.</p>
+      <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Category entry form copy</h2></div>
+      <p className="field-help">Customize field labels, input hints, validation messages, PIN prompts, and action buttons for each category. Leave a field blank to use its current default.</p>
       <div className="settings-screen-list">
         {categoryEntrySettings.map(({ screen, title, fields }) => {
           const copy = draft.screenCopy[screen] ?? {};
           const resolvedText = (key: string, fallback: string) => copy[key]?.trim() || fallback;
+          const inputSettings = categoryEntryInputSettings[screen] ?? [];
+          const validationSettings = categoryEntryValidationSettings[screen] ?? [];
           const offsetValue = Number.parseInt(copy.entryLogoVerticalOffset ?? '0', 10);
           const logoVerticalOffset = Number.isFinite(offsetValue) ? Math.max(-120, Math.min(120, offsetValue)) : 0;
           const previewFields = fields.filter(([key]) => ['nameLabel', 'nicknameLabel', 'surnameLabel'].includes(key));
           const previewButtons = fields.filter(([key]) => key.startsWith('buttonLabel'));
           const pinPrompt = fields.find(([key]) => key === 'pinLabel');
+          const inputHintForLabel = (key: string) => {
+            const hintKey = key.replace('Label', 'Placeholder');
+            const fallback = inputSettings.find(([inputKey]) => inputKey === hintKey)?.[2] ?? 'No built-in hint';
+            return resolvedText(hintKey, fallback);
+          };
           return <details className="settings-screen" key={screen} data-testid={`settings-category-entry-${screen}`}>
             <summary>{title}<span>{screen}</span></summary>
             <div className="settings-inline-fields">
@@ -2098,6 +2164,27 @@ function AdminSettings() {
                   className="text-input"
                   value={copy[key] ?? ''}
                   maxLength={key.startsWith('buttonLabel') ? 60 : 120}
+                  placeholder={`Default: ${defaultText}`}
+                  onChange={(event) => updateScreenCopy(screen, key, event.target.value)}
+                  data-testid={`input-copy-${screen}-${key}`}
+                />
+              </label>)}
+              {inputSettings.map(([key, label, defaultText]) => <label className="field-label" key={key}>{label}
+                <input
+                  className="text-input"
+                  value={copy[key] ?? ''}
+                  maxLength={500}
+                  placeholder={`Default: ${defaultText}`}
+                  onChange={(event) => updateScreenCopy(screen, key, event.target.value)}
+                  data-testid={`input-copy-${screen}-${key}`}
+                />
+              </label>)}
+              {validationSettings.map(([key, label, defaultText]) => <label className="field-label" key={key}>{label}
+                <textarea
+                  className="text-input form-textarea"
+                  rows={2}
+                  value={copy[key] ?? ''}
+                  maxLength={500}
                   placeholder={`Default: ${defaultText}`}
                   onChange={(event) => updateScreenCopy(screen, key, event.target.value)}
                   data-testid={`input-copy-${screen}-${key}`}
@@ -2128,8 +2215,12 @@ function AdminSettings() {
               <div className="settings-category-preview-fields">
                 {previewFields.map(([key, , defaultText]) => <div className="settings-category-preview-field" key={key}>
                   <span>{resolvedText(key, defaultText)}</span>
+                  <small>Hint: {inputHintForLabel(key)}</small>
                   <div aria-hidden="true" />
                 </div>)}
+                <div className="settings-category-preview-validation">
+                  {validationSettings.map(([key, label, defaultText]) => <small key={key} role="status">{label}: {resolvedText(key, defaultText)}</small>)}
+                </div>
               </div>
               {pinPrompt && <div className="settings-category-preview-pin">
                 <span>{resolvedText(pinPrompt[0], pinPrompt[2])}</span>
@@ -2147,17 +2238,79 @@ function AdminSettings() {
     </section>
     <section className="detail-card settings-panel" id="settings-workflow-copy" aria-labelledby="settings-workflow-copy-title">
       <div className="detail-card-title"><FileText size={17} /><h2 id="settings-workflow-copy-title">Page and workflow text</h2></div>
-      <p className="field-help">Edit the main copy for each page or workflow step. Empty values use the portal’s default labels.</p>
+      <p className="field-help">Edit page copy, applicant input hints, and field validation messages. Leave a field blank to use its current built-in text.</p>
       <div className="settings-screen-list">{screenLabels.map(([screen, label]) => <details className="settings-screen" key={screen}>
         <summary>{label}<span>{screen}</span></summary>
         {currentCopyPreview(screen, label)}
         <div className="settings-inline-fields">
-          {copyKeysForScreen(screen).map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'backButtonLabel' ? 'Back button label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : [...(workflowFieldLabels[screen] ?? []), ...(guestPageFields[screen] ?? [])].find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
-            {['description', 'privacyText', 'securityText', 'confirmDescription', 'chooseDescription', 'declarationDescription', 'submittedMessage', 'draftMessage', 'securityNote', 'missingRequirementsMessage'].includes(key)
-              ? <textarea className="text-input form-textarea" rows={3} value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
-              : <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key.endsWith('Label') ? 60 : 500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />}
-          </label>)}
+          {copyKeysForScreen(screen).map((key) => {
+            const matchingInput = (applicantFieldCopy[screen] ?? []).find(({ path }) =>
+              key === applicantPlaceholderKey(path) || key === applicantValidationKey(path),
+            );
+            const contactInput = screen === 'guest-contact' ? guestContactFieldCopy.find(({ path }) =>
+              key === `${path}Placeholder` || key === `${path}ValidationMessage`,
+            ) : undefined;
+            const descriptionField = ['description', 'privacyText', 'securityText', 'confirmDescription', 'chooseDescription', 'declarationDescription', 'submittedMessage', 'draftMessage', 'securityNote', 'missingRequirementsMessage'].includes(key);
+            const validationField = isValidationMessageKey(key);
+            const placeholderFallback = contactInput?.placeholderDefault;
+            const fieldLabel = key === 'sectionIdLabel' ? 'Section ID label'
+              : key === 'buttonLabel' ? 'Primary button label'
+                : key === 'backButtonLabel' ? 'Back button label'
+                  : key === 'title' ? 'Screen title'
+                    : key === 'description' ? 'Description'
+                      : matchingInput ? `${matchingInput.label} ${key.startsWith('placeholder_') ? 'input hint' : 'validation message'}`
+                        : contactInput ? `${contactInput.label} ${key.endsWith('Placeholder') ? 'input hint' : 'validation message'}`
+                          : [...(workflowFieldLabels[screen] ?? []), ...(guestPageFields[screen] ?? [])].find(([fieldKey]) => fieldKey === key)?.[1]
+                            ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
+            const inputPlaceholder = key.startsWith('placeholder_')
+              ? 'No placeholder by default'
+              : key.endsWith('Placeholder') && placeholderFallback
+                ? `Default: ${placeholderFallback}`
+                : 'Use portal default';
+            return <label className="field-label" key={key}>{fieldLabel}
+              {descriptionField
+                ? <textarea className="text-input form-textarea" rows={3} value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
+                : validationField
+                  ? <textarea className="text-input form-textarea" rows={2} value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
+                  : <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key.endsWith('Label') ? 60 : 500} placeholder={inputPlaceholder} onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />}
+            </label>;
+          })}
         </div>
+        {screen === 'guest-contact' && (
+          <section className="settings-field-copy-preview" aria-label="Guest contact field copy preview" data-testid="preview-field-copy-guest-contact">
+            <b>Live field preview · updates as you edit</b>
+            <div className="settings-field-copy-preview-grid">
+              {guestContactFieldCopy.map(({ path, label: fieldLabel, placeholderDefault, validationDefault }) => {
+                const placeholder = draft.screenCopy[screen]?.[`${path}Placeholder`]?.trim() || placeholderDefault;
+                const validation = draft.screenCopy[screen]?.[`${path}ValidationMessage`]?.trim() || validationDefault;
+                const configuredLabel = draft.screenCopy[screen]?.[`${path}Label`]?.trim() || fieldLabel;
+                return <article key={path} className="settings-field-copy-preview-item">
+                  <span>{configuredLabel}</span>
+                  <input disabled aria-label={`${configuredLabel} placeholder preview`} placeholder={placeholder} />
+                  {validation && <small role="status">{validation}</small>}
+                </article>;
+              })}
+            </div>
+          </section>
+        )}
+        {screen.startsWith('workflow-step-') && (applicantFieldCopy[screen] ?? []).length > 0 && (
+          <section className="settings-field-copy-preview" aria-label={`${label} field copy preview`} data-testid={`preview-field-copy-${screen}`}>
+            <b>Live field preview · updates as you edit</b>
+            <div className="settings-field-copy-preview-grid">
+              {(applicantFieldCopy[screen] ?? []).map(({ path, label: fieldLabel, placeholderDefault, validationDefault }) => {
+                const fieldId = path.replaceAll('.', '_');
+                const placeholder = draft.screenCopy[screen]?.[applicantPlaceholderKey(path)]?.trim() || placeholderDefault;
+                const validation = draft.screenCopy[screen]?.[applicantValidationKey(path)]?.trim() || validationDefault;
+                const configuredLabel = draft.screenCopy[screen]?.[`field_${fieldId}`]?.trim() || fieldLabel;
+                return <article key={path} className="settings-field-copy-preview-item">
+                  <span>{configuredLabel}</span>
+                  {placeholderDefault !== undefined && <input disabled aria-label={`${configuredLabel} placeholder preview`} placeholder={placeholder || 'No built-in hint'} />}
+                  {validation && <small role="status">{validation}</small>}
+                </article>;
+              })}
+            </div>
+          </section>
+        )}
       </details>)}</div>
     </section>
     <section className="detail-card settings-panel" id="settings-required-fields" aria-labelledby="settings-required-fields-title">
@@ -3357,11 +3510,13 @@ function GuestApplicationPage() {
                 event.preventDefault();
                 void continueToCategory();
               }} noValidate>
-                <FormField control={form.control} name="fullName" render={({ field }) => <FormItem className="guest-field">
-                  <FormLabel>{guestCopy('guest-contact', 'fullNameLabel', 'Full name')}</FormLabel><FormControl><Input {...field} autoComplete="name" placeholder="As shown on your identity document" data-testid="input-guest-full-name" /></FormControl><FormMessage />
+                <FormField control={form.control} name="fullName" render={({ field, fieldState }) => <FormItem className="guest-field">
+                  <FormLabel>{guestCopy('guest-contact', 'fullNameLabel', 'Full name')}</FormLabel><FormControl><Input {...field} autoComplete="name" placeholder={guestCopy('guest-contact', 'fullNamePlaceholder', 'As shown on your identity document')} data-testid="input-guest-full-name" /></FormControl>
+                  <FormMessage message={guestCopy('guest-contact', 'fullNameValidationMessage', fieldState.error?.message ?? 'Enter your full name.')} />
                 </FormItem>} />
-                <FormField control={form.control} name="email" render={({ field }) => <FormItem className="guest-field">
-                  <FormLabel>{guestCopy('guest-contact', 'emailLabel', 'Email address')}</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
+                <FormField control={form.control} name="email" render={({ field, fieldState }) => <FormItem className="guest-field">
+                  <FormLabel>{guestCopy('guest-contact', 'emailLabel', 'Email address')}</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder={guestCopy('guest-contact', 'emailPlaceholder', 'you@example.com')} data-testid="input-guest-email" /></FormControl>
+                  <FormMessage message={guestCopy('guest-contact', 'emailValidationMessage', fieldState.error?.message ?? 'Enter a valid email address.')} />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
                   {isContinuing ? 'Checking details…' : guestCopy('guest-contact', 'continueLabel', 'Continue to dashboard')} <ArrowRight size={16} />

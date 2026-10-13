@@ -1306,7 +1306,15 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .settings-category-preview-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .settings-category-preview-field { display: grid; gap: 7px; min-width: 0; font-size: 11px; }
 .settings-category-preview-field > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-category-preview-field > small { font-size: 9px; opacity: .82; }
 .settings-category-preview-field > div { height: 1px; background: currentColor; opacity: .55; }
+.settings-category-preview-validation { display: grid; gap: 4px; padding-top: 7px; border-top: 1px solid currentColor; font-size: 9px; opacity: .9; }
+.settings-field-copy-preview { display: grid; gap: 10px; margin-top: 14px; padding: 13px; border: 1px solid #dce5e9; border-radius: 10px; background: #f7fafb; color: #234254; font-size: 11px; }
+.settings-field-copy-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.settings-field-copy-preview-item { display: grid; min-width: 0; gap: 5px; padding: 10px; border: 1px solid #e3eaed; border-radius: 8px; background: #fff; }
+.settings-field-copy-preview-item > span { font-weight: 650; }
+.settings-field-copy-preview-item input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid #dce5e9; border-radius: 5px; background: #fbfcfd; color: #536a78; font: inherit; }
+.settings-field-copy-preview-item > small { color: #a33d46; line-height: 1.4; }
 .settings-category-preview-pin { display: grid; gap: 5px; font-size: 9px; opacity: .85; }
 .settings-category-preview-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .settings-category-preview-action { display: grid; min-width: 128px; gap: 5px; }
@@ -1359,7 +1367,7 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
   .admin-record-sections, .settings-card-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .admin-overview-actions, .settings-inline-fields { grid-template-columns: 1fr; }
+  .admin-overview-actions, .settings-inline-fields, .settings-field-copy-preview-grid { grid-template-columns: 1fr; }
   .settings-required-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-metric-card { min-height: 80px; padding: 12px; }
   .admin-metric-card strong { font-size: 20px; }
