@@ -232,6 +232,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, public
   const [, setLocation] = useLocation();
   const links = publicDashboard
     ? [
+        { label: 'Home', href: '/', key: 'home', icon: ArrowLeft },
         { label: 'Categories', href: '/dashboard', key: 'dashboard', icon: Home },
         { label: 'Track application', href: '/guest/track', key: 'track', icon: FileCheck2 },
       ]
@@ -935,6 +936,7 @@ function DraftApplication() {
     onChangeCategory={changeCategoryFromWizard}
     onBackToCategoryEntry={backToCategoryEntry}
     screenCopy={portalSettings.data?.screenCopy}
+    categoryCards={portalSettings.data?.cards}
     pageThemes={portalSettings.data?.pageThemes}
   />;
 }
@@ -2246,6 +2248,7 @@ const guestDashboardStartSchema = guestApplicationSchema;
 const GUEST_DASHBOARD_CONTACT_KEY = 'guest-dashboard-contact';
 const GUEST_DASHBOARD_START_KEY = 'guest-dashboard-start';
 const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = 'guest-dashboard-pending-category';
+const GUEST_CONTACT_STEP_PASSED_KEY = 'guest-contact-step-passed';
 const GUEST_APPLICATION_RESUME_KEY = 'guest-application-resume';
 const GUEST_APPLICATION_AUTH_CONTEXT_KEY = 'guest-application-auth-context';
 const guestAuthContextSchema = z.object({
@@ -2286,6 +2289,14 @@ function readGuestDashboardContact() {
     return contact.success ? contact.data : null;
   } catch {
     return null;
+  }
+}
+
+function guestContactStepPassed() {
+  try {
+    return window.sessionStorage.getItem(GUEST_CONTACT_STEP_PASSED_KEY) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -2351,16 +2362,6 @@ function PublicApplicantDashboard() {
     }
   };
 
-  const changeContact = () => {
-    try {
-      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
-    } catch {
-      setStartError('Your category selection could not be cleared in this browser.');
-      return;
-    }
-    setLocation('/guest/apply');
-  };
-
   return <AppFrame active="dashboard" fitDashboard publicDashboard>
     <div className="dashboard-layout guest-applicant-dashboard-content" data-testid="guest-applicant-dashboard-content">
       <div className="dashboard-main">
@@ -2371,7 +2372,6 @@ function PublicApplicantDashboard() {
         />
         {contact && <div className="guest-dashboard-contact">
           <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
-          <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">Change details</button>
         </div>}
         {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
         <section className="selection-section rise-delay">
@@ -2789,6 +2789,7 @@ function GuestApplicationPage() {
     }
     try {
       window.sessionStorage.setItem(GUEST_DASHBOARD_CONTACT_KEY, JSON.stringify(contactDetails.data));
+      window.sessionStorage.setItem(GUEST_CONTACT_STEP_PASSED_KEY, '1');
       const pendingCategoryId = window.sessionStorage.getItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
       if (pendingCategoryId) {
         const start = guestDashboardStartSchema.safeParse({ ...contactDetails.data, categoryId: pendingCategoryId });
@@ -2815,9 +2816,9 @@ function GuestApplicationPage() {
     setIsContinuing(false);
     if (startAfterContact) {
       setStage('category');
-      setLocation('/guest/apply?dashboardStart=1');
+      setLocation('/guest/apply?dashboardStart=1', { replace: true });
     } else {
-      setLocation('/dashboard');
+      setLocation('/dashboard', { replace: true });
     }
   };
 
@@ -2849,7 +2850,6 @@ function GuestApplicationPage() {
       const application = await createGuest.mutateAsync({ data: input });
       try {
         window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
-        window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
         window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
       } catch {
         // Keep the successful application visible even if browser storage cleanup fails.
@@ -3010,6 +3010,9 @@ function GuestApplicationPage() {
         if (saved) setStage('categoryEntry');
         return saved;
       })}
+      screenCopy={portalSettings.data?.screenCopy}
+      categoryCards={portalSettings.data?.cards}
+      pageThemes={portalSettings.data?.pageThemes}
       />
       {verificationOpen && <GuestEmailVerificationDialog
         email={created.application.email}
@@ -3147,6 +3150,24 @@ function GuestApplicationPage() {
     </div>
     <footer className="guest-footer"><span>SECURE ENROLLMENT PORTAL</span><Link href="/guest/track" data-testid="link-guest-footer-track">Already started? Track your application</Link></footer>
   </main>;
+}
+
+function GuestApplicationRoute() {
+  const [, setLocation] = useLocation();
+  const search = new URLSearchParams(window.location.search);
+  const isResumeOrCategoryStart = search.get('resume') === '1' || search.get('dashboardStart') === '1';
+  const skipContactStep = !isResumeOrCategoryStart && guestContactStepPassed();
+
+  useEffect(() => {
+    if (skipContactStep) setLocation('/dashboard', { replace: true });
+  }, [skipContactStep, setLocation]);
+
+  if (skipContactStep) return <main className="guest-page portal-frame" aria-busy="true">
+    <GuestPublicHeader />
+    <div className="guest-track-wrap"><p role="status" data-testid="guest-contact-step-skipped">Returning to your categories…</p></div>
+  </main>;
+
+  return <GuestApplicationPage />;
 }
 
 function GuestTrackingPage() {
@@ -3460,6 +3481,16 @@ function RoutedPages() {
   const portalSettings = useGetPortalSettings();
   const themeKey = pageThemeKeyForRoute(location);
   const pageTheme = portalSettings.data?.pageThemes?.[themeKey];
+  const [reloadGuestPageToHome, setReloadGuestPageToHome] = useState(() => {
+    const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const path = stripBase(window.location.pathname);
+    return navigation?.type === 'reload' && ['/dashboard', '/guest/apply', '/guest/track'].includes(path);
+  });
+  useEffect(() => {
+    if (!reloadGuestPageToHome) return;
+    setLocation('/', { replace: true });
+    setReloadGuestPageToHome(false);
+  }, [reloadGuestPageToHome, setLocation]);
   useEffect(() => {
     const theme = portalSettings.data?.theme;
     if (!theme) return;
@@ -3478,9 +3509,10 @@ function RoutedPages() {
     root.dataset.portalPageThemeMode = pageTheme.mode;
     root.style.setProperty('--portal-page-background', background);
   }, [themeKey, pageTheme?.mode, pageTheme?.color, pageTheme?.blendColor, pageTheme?.angle]);
+  if (reloadGuestPageToHome) return <PublicLanding />;
   return <Switch>
     <Route path="/" component={PublicLanding} />
-    <Route path="/guest/apply" component={GuestApplicationPage} />
+    <Route path="/guest/apply" component={GuestApplicationRoute} />
     <Route path="/guest/track" component={GuestTrackingPage} />
     <Route path="/staff/sign-up/*?" component={StaffSignUpPage} />
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />

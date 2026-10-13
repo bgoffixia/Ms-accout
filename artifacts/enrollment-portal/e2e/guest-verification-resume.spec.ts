@@ -437,6 +437,38 @@ test("starts from the public shared dashboard and opens the selected category fo
   expect(api.draft?.categoryId).toBe("category-1");
 });
 
+test("keeps contact details out of same-session back navigation and returns reloads to portal home", async ({ page }) => {
+  const api = new GuestApiFixture();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/");
+  await page.getByTestId("link-get-started").click();
+  await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
+  await page.getByTestId("input-guest-email").fill("jordan@example.test");
+  await page.getByTestId("button-continue-guest-contact").click();
+  await expect(page.getByTestId("guest-applicant-dashboard-content")).toBeVisible();
+  await expect(page.getByTestId("input-guest-full-name")).toHaveCount(0);
+  await expect(page.getByTestId("button-change-dashboard-contact")).toHaveCount(0);
+  await expect(page.getByTestId("link-nav-home")).toBeVisible();
+
+  await page.goBack();
+  await expect(page.getByTestId("link-get-started")).toBeVisible();
+  await page.getByTestId("link-get-started").click();
+  await expect(page.getByTestId("guest-applicant-dashboard-content")).toBeVisible();
+  await expect(page.getByTestId("input-guest-full-name")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId("button-open-menu").click();
+  await expect(page.getByTestId("link-nav-home")).toBeVisible();
+  await page.getByTestId("link-nav-home").click();
+  await expect(page.getByTestId("link-get-started")).toBeVisible();
+  await page.getByTestId("link-get-started").click();
+  await expect(page.getByTestId("guest-applicant-dashboard-content")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("link-get-started")).toBeVisible();
+});
+
 test("keeps every guest category entry and PIN screen within one phone viewport", async ({ browser }) => {
   for (const categoryId of ["category-1", "category-2", "category-3", "category-4"]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 568 } });

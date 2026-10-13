@@ -3,7 +3,7 @@ import type { ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { EnrollmentApplication, EnrollmentCategory, PortalPageTheme } from '@workspace/api-client-react';
+import type { EnrollmentApplication, EnrollmentCategory, PortalPageTheme, PortalSettingsCardsItem } from '@workspace/api-client-react';
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, FileImage,
   FileVideo2, LockKeyhole, ShieldCheck, Upload, Video, X,
@@ -11,6 +11,7 @@ import {
 import './EnrollmentWizard.css';
 import { pageThemeBackground } from '../pageTheme';
 import { PortalWordmark } from './PortalWordmark';
+import { Link } from 'wouter';
 
 type WizardAnswers = Record<string, unknown>;
 
@@ -25,6 +26,7 @@ export type EnrollmentWizardProps = {
   error: string;
   reopenedSections: number[];
   screenCopy?: Record<string, Record<string, string>>;
+  categoryCards?: PortalSettingsCardsItem[];
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
@@ -56,6 +58,12 @@ const categoryEntryLabels: Record<string, string> = {
   name: 'Category entry name',
   nickname: 'Nickname',
   surname: 'Surname',
+};
+const categoryEntryFieldsByCategory: Record<string, string[]> = {
+  'category-1': ['name', 'nickname'],
+  'category-2': ['name', 'surname'],
+  'category-3': ['name', 'surname'],
+  'category-4': ['name', 'surname'],
 };
 
 const stageSchemas: z.ZodType<WizardAnswers>[] = [
@@ -231,7 +239,7 @@ type LocalImage = { file: File; url: string };
 
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
-  reopenedSections, screenCopy = {}, saveStep, submit, onChangeCategory,
+  reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit, onChangeCategory,
   onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
   emailVerified = false, onDeclarationChange,
 }: EnrollmentWizardProps) {
@@ -288,6 +296,9 @@ export function EnrollmentWizard({
   const readOnly = !evidenceLater && !privateTrackingKey && status !== 'draft' && reopenedSections.length === 0;
   const canEditSection = (sectionIndex: number) => !readOnly && (!allowedSections || allowedSections.has(sectionIndex));
   const category = categories.find((item) => item.id === application.categoryId);
+  const categoryCard = categoryCards.find((card) => card.id === application.categoryId);
+  const categoryTitle = categoryCard?.title?.trim() || category?.name || application.categoryName;
+  const categoryDescription = categoryCard?.description?.trim() || category?.description || 'The enrollment category attached to this application.';
   const form = useForm<WizardAnswers>({
     defaultValues: answers,
     resolver: zodResolver(stageSchemas[Math.min(step, 7)]),
@@ -586,12 +597,16 @@ export function EnrollmentWizard({
     setEmailCorrectionSaved(true);
   };
 
-  const categoryEntry = Object.entries(categoryEntryLabels)
-    .filter(([key]) => typeof answers[key] === 'string' && textValue(answers, key).trim())
-    .map(([key, label]) => {
-      const categoryCopy = screenCopy[`category-entry-${application.categoryId}`] ?? {};
+  const categoryEntryScreenId = `category-entry-${application.categoryId.replace(/^category-/, '')}`;
+  const categoryEntryCopy = screenCopy[categoryEntryScreenId] ?? {};
+  const categoryEntry = (categoryEntryFieldsByCategory[application.categoryId] ?? Object.keys(categoryEntryLabels))
+    .map((key) => {
       const labelKey = key === 'name' ? 'nameLabel' : key === 'nickname' ? 'nicknameLabel' : 'surnameLabel';
-      return { key, label: categoryCopy[labelKey]?.trim() || label, value: textValue(answers, key) };
+      return {
+        key,
+        label: categoryEntryCopy[labelKey]?.trim() || categoryEntryLabels[key] || key,
+        value: textValue(answers, key),
+      };
     });
 
   const sectionComplete = (index: number) => {
@@ -693,11 +708,11 @@ export function EnrollmentWizard({
   );
 
   const categoryReview = <section className="ew-category-review" data-testid="review-category">
-    <div className="ew-category-top"><div><span className="ew-mini-label">ENROLLMENT CATEGORY</span><h3>{application.categoryName}</h3>
-      <p>{category?.description ?? 'The enrollment category attached to this application.'}</p></div>
+    <div className="ew-category-top"><div><span className="ew-mini-label">{categoryEntryCopy.sectionIdLabel?.trim() || 'ENROLLMENT CATEGORY'}</span><h3>{categoryTitle}</h3>
+      <p>{categoryDescription}</p></div>
       {categories.length > 1 && !evidenceLater && !readOnly && !allowedSections && <label className="ew-category-change">Change category
         <select value={application.categoryId} onChange={(event) => onChangeCategory(event.target.value)} aria-label="Change enrollment category" data-testid="select-category-change">
-          {categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          {categories.map((item) => <option key={item.id} value={item.id}>{categoryCards.find((card) => card.id === item.id)?.title?.trim() || item.name}</option>)}
         </select><ChevronDown size={14} />
       </label>}
     </div>
@@ -718,7 +733,9 @@ export function EnrollmentWizard({
 
   return <main className="ew-shell" style={stageBackground ? { background: stageBackground } : undefined} data-testid="enrollment-wizard">
     <header className="ew-topbar">
-      <PortalWordmark />
+      <Link href="/" className="ew-home-link" aria-label="Enrollment portal home" data-testid="link-wizard-home">
+        <PortalWordmark />
+      </Link>
       <div className="ew-top-meta"><span className={`ew-draft-status ${status === 'draft' ? '' : 'submitted'}`} data-testid="status-application">{evidenceLater ? 'details in progress' : status.replaceAll('_', ' ')}</span>
         <span className="ew-reference" data-testid="text-application-reference">{application.reference}</span>
         {evidenceLater && privateTrackingKey && <button type="button" className="ew-copy-tracking-key" onClick={() => void copyPrivateKey()} data-testid="button-copy-guest-key">
