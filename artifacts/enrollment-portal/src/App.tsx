@@ -187,20 +187,30 @@ function categoryCardLogoStyle(card: PortalSettings['cards'][number] | undefined
   };
 }
 
-function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
+function AppFrame({ children, active = 'dashboard', fitDashboard = false, currentApplication }: {
   children: ReactNode;
   active?: string;
   fitDashboard?: boolean;
+  currentApplication?: Pick<EnrollmentApplication, 'id' | 'status'>;
 }) {
   const { signOut } = useClerk();
   const { user } = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const links = [
+  const links: { label: string; href: string; key: string; icon: typeof Home }[] = [
     { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
-    { label: 'Applications', href: '/dashboard', key: 'applications', icon: FileCheck2 },
-    { label: 'Support', href: '/support', key: 'support', icon: LifeBuoy },
+    { label: 'Applications', href: '/dashboard#applications', key: 'applications', icon: FileCheck2 },
   ];
+  if (currentApplication) {
+    const editable = ['draft', 'needs_information'].includes(currentApplication.status);
+    links.push({
+      label: editable ? 'Continue enrollment' : 'Application status',
+      href: editable ? `/apply/${currentApplication.id}` : `/applications/${currentApplication.id}`,
+      key: editable ? 'enrollment' : 'applicationStatus',
+      icon: editable ? FileText : FileCheck2,
+    });
+  }
+  links.push({ label: 'Support', href: '/support', key: 'support', icon: LifeBuoy });
   return (
     <div className="app-shell portal-frame">
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
@@ -208,7 +218,13 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false }: {
         <div className="workspace-label">APPLICANT PORTAL</div>
         <nav className="side-nav" aria-label="Applicant navigation">
           {links.map(({ label, href, key, icon: Icon }) => (
-            <Link href={href} key={key} onClick={() => { setMenuOpen(false); if (key === 'applications') setLocation('/dashboard'); }}
+            <Link href={href} key={key} onClick={() => {
+              setMenuOpen(false);
+              if (key === 'applications') {
+                setLocation('/dashboard#applications');
+                requestAnimationFrame(() => document.getElementById('applications')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+              }
+            }}
               className={`nav-link ${active === key ? 'nav-link-active' : ''}`} data-testid={`link-nav-${key}`}>
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
             </Link>
@@ -486,6 +502,8 @@ function Dashboard() {
   const palette = ['#0EAD46', '#0C4DA1', '#0072AE', '#FFFFFF'];
   const iconColors = ['#168341', '#244fc7', '#087eaf', '#174d80'];
   const activeStatuses = ['draft', 'submitted', 'under_review', 'needs_information'];
+  const currentApplication = allApplications.find((application) =>
+    ['draft', 'needs_information'].includes(application.status));
   const applicationsForCategory = (categoryId: string) =>
     allApplications.filter((application) => application.categoryId === categoryId);
   const orderedCategories = useMemo(() => {
@@ -531,7 +549,7 @@ function Dashboard() {
   };
   const busy = !userLoaded || summary.isLoading || applications.isLoading || categories.isLoading;
   const failure = summary.isError || applications.isError || categories.isError;
-  return <AppFrame active="dashboard" fitDashboard>
+  return <AppFrame active="dashboard" fitDashboard currentApplication={currentApplication}>
     <div className="dashboard-layout">
       <div className="dashboard-main">
          <PageHeading eyebrow="YOUR ENROLLMENT" title={copyText(portalSettings.data, 'dashboard', 'title', 'A good place to begin.')} detail={copyText(portalSettings.data, 'dashboard', 'description', `Signed in as ${user?.fullName || user?.primaryEmailAddress?.emailAddress || 'your account'}. Start a separate application for each enrollment category.`)} />
@@ -585,7 +603,7 @@ function Dashboard() {
               </div>
               {categories.data?.length === 0 && <EmptyPanel title="Enrollment paths are unavailable" message="Please return later or contact support for help." />}
             </section>
-            <section className="recent-section">
+            <section className="recent-section" id="applications">
               <div className="section-line">
                 <div><h2>Your applications</h2><p>Each saved step is stored securely so you can return later. Authorized enrollment reviewers can see your progress.</p></div>
                 <div className="section-line-actions">
@@ -905,14 +923,14 @@ function ApplicationDetail() {
   if (app.isLoading) return <AppFrame><LoadingPanel /></AppFrame>;
   if (app.isError || !app.data) return <AppFrame><ErrorPanel message="We could not retrieve this application." retry={() => void app.refetch()} /></AppFrame>;
   const record = app.data;
-  return <AppFrame>
+  return <AppFrame active="applicationStatus" currentApplication={record}>
     <div className="detail-page">
-      <Link href="/dashboard" className="back-link" data-testid="link-detail-back"><ArrowLeft size={16} /> Your applications</Link>
-      <section className="detail-hero">
-        <div className="detail-meta"><span className="eyebrow">APPLICATION RECORD</span><StatusPill status={applicationDisplayStatus(record)} testId={`status-detail-${record.id}`} /></div>
-        <h1>{copyText(portalSettings.data, 'application-status', 'title', record.categoryName)}</h1><p className="mono detail-reference">{record.reference}</p>
-        <div className="detail-created">Last updated {formatDate(record.updatedAt)}</div>
-      </section>
+      <PageHeading
+        eyebrow="APPLICATION STATUS"
+        title={copyText(portalSettings.data, 'application-status', 'title', record.categoryName)}
+        detail={`Reference ${record.reference} · Last updated ${formatDate(record.updatedAt)}`}
+        action={<StatusPill status={applicationDisplayStatus(record)} testId={`status-detail-${record.id}`} />}
+      />
       <div className="detail-grid">
         <section className="detail-card"><div className="detail-card-title"><Activity size={17} /><h2>Verification progress</h2></div>
           <div className="status-timeline">
@@ -3517,6 +3535,13 @@ function RetiredApplicantRoute() {
   return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the shared applicant dashboard" /></main>;
 }
 
+function ApplicantApplicationRoute({ view }: { view: 'enrollment' | 'status' }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your application" /></main>;
+  if (!isSignedIn) return <RetiredApplicantRoute />;
+  return view === 'enrollment' ? <DraftApplication /> : <ApplicationDetail />;
+}
+
 function RoutedPages() {
   const [location, setLocation] = useLocation();
   const portalSettings = useGetPortalSettings();
@@ -3549,8 +3574,8 @@ function RoutedPages() {
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
     <Route path="/dashboard" component={ApplicantDashboardRoute} />
-    <Route path="/apply/:applicationId" component={RetiredApplicantRoute} />
-    <Route path="/applications/:applicationId" component={RetiredApplicantRoute} />
+    <Route path="/apply/:applicationId" component={() => <ApplicantApplicationRoute view="enrollment" />} />
+    <Route path="/applications/:applicationId" component={() => <ApplicantApplicationRoute view="status" />} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
     <Route path="/admin" component={() => <AdminGate><AdminLanding /></AdminGate>} />
     <Route path="/admin/review" component={() => <AdminGate><AdminQueue /></AdminGate>} />

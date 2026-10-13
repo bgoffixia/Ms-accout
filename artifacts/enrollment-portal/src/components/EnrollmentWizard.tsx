@@ -11,6 +11,7 @@ import {
 import './EnrollmentWizard.css';
 import { pageThemeBackground } from '../pageTheme';
 import { PortalWordmark } from './PortalWordmark';
+import { Link } from 'wouter';
 
 type WizardAnswers = Record<string, unknown>;
 
@@ -722,6 +723,7 @@ export function EnrollmentWizard({
 
   const uploadProgress = Math.min(100, Math.round((recordingSeconds / 12) * 100));
   const activeStepPosition = Math.max(0, activeSteps.indexOf(step));
+  const signedInWorkspace = !privateTrackingKey && !evidenceLater;
   const copyPrivateKey = async () => {
     if (!privateTrackingKey) return;
     try {
@@ -735,6 +737,11 @@ export function EnrollmentWizard({
   return <main className="ew-shell" style={stageBackground ? { background: stageBackground } : undefined} data-testid="enrollment-wizard">
     <header className="ew-topbar">
       <PortalWordmark />
+      {signedInWorkspace && <nav className="ew-applicant-nav" aria-label="Applicant navigation">
+        <Link href="/dashboard" data-testid="link-wizard-dashboard">Dashboard</Link>
+        <Link href={`/apply/${application.id}`} aria-current="page" className="ew-applicant-nav-active" data-testid="link-wizard-enrollment">Enrollment</Link>
+        <Link href="/dashboard#applications" data-testid="link-wizard-applications">Applications</Link>
+      </nav>}
       <div className="ew-top-meta"><span className={`ew-draft-status ${status === 'draft' ? '' : 'submitted'}`} data-testid="status-application">{evidenceLater ? 'details in progress' : status.replaceAll('_', ' ')}</span>
         <span className="ew-reference" data-testid="text-application-reference">{application.reference}</span>
         {evidenceLater && privateTrackingKey && <button type="button" className="ew-copy-tracking-key" onClick={() => void copyPrivateKey()} data-testid="button-copy-guest-key">

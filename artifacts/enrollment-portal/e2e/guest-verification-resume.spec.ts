@@ -272,6 +272,18 @@ async function expectNoDocumentOverflow(page: Page) {
   }
 }
 
+async function expectControlInsideViewport(page: Page, locator: ReturnType<Page["getByTestId"]>) {
+  await locator.scrollIntoViewIfNeeded();
+  const bounds = await locator.boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds, "primary action should have a visible bounding box").not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport!.width);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+}
+
 test("keeps public guest pages inside the viewport on phone and desktop", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -368,6 +380,44 @@ test("shows configured dashboard copy once in its designated locations", async (
   await expect(page.getByText("PUBLIC CATEGORY SELECTION", { exact: true })).toHaveCount(1);
 });
 
+test("shows a private application status without reviewer-only details", async ({ page }) => {
+  const api = new GuestApiFixture();
+  api.accessKey = "test-private-tracking-key";
+  api.draft = {
+    id: applicationId,
+    reference,
+    categoryId: "category-1",
+    categoryName: "Category One",
+    fullName: "Jordan Applicant",
+    email: "jordan@example.test",
+    status: "received",
+    submissionStatus: "draft",
+    emailVerified: false,
+    hasPin: true,
+    linkedApplicationId: null,
+    currentStep: 3,
+    detailsComplete: false,
+    answers: {},
+    createdAt: "2026-10-12T12:00:00.000Z",
+    updatedAt: "2026-10-12T12:02:00.000Z",
+  };
+  await page.setViewportSize({ width: 390, height: 568 });
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/guest/track");
+  await page.getByTestId("input-track-reference").fill(reference);
+  await page.getByTestId("input-track-key").fill(api.accessKey);
+  await page.getByTestId("button-lookup-guest-status").click();
+
+  const status = page.getByTestId("guest-public-status");
+  await expect(status).toBeVisible();
+  await expect(status).toContainText(reference);
+  await expect(status).toContainText("Not verified");
+  await expect(status).not.toContainText(reviewerOnlyNote);
+  await expectControlInsideViewport(page, page.getByTestId("button-resume-guest-application"));
+  await expectNoDocumentOverflow(page);
+});
+
 test("redirects retired account-based applicant URLs to the shared dashboard", async ({ page }) => {
   const api = new GuestApiFixture();
   await page.route("**/api/**", (route) => api.handle(route));
@@ -450,6 +500,9 @@ test("preserves the same guest application across verification failure, reload, 
   await expect(page.getByTestId("enrollment-wizard")).toHaveCount(0);
   await page.getByTestId("button-pin-key-confirm").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 568 });
+  await expectNoDocumentOverflow(page);
+  await expectControlInsideViewport(page, page.getByTestId("button-save-next"));
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoDocumentOverflow(page);
 
@@ -497,6 +550,7 @@ test("preserves the same guest application across verification failure, reload, 
   await page.locator("form.ew-form button[type=submit]").click();
   await expect.poll(() => api.uploadedEvidence.length).toBe(2);
   await page.locator("form.ew-form button[type=submit]").click();
+  await expectControlInsideViewport(page, page.getByTestId("button-submit-enrollment"));
   await page.getByTestId("section-declaration").locator("label").click();
   await expect(page.getByTestId("check-declaration")).toBeChecked();
   const sectionStatuses = await Promise.all(
