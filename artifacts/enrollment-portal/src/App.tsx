@@ -1444,7 +1444,32 @@ function AdminSettings() {
   const [draft, setDraft] = useState<PortalSettings | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [migrationError, setMigrationError] = useState('');
+  const [uploadingLogoKey, setUploadingLogoKey] = useState<string | null>(null);
+  const legacyMigrationPending = useRef(false);
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+  const migrateLegacyLogos = async () => {
+    if (legacyMigrationPending.current) return;
+    legacyMigrationPending.current = true;
+    setMigrationError('');
+    try {
+      const response = await fetch(`${basePath}/api/admin/settings/migrate-logos`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Logo migration request failed.');
+      const saved = await response.json() as PortalSettings;
+      queryClient.setQueryData<PortalSettings>(getGetPortalSettingsQueryKey(), saved);
+      setDraft({
+        ...saved,
+        pageThemes: normalizePageThemes(saved.pageThemes),
+        requiredFields: saved.requiredFields ?? [],
+      });
+    } catch {
+      setMigrationError('Some saved logos could not be moved to storage. Existing logos remain visible. Retry, or clear the saved logo images before saving.');
+    } finally {
+      legacyMigrationPending.current = false;
+    }
+  };
   useEffect(() => {
     if (settingsQuery.data) {
       setDraft({
@@ -1452,6 +1477,11 @@ function AdminSettings() {
         pageThemes: normalizePageThemes(settingsQuery.data.pageThemes),
         requiredFields: settingsQuery.data.requiredFields ?? [],
       });
+      const hasLegacyLogos = settingsQuery.data.cards.some((card) =>
+        [card.logoDataUrl, card.entryLogoDataUrl, card.pinLogoDataUrl]
+          .some((logo) => typeof logo === 'string' && logo.startsWith('data:image/')),
+      );
+      if (hasLegacyLogos) void migrateLegacyLogos();
     }
   }, [settingsQuery.data]);
   const updateHero = (key: keyof PortalSettings['hero'], value: string) => {
@@ -1523,21 +1553,43 @@ function AdminSettings() {
       },
     } : current);
   };
-  const uploadLogo = (cardId: string, assetKey: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl', file?: File) => {
+  const uploadLogo = async (cardId: string, assetKey: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl', file?: File) => {
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
       setError('Choose a PNG, JPEG, or WebP image no larger than 2 MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        updateCard(cardId, assetKey, reader.result);
-        setError('');
-      }
-    };
-    reader.onerror = () => setError('The image could not be read.');
-    reader.readAsDataURL(file);
+    const uploadKey = `${cardId}:${assetKey}`;
+    setUploadingLogoKey(uploadKey);
+    setError('');
+    try {
+      const uploadRequest = await fetch(`${basePath}/api/admin/settings/logos/upload-url`, {
+        method: 'POST',
+      });
+      if (!uploadRequest.ok) throw new Error('Could not prepare the logo upload.');
+      const { uploadUrl, objectPath } = await uploadRequest.json() as {
+        uploadUrl: string;
+        objectPath: string;
+      };
+      const upload = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!upload.ok) throw new Error('The image could not be uploaded.');
+      const completion = await fetch(`${basePath}/api/admin/settings/logos/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objectPath, contentType: file.type }),
+      });
+      if (!completion.ok) throw new Error('The uploaded image could not be verified.');
+      const { logoUrl } = await completion.json() as { logoUrl: string };
+      updateCard(cardId, assetKey, logoUrl);
+    } catch {
+      setError('The logo could not be uploaded. Please try again.');
+    } finally {
+      setUploadingLogoKey(null);
+    }
   };
   const renderLogoSettings = (card: PortalSettings['cards'][number], slot: 'card' | 'entry' | 'pin') => {
     const categoryNumber = card.id.replace('category-', '');
@@ -1575,6 +1627,7 @@ function AdminSettings() {
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
+          disabled={uploadingLogoKey === `${card.id}:${assetKey}`}
           onChange={(event) => uploadLogo(card.id, assetKey, event.target.files?.[0])}
           data-testid={slot === 'card' ? `input-settings-logo-${card.id}` : `input-settings-logo-${card.id}-${slot}`}
         />
@@ -1830,6 +1883,13 @@ function AdminSettings() {
   };
   const save = () => {
     if (!draft) return;
+    if (draft.cards.some((card) =>
+      [card.logoDataUrl, card.entryLogoDataUrl, card.pinLogoDataUrl]
+        .some((logo) => typeof logo === 'string' && logo.startsWith('data:image/')),
+    )) {
+      setMigrationError('Saved logos must finish moving to storage before settings can be saved.');
+      return;
+    }
     setMessage('');
     setError('');
     saveSettings.mutate({ data: draft }, {
@@ -1848,9 +1908,10 @@ function AdminSettings() {
   if (settingsQuery.isError) return <AdminShell active="settings"><AccessError retry={() => void settingsQuery.refetch()} /></AdminShell>;
   if (!draft) return <AdminShell active="settings"><LoadingPanel label="Loading portal settings" /></AdminShell>;
   return <AdminShell active="settings"><div className="admin-page admin-settings-page">
-    <PageHeading eyebrow="PORTAL CONFIGURATION" title="Portal settings" detail="Edit the home page, enrollment cards, screen copy, and visual settings." action={<button className="button button-primary" onClick={save} disabled={saveSettings.isPending} data-testid="button-save-portal-settings">{saveSettings.isPending ? 'Saving…' : 'Save changes'} <Check size={15} /></button>} />
+    <PageHeading eyebrow="PORTAL CONFIGURATION" title="Portal settings" detail="Edit the home page, enrollment cards, screen copy, and visual settings." action={<button className="button button-primary" onClick={save} disabled={saveSettings.isPending || uploadingLogoKey !== null || draft.cards.some((card) => [card.logoDataUrl, card.entryLogoDataUrl, card.pinLogoDataUrl].some((logo) => typeof logo === 'string' && logo.startsWith('data:image/')))} data-testid="button-save-portal-settings">{saveSettings.isPending ? 'Saving…' : 'Save changes'} <Check size={15} /></button>} />
     {message && <p className="success-message" role="status" data-testid="text-settings-success">{message}</p>}
     {error && <p className="inline-error" role="alert" data-testid="text-settings-error">{error}</p>}
+    {migrationError && <p className="inline-error" role="alert" data-testid="text-logo-migration-error">{migrationError} <button type="button" className="text-action" onClick={() => void migrateLegacyLogos()}>Retry</button></p>}
     <nav className="settings-jump-nav" aria-label="Settings sections">
       <span>JUMP TO</span>
       <a href="#settings-landing">Landing</a>

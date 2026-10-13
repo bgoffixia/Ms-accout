@@ -133,6 +133,28 @@ export class ObjectStorageService {
     });
   }
 
+  async storePublicLogo(
+    bytes: Buffer,
+    contentType: string,
+    owner: string,
+  ): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectPath = `${privateObjectDir}/uploads/${randomUUID()}`;
+    const { bucketName, objectName } = parseObjectPath(objectPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(bytes, { metadata: { contentType } });
+    const normalizedPath = this.normalizeObjectEntityPath(
+      `https://storage.googleapis.com${objectPath}`,
+    );
+    try {
+      await setObjectAclPolicy(file, { owner, visibility: 'public' });
+      return normalizedPath;
+    } catch (error) {
+      await file.delete().catch(() => undefined);
+      throw error;
+    }
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();
@@ -192,6 +214,14 @@ export class ObjectStorageService {
     const objectFile = await this.getObjectEntityFile(normalizedPath);
     await setObjectAclPolicy(objectFile, aclPolicy);
     return normalizedPath;
+  }
+
+  async deleteObjectEntity(objectPath: string): Promise<void> {
+    if (!/^\/objects\/uploads\/[0-9a-f-]{36}$/i.test(objectPath)) {
+      throw new ObjectNotFoundError();
+    }
+    const objectFile = await this.getObjectEntityFile(objectPath);
+    await objectFile.delete();
   }
 
   async canAccessObjectEntity({

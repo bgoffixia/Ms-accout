@@ -76,6 +76,9 @@ import {
   RequestGuestApplicantEvidenceUploadBody,
   RequestGuestApplicantEvidenceUploadParams,
   RequestGuestApplicantEvidenceUploadResponse,
+  RequestPortalLogoUploadResponse,
+  CompletePortalLogoUploadBody,
+  CompletePortalLogoUploadResponse,
   CompleteGuestApplicantEvidenceUploadBody,
   CompleteGuestApplicantEvidenceUploadParams,
   CompleteGuestApplicantEvidenceUploadResponse,
@@ -131,6 +134,7 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
+import { ObjectPermission } from "../lib/objectAcl";
 import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
 
 type ApplicationStatus =
@@ -392,18 +396,90 @@ function requirePrimaryAdmin(
   res.status(403).json({ error: "Administrator access is required." });
 }
 
-function validatePublicImageDataUrl(value: string | null): boolean {
-  if (value === null) return true;
-  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(value);
-  if (!match) return false;
+const PORTAL_LOGO_FIELDS = [
+  "logoDataUrl",
+  "entryLogoDataUrl",
+  "pinLogoDataUrl",
+] as const;
+const PORTAL_LOGO_REFERENCE_PREFIX = "/api/enrollment/logos/";
+const PORTAL_LOGO_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parsePublicImageDataUrl(value: string): {
+  bytes: Buffer;
+  contentType: string;
+} | null {
+  const match =
+    /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(value);
+  if (!match) return null;
   const bytes = Buffer.from(match[2]!, "base64");
+  const contentType = `image/${match[1]}`;
+  return validatePublicImageBytes(bytes, contentType)
+    ? { bytes, contentType }
+    : null;
+}
+
+function validatePublicImageBytes(bytes: Buffer, contentType: string): boolean {
   if (!bytes.length || bytes.length > 2 * 1024 * 1024) return false;
-  const type = match[1];
-  if (type === "png") {
-    return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (contentType === "image/png") {
+    return (
+      bytes.length >= 8 &&
+      bytes
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    );
   }
-  if (type === "jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes.at(-2) === 0xff && bytes.at(-1) === 0xd9;
-  return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (contentType === "image/jpeg") {
+    return (
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes.at(-2) === 0xff &&
+      bytes.at(-1) === 0xd9
+    );
+  }
+  return (
+    contentType === "image/webp" &&
+    bytes.length >= 12 &&
+    bytes.toString("ascii", 0, 4) === "RIFF" &&
+    bytes.toString("ascii", 8, 12) === "WEBP"
+  );
+}
+
+function portalLogoObjectPath(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith(PORTAL_LOGO_REFERENCE_PREFIX)) {
+    return null;
+  }
+  const id = value.slice(PORTAL_LOGO_REFERENCE_PREFIX.length);
+  return PORTAL_LOGO_ID_PATTERN.test(id) ? `/objects/uploads/${id}` : null;
+}
+
+function portalLogoUrl(objectPath: string): string {
+  const id = objectPath.split("/").at(-1);
+  if (!id || !PORTAL_LOGO_ID_PATTERN.test(id)) {
+    throw new Error("Stored logo path is invalid.");
+  }
+  return `${PORTAL_LOGO_REFERENCE_PREFIX}${id}`;
+}
+
+function collectPortalLogoObjectPaths(settings: {
+  cards: Array<Record<string, unknown>>;
+}): Set<string> {
+  const paths = new Set<string>();
+  for (const card of settings.cards) {
+    for (const field of PORTAL_LOGO_FIELDS) {
+      const path = portalLogoObjectPath(card[field]);
+      if (path) paths.add(path);
+    }
+  }
+  return paths;
+}
+
+function validatePublicImageDataUrl(value: string | null): boolean {
+  return (
+    value === null ||
+    portalLogoObjectPath(value) !== null ||
+    parsePublicImageDataUrl(value) !== null
+  );
 }
 
 function categoryName(categoryId: string): string {
@@ -1281,6 +1357,46 @@ router.get("/portal/settings", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ err: error }, "Failed to load portal settings");
     res.status(503).json({ error: "Portal settings are temporarily unavailable." });
+  }
+});
+
+router.get("/enrollment/logos/:logoId", async (req, res): Promise<void> => {
+  const logoId = Array.isArray(req.params.logoId)
+    ? req.params.logoId[0]
+    : req.params.logoId;
+  if (!logoId || !PORTAL_LOGO_ID_PATTERN.test(logoId)) {
+    res.status(404).json({ error: "Logo not found." });
+    return;
+  }
+  const objectPath = `/objects/uploads/${logoId}`;
+  try {
+    const objectFile = await objectStorage.getObjectEntityFile(objectPath);
+    const canRead = await objectStorage.canAccessObjectEntity({
+      objectFile,
+      requestedPermission: ObjectPermission.READ,
+    });
+    if (!canRead) {
+      res.status(404).json({ error: "Logo not found." });
+      return;
+    }
+    const [metadata] = await objectFile.getMetadata();
+    const contentType = metadata.contentType as string | undefined;
+    if (!contentType || !["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
+      res.status(404).json({ error: "Logo not found." });
+      return;
+    }
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
+    objectFile.createReadStream().pipe(res);
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Logo not found." });
+      return;
+    }
+    req.log.error({ err: error }, "Failed to serve portal logo");
+    res.status(503).json({ error: "The logo could not be loaded." });
   }
 });
 
@@ -3237,6 +3353,154 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
   }
 });
 
+router.post(
+  "/admin/settings/logos/upload-url",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    try {
+      const uploadUrl = await objectStorage.getObjectEntityUploadURL();
+      const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
+      if (!/^\/objects\/uploads\/[0-9a-f-]{36}$/i.test(objectPath)) {
+        throw new Error("Logo upload path is invalid.");
+      }
+      res.json(
+        RequestPortalLogoUploadResponse.parse({ uploadUrl, objectPath }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to prepare portal logo upload");
+      res.status(503).json({ error: "A logo upload could not be prepared." });
+    }
+  },
+);
+
+router.post(
+  "/admin/settings/logos/complete",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const parsed = CompletePortalLogoUploadBody.safeParse(req.body);
+    const objectPath = parsed.success ? parsed.data.objectPath : "";
+    if (
+      !parsed.success ||
+      !/^\/objects\/uploads\/[0-9a-f-]{36}$/i.test(objectPath) ||
+      !["image/png", "image/jpeg", "image/webp"].includes(parsed.data.contentType)
+    ) {
+      res.status(400).json({ error: "Choose a valid uploaded PNG, JPEG, or WebP logo." });
+      return;
+    }
+    try {
+      const objectFile = await objectStorage.getObjectEntityFile(objectPath);
+      const [metadata] = await objectFile.getMetadata();
+      if (
+        Number(metadata.size) > 2 * 1024 * 1024 ||
+        metadata.contentType !== parsed.data.contentType
+      ) {
+        await objectStorage.deleteObjectEntity(objectPath);
+        res.status(400).json({ error: "The uploaded logo did not match its declared type or size." });
+        return;
+      }
+      const [bytes] = await objectFile.download();
+      if (!validatePublicImageBytes(bytes, parsed.data.contentType)) {
+        await objectStorage.deleteObjectEntity(objectPath);
+        res.status(400).json({ error: "The uploaded file is not a valid PNG, JPEG, or WebP image." });
+        return;
+      }
+      await objectStorage.trySetObjectEntityAclPolicy(objectPath, {
+        owner: res.locals.userId as string,
+        visibility: "public",
+      });
+      res.json(
+        CompletePortalLogoUploadResponse.parse({
+          logoUrl: portalLogoUrl(objectPath),
+        }),
+      );
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(404).json({ error: "The uploaded logo was not found." });
+        return;
+      }
+      req.log.error({ err: error }, "Failed to verify portal logo upload");
+      res.status(503).json({ error: "The uploaded logo could not be verified." });
+    }
+  },
+);
+
+router.post(
+  "/admin/settings/migrate-logos",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    let storedObjectPaths: string[] = [];
+    try {
+      const previousSettings = await loadPortalSettings();
+      const settingsToSave = structuredClone(previousSettings);
+      const legacyImages = new Map<string, { bytes: Buffer; contentType: string }>();
+      for (const card of settingsToSave.cards) {
+        for (const field of PORTAL_LOGO_FIELDS) {
+          const value = card[field];
+          if (typeof value !== "string" || !value.startsWith("data:") || legacyImages.has(value)) {
+            continue;
+          }
+          const image = parsePublicImageDataUrl(value);
+          if (!image) {
+            res.status(400).json({ error: "A saved logo is not a valid supported image." });
+            return;
+          }
+          legacyImages.set(value, image);
+        }
+      }
+      const migratedUrls = new Map<string, string>();
+      for (const card of settingsToSave.cards) {
+        for (const field of PORTAL_LOGO_FIELDS) {
+          const value = card[field];
+          if (typeof value !== "string" || !value.startsWith("data:")) continue;
+          const existingUrl = migratedUrls.get(value);
+          if (existingUrl) {
+            card[field] = existingUrl;
+            continue;
+          }
+          const image = legacyImages.get(value)!;
+          const objectPath = await objectStorage.storePublicLogo(
+            image.bytes,
+            image.contentType,
+            res.locals.userId as string,
+          );
+          storedObjectPaths.push(objectPath);
+          const logoUrl = portalLogoUrl(objectPath);
+          migratedUrls.set(value, logoUrl);
+          card[field] = logoUrl;
+        }
+      }
+      const [record] = await db
+        .insert(portalSettingsTable)
+        .values({
+          key: "portal",
+          value: settingsToSave,
+          updatedByUserId: res.locals.userId,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: portalSettingsTable.key,
+          set: {
+            value: settingsToSave,
+            updatedByUserId: res.locals.userId,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ value: portalSettingsTable.value });
+      res.json(
+        UpdatePortalSettingsResponse.parse(record?.value ?? settingsToSave),
+      );
+    } catch (error) {
+      await Promise.all(
+        storedObjectPaths.map((path) =>
+          objectStorage.deleteObjectEntity(path).catch(() => undefined),
+        ),
+      );
+      req.log.error({ err: error }, "Failed to migrate saved portal logos");
+      res.status(503).json({ error: "Saved logos could not be moved to storage." });
+    }
+  },
+);
+
 router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   const parsed = UpdatePortalSettingsBody.safeParse(req.body);
@@ -3280,7 +3544,18 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
         },
       })
       .returning({ value: portalSettingsTable.value });
-    res.json(UpdatePortalSettingsResponse.parse(record?.value ?? settingsToSave));
+    const savedSettings = UpdatePortalSettingsResponse.parse(record?.value ?? settingsToSave);
+    const retainedLogoPaths = collectPortalLogoObjectPaths(settingsToSave);
+    const replacedLogoPaths = [...collectPortalLogoObjectPaths(previousSettings)]
+      .filter((path) => !retainedLogoPaths.has(path));
+    for (const path of replacedLogoPaths) {
+      try {
+        await objectStorage.deleteObjectEntity(path);
+      } catch (error) {
+        req.log.warn({ err: error, objectPath: path }, "Failed to remove replaced portal logo");
+      }
+    }
+    res.json(savedSettings);
   } catch (error) {
     req.log.error({ err: error }, "Failed to save portal settings");
     res.status(503).json({ error: "Portal settings could not be saved." });

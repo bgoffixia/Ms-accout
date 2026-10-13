@@ -57,6 +57,9 @@ import type {
   ListApplicationsForReviewParams,
   ListSupportTicketsForAdminParams,
   NewApplicationSubmissionInput,
+  PortalLogoUploadCompletion,
+  PortalLogoUploadCompletionInput,
+  PortalLogoUploadRequest,
   PortalSettings,
   StaffAccessClaimResponse,
   StaffRegistrationCheckInput,
@@ -2835,6 +2838,319 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getUpdatePortalSettingsMutationOptions(options));
     }
+
+export const getRequestPortalLogoUploadUrl = () => {
+
+
+
+
+  return `/api/admin/settings/logos/upload-url`
+}
+
+/**
+ * @summary Request a direct upload URL for an administrator logo
+ */
+export const requestPortalLogoUpload = async ( options?: Parameters<typeof customFetch>[1]): Promise<PortalLogoUploadRequest> => {
+
+  return customFetch<PortalLogoUploadRequest>(getRequestPortalLogoUploadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRequestPortalLogoUploadMutationKey = () => ['requestPortalLogoUpload'] as const;
+
+export const getRequestPortalLogoUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPortalLogoUpload>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestPortalLogoUpload>>, TError,void, TContext> => {
+
+const mutationKey = getRequestPortalLogoUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestPortalLogoUpload>>, void> = () => {
+
+
+          return  requestPortalLogoUpload(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestPortalLogoUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestPortalLogoUpload>>>
+
+    export type RequestPortalLogoUploadMutationError = ErrorType<unknown>
+
+
+    /**
+ * @summary Request a direct upload URL for an administrator logo
+ */
+export const useRequestPortalLogoUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPortalLogoUpload>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestPortalLogoUpload>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRequestPortalLogoUploadMutationOptions(options));
+    }
+
+export const getCompletePortalLogoUploadUrl = () => {
+
+
+
+
+  return `/api/admin/settings/logos/complete`
+}
+
+/**
+ * @summary Verify an uploaded portal logo and make it publicly viewable
+ */
+export const completePortalLogoUpload = async (portalLogoUploadCompletionInput: PortalLogoUploadCompletionInput, options?: Parameters<typeof customFetch>[1]): Promise<PortalLogoUploadCompletion> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PortalLogoUploadCompletion>(getCompletePortalLogoUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(portalLogoUploadCompletionInput)
+  }
+);}
+
+
+
+
+
+export const getCompletePortalLogoUploadMutationKey = () => ['completePortalLogoUpload'] as const;
+
+export const getCompletePortalLogoUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completePortalLogoUpload>>, TError,CompletePortalLogoUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completePortalLogoUpload>>, TError,CompletePortalLogoUploadMutationVariables, TContext> => {
+
+const mutationKey = getCompletePortalLogoUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completePortalLogoUpload>>, CompletePortalLogoUploadMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  completePortalLogoUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompletePortalLogoUploadMutationResult = NonNullable<Awaited<ReturnType<typeof completePortalLogoUpload>>>
+    export type CompletePortalLogoUploadMutationBody = BodyType<PortalLogoUploadCompletionInput>
+    export type CompletePortalLogoUploadMutationError = ErrorType<unknown>
+    export type CompletePortalLogoUploadMutationVariables = {data: BodyType<PortalLogoUploadCompletionInput>}
+
+    /**
+ * @summary Verify an uploaded portal logo and make it publicly viewable
+ */
+export const useCompletePortalLogoUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completePortalLogoUpload>>, TError,CompletePortalLogoUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completePortalLogoUpload>>,
+        TError,
+        CompletePortalLogoUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCompletePortalLogoUploadMutationOptions(options));
+    }
+
+export const getMigratePortalLogosUrl = () => {
+
+
+
+
+  return `/api/admin/settings/migrate-logos`
+}
+
+/**
+ * @summary Move legacy base64 portal logos into durable object storage
+ */
+export const migratePortalLogos = async ( options?: Parameters<typeof customFetch>[1]): Promise<PortalSettings> => {
+
+  return customFetch<PortalSettings>(getMigratePortalLogosUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMigratePortalLogosMutationKey = () => ['migratePortalLogos'] as const;
+
+export const getMigratePortalLogosMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof migratePortalLogos>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof migratePortalLogos>>, TError,void, TContext> => {
+
+const mutationKey = getMigratePortalLogosMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof migratePortalLogos>>, void> = () => {
+
+
+          return  migratePortalLogos(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MigratePortalLogosMutationResult = NonNullable<Awaited<ReturnType<typeof migratePortalLogos>>>
+
+    export type MigratePortalLogosMutationError = ErrorType<unknown>
+
+
+    /**
+ * @summary Move legacy base64 portal logos into durable object storage
+ */
+export const useMigratePortalLogos = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof migratePortalLogos>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof migratePortalLogos>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMigratePortalLogosMutationOptions(options));
+    }
+
+export const getGetPortalLogoUrl = (logoId: string,) => {
+
+
+
+
+  return `/api/enrollment/logos/${logoId}`
+}
+
+/**
+ * @summary Load a public portal logo
+ */
+export const getPortalLogo = async (logoId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPortalLogoUrl(logoId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalLogoQueryKey = (logoId: string,) => {
+    return [
+    `/api/enrollment/logos/${logoId}`
+    ] as const;
+    }
+
+
+export const getGetPortalLogoQueryOptions = <TData = Awaited<ReturnType<typeof getPortalLogo>>, TError = ErrorType<void>>(logoId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortalLogo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalLogoQueryKey(logoId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalLogo>>> = ({ signal }) => getPortalLogo(logoId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: logoId !== null && logoId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalLogo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPortalLogoQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalLogo>>>
+export type GetPortalLogoQueryError = ErrorType<void>
+
+
+/**
+ * @summary Load a public portal logo
+ */
+
+export function useGetPortalLogo<TData = Awaited<ReturnType<typeof getPortalLogo>>, TError = ErrorType<void>>(
+ logoId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortalLogo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPortalLogoQueryOptions(logoId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetAdminApplicationHistoryUrl = (applicationId: string,) => {
 

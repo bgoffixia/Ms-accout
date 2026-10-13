@@ -1187,6 +1187,135 @@ export const UpdatePortalSettingsResponse = zod.object({
 })
 
 
+/**
+ * @summary Request a direct upload URL for an administrator logo
+ */
+export const requestPortalLogoUploadResponseObjectPathRegExp = new RegExp('^/objects/uploads/[0-9a-fA-F-]{36}$');
+
+
+export const RequestPortalLogoUploadResponse = zod.object({
+  "uploadUrl": zod.string().url(),
+  "objectPath": zod.string().regex(requestPortalLogoUploadResponseObjectPathRegExp)
+})
+
+
+/**
+ * @summary Verify an uploaded portal logo and make it publicly viewable
+ */
+export const completePortalLogoUploadBodyObjectPathRegExp = new RegExp('^/objects/uploads/[0-9a-fA-F-]{36}$');
+
+
+export const CompletePortalLogoUploadBody = zod.object({
+  "objectPath": zod.string().regex(completePortalLogoUploadBodyObjectPathRegExp),
+  "contentType": zod.enum(['image/png', 'image/jpeg', 'image/webp'])
+})
+
+export const completePortalLogoUploadResponseLogoUrlRegExp = new RegExp('^/api/enrollment/logos/[0-9a-fA-F-]{36}$');
+
+
+export const CompletePortalLogoUploadResponse = zod.object({
+  "logoUrl": zod.string().regex(completePortalLogoUploadResponseLogoUrlRegExp)
+})
+
+
+/**
+ * @summary Move legacy base64 portal logos into durable object storage
+ */
+export const migratePortalLogosResponseHeroTitleMax = 160;
+
+export const migratePortalLogosResponseHeroDescriptionMax = 500;
+
+export const migratePortalLogosResponseHeroGetStartedLabelMax = 60;
+
+export const migratePortalLogosResponseHeroLoginLabelMax = 60;
+
+export const migratePortalLogosResponseCardsItemTitleMax = 100;
+
+export const migratePortalLogosResponseCardsItemDescriptionMax = 240;
+
+export const migratePortalLogosResponseCardsItemButtonLabelMax = 60;
+
+export const migratePortalLogosResponseCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const migratePortalLogosResponseCardsItemLogoDataUrlMax = 6000000;
+
+export const migratePortalLogosResponseCardsItemEntryLogoDataUrlMax = 6000000;
+
+export const migratePortalLogosResponseCardsItemPinLogoDataUrlMax = 6000000;
+
+export const migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMin = -60;
+export const migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMax = 60;
+
+export const migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMin = -120;
+export const migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMax = 120;
+
+export const migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin = -120;
+export const migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax = 120;
+
+export const migratePortalLogosResponseCardsMin = 4;
+export const migratePortalLogosResponseCardsMax = 4;
+
+export const migratePortalLogosResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const migratePortalLogosResponseScreenCopyMaxTwo = 500;
+
+export const migratePortalLogosResponseRequiredFieldsMax = 46;
+
+export const migratePortalLogosResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const migratePortalLogosResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const migratePortalLogosResponsePageThemesAngleMin = 0;
+export const migratePortalLogosResponsePageThemesAngleMax = 360;
+
+
+
+export const MigratePortalLogosResponse = zod.object({
+  "hero": zod.object({
+  "title": zod.string().max(migratePortalLogosResponseHeroTitleMax),
+  "description": zod.string().max(migratePortalLogosResponseHeroDescriptionMax),
+  "getStartedLabel": zod.string().max(migratePortalLogosResponseHeroGetStartedLabelMax),
+  "loginLabel": zod.string().max(migratePortalLogosResponseHeroLoginLabelMax)
+}),
+  "cards": zod.array(zod.object({
+  "id": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "title": zod.string().max(migratePortalLogosResponseCardsItemTitleMax),
+  "description": zod.string().max(migratePortalLogosResponseCardsItemDescriptionMax),
+  "buttonLabel": zod.string().max(migratePortalLogosResponseCardsItemButtonLabelMax),
+  "backgroundColor": zod.string().regex(migratePortalLogosResponseCardsItemBackgroundColorRegExp),
+  "logoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemLogoDataUrlMax).nullable(),
+  "entryLogoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemEntryLogoDataUrlMax).nullish(),
+  "pinLogoDataUrl": zod.string().max(migratePortalLogosResponseCardsItemPinLogoDataUrlMax).nullish(),
+  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
+  "cardLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemCardLogoVerticalOffsetMax).optional(),
+  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
+  "entryLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
+  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
+  "pinLogoVerticalOffset": zod.number().int().min(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMin).max(migratePortalLogosResponseCardsItemPinLogoVerticalOffsetMax).optional()
+})).min(migratePortalLogosResponseCardsMin).max(migratePortalLogosResponseCardsMax),
+  "theme": zod.object({
+  "pinScreenBackground": zod.string().regex(migratePortalLogosResponseThemePinScreenBackgroundRegExp),
+  "buttonSize": zod.enum(['compact', 'standard', 'large']),
+  "buttonPlacement": zod.enum(['left', 'center', 'right']),
+  "categoryInputTransparent": zod.boolean()
+}),
+  "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(migratePortalLogosResponseScreenCopyMaxTwo))),
+  "requiredFields": zod.array(zod.enum(['name', 'nickname', 'surname', 'personalInformation.firstName', 'personalInformation.middleName', 'personalInformation.surname', 'personalInformation.dateOfBirth', 'personalInformation.nationality', 'personalInformation.phone', 'personalInformation.email', 'personalInformation.residentialAddress', 'personalInformation.stateRegion', 'personalInformation.city', 'personalInformation.postalCode', 'nextOfKin.fullName', 'nextOfKin.relationship', 'nextOfKin.phone', 'nextOfKin.email', 'nextOfKin.residentialAddress', 'nextOfKin.city', 'nextOfKin.stateRegion', 'education.highestQualification', 'education.institution', 'education.courseField', 'education.startYear', 'education.completionYear', 'education.certificationStatus', 'education.additionalQualifications', 'education.certificateObjectPath', 'workInformation.employmentStatus', 'workInformation.occupation', 'workInformation.employer', 'workInformation.businessName', 'workInformation.workAddress', 'workInformation.workPhone', 'workInformation.yearsExperience', 'proofOfIdentity.documentType', 'proofOfIdentity.documentNumber', 'proofOfIdentity.frontObjectPath', 'proofOfIdentity.backObjectPath', 'liveVideoRecording.consentAccepted', 'liveVideoRecording.objectPath', 'bankDetails.bankName', 'bankDetails.accountHolder', 'bankDetails.accountNumber', 'bankDetails.accountType'])).max(migratePortalLogosResponseRequiredFieldsMax).optional().describe('Applicant answer or evidence fields that must be present before final submission.'),
+  "pageThemes": zod.record(zod.string(), zod.object({
+  "mode": zod.enum(['inherit', 'solid', 'gradient']),
+  "color": zod.string().regex(migratePortalLogosResponsePageThemesColorRegExp),
+  "blendColor": zod.string().regex(migratePortalLogosResponsePageThemesBlendColorRegExp),
+  "angle": zod.number().int().min(migratePortalLogosResponsePageThemesAngleMin).max(migratePortalLogosResponsePageThemesAngleMax)
+})).optional()
+})
+
+
+/**
+ * @summary Load a public portal logo
+ */
+export const GetPortalLogoParams = zod.object({
+  "logoId": zod.coerce.string().uuid()
+})
+
+export const GetPortalLogoResponse = zod.unknown()
+
+
 export const GetAdminApplicationHistoryParams = zod.object({
   "applicationId": zod.coerce.string()
 })

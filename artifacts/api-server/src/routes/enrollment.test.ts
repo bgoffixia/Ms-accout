@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
   users: new Map<string, Record<string, unknown>>(),
-  storageObjects: new Map<string, { contentType: string; bytes: Buffer }>(),
+  storageObjects: new Map<string, { contentType: string; bytes: Buffer; public?: boolean }>(),
   uploadCount: 0,
   tables: (() => {
     const makeTable = (name: string) => {
@@ -287,11 +287,32 @@ vi.mock("../lib/objectStorage", () => ({
   ObjectStorageService: class {
     async getObjectEntityUploadURL() {
       mockState.uploadCount += 1;
-      return `https://storage.test/upload/${mockState.uploadCount}`;
+      return `https://storage.test/upload/${crypto.randomUUID()}`;
     }
 
     normalizeObjectEntityPath(uploadUrl: string) {
-      return `/objects/test/${uploadUrl.split("/").at(-1)}`;
+      return `/objects/uploads/${uploadUrl.split("/").at(-1)}`;
+    }
+
+    async storePublicLogo(bytes: Buffer, contentType: string) {
+      const path = `/objects/uploads/${crypto.randomUUID()}`;
+      mockState.storageObjects.set(path, { contentType, bytes, public: true });
+      return path;
+    }
+
+    async trySetObjectEntityAclPolicy(path: string) {
+      const object = mockState.storageObjects.get(path);
+      if (!object) throw new Error(`Missing mocked object ${path}`);
+      object.public = true;
+      return path;
+    }
+
+    async canAccessObjectEntity({ objectFile }: { objectFile: { objectPath: string } }) {
+      return mockState.storageObjects.get(objectFile.objectPath)?.public === true;
+    }
+
+    async deleteObjectEntity(path: string) {
+      mockState.storageObjects.delete(path);
     }
 
     async getObjectEntityFile(path: string) {
@@ -311,8 +332,9 @@ vi.mock("../lib/objectStorage", () => ({
           size: String(object.bytes.length),
           contentType: object.contentType,
         }],
-        download: async ({ start, end }: { start: number; end: number }) => [
-          object.bytes.subarray(start, end + 1),
+        objectPath: path,
+        download: async (range?: { start: number; end: number }) => [
+          range ? object.bytes.subarray(range.start, range.end + 1) : object.bytes,
         ],
         delete: async () => {
           mockState.storageObjects.delete(path);
@@ -449,7 +471,7 @@ describe("guest application verification and persistence", () => {
       },
     );
     expect(prepared.response.status).toBe(200);
-    const objectPath = `/objects/test/${mockState.uploadCount}`;
+    const objectPath = `/objects/uploads/${prepared.body.uploadUrl.split("/").at(-1)}`;
     mockState.storageObjects.set(objectPath, { contentType, bytes });
     const evidenceId = prepared.body.evidenceId as string;
     const completed = await request(
@@ -988,6 +1010,99 @@ describe("guest application verification and persistence", () => {
     });
     expect(publicSubmittedStatus.body.applicantFollowup).toBeNull();
     expect(JSON.stringify(publicSubmittedStatus.body)).not.toContain("Internal reviewer-only note");
+  });
+
+  it("migrates legacy logos and deletes replaced or cleared public logo objects", async () => {
+    const imageDataUrl = `data:image/png;base64,${privatePng.toString("base64")}`;
+    const settings = {
+      hero: {
+        title: "Enrollment",
+        description: "Apply online.",
+        getStartedLabel: "Get started",
+        loginLabel: "Sign in",
+      },
+      cards: ["category-1", "category-2", "category-3", "category-4"].map((id, index) => ({
+        id,
+        title: id,
+        description: "Enrollment category",
+        buttonLabel: "Continue",
+        backgroundColor: "#ffffff",
+        logoDataUrl: index === 0 ? imageDataUrl : null,
+      })),
+      theme: {
+        pinScreenBackground: "#ffffff",
+        buttonSize: "standard",
+        buttonPlacement: "center",
+        categoryInputTransparent: true,
+      },
+      screenCopy: {},
+      requiredFields: [],
+    };
+    mockState.rows.set("portal_settings", [{
+      key: "portal",
+      value: settings,
+      updatedAt: new Date(),
+      updatedByUserId: "administrator",
+    }]);
+
+    const deniedUpload = await request("/admin/settings/logos/upload-url", {
+      method: "POST",
+    }, "reviewer");
+    expect(deniedUpload.response.status).toBe(403);
+
+    const migrated = await request("/admin/settings/migrate-logos", {
+      method: "POST",
+    }, "administrator");
+    expect(migrated.response.status).toBe(200);
+    const savedLogoUrl = migrated.body.cards[0].logoDataUrl as string;
+    expect(savedLogoUrl).toMatch(/^\/api\/enrollment\/logos\//);
+    expect(savedLogoUrl).not.toContain("base64");
+    const savedObjectPath = `/objects/uploads/${savedLogoUrl.split("/").at(-1)}`;
+    expect(mockState.storageObjects.has(savedObjectPath)).toBe(true);
+
+    const publicLogoResponse = await fetch(
+      `${baseUrl}${savedLogoUrl.replace("/api", "")}`,
+    );
+    expect(publicLogoResponse.status).toBe(200);
+    expect(Buffer.from(await publicLogoResponse.arrayBuffer())).toEqual(privatePng);
+
+    const uploadRequest = await request("/admin/settings/logos/upload-url", {
+      method: "POST",
+    }, "administrator");
+    expect(uploadRequest.response.status).toBe(200);
+    const uploadedObjectPath = uploadRequest.body.objectPath as string;
+    mockState.storageObjects.set(uploadedObjectPath, {
+      contentType: "image/png",
+      bytes: privatePng,
+    });
+    const completedUpload = await request("/admin/settings/logos/complete", {
+      method: "POST",
+      body: JSON.stringify({
+        objectPath: uploadedObjectPath,
+        contentType: "image/png",
+      }),
+    }, "administrator");
+    expect(completedUpload.response.status).toBe(200);
+    const replacementUrl = completedUpload.body.logoUrl as string;
+
+    const replacementSettings = structuredClone(migrated.body);
+    replacementSettings.cards[0].logoDataUrl = replacementUrl;
+    const replaced = await request("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(replacementSettings),
+    }, "administrator");
+    expect(replaced.response.status).toBe(200);
+    expect(mockState.storageObjects.has(savedObjectPath)).toBe(false);
+    expect(mockState.storageObjects.has(uploadedObjectPath)).toBe(true);
+
+    const clearedSettings = structuredClone(replaced.body);
+    clearedSettings.cards[0].logoDataUrl = null;
+    const cleared = await request("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(clearedSettings),
+    }, "administrator");
+    expect(cleared.response.status).toBe(200);
+    expect(mockState.storageObjects.has(uploadedObjectPath)).toBe(false);
   });
 
   it("cleans expired guest evidence but preserves evidence linked to submitted applications", async () => {

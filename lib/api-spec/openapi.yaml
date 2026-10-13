@@ -689,6 +689,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PortalSettings"
+  /admin/settings/logos/upload-url:
+    post:
+      operationId: requestPortalLogoUpload
+      tags: [administration]
+      summary: Request a direct upload URL for an administrator logo
+      responses:
+        "200":
+          description: Temporary upload URL and storage path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalLogoUploadRequest"
+  /admin/settings/logos/complete:
+    post:
+      operationId: completePortalLogoUpload
+      tags: [administration]
+      summary: Verify an uploaded portal logo and make it publicly viewable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalLogoUploadCompletionInput"
+      responses:
+        "200":
+          description: Stable public image reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalLogoUploadCompletion"
+  /admin/settings/migrate-logos:
+    post:
+      operationId: migratePortalLogos
+      tags: [administration]
+      summary: Move legacy base64 portal logos into durable object storage
+      responses:
+        "200":
+          description: Updated settings with stable logo references
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalSettings"
+  /enrollment/logos/{logoId}:
+    get:
+      operationId: getPortalLogo
+      tags: [enrollment]
+      summary: Load a public portal logo
+      parameters:
+        - name: logoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Public PNG, JPEG, or WebP logo
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        "404":
+          description: Logo not found
   /admin/applications/{applicationId}/history:
     get:
       operationId: getAdminApplicationHistory
@@ -1619,6 +1685,23 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/PortalPageTheme"
+    PortalLogoUploadRequest:
+      type: object
+      required: [uploadUrl, objectPath]
+      properties:
+        uploadUrl: { type: string, format: uri }
+        objectPath: { type: string, pattern: "^/objects/uploads/[0-9a-fA-F-]{36}$" }
+    PortalLogoUploadCompletionInput:
+      type: object
+      required: [objectPath, contentType]
+      properties:
+        objectPath: { type: string, pattern: "^/objects/uploads/[0-9a-fA-F-]{36}$" }
+        contentType: { type: string, enum: [image/png, image/jpeg, image/webp] }
+    PortalLogoUploadCompletion:
+      type: object
+      required: [logoUrl]
+      properties:
+        logoUrl: { type: string, pattern: "^/api/enrollment/logos/[0-9a-fA-F-]{36}$" }
     PortalPageTheme:
       type: object
       required: [mode, color, blendColor, angle]

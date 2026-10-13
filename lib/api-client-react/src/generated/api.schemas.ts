@@ -925,6 +925,32 @@ export interface PortalSettings {
   pageThemes?: PortalSettingsPageThemes;
 }
 
+export interface PortalLogoUploadRequest {
+  uploadUrl: string;
+  /** @pattern ^/objects/uploads/[0-9a-fA-F-]{36}$ */
+  objectPath: string;
+}
+
+export type PortalLogoUploadCompletionInputContentType = typeof PortalLogoUploadCompletionInputContentType[keyof typeof PortalLogoUploadCompletionInputContentType];
+
+
+export const PortalLogoUploadCompletionInputContentType = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface PortalLogoUploadCompletionInput {
+  /** @pattern ^/objects/uploads/[0-9a-fA-F-]{36}$ */
+  objectPath: string;
+  contentType: PortalLogoUploadCompletionInputContentType;
+}
+
+export interface PortalLogoUploadCompletion {
+  /** @pattern ^/api/enrollment/logos/[0-9a-fA-F-]{36}$ */
+  logoUrl: string;
+}
+
 export interface ApplicantSummary {
   total: number;
   drafts: number;

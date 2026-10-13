@@ -32,10 +32,7 @@ app.use(
   }),
 );
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use((req, res, next) => {
-  const settingsUpdate = req.method === "PUT" && req.path === "/api/admin/settings";
-  express.json({ limit: settingsUpdate ? "40mb" : "4mb" })(req, res, next);
-});
+app.use(express.json({ limit: "4mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
