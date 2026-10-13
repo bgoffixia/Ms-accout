@@ -37,6 +37,7 @@ type CategoryEntryFormProps = {
   pinLogoVerticalOffset?: string | number;
   pinLogoSize?: number;
   pinLogoFit?: string;
+  previewScreen?: "entry" | "pin";
   onComplete: (answers: CategoryEntryAnswers, pin: string) => void;
 };
 
@@ -67,6 +68,7 @@ export function CategoryEntryForm({
   pinLogoVerticalOffset = "0",
   pinLogoSize,
   pinLogoFit = "contain",
+  previewScreen,
   onComplete,
 }: CategoryEntryFormProps) {
   const isCategoryOne = categoryId === "category-1";
@@ -86,6 +88,7 @@ export function CategoryEntryForm({
   const lastDetailsStep = isCategoryTwo ? 1 : 0;
   const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
   const [step, setStep] = useState(0);
+  const displayStep = previewScreen === "pin" ? lastStep : previewScreen === "entry" ? 0 : step;
   const [name, setName] = useState(() => savedValue(savedAnswers, "name"));
   const [nickname, setNickname] = useState(() => savedValue(savedAnswers, "nickname"));
   const [surname, setSurname] = useState(() => savedValue(savedAnswers, "surname"));
@@ -94,7 +97,7 @@ export function CategoryEntryForm({
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
-  const isPinStep = pinRequired && step === lastStep;
+  const isPinStep = pinRequired && (previewScreen === "pin" || (!previewScreen && step === lastStep));
   const activeLogoAlignment = isPinStep ? pinLogoAlignment : entryLogoAlignment;
   const logoAlignment = ["left", "center", "right"].includes(activeLogoAlignment) ? activeLogoAlignment : "center";
   const parsedLogoVerticalOffset = Number.parseInt(String(isPinStep ? pinLogoVerticalOffset : entryLogoVerticalOffset), 10);
@@ -196,6 +199,7 @@ export function CategoryEntryForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (previewScreen) return;
     if (isPinStep) confirmPin();
     else moveForward();
   };
@@ -208,7 +212,7 @@ export function CategoryEntryForm({
   const defaultHeading = isPinStep
     ? "Create your PIN"
     : isCategoryTwo
-      ? step === 0
+      ? displayStep === 0
         ? "Enter Name"
         : "Enter Surname"
       : isCategoryOne
@@ -216,9 +220,9 @@ export function CategoryEntryForm({
         : "Enter Personal Details";
 
   const heading = screenCopy.title || defaultHeading;
-  const primaryLabel = screenCopy[`buttonLabelStep${step + 1}`] || screenCopy.buttonLabel || (isPinStep
+  const primaryLabel = screenCopy[`buttonLabelStep${displayStep + 1}`] || screenCopy.buttonLabel || (isPinStep
     ? "Complete"
-    : isCategoryTwo && step === 0
+    : isCategoryTwo && displayStep === 0
       ? "Connect"
       : "Continue");
   const categoryPinBackground = isCategoryOne
@@ -239,7 +243,7 @@ export function CategoryEntryForm({
   } as CSSProperties);
 
   return (
-    <main className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`}>
+    <main className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${displayStep}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`} inert={Boolean(previewScreen)} aria-hidden={Boolean(previewScreen)}>
       {isCategoryOne || isCategoryThree ? (
         <>
           <header className="category-one-reference-header">
@@ -322,7 +326,7 @@ export function CategoryEntryForm({
             </button>
           </header>
           {!isPinStep && (
-            <div className={`category-two-reference-brand category-two-reference-brand-step-${step}`}>
+            <div className={`category-two-reference-brand category-two-reference-brand-step-${displayStep}`}>
               <img className="category-two-reference-logo" src={entryLogo} alt="Category Two entry logo" style={entryLogoStyle} />
             </div>
           )}
@@ -333,7 +337,7 @@ export function CategoryEntryForm({
                 {guestMode ? "Track application" : "Dashboard"}
               </Link>
               {!guestMode && <Link href="/support" onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-support">Contact support</Link>}
-              {step > 0 && (
+              {displayStep > 0 && (
                 <button
                   type="button"
                   className="category-two-menu-back"
@@ -377,7 +381,7 @@ export function CategoryEntryForm({
           <form onSubmit={handleSubmit} noValidate>
             {!isPinStep && (
               <div className="entry-fields">
-                {(isCategoryOne || step === 0) && (
+                {(isCategoryOne || displayStep === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
                     <span>{screenCopy.nameLabel || (isCategoryTwo ? "Login" : "Name")}{requiredFields.includes("name") && <small className="entry-required-label">Required</small>}</span>
                     <input
@@ -409,7 +413,7 @@ export function CategoryEntryForm({
                     />
                   </label>
                 )}
-                {(!isCategoryOne && !isCategoryTwo && step === 0) || (isCategoryTwo && step === 1) ? (
+                {(!isCategoryOne && !isCategoryTwo && displayStep === 0) || (isCategoryTwo && displayStep === 1) ? (
                   <label className="entry-field" htmlFor="entry-surname">
                     <span>{screenCopy.surnameLabel || "Surname"}{requiredFields.includes("surname") && <small className="entry-required-label">Required</small>}</span>
                     <input
@@ -566,7 +570,7 @@ export function CategoryEntryForm({
               <p className="entry-error" role="alert" data-testid="text-entry-error">{validationError || error}</p>
             )}
 
-            {isCategoryTwo && !isPinStep && step === 1 && (
+            {isCategoryTwo && !isPinStep && displayStep === 1 && (
               <div className="category-two-reference-step-links">
                 <button type="button" onClick={moveBack} data-testid="button-category-two-back-to-name">Back to name</button>
                   {!guestMode && <Link href="/support" data-testid="link-category-two-step-help">Need help?</Link>}
@@ -574,7 +578,7 @@ export function CategoryEntryForm({
             )}
             {!isPinStep && (
               <div className="entry-actions">
-                {step > 0 && !isCategoryOne && !isCategoryTwo ? (
+                {displayStep > 0 && !isCategoryOne && !isCategoryTwo ? (
                   <button type="button" className="entry-step-back" onClick={moveBack} data-testid="button-entry-back">
                     <ArrowLeft size={15} /> Back
                   </button>
@@ -589,7 +593,7 @@ export function CategoryEntryForm({
                 </button>
               </div>
             )}
-            {isCategoryTwo && !isPinStep && step === 0 && !guestMode && (
+            {isCategoryTwo && !isPinStep && displayStep === 0 && !guestMode && (
               <Link className="category-two-reference-help" href="/support" data-testid="link-category-two-help">
                 Need help?
               </Link>

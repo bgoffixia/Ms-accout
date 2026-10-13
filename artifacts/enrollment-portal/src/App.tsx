@@ -1474,8 +1474,18 @@ function AdminSettings() {
   const [error, setError] = useState('');
   const [migrationError, setMigrationError] = useState('');
   const [uploadingLogoKey, setUploadingLogoKey] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<{ categoryId: string; screen: 'entry' | 'pin' } | null>(null);
+  const [logoPreviewSize, setLogoPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
   const legacyMigrationPending = useRef(false);
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!logoPreview) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLogoPreview(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [logoPreview]);
   const migrateLegacyLogos = async () => {
     if (legacyMigrationPending.current) return;
     legacyMigrationPending.current = true;
@@ -1672,6 +1682,17 @@ function AdminSettings() {
           ? <button type="button" className="text-action" onClick={() => updateCard(card.id, assetKey, null)}>{slot === 'card' ? 'Use built-in logo' : inheritedLabel}</button>
           : <small>{inheritedLabel}</small>}
       </div>
+      {slot !== 'card' && <button
+        type="button"
+        className="text-action settings-logo-context-preview"
+        onClick={() => {
+          setLogoPreview({ categoryId: card.id, screen: slot });
+          setLogoPreviewSize('desktop');
+        }}
+        data-testid={`button-preview-logo-screen-${slot}-${card.id}`}
+      >
+        Preview full {slot === 'entry' ? 'entry' : 'PIN'} screen
+      </button>}
       <div className="settings-inline-fields">
         <label className="field-label settings-logo-size-field">
           <span>{title} size <b>{size}px</b></span>
@@ -2324,7 +2345,66 @@ function AdminSettings() {
       </div>
     </section>
     <div className="settings-save-bottom"><button className="button button-primary" onClick={save} disabled={saveSettings.isPending} data-testid="button-save-portal-settings-bottom">{saveSettings.isPending ? 'Saving…' : 'Save portal settings'} <Check size={15} /></button></div>
-  </div></AdminShell>;
+  </div>
+    {logoPreview && (() => {
+      const previewCard = draft.cards.find((card) => card.id === logoPreview.categoryId);
+      if (!previewCard) return null;
+      const categoryNumber = previewCard.id.replace('category-', '');
+      const screenKey = `category-entry-${categoryNumber}`;
+      const previewCopy = draft.screenCopy?.[screenKey] ?? {};
+      const previewEntryLogo = previewCard.entryLogoDataUrl ?? previewCard.logoDataUrl ?? defaultCategoryLogos[previewCard.id];
+      const previewPinLogo = previewCard.pinLogoDataUrl ?? previewCard.entryLogoDataUrl ?? previewCard.logoDataUrl ?? defaultCategoryLogos[previewCard.id];
+      return <div
+        className="settings-screen-preview-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setLogoPreview(null);
+        }}
+        data-testid="dialog-logo-screen-preview"
+      >
+        <section className="settings-screen-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-screen-preview-title">
+          <header className="settings-screen-preview-header">
+            <div>
+              <h2 id="settings-screen-preview-title">{previewCard.title} · {logoPreview.screen === 'entry' ? 'Entry screen' : 'PIN screen'}</h2>
+              <p>Previewing current settings, including unsaved logo changes.</p>
+            </div>
+            <button type="button" className="settings-screen-preview-close" onClick={() => setLogoPreview(null)} aria-label="Close screen preview" data-testid="button-close-logo-screen-preview"><X size={19} /></button>
+          </header>
+          <div className="settings-screen-preview-toolbar" role="group" aria-label="Preview size">
+            <button type="button" className={logoPreviewSize === 'desktop' ? 'active' : ''} aria-pressed={logoPreviewSize === 'desktop'} onClick={() => setLogoPreviewSize('desktop')} data-testid="button-preview-size-desktop">Desktop</button>
+            <button type="button" className={logoPreviewSize === 'mobile' ? 'active' : ''} aria-pressed={logoPreviewSize === 'mobile'} onClick={() => setLogoPreviewSize('mobile')} data-testid="button-preview-size-mobile">Mobile</button>
+          </div>
+          <div className={`settings-screen-preview-stage settings-screen-preview-stage-${logoPreviewSize}`}>
+            <div className={`settings-screen-preview-viewport settings-screen-preview-viewport-${logoPreviewSize}`} role="img" aria-label={`${previewCard.title} ${logoPreview.screen} screen preview`}>
+              <CategoryEntryForm
+                categoryId={previewCard.id as EnrollmentCategory['id']}
+                reference="PREVIEW"
+                savedAnswers={{ name: 'Avery', nickname: 'Avery', surname: 'Morgan' }}
+                isSaving={false}
+                error=""
+                pinScreenBackground={draft.theme.pinScreenBackground}
+                categoryInputTransparent={draft.theme.categoryInputTransparent}
+                screenCopy={previewCopy}
+                requiredFields={draft.requiredFields ?? []}
+                pageTheme={draft.pageThemes?.[screenKey]}
+                entryLogoDataUrl={previewEntryLogo}
+                pinLogoDataUrl={previewPinLogo}
+                entryLogoAlignment={previewCard.entryLogoAlignment ?? previewCopy.entryLogoAlignment}
+                entryLogoVerticalOffset={previewCard.entryLogoVerticalOffset ?? previewCopy.entryLogoVerticalOffset}
+                entryLogoSize={previewCard.entryLogoSize ?? defaultLogoSize(previewCard.id, 'entry')}
+                entryLogoFit={previewCard.entryLogoFit ?? 'contain'}
+                pinLogoAlignment={previewCard.pinLogoAlignment ?? previewCopy.entryLogoAlignment ?? previewCard.entryLogoAlignment}
+                pinLogoVerticalOffset={previewCard.pinLogoVerticalOffset ?? previewCopy.entryLogoVerticalOffset ?? previewCard.entryLogoVerticalOffset}
+                pinLogoSize={previewCard.pinLogoSize ?? defaultLogoSize(previewCard.id, 'pin')}
+                pinLogoFit={previewCard.pinLogoFit ?? 'contain'}
+                previewScreen={logoPreview.screen}
+                onComplete={() => undefined}
+              />
+            </div>
+          </div>
+        </section>
+      </div>;
+    })()}
+  </AdminShell>;
 }
 
 function readAnswerGroup(answers: Record<string, unknown> | undefined, key: string): Record<string, unknown> {

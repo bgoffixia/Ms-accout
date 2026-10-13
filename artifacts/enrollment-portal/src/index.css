@@ -1330,6 +1330,56 @@ html[data-portal-button-placement="right"] .decision-actions { justify-content: 
 .settings-logo-size-field > span { display: flex; justify-content: space-between; gap: 8px; }
 .settings-logo-size-field > span b { color: #31546a; font-weight: 700; }
 .settings-logo-size-field input[type="range"] { width: 100%; accent-color: #17618a; }
+
+.settings-logo-context-preview { justify-self: start; margin-top: -3px; }
+.settings-screen-preview-overlay {
+  position: fixed;
+  z-index: 500;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 20px;
+  background: #10252fd9;
+  backdrop-filter: blur(5px);
+}
+.settings-screen-preview-dialog {
+  display: flex;
+  width: min(1180px, 100%);
+  max-height: calc(100dvh - 40px);
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid #dbe5e9;
+  border-radius: 14px;
+  background: #f8fafb;
+  box-shadow: 0 28px 90px #051c2b70;
+}
+.settings-screen-preview-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.settings-screen-preview-header h2 { margin: 0; color: #29475d; font: 600 18px var(--app-font-sans); }
+.settings-screen-preview-header p { margin: 4px 0 0; color: #718590; font-size: 11px; }
+.settings-screen-preview-close { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 1px solid #dce5e9; border-radius: 8px; color: #476174; background: #fff; cursor: pointer; }
+.settings-screen-preview-close:hover { background: #edf3f5; }
+.settings-screen-preview-toolbar { display: flex; justify-content: center; gap: 5px; }
+.settings-screen-preview-toolbar button { min-width: 88px; padding: 7px 12px; border: 1px solid #d7e1e5; border-radius: 7px; color: #536d7b; background: #fff; font: 600 11px var(--app-font-sans); cursor: pointer; }
+.settings-screen-preview-toolbar button.active { border-color: #17618a; color: #fff; background: #17618a; }
+.settings-screen-preview-stage { display: grid; min-height: 0; flex: 1; place-items: center; overflow: auto; padding: 12px; border: 1px solid #dce5e9; border-radius: 10px; background: radial-gradient(ellipse at center, #e8eef1 0%, #dce5e9 100%); }
+.settings-screen-preview-viewport { position: relative; overflow: hidden; transform: translateZ(0); isolation: isolate; border: 1px solid #d3dde1; border-radius: 8px; background: #fff; box-shadow: 0 12px 36px #1b354326; }
+.settings-screen-preview-viewport-desktop { width: min(1024px, 100%); height: min(620px, 58dvh); min-height: 360px; }
+.settings-screen-preview-viewport-mobile { width: min(390px, 33dvh); height: min(780px, 66dvh); border: 8px solid #25343c; border-radius: 24px; }
+.settings-screen-preview-viewport .category-entry-screen { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius: inherit; }
+.settings-screen-preview-viewport-mobile .category-entry-screen { padding: 20px 17px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen.category-one-reference-screen { padding: 0; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .entry-content { padding: 18px 14px 24px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .entry-card { padding: 18px 14px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .entry-fields { gap: 16px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .entry-line-input { min-height: 38px; font-size: 12px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .entry-actions { margin-top: 14px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .entry-primary-button { min-height: 42px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .pin-entry-keypad { width: min(100%, 250px); gap: 5px; margin-top: 12px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .pin-entry-key { min-height: 40px; }
+.settings-screen-preview-viewport-mobile .category-entry-screen .pin-entry-title { font-size: 20px; }
 .settings-save-bottom { display: flex; justify-content: flex-end; }
 .admin-record-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 .admin-answer-section { min-width: 0; }

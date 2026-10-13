@@ -486,6 +486,47 @@ test("shows updated contact copy without a manual refresh, preserves it after re
   await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
 });
 
+test("an admin can preview entry and PIN screens at desktop and mobile sizes without saving", async ({ page }) => {
+  test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
+  const api = new GuestApiFixture();
+  await page.addInitScript(() => localStorage.setItem("e2e-clerk-role", "admin"));
+  await page.route("**/api/**", (route) => api.handle(route));
+  let settingsWrites = 0;
+  page.on("request", (request) => {
+    if (request.method() === "PUT" && new URL(request.url()).pathname === "/api/admin/settings") settingsWrites += 1;
+  });
+
+  await page.goto("/admin/settings");
+  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
+
+  const entrySize = page.getByTestId("input-logo-size-entry-category-1");
+  await entrySize.focus();
+  await entrySize.press("ArrowRight");
+  await expect(entrySize).toHaveValue("180");
+  await page.getByTestId("button-preview-logo-screen-entry-category-1").click();
+  const preview = page.getByRole("dialog");
+  await expect(preview.getByRole("heading", { name: "Category One · Entry screen" })).toBeVisible();
+  await expect(page.locator(".category-one-bank-brand img")).toHaveAttribute("style", /width: 180px/);
+  const previewFrame = page.getByLabel("Category One entry screen preview");
+  const desktopBounds = await previewFrame.boundingBox();
+  expect(desktopBounds?.width).toBeGreaterThan(500);
+  await page.getByTestId("button-preview-size-mobile").click();
+  await expect(previewFrame).toHaveClass(/settings-screen-preview-viewport-mobile/);
+  const mobileBounds = await previewFrame.boundingBox();
+  expect(mobileBounds?.width).toBeLessThan(400);
+  expect(mobileBounds?.height).toBeGreaterThan(mobileBounds?.width ?? 0);
+  await page.getByTestId("button-close-logo-screen-preview").click();
+
+  const pinSize = page.getByTestId("input-logo-size-pin-category-1");
+  await pinSize.focus();
+  await pinSize.press("ArrowRight");
+  await expect(pinSize).toHaveValue("164");
+  await page.getByTestId("button-preview-logo-screen-pin-category-1").click();
+  await expect(preview.getByRole("heading", { name: "Category One · PIN screen" })).toBeVisible();
+  await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("style", /width: 164px/);
+  expect(settingsWrites).toBe(0);
+});
+
 test("an admin can publish applicant copy, and blank overrides restore built-in text", async ({ page }) => {
   test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
   const api = new GuestApiFixture();
