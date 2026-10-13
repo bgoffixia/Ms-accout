@@ -41,6 +41,36 @@ export type PortalSettingsCardsItem = {
      * @maximum 48
      */
   cardLogoVerticalOffset?: number;
+  /**
+     * @minimum 10
+     * @maximum 24
+     */
+  cardTitleFontSize?: number;
+  /**
+     * @minimum -40
+     * @maximum 40
+     */
+  cardTitleHorizontalOffset?: number;
+  /**
+     * @minimum -40
+     * @maximum 40
+     */
+  cardTitleVerticalOffset?: number;
+  /**
+     * @minimum 8
+     * @maximum 18
+     */
+  cardDescriptionFontSize?: number;
+  /**
+     * @minimum -40
+     * @maximum 40
+     */
+  cardDescriptionHorizontalOffset?: number;
+  /**
+     * @minimum -40
+     * @maximum 40
+     */
+  cardDescriptionVerticalOffset?: number;
   entryLogoAlignment?: PortalSettingsCardsItemEntryLogoAlignment;
   /**
      * @minimum -120

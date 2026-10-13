@@ -1532,6 +1532,12 @@ components:
               pinLogoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
               cardLogoAlignment: { type: string, enum: [left, center, right] }
               cardLogoVerticalOffset: { type: integer, minimum: -48, maximum: 48 }
+              cardTitleFontSize: { type: integer, minimum: 10, maximum: 24 }
+              cardTitleHorizontalOffset: { type: integer, minimum: -40, maximum: 40 }
+              cardTitleVerticalOffset: { type: integer, minimum: -40, maximum: 40 }
+              cardDescriptionFontSize: { type: integer, minimum: 8, maximum: 18 }
+              cardDescriptionHorizontalOffset: { type: integer, minimum: -40, maximum: 40 }
+              cardDescriptionVerticalOffset: { type: integer, minimum: -40, maximum: 40 }
               entryLogoAlignment: { type: string, enum: [left, center, right] }
               entryLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
               pinLogoAlignment: { type: string, enum: [left, center, right] }

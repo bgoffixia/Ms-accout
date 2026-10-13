@@ -183,6 +183,34 @@ function cardLogoPositionStyle(alignment?: string, verticalOffset?: number): CSS
   return { alignSelf, transform: offset ? `translateY(${offset}px)` : undefined };
 }
 
+type CategoryCardStyle = CSSProperties & {
+  '--category-tone': string;
+  '--category-title-size': string | undefined;
+  '--category-title-x': string | undefined;
+  '--category-title-y': string | undefined;
+  '--category-description-size': string | undefined;
+  '--category-description-x': string | undefined;
+  '--category-description-y': string | undefined;
+};
+
+function clampSettingsValue(value: number | undefined, fallback: number, min: number, max: number) {
+  return Number.isFinite(value) ? Math.max(min, Math.min(max, value ?? fallback)) : fallback;
+}
+
+function categoryCardStyle(card: PortalSettingsCardsItem | undefined, fallbackTone: string): CategoryCardStyle {
+  const cssLength = (value: number | undefined, min: number, max: number) =>
+    Number.isFinite(value) ? `${clampSettingsValue(value, 0, min, max)}px` : undefined;
+  return {
+    '--category-tone': card?.backgroundColor ?? fallbackTone,
+    '--category-title-size': cssLength(card?.cardTitleFontSize, 10, 24),
+    '--category-title-x': cssLength(card?.cardTitleHorizontalOffset, -40, 40),
+    '--category-title-y': cssLength(card?.cardTitleVerticalOffset, -40, 40),
+    '--category-description-size': cssLength(card?.cardDescriptionFontSize, 8, 18),
+    '--category-description-x': cssLength(card?.cardDescriptionHorizontalOffset, -40, 40),
+    '--category-description-y': cssLength(card?.cardDescriptionVerticalOffset, -40, 40),
+  };
+}
+
 function fallbackLogoForCategory(categoryId: PortalSettingsCardsItem['id']): string {
   switch (categoryId) {
     case 'category-1': return categoryOneLogo;
@@ -578,7 +606,7 @@ function Dashboard() {
                     }
                     begin(category);
                   }}
-                    className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
+                    className={`category-card category-${categoryIndex + 1}`} style={categoryCardStyle(cardSettings, palette[categoryIndex])}
                     aria-label={`${cardTitle}. ${categoryDescription}. ${selectionAction}`}
                     data-testid={`card-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
@@ -1373,6 +1401,12 @@ function AdminSettings() {
       };
       return {
         ...card,
+        cardTitleFontSize: clampSettingsValue(card.cardTitleFontSize, 14, 10, 24),
+        cardTitleHorizontalOffset: clampSettingsValue(card.cardTitleHorizontalOffset, 0, -40, 40),
+        cardTitleVerticalOffset: clampSettingsValue(card.cardTitleVerticalOffset, 0, -40, 40),
+        cardDescriptionFontSize: clampSettingsValue(card.cardDescriptionFontSize, 11, 8, 18),
+        cardDescriptionHorizontalOffset: clampSettingsValue(card.cardDescriptionHorizontalOffset, 0, -40, 40),
+        cardDescriptionVerticalOffset: clampSettingsValue(card.cardDescriptionVerticalOffset, 0, -40, 40),
         cardLogoAlignment: card.cardLogoAlignment ?? 'left',
         cardLogoVerticalOffset: card.cardLogoVerticalOffset ?? 0,
         entryLogoAlignment: card.entryLogoAlignment ?? normalizeAlignment(legacyCopy.entryLogoAlignment),
@@ -1399,6 +1433,46 @@ function AdminSettings() {
       ...current,
       cards: current.cards.map((card) => card.id === id ? { ...card, [key]: value } : card),
     } : current);
+  };
+  const cardTextLayoutEditor = (card: PortalSettingsCardsItem, target: 'title' | 'description') => {
+    const isTitle = target === 'title';
+    const controls = isTitle
+      ? [
+          { axis: 'size' as const, label: 'Text size', key: 'cardTitleFontSize', value: card.cardTitleFontSize ?? 14, min: 10, max: 24 },
+          { axis: 'horizontal' as const, label: 'Horizontal offset', key: 'cardTitleHorizontalOffset', value: card.cardTitleHorizontalOffset ?? 0, min: -40, max: 40 },
+          { axis: 'vertical' as const, label: 'Vertical offset', key: 'cardTitleVerticalOffset', value: card.cardTitleVerticalOffset ?? 0, min: -40, max: 40 },
+        ]
+      : [
+          { axis: 'size' as const, label: 'Text size', key: 'cardDescriptionFontSize', value: card.cardDescriptionFontSize ?? 11, min: 8, max: 18 },
+          { axis: 'horizontal' as const, label: 'Horizontal offset', key: 'cardDescriptionHorizontalOffset', value: card.cardDescriptionHorizontalOffset ?? 0, min: -40, max: 40 },
+          { axis: 'vertical' as const, label: 'Vertical offset', key: 'cardDescriptionVerticalOffset', value: card.cardDescriptionVerticalOffset ?? 0, min: -40, max: 40 },
+        ];
+    const formatValue = (axis: 'size' | 'horizontal' | 'vertical', value: number) => {
+      if (axis === 'size') return `${value}px`;
+      if (value === 0) return 'Centered';
+      const direction = axis === 'horizontal'
+        ? value < 0 ? 'left' : 'right'
+        : value < 0 ? 'up' : 'down';
+      return `${Math.abs(value)}px ${direction}`;
+    };
+    return <fieldset className="settings-card-text-editor" data-testid={`settings-card-${target}-layout-${card.id}`}>
+      <legend>Card {target}</legend>
+      {controls.map(({ axis, label, key, value, min, max }) => (
+        <label className="settings-card-text-control" key={key}>
+          <span>{label}<output>{formatValue(axis, value)}</output></span>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={1}
+            value={value}
+            onChange={(event) => updateCard(card.id, key, Number(event.target.value))}
+            aria-label={`${card.title} ${target} ${label.toLowerCase()}`}
+            data-testid={`input-settings-card-${target}-${axis}-${card.id}`}
+          />
+        </label>
+      ))}
+    </fieldset>;
   };
   const reorderCards = (sourceId: string, targetId: string, afterTarget = false) => {
     if (sourceId === targetId) return;
@@ -1725,6 +1799,10 @@ function AdminSettings() {
         <div className="detail-card-title"><FileCheck2 size={17} /><h2>{card.id.replace('category-', 'Category ')}</h2></div>
         <label className="field-label">Card title<input className="text-input" value={card.title} maxLength={100} onChange={(event) => updateCard(card.id, 'title', event.target.value)} /></label>
         <label className="field-label">Description<textarea className="text-input form-textarea" value={card.description} maxLength={240} rows={2} onChange={(event) => updateCard(card.id, 'description', event.target.value)} /></label>
+         <div className="settings-card-text-editors">
+           {cardTextLayoutEditor(card, 'title')}
+           {cardTextLayoutEditor(card, 'description')}
+         </div>
         <label className="field-label">Selection button label<input className="text-input" value={card.buttonLabel} maxLength={60} onChange={(event) => updateCard(card.id, 'buttonLabel', event.target.value)} /></label>
         <label className="field-label settings-color-field">Dashboard card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
          <div className="settings-logo-editors">
@@ -2265,7 +2343,7 @@ function PublicApplicantDashboard() {
                   const cardTitle = cardSettings?.title ?? category.name;
                   const categoryDescription = cardSettings?.description?.trim() || category.description;
                   return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
-                    className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
+                    className={`category-card category-${categoryIndex + 1}`} style={categoryCardStyle(cardSettings, palette[categoryIndex])}
                     aria-label={`${cardTitle}. ${categoryDescription}. ${contact ? 'Start an application' : 'Choose category'}`} data-testid={`guest-dashboard-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
                     {cardSettings?.logoDataUrl

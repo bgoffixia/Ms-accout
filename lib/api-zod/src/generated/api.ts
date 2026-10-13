@@ -943,6 +943,24 @@ export const getPortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
 export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -48;
 export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 48;
 
+export const getPortalSettingsResponseCardsItemCardTitleFontSizeMin = 10;
+export const getPortalSettingsResponseCardsItemCardTitleFontSizeMax = 24;
+
+export const getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax = 40;
+
+export const getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMax = 40;
+
+export const getPortalSettingsResponseCardsItemCardDescriptionFontSizeMin = 8;
+export const getPortalSettingsResponseCardsItemCardDescriptionFontSizeMax = 18;
+
+export const getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax = 40;
+
+export const getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax = 40;
+
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
@@ -980,6 +998,12 @@ export const GetPortalSettingsResponse = zod.object({
   "pinLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardTitleFontSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleFontSizeMin).max(getPortalSettingsResponseCardsItemCardTitleFontSizeMax).optional(),
+  "cardTitleHorizontalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin).max(getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax).optional(),
+  "cardTitleVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMax).optional(),
+  "cardDescriptionFontSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionFontSizeMin).max(getPortalSettingsResponseCardsItemCardDescriptionFontSizeMax).optional(),
+  "cardDescriptionHorizontalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin).max(getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax).optional(),
+  "cardDescriptionVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
@@ -1025,6 +1049,24 @@ export const updatePortalSettingsBodyCardsItemPinLogoDataUrlMax = 6000000;
 export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin = -48;
 export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax = 48;
 
+export const updatePortalSettingsBodyCardsItemCardTitleFontSizeMin = 10;
+export const updatePortalSettingsBodyCardsItemCardTitleFontSizeMax = 24;
+
+export const updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMax = 40;
+
+export const updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMax = 40;
+
+export const updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMin = 8;
+export const updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMax = 18;
+
+export const updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMax = 40;
+
+export const updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax = 40;
+
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax = 120;
 
@@ -1062,6 +1104,12 @@ export const UpdatePortalSettingsBody = zod.object({
   "pinLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardTitleFontSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleFontSizeMin).max(updatePortalSettingsBodyCardsItemCardTitleFontSizeMax).optional(),
+  "cardTitleHorizontalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMin).max(updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMax).optional(),
+  "cardTitleVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMax).optional(),
+  "cardDescriptionFontSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMin).max(updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMax).optional(),
+  "cardDescriptionHorizontalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin).max(updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMax).optional(),
+  "cardDescriptionVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
@@ -1106,6 +1154,24 @@ export const updatePortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -48;
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 48;
 
+export const updatePortalSettingsResponseCardsItemCardTitleFontSizeMin = 10;
+export const updatePortalSettingsResponseCardsItemCardTitleFontSizeMax = 24;
+
+export const updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax = 40;
+
+export const updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMax = 40;
+
+export const updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMin = 8;
+export const updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMax = 18;
+
+export const updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax = 40;
+
+export const updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax = 40;
+
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
@@ -1143,6 +1209,12 @@ export const UpdatePortalSettingsResponse = zod.object({
   "pinLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
+  "cardTitleFontSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleFontSizeMin).max(updatePortalSettingsResponseCardsItemCardTitleFontSizeMax).optional(),
+  "cardTitleHorizontalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin).max(updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax).optional(),
+  "cardTitleVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMax).optional(),
+  "cardDescriptionFontSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMin).max(updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMax).optional(),
+  "cardDescriptionHorizontalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin).max(updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax).optional(),
+  "cardDescriptionVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
   "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),

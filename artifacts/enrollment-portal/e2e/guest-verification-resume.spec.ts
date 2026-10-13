@@ -61,6 +61,12 @@ class GuestApiFixture {
           pinLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect width='10' height='10' fill='blue'/%3E%3C/svg%3E" : null,
           cardLogoAlignment: "center",
           cardLogoVerticalOffset: 0,
+          cardTitleFontSize: id === "category-1" ? 18 : 14,
+          cardTitleHorizontalOffset: id === "category-1" ? 8 : 0,
+          cardTitleVerticalOffset: id === "category-1" ? -4 : 0,
+          cardDescriptionFontSize: id === "category-1" ? 13 : 11,
+          cardDescriptionHorizontalOffset: id === "category-1" ? -6 : 0,
+          cardDescriptionVerticalOffset: id === "category-1" ? 5 : 0,
           entryLogoAlignment: "left",
           entryLogoVerticalOffset: 14,
           pinLogoAlignment: "right",
@@ -394,6 +400,19 @@ test("starts from the public shared dashboard and opens the selected category fo
   expect(divider.content).not.toBe("none");
   expect(divider.height).toBeGreaterThanOrEqual(2);
   expect(divider.rowGap).toBeGreaterThanOrEqual(16);
+  const categoryOne = page.getByTestId("guest-dashboard-category-category-1");
+  const titleLayout = await categoryOne.locator(".category-title").evaluate((element) => {
+    const style = getComputedStyle(element);
+    const transform = new DOMMatrixReadOnly(style.transform);
+    return { fontSize: style.fontSize, x: transform.m41, y: transform.m42 };
+  });
+  expect(titleLayout).toEqual({ fontSize: "18px", x: 8, y: -4 });
+  const descriptionLayout = await categoryOne.locator(".category-description").evaluate((element) => {
+    const style = getComputedStyle(element);
+    const transform = new DOMMatrixReadOnly(style.transform);
+    return { fontSize: style.fontSize, x: transform.m41, y: transform.m42 };
+  });
+  expect(descriptionLayout).toEqual({ fontSize: "13px", x: -6, y: 5 });
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
