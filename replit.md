@@ -11,7 +11,6 @@ An authenticated portal for applicants to submit security-verification enrollmen
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` and `SESSION_SECRET`
-- Applicant archive encryption uses the `APPLICANT_ARCHIVE_KEYS` Replit Secret when configured. A single 32-byte key can be supplied as 64 hex characters or Base64/Base64URL; it is versioned as `archive-1`. For later key rotations, store a JSON keyring with `activeKeyId` and a `keys` object containing each 32-byte key, identified by version. Keep previous key entries until archived records have been rotated.
 - Clerk authentication is provisioned for this project; its keys are managed by Replit.
 
 ## Stack
@@ -44,7 +43,6 @@ _Populate as you build — explicit user instructions worth remembering across s
 ## Gotchas
 
 - Bank-account values are encrypted using `SESSION_SECRET`; keep it configured consistently.
-- Before rotating `SESSION_SECRET`, configure `APPLICANT_ARCHIVE_KEYS` while the old session secret is still present, then call `POST /api/admin/archive/rotate-keys` as the primary admin. Check the returned snapshot and evidence counts before rotating `SESSION_SECRET`. The operation can be retried after partial progress; keep every old archive key in the keyring until migration is confirmed. Legacy archives use `SESSION_SECRET` until this migration runs.
 - New Clerk accounts are applicants. Staff access checks Clerk public metadata (`role`); assign an authorized staff role deliberately. There is no first-admin bootstrap flow in the app.
 
 ## Pointers

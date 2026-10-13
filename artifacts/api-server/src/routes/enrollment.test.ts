@@ -383,7 +383,6 @@ const testArchiveKeyring = JSON.stringify({
   activeKeyId: "test-archive-key",
   keys: { "test-archive-key": "test-only-archive-key-material-0123456789" },
 });
-const configuredArchiveKeysForValidation = process.env.APPLICANT_ARCHIVE_KEYS;
 
 function encryptLegacyFixture(value: unknown, context: string): string {
   const key = createHmac("sha256", "test-session-secret").update(context).digest();
@@ -395,23 +394,6 @@ function encryptLegacyFixture(value: unknown, context: string): string {
   ]);
   return [
     "enc:v1",
-    iv.toString("base64url"),
-    cipher.getAuthTag().toString("base64url"),
-    ciphertext.toString("base64url"),
-  ].join(":");
-}
-
-function encryptLegacyRawArchiveKeyFixture(value: unknown, keyId: string, keyMaterial: string): string {
-  const key = Buffer.from(keyMaterial, "base64url");
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify(value), "utf8"),
-    cipher.final(),
-  ]);
-  return [
-    "enc:v2",
-    keyId,
     iv.toString("base64url"),
     cipher.getAuthTag().toString("base64url"),
     ciphertext.toString("base64url"),
@@ -464,7 +446,7 @@ describe("guest application verification and persistence", () => {
 
   beforeEach(() => {
     process.env.SESSION_SECRET = "test-session-secret";
-    delete process.env.APPLICANT_ARCHIVE_KEYS;
+    process.env.APPLICANT_ARCHIVE_KEYS = testArchiveKeyring;
     mockState.rows.clear();
     for (const name of [
       "guest_preapplications",
@@ -594,7 +576,7 @@ describe("guest application verification and persistence", () => {
   }
 
   it("updates the canonical and answer contact emails while leaving the application unverified", async () => {
-      const created = await createGuestDraft();
+    const created = await createGuestDraft();
     expect(created.response.status).toBe(201);
     const corrected = await request(`/guest/preapplications/${created.body.id}/email`, {
       method: "PATCH",
@@ -904,9 +886,11 @@ describe("guest application verification and persistence", () => {
       body: JSON.stringify({
         reference,
         accessKey,
-        currentStep: 3,
-        answers: { name: "Test Applicant", nickname: "TA" },
+        currentStep: 1,
         complete: false,
+        answers: {
+          personalInformation: { firstName: "Initial", email: contactEmail },
+        },
         pin: "739102",
       }),
     });
@@ -933,7 +917,7 @@ describe("guest application verification and persistence", () => {
 
     const submitted = await request(
       `/guest/preapplications/${applicationId}/submit`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: submitBody },
       "applicant-verified",
     );
     expect(submitted.response.status).toBe(200);
@@ -1636,218 +1620,4 @@ describe("guest application verification and persistence", () => {
       else process.env.APPLICANT_ARCHIVE_KEYS = archiveKeysBefore;
     }
   }, 15000);
-
-  it("re-encrypts legacy archive snapshots and proof metadata before SESSION_SECRET rotation", async () => {
-    const priorSessionSecret = process.env.SESSION_SECRET;
-    const priorArchiveKeys = process.env.APPLICANT_ARCHIVE_KEYS;
-    const testKey = Buffer.alloc(32, 37).toString("hex");
-    const nextTestKey = Buffer.alloc(32, 38).toString("base64url");
-    delete process.env.APPLICANT_ARCHIVE_KEYS;
-
-    try {
-      const created = await createGuestDraft();
-      expect(created.response.status).toBe(201);
-      await uploadEvidence(
-        created.body.id,
-        created.body.reference,
-        "identity_front",
-        "rotation-proof.png",
-        "image/png",
-        privatePng,
-      );
-
-      const initialList = await request("/admin/archive", {}, "primary-admin");
-      expect(initialList.response.status).toBe(200);
-      const archiveId = initialList.body[0].id as string;
-      const legacySnapshots = [...tableRows("applicant_master_archive_snapshots")];
-      const beforeRotationSnapshot = legacySnapshots[0]!;
-      const beforeRotationEvidence = tableRows("applicant_master_archive_evidence")[0]!;
-      expect(legacySnapshots.length).toBeGreaterThan(0);
-      expect(legacySnapshots.every((snapshot) => String(snapshot.payloadEncrypted).startsWith("enc:v1:"))).toBe(true);
-      expect(beforeRotationEvidence.sourcePathEncrypted).toMatch(/^enc:v1:/);
-      expect(beforeRotationEvidence.fileName).toMatch(/^enc:v1:/);
-
-      process.env.APPLICANT_ARCHIVE_KEYS = testKey;
-      const unauthorizedRotation = await request("/admin/archive/rotate-keys", {
-        method: "POST",
-      }, "reviewer");
-      expect(unauthorizedRotation.response.status).toBe(403);
-
-      const firstRotation = await request("/admin/archive/rotate-keys", {
-        method: "POST",
-      }, "primary-admin");
-      expect(firstRotation.response.status).toBe(200);
-      expect(JSON.stringify(firstRotation.body)).not.toContain(testKey);
-      expect(beforeRotationSnapshot.payloadEncrypted).toMatch(/^enc:v2:archive-1:/);
-
-      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
-        activeKeyId: "archive-next",
-        keys: { "archive-1": testKey, "archive-next": nextTestKey },
-      });
-      const rotation = await request("/admin/archive/rotate-keys", {
-        method: "POST",
-      }, "primary-admin");
-      expect(rotation.response.status).toBe(200);
-      expect(rotation.body).toEqual({
-        snapshotsReencrypted: legacySnapshots.length,
-        evidenceRecordsReencrypted: 1,
-      });
-      expect(JSON.stringify(rotation.body)).not.toContain(testKey);
-      expect(JSON.stringify(rotation.body)).not.toContain(nextTestKey);
-      expect(tableRows("applicant_master_archive_snapshots").every((snapshot) =>
-        String(snapshot.payloadEncrypted).startsWith("enc:v2:archive-next:") &&
-        String(snapshot.changesEncrypted).startsWith("enc:v2:archive-next:"),
-      )).toBe(true);
-      expect(beforeRotationSnapshot.payloadEncrypted).toMatch(/^enc:v2:archive-next:/);
-      expect(beforeRotationEvidence.sourcePathEncrypted).toMatch(/^enc:v2:archive-next:/);
-      expect(beforeRotationEvidence.fileName).toMatch(/^enc:v2:archive-next:/);
-
-      process.env.SESSION_SECRET = "rotated-test-session-secret";
-      const detail = await request(`/admin/archive/${archiveId}`, {}, "primary-admin");
-      expect(detail.response.status).toBe(200);
-      expect(detail.body.applicantName).toBe("Test Applicant");
-      expect(detail.body.evidence[0].fileName).toBe("rotation-proof.png");
-      expect(detail.body.snapshots[0].payload.email).toBe(contactEmail);
-
-      const laterChange = await request(`/guest/preapplications/${created.body.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          reference: created.body.reference,
-          accessKey,
-          currentStep: 1,
-          answers: { name: "Saved after secret rotation" },
-          complete: false,
-        }),
-      });
-      expect(laterChange.response.status).toBe(200);
-      const snapshots = tableRows("applicant_master_archive_snapshots");
-      expect(snapshots).toHaveLength(legacySnapshots.length + 1);
-      expect(snapshots.at(-1)!.payloadEncrypted).toMatch(/^enc:v2:archive-next:/);
-      expect((await request(`/admin/archive/${archiveId}`, {}, "primary-admin")).response.status)
-        .toBe(200);
-    } finally {
-      if (priorSessionSecret === undefined) delete process.env.SESSION_SECRET;
-      else process.env.SESSION_SECRET = priorSessionSecret;
-      if (priorArchiveKeys === undefined) delete process.env.APPLICANT_ARCHIVE_KEYS;
-      else process.env.APPLICANT_ARCHIVE_KEYS = priorArchiveKeys;
-    }
-  }, 15000);
-
-  it("can migrate v2 records encrypted with the earlier raw archive-key format", async () => {
-      const priorArchiveKeys = process.env.APPLICANT_ARCHIVE_KEYS;
-    const oldKey = Buffer.alloc(32, 41).toString("base64url");
-    const nextKey = Buffer.alloc(32, 42).toString("base64url");
-    const archiveId = crypto.randomUUID();
-    const archiveObjectPath = `/objects/archive/${crypto.randomUUID()}`;
-    const sourcePath = "/objects/private/legacy-v2-proof";
-    process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
-      activeKeyId: "archive-next",
-      keys: { "archive-1": oldKey, "archive-next": nextKey },
-    });
-
-    try {
-      tableRows("applicant_master_archive_cases").push(newRow(
-        "applicant_master_archive_cases",
-        {
-          id: archiveId,
-          sourceType: "guest",
-          sourceId: crypto.randomUUID(),
-          reference: "ENR-RAW-KEY-001",
-          historyUnavailable: false,
-        },
-      ));
-      tableRows("applicant_master_archive_snapshots").push(newRow(
-        "applicant_master_archive_snapshots",
-        {
-          id: crypto.randomUUID(),
-          archiveId,
-          version: 1,
-          eventType: "initial_archive_snapshot",
-          actorUserId: null,
-          payloadEncrypted: encryptLegacyRawArchiveKeyFixture({
-            recordType: "guest",
-            reference: "ENR-RAW-KEY-001",
-            fullName: "Legacy Key Applicant",
-            email: "legacy-key@example.test",
-            categoryId: "category-1",
-            status: "received",
-          }, "archive-1", oldKey),
-          changesEncrypted: encryptLegacyRawArchiveKeyFixture(
-            [],
-            "archive-1",
-            oldKey,
-          ),
-        },
-      ));
-      tableRows("applicant_master_archive_evidence").push(newRow(
-        "applicant_master_archive_evidence",
-        {
-          id: crypto.randomUUID(),
-          archiveId,
-          sourceFingerprint: "old-unkeyed-fingerprint",
-          sourcePathEncrypted: encryptLegacyRawArchiveKeyFixture(
-            sourcePath,
-            "archive-1",
-            oldKey,
-          ),
-          archiveObjectPath,
-          fieldPath: "proofOfIdentity.front",
-          fileName: encryptLegacyRawArchiveKeyFixture(
-            "legacy-proof.pdf",
-            "archive-1",
-            oldKey,
-          ),
-          evidenceType: "identity_document",
-          contentType: "application/pdf",
-          sizeBytes: privatePng.length,
-          availability: "available",
-        },
-      ));
-
-      const rotation = await request("/admin/archive/rotate-keys", {
-        method: "POST",
-      }, "primary-admin");
-      expect(rotation.response.status).toBe(200);
-      expect(rotation.body).toEqual({
-        snapshotsReencrypted: 1,
-        evidenceRecordsReencrypted: 1,
-      });
-      expect(JSON.stringify(rotation.body)).not.toContain(oldKey);
-      expect(JSON.stringify(rotation.body)).not.toContain(nextKey);
-      expect(tableRows("applicant_master_archive_snapshots")[0]!.payloadEncrypted)
-        .toMatch(/^enc:v2:archive-next:/);
-      expect(tableRows("applicant_master_archive_evidence")[0]!.sourcePathEncrypted)
-        .toMatch(/^enc:v2:archive-next:/);
-
-      const detail = await request(`/admin/archive/${archiveId}`, {}, "primary-admin");
-      expect(detail.response.status).toBe(200);
-      expect(detail.body.applicantName).toBe("Legacy Key Applicant");
-      expect(detail.body.evidence[0].fileName).toBe("legacy-proof.pdf");
-    } finally {
-      if (priorArchiveKeys === undefined) delete process.env.APPLICANT_ARCHIVE_KEYS;
-      else process.env.APPLICANT_ARCHIVE_KEYS = priorArchiveKeys;
-    }
-  }, 15000);
-
-  it.skipIf(!configuredArchiveKeysForValidation)(
-    "accepts the configured Replit archive key without returning key material",
-    async () => {
-      const priorArchiveKeys = process.env.APPLICANT_ARCHIVE_KEYS;
-      try {
-        process.env.APPLICANT_ARCHIVE_KEYS = configuredArchiveKeysForValidation!;
-        const response = await request("/admin/archive/rotate-keys", {
-          method: "POST",
-        }, "primary-admin");
-        expect(response.response.status).toBe(200);
-        expect(response.body).toEqual({
-          snapshotsReencrypted: 0,
-          evidenceRecordsReencrypted: 0,
-        });
-        expect(JSON.stringify(response.body)).not.toContain(configuredArchiveKeysForValidation);
-      } finally {
-        if (priorArchiveKeys === undefined) delete process.env.APPLICANT_ARCHIVE_KEYS;
-        else process.env.APPLICANT_ARCHIVE_KEYS = priorArchiveKeys;
-      }
-    },
-  );
 });

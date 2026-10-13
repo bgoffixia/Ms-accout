@@ -281,8 +281,8 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, curren
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
   const links: { label: string; href: string; key: string; icon: typeof Home }[] = [
-    { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
-    { label: 'Applications', href: '/dashboard#applications', key: 'applications', icon: FileCheck2 },
+    { label: 'Enrollment categories', href: '/enrollment-categories', key: 'dashboard', icon: Home },
+    { label: 'Applications', href: '/guest/track', key: 'applications', icon: FileCheck2 },
   ];
   if (currentApplication) {
     const editable = ['draft', 'needs_information'].includes(currentApplication.status);
@@ -303,10 +303,6 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, curren
           {links.map(({ label, href, key, icon: Icon }) => (
             <Link href={href} key={key} onClick={() => {
               setMenuOpen(false);
-              if (key === 'applications') {
-                setLocation('/dashboard#applications');
-                requestAnimationFrame(() => document.getElementById('applications')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-              }
             }}
               className={`nav-link ${active === key ? 'nav-link-active' : ''}`} data-testid={`link-nav-${key}`}>
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
@@ -513,7 +509,7 @@ function AuthComplete() {
       });
       return;
     }
-    setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard', { replace: true });
+    setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/enrollment-categories', { replace: true });
   }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isGuestSubmission, claimStaffAccess.mutate]);
 
   if (claimError) return <main className="signedout-page portal-frame" data-testid={isGuestSubmission ? 'guest-submit-error' : 'staff-claim-error'}>
@@ -528,7 +524,7 @@ function AuthComplete() {
           <Link href="/guest/apply?resume=1" className="button button-primary">Return to saved application <ArrowRight size={15} /></Link>
           <button className="text-action" type="button" onClick={() => void signOut({ redirectUrl: `${basePath}/sign-in?guestApplication=1` })}>Switch account</button>
         </>
-        : <Link href="/dashboard" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>}
+        : <Link href="/enrollment-categories" className="button button-primary">Continue as applicant <ArrowRight size={15} /></Link>}
       <button className="text-action" type="button" onClick={() => window.location.reload()}>Retry</button>
     </div>
   </main>;
@@ -785,8 +781,8 @@ function DraftApplication() {
   if (showLoading) return <AppFrame><LoadingPanel /></AppFrame>;
   if (!application && sessionOnlyRoute) return <AppFrame><section className="state-card">
     <span className="state-icon"><FileText size={20} /></span><h2>This unfinished application has expired</h2>
-    <p>Unsubmitted details are held only for the current browser session. Start a new application from your dashboard.</p>
-    <button className="button button-primary" onClick={() => setLocation('/dashboard')}>Return to dashboard <ArrowRight size={15} /></button>
+    <p>Unsubmitted details are held only for the current browser session. Start a new application from the enrollment categories page.</p>
+    <button className="button button-primary" onClick={() => setLocation('/enrollment-categories')}>Return to enrollment categories <ArrowRight size={15} /></button>
   </section></AppFrame>;
   if (!application && app.isError) return <AppFrame><ErrorPanel message="This application could not be found or opened." retry={() => void app.refetch()} /></AppFrame>;
   if (!application) return <AppFrame><LoadingPanel /></AppFrame>;
@@ -804,7 +800,7 @@ function DraftApplication() {
         <div className="review-field"><span>Submission date</span><b>{formatDate(application.submittedAt)}</b></div>
         <div className="review-field"><span>Current status</span><b>Pending Review</b></div>
         <button className="button button-primary" onClick={() => setLocation(`/applications/${application.id}`)} data-testid="button-view-submitted-status">View Application Status <ArrowRight size={15} /></button>
-        <button className="button button-quiet" onClick={() => setLocation('/dashboard')} data-testid="button-return-dashboard">Return to Dashboard</button>
+        <button className="button button-quiet" onClick={() => setLocation('/enrollment-categories')} data-testid="button-return-dashboard">Return to enrollment categories</button>
       </section>
     </div>}
   </AppFrame>;
@@ -836,7 +832,7 @@ function DraftApplication() {
   };
   const backToCategoryEntry = async (answers: Record<string, unknown>) => {
     if (application.status !== 'draft') {
-      setLocation('/dashboard');
+      setLocation('/enrollment-categories');
       return true;
     }
     const entryAnswers = { ...answers, categoryEntryComplete: false };
@@ -1197,7 +1193,7 @@ function AdminGate({ children }: { children: ReactNode }) {
   if (!isLoaded || (isSignedIn && !userLoaded)) return <main className="portal-frame auth-loading"><LoadingPanel label="Checking staff access" /></main>;
   if (!isSignedIn) return <SignedOutNotice />;
   const role = user?.publicMetadata?.role;
-  if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
+  if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/enrollment-categories" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to enrollment categories <ArrowRight size={15} /></Link></div></main>;
   if (location === '/admin/archive' && role !== 'admin') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">SUPER ADMIN ONLY</div><h1>Applicant archive access required</h1><p>The master archive is restricted to the primary administrator.</p><Link href={role === 'sub_admin' ? '/admin/review' : '/admin/support'} className="button button-primary">Return to your staff workspace <ArrowRight size={15} /></Link></div></main>;
   const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
   if (role === 'admin' && reviewerOnlyRoute) return <AdminReviewRestricted />;
@@ -1738,10 +1734,11 @@ function AdminSettings() {
     </fieldset>;
   };
   const screenLabels = [
-    ['dashboard', 'User dashboard'],
+    ['dashboard', 'Enrollment category page'],
     ['guest-intro', 'Guest application introduction'],
     ['guest-contact', 'Guest contact details'],
-    ['guest-category', 'Guest category selection'],
+    ['guest-dashboard', 'Guest category selection'],
+    ['guest-category', 'Guest category confirmation'],
     ['guest-preview', 'Guest application preview and declaration'],
     ['guest-verification', 'Guest email verification'],
     ['guest-status', 'Guest status lookup and results'],
@@ -1894,9 +1891,16 @@ function AdminSettings() {
       ['emailPlaceholder', 'Email input hint'], ['emailValidationMessage', 'Email validation message'],
       ['continueLabel', 'Continue button label'], ['privacyText', 'Privacy message'],
     ],
+    'guest-dashboard': [
+      ['contactHint', 'Contact details hint'], ['contactDetailsTitle', 'Contact details heading'],
+      ['changeContactLabel', 'Change details button label'],
+      ['startLabel', 'Category action label'], ['enterContactLabel', 'Enter contact action label'],
+      ['trackLabel', 'Track application link label'],
+    ],
     'guest-category': [
+      ['confirmTitle', 'Confirm category heading'], ['confirmDescription', 'Confirm category description'],
       ['chooseTitle', 'Choose category heading'], ['chooseDescription', 'Choose category description'],
-      ['backButtonLabel', 'Back button label'], ['buttonLabel', 'Continue button label'],
+      ['backButtonLabel', 'Back button label'],
     ],
     'guest-preview': [
       ['declarationTitle', 'Declaration heading'], ['declarationDescription', 'Declaration explanation'],
@@ -1959,6 +1963,8 @@ function AdminSettings() {
       return [
         'title',
         'description',
+        ...(screen === 'guest-dashboard' ? ['sectionIdLabel'] : []),
+        ...(screen === 'guest-category' ? ['buttonLabel'] : []),
         ...guestPageFields[screen].map(([key]) => key),
       ];
     }
@@ -2056,8 +2062,8 @@ function AdminSettings() {
     </section>
     <section className="detail-card settings-panel" id="settings-categories" aria-labelledby="settings-categories-title">
       <div className="detail-card-title"><GripVertical size={17} /><h2 id="settings-categories-title">Enrollment categories</h2></div>
-      <p className="field-help">Manage category presentation and the order shown on the applicant dashboard.</p>
-      <h3 className="settings-subheading">Dashboard card order</h3>
+      <p className="field-help">Manage category presentation and the order shown on the enrollment categories page.</p>
+      <h3 className="settings-subheading">Enrollment category order</h3>
       <p className="field-help">Drag the cards into the order applicants should see, or use the arrow buttons. Save changes to publish the new order.</p>
       <ol className="settings-card-order" aria-label="Enrollment card display order">
         {draft.cards.map((card, index) => <li
@@ -2100,7 +2106,7 @@ function AdminSettings() {
         <label className="field-label">Card title<input className="text-input" value={card.title} maxLength={100} onChange={(event) => updateCard(card.id, 'title', event.target.value)} /></label>
         <label className="field-label">Description<textarea className="text-input form-textarea" value={card.description} maxLength={240} rows={2} onChange={(event) => updateCard(card.id, 'description', event.target.value)} /></label>
         <label className="field-label">Selection button label<input className="text-input" value={card.buttonLabel} maxLength={60} onChange={(event) => updateCard(card.id, 'buttonLabel', event.target.value)} /></label>
-        <label className="field-label settings-color-field">Dashboard card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
+        <label className="field-label settings-color-field">Enrollment category card background<input type="color" value={card.backgroundColor} onChange={(event) => updateCard(card.id, 'backgroundColor', event.target.value.toUpperCase())} aria-label={`${card.title} background color`} /></label>
          <div className="settings-logo-editor-grid">
            {renderLogoSettings(card, 'card')}
            {renderLogoSettings(card, 'entry')}
@@ -2264,7 +2270,7 @@ function AdminSettings() {
             const contactInput = screen === 'guest-contact' ? guestContactFieldCopy.find(({ path }) =>
               key === `${path}Placeholder` || key === `${path}ValidationMessage`,
             ) : undefined;
-            const descriptionField = ['description', 'privacyText', 'securityText', 'chooseDescription', 'declarationDescription', 'submittedMessage', 'draftMessage', 'securityNote', 'missingRequirementsMessage'].includes(key);
+            const descriptionField = ['description', 'privacyText', 'securityText', 'confirmDescription', 'chooseDescription', 'declarationDescription', 'submittedMessage', 'draftMessage', 'securityNote', 'missingRequirementsMessage'].includes(key);
             const validationField = isValidationMessageKey(key);
             const placeholderFallback = contactInput?.placeholderDefault;
             const fieldLabel = key === 'sectionIdLabel' ? 'Section ID label'
@@ -2653,6 +2659,10 @@ const guestApplicationSchema = guestContactSchema.extend({
   categoryId: z.string().min(1, 'Choose an enrollment category.'),
 });
 type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
+const guestDashboardStartSchema = guestApplicationSchema;
+const GUEST_DASHBOARD_CONTACT_KEY = 'guest-dashboard-contact';
+const GUEST_DASHBOARD_START_KEY = 'guest-dashboard-start';
+const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = 'guest-dashboard-pending-category';
 const GUEST_APPLICATION_RESUME_KEY = 'guest-application-resume';
 const GUEST_APPLICATION_AUTH_CONTEXT_KEY = 'guest-application-auth-context';
 const guestAuthContextSchema = z.object({
@@ -2685,15 +2695,22 @@ function saveGuestAuthContext(context: z.infer<typeof guestAuthContextSchema>) {
   window.sessionStorage.setItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY, JSON.stringify(context));
 }
 
+function readGuestDashboardContact() {
+  try {
+    const stored = window.sessionStorage.getItem(GUEST_DASHBOARD_CONTACT_KEY);
+    if (!stored) return null;
+    const contact = guestContactSchema.safeParse(JSON.parse(stored));
+    return contact.success ? contact.data : null;
+  } catch {
+    return null;
+  }
+}
+
 const guestLookupSchema = z.object({
   reference: z.string().trim().min(8, 'Enter the reference from your confirmation.').max(32),
   accessKey: z.string().min(1, 'Enter your private tracking key.'),
 });
 type GuestLookupValues = z.infer<typeof guestLookupSchema>;
-
-function ApplicantDashboardRoute() {
-  return <AuthGate><Dashboard /></AuthGate>;
-}
 
 function GuestPublicHeader() {
   const portalSettings = useGetPortalSettings();
@@ -2707,6 +2724,121 @@ function GuestPublicHeader() {
       </Link>
     </nav>
   </header>;
+}
+
+function PublicApplicantDashboard() {
+  const categories = useListEnrollmentCategories();
+  const portalSettings = useGetPortalSettings();
+  const [, setLocation] = useLocation();
+  const [contact] = useState(readGuestDashboardContact);
+  const [startError, setStartError] = useState('');
+  const palette = ['#0EAD46', '#0C4DA1', '#0072AE', '#FFFFFF'];
+  const iconColors = ['#168341', '#244fc7', '#087eaf', '#174d80'];
+  const orderedCategories = useMemo(() => {
+    const items = (categories.data ?? []).slice(0, 4);
+    const order = portalSettings.data?.cards;
+    if (!order?.length) return items;
+    return items.sort((left, right) => {
+      const leftOrder = order.findIndex((card) => card.id === left.id);
+      const rightOrder = order.findIndex((card) => card.id === right.id);
+      return (leftOrder < 0 ? Number.MAX_SAFE_INTEGER : leftOrder)
+        - (rightOrder < 0 ? Number.MAX_SAFE_INTEGER : rightOrder);
+    });
+  }, [categories.data, portalSettings.data?.cards]);
+
+  const chooseCategory = (categoryId: string) => {
+    setStartError('');
+    if (!contact) {
+      try {
+        window.sessionStorage.setItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY, categoryId);
+        setLocation('/guest/apply');
+      } catch {
+        setStartError('Your category could not be saved in this browser. Enable session storage and try again.');
+      }
+      return;
+    }
+    const start = guestDashboardStartSchema.safeParse({ ...contact, categoryId });
+    if (!start.success) {
+      setStartError('Your contact details need to be re-entered before starting an application.');
+      setLocation('/guest/apply');
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(GUEST_DASHBOARD_START_KEY, JSON.stringify(start.data));
+      setLocation('/guest/apply?dashboardStart=1');
+    } catch {
+      setStartError('Your details could not be saved in this browser. Enable session storage and try again.');
+    }
+  };
+
+  const changeContact = () => {
+    try {
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+      window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+    } catch {
+      setStartError('Your category selection could not be cleared in this browser.');
+      return;
+    }
+    setLocation('/guest/apply');
+  };
+
+  return <main className="guest-page portal-frame guest-dashboard-page">
+    <GuestPublicHeader />
+    <section className="guest-dashboard-shell">
+      <div className="guest-dashboard-heading">
+        <div className="eyebrow"><span className="eyebrow-rule" />{copyText(portalSettings.data, 'guest-dashboard', 'sectionIdLabel', copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'ENROLLMENT CATEGORIES'))}</div>
+        <h1>{copyText(portalSettings.data, 'guest-dashboard', 'title', copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.'))}</h1>
+        <p>{copyText(portalSettings.data, 'guest-dashboard', 'description', copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.'))}</p>
+      </div>
+      {contact ? <div className="guest-dashboard-contact">
+        <div><span>{copyText(portalSettings.data, 'guest-dashboard', 'contactDetailsTitle', 'CONTACT DETAILS')}</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
+        <button type="button" className="text-action" onClick={changeContact} data-testid="button-change-dashboard-contact">{copyText(portalSettings.data, 'guest-dashboard', 'changeContactLabel', 'Change details')}</button>
+      </div> : <p className="guest-dashboard-contact-hint">{copyText(portalSettings.data, 'guest-dashboard', 'contactHint', 'You can browse categories now. Enter your name and email when you’re ready to start.')}</p>}
+      {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
+      {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
+        categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
+          <p>Enrollment categories could not be loaded.</p>
+          <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
+        </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No enrollment categories are available right now.</div> :
+          <div className="category-grid guest-dashboard-grid">
+            {orderedCategories.map((category, index) => {
+              const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
+              const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
+              return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
+                className={`category-card category-${categoryIndex + 1}`} style={{ '--category-tone': cardSettings?.backgroundColor ?? palette[categoryIndex] } as CSSProperties & { '--category-tone': string }}
+                aria-label={`Start an application for ${cardSettings?.title ?? category.name}`} data-testid={`guest-dashboard-category-${category.id}`}>
+                <span className="category-number">0{index + 1}</span>
+                {cardSettings?.logoDataUrl
+                  ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={categoryCardLogoStyle(cardSettings)} />
+                  : category.id === 'category-1'
+                    ? <img src={categoryOneLogo} alt="National Bank Vanuatu" className="category-logo category-one-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                    : category.id === 'category-2'
+                      ? <img src={categoryTwoLogo} alt="BRED Bank Vanuatu" className="category-logo category-two-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                      : category.id === 'category-3'
+                        ? <img src={categoryThreeLogo} alt="ANZ" className="category-logo category-three-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                        : category.id === 'category-4'
+                          ? <img src={categoryFourLogo} alt="BSP" className="category-logo category-four-default-logo" style={categoryCardLogoStyle(cardSettings)} />
+                          : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
+                <span className="category-title">{cardSettings?.title ?? category.name}</span>
+                <span className="category-select">{contact
+                  ? copyText(portalSettings.data, 'guest-dashboard', 'startLabel', copyText(portalSettings.data, 'dashboard', 'buttonLabel', 'Start application'))
+                  : copyText(portalSettings.data, 'guest-dashboard', 'enterContactLabel', copyText(portalSettings.data, 'dashboard', 'buttonLabel', 'Enter contact details'))} <ArrowUpRight size={15} /></span>
+              </button>;
+            })}
+          </div>}
+    </section>
+    <footer className="guest-footer">
+      <span>SECURE ENROLLMENT PORTAL</span>
+      <nav className="guest-footer-actions" aria-label="Enrollment category links">
+        <Link href="/staff/sign-up" className="guest-footer-admin-link" data-testid="link-dashboard-admin-access"><ShieldCheck size={13} /> Admin access</Link>
+        <Link href="/guest/track" data-testid="link-dashboard-track">{copyText(portalSettings.data, 'guest-dashboard', 'trackLabel', 'Already started? Track your application')}</Link>
+      </nav>
+    </footer>
+  </main>;
+}
+
+function EnrollmentCategoryPage() {
+  return <PublicApplicantDashboard />;
 }
 
 function clerkMessage(error: unknown) {
@@ -2894,12 +3026,16 @@ function GuestApplicationPage() {
   const [copied, setCopied] = useState(false);
   const [stage, setStage] = useState<'contact' | 'category' | 'key' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
   const [isContinuing, setIsContinuing] = useState(false);
+  const [contactSaveError, setContactSaveError] = useState('');
+  const [startedFromDashboard, setStartedFromDashboard] = useState(false);
   const [progressError, setProgressError] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
   const [verificationOpen, setVerificationOpen] = useState(false);
   const [resumeError, setResumeError] = useState('');
   const [resumeLoading, setResumeLoading] = useState(false);
   const resumeStarted = useRef(false);
+  const dashboardStartStarted = useRef(false);
+  const [dashboardStartValues, setDashboardStartValues] = useState<GuestApplicationValues | null>(null);
   const [pendingSubmission, setPendingSubmission] = useState<{
     fingerprint: string;
     input: GuestPreapplicationInput;
@@ -2911,8 +3047,8 @@ function GuestApplicationPage() {
     resolver: zodResolver(guestApplicationSchema),
     defaultValues: {
       categoryId: '',
-      fullName: '',
-      email: '',
+      fullName: readGuestDashboardContact()?.fullName ?? '',
+      email: readGuestDashboardContact()?.email ?? '',
     },
   });
 
@@ -2974,6 +3110,24 @@ function GuestApplicationPage() {
     }).catch(() => {
       setResumeError('The reference and private key could not be verified. Return to status lookup and try again.');
     }).finally(() => setResumeLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (dashboardStartStarted.current) return;
+    if (new URLSearchParams(window.location.search).get('dashboardStart') !== '1') return;
+    let storedStart: unknown;
+    try {
+      storedStart = JSON.parse(window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? 'null');
+    } catch {
+      storedStart = null;
+    }
+    const start = guestDashboardStartSchema.safeParse(storedStart);
+    if (!start.success) {
+      setResumeError('Your selected category could not be restored. Return to the enrollment categories page and choose it again.');
+      return;
+    }
+    form.reset(start.data);
+    setDashboardStartValues(start.data);
   }, []);
 
   const saveGuestProgress = async (
@@ -3048,6 +3202,7 @@ function GuestApplicationPage() {
 
   const continueToCategory = async () => {
     setIsContinuing(true);
+    let startAfterContact = false;
     const contactDetails = guestContactSchema.safeParse({
       fullName: form.getValues('fullName'),
       email: form.getValues('email'),
@@ -3057,11 +3212,43 @@ function GuestApplicationPage() {
       setIsContinuing(false);
       return;
     }
+    try {
+      window.sessionStorage.setItem(GUEST_DASHBOARD_CONTACT_KEY, JSON.stringify(contactDetails.data));
+      const pendingCategoryId = window.sessionStorage.getItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+      if (pendingCategoryId) {
+        const start = guestDashboardStartSchema.safeParse({
+          ...contactDetails.data,
+          categoryId: pendingCategoryId,
+        });
+        if (!start.success) {
+          window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+          setContactSaveError('Your selected category could not be restored. Return to the enrollment categories page and choose it again.');
+          setIsContinuing(false);
+          return;
+        }
+        window.sessionStorage.setItem(GUEST_DASHBOARD_START_KEY, JSON.stringify(start.data));
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+        form.reset(start.data);
+        dashboardStartStarted.current = false;
+        setDashboardStartValues(start.data);
+        startAfterContact = true;
+      } else {
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+      }
+    } catch {
+      setContactSaveError('Your details could not be saved in this browser. Enable session storage and try again.');
+      setIsContinuing(false);
+      return;
+    }
+    setContactSaveError('');
     setIsContinuing(false);
-    setStage('category');
+    if (!startAfterContact) setLocation('/enrollment-categories');
   };
 
-  const onSubmit = async (values: GuestApplicationValues) => {
+  const onSubmit = async (
+    values: GuestApplicationValues,
+    fromDashboard = startedFromDashboard,
+  ) => {
     const details = {
       categoryId: values.categoryId as GuestPreapplicationInput['categoryId'],
       fullName: values.fullName.trim(),
@@ -3093,6 +3280,13 @@ function GuestApplicationPage() {
 
     try {
       const application = await createGuest.mutateAsync({ data: input });
+      try {
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_CONTACT_KEY);
+        window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+      } catch {
+        // Keep the successful application visible even if browser storage cleanup fails.
+      }
       setCreated({ application, accessKey });
       try {
         saveGuestResume(application.reference, accessKey);
@@ -3100,12 +3294,22 @@ function GuestApplicationPage() {
         setProgressError('Your private key could not be saved for this session. Copy it before continuing.');
       }
       setApplicationAnswers({});
-      setStage('key');
+      setStage(fromDashboard ? 'categoryEntry' : 'key');
       setPendingSubmission(null);
+      setDashboardStartValues(null);
+      dashboardStartStarted.current = false;
     } catch {
       // Keep the same key and submission ID in memory so a retry is idempotent.
     }
   };
+
+  useEffect(() => {
+    if (!dashboardStartValues || dashboardStartStarted.current) return;
+    dashboardStartStarted.current = true;
+    setStartedFromDashboard(true);
+    setStage('category');
+    void onSubmit(dashboardStartValues, true);
+  }, [dashboardStartValues]);
 
   const uploadGuestEvidence = async (
     file: File,
@@ -3273,7 +3477,7 @@ function GuestApplicationPage() {
           <div className="eyebrow">{created.application.submissionStatus === 'submitted' ? 'APPLICATION SUBMITTED' : 'APPLICATION DRAFT SAVED'}</div>
           <h2 id="guest-apply-heading">{created.application.submissionStatus === 'submitted' ? 'Your application was submitted.' : 'Your details are saved.'}</h2>
           <p>{created.application.submissionStatus === 'submitted'
-            ? 'Your verified account is linked to this application. You can follow its review status from your dashboard.'
+            ? 'Your verified account is linked to this application. You can follow its review status on the application tracking page.'
             : 'Your saved draft is available to authorized reviewers. Resume it later to complete your details, evidence, and email verification.'}</p>
           <div className="guest-reference-box">
             <span>APPLICATION REFERENCE</span>
@@ -3313,6 +3517,20 @@ function GuestApplicationPage() {
           <p className="guest-key-warning">This key is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
           <button type="button" className="button button-primary guest-success-track" onClick={() => setStage('categoryEntry')} data-testid="button-continue-to-category-details">Continue to category details <ArrowRight size={16} /></button>
         </div> : stage === 'categoryEntry' && created ? <>
+          {startedFromDashboard && <div className="guest-key-inline" data-testid="guest-tracking-key-step">
+            <div className="guest-reference-box">
+              <span>APPLICATION REFERENCE</span>
+              <strong data-testid="text-guest-reference">{created.application.reference}</strong>
+            </div>
+            <div className="guest-key-box">
+              <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
+              <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
+              <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
+                {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
+              </button>
+            </div>
+            <p className="guest-key-warning">Save this key now. It is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
+          </div>}
           <div className="guest-form-topline"><span>CATEGORY DETAILS</span><span>STEP 3 OF 4</span></div>
           {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
           <CategoryEntryForm
@@ -3362,7 +3580,8 @@ function GuestApplicationPage() {
           <div className="guest-form-topline"><span>APPLICATION</span><span>{stage === 'contact' ? 'STEP 1 OF 4' : 'STEP 2 OF 4'}</span></div>
           {stage === 'contact' ? <>
             <h2 id="guest-apply-heading">{guestCopy('guest-contact', 'title', 'Your contact details')}</h2>
-            <p className="guest-form-subtitle">{guestCopy('guest-contact', 'description', 'Start with only your name and email. You’ll choose an enrollment category next.')}</p>
+            <p className="guest-form-subtitle">{guestCopy('guest-contact', 'description', 'Start with only your name and email. You’ll continue to the enrollment categories page to choose a category.')}</p>
+            {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
                 event.preventDefault();
@@ -3377,14 +3596,18 @@ function GuestApplicationPage() {
                   <FormMessage message={guestCopy('guest-contact', 'emailValidationMessage', fieldState.error?.message ?? 'Enter a valid email address.')} />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : guestCopy('guest-contact', 'continueLabel', 'Continue to category')} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : guestCopy('guest-contact', 'continueLabel', 'Continue to enrollment categories')} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> {guestCopy('guest-contact', 'privacyText', 'Your details are shared only with enrollment staff.')}</p>
               </form>
             </Form>
           </> : <>
-            <h2 id="guest-apply-heading">{guestCopy('guest-category', 'chooseTitle', 'Choose your category')}</h2>
-            <p className="guest-form-subtitle">{guestCopy('guest-category', 'chooseDescription', 'Select the enrollment category, then continue to your account-free application details.')}</p>
+            <h2 id="guest-apply-heading">{startedFromDashboard
+              ? guestCopy('guest-category', 'confirmTitle', 'Confirm your category')
+              : guestCopy('guest-category', 'chooseTitle', 'Choose your category')}</h2>
+            <p className="guest-form-subtitle">{startedFromDashboard
+              ? guestCopy('guest-category', 'confirmDescription', 'Confirm the category you chose on the enrollment categories page to start your account-free application.')
+              : guestCopy('guest-category', 'chooseDescription', 'Select the enrollment category, then continue to your account-free application details.')}</p>
             {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-category-loading"><div /><div /></div> :
               categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-category-error">
                 <p>Enrollment categories could not be loaded.</p>
@@ -3421,7 +3644,7 @@ function GuestApplicationPage() {
                   <div className="guest-step-actions">
                     <button type="button" className="button button-quiet" onClick={() => setStage('contact')} data-testid="button-back-guest-contact">{guestCopy('guest-category', 'backButtonLabel', 'Back')}</button>
                     <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-submit-guest-application">
-                      {createGuest.isPending ? 'Starting your application…' : guestCopy('guest-category', 'buttonLabel', createGuest.isError ? 'Retry application setup' : 'Continue to category details')} <ArrowRight size={16} />
+                      {createGuest.isPending ? 'Starting your application…' : guestCopy('guest-category', 'buttonLabel', createGuest.isError ? 'Retry application setup' : startedFromDashboard ? 'Start account-free application' : 'Continue to category details')} <ArrowRight size={16} />
                     </button>
                   </div>
                   <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
@@ -3746,9 +3969,9 @@ function NotFound() {
 function RetiredApplicantRoute() {
   const [, setLocation] = useLocation();
   useEffect(() => {
-    setLocation('/dashboard', { replace: true });
+    setLocation('/enrollment-categories', { replace: true });
   }, [setLocation]);
-  return <main className="portal-frame auth-loading"><LoadingPanel label="Opening the shared applicant dashboard" /></main>;
+  return <main className="portal-frame auth-loading"><LoadingPanel label="Opening enrollment categories" /></main>;
 }
 
 function ApplicantApplicationRoute({ view }: { view: 'enrollment' | 'status' }) {
@@ -3789,7 +4012,8 @@ function RoutedPages() {
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
-    <Route path="/dashboard" component={ApplicantDashboardRoute} />
+    <Route path="/enrollment-categories" component={EnrollmentCategoryPage} />
+    <Route path="/dashboard" component={EnrollmentCategoryPage} />
     <Route path="/apply/:applicationId" component={() => <ApplicantApplicationRoute view="enrollment" />} />
     <Route path="/applications/:applicationId" component={() => <ApplicantApplicationRoute view="status" />} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
