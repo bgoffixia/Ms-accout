@@ -40,12 +40,12 @@ class GuestApiFixture {
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
     if (method === "GET" && path === "/api/enrollment/categories") {
-      return json([{
-        id: "category-1",
-        name: "Category One",
+      return json(["category-1", "category-2", "category-3", "category-4"].map((id, index) => ({
+        id,
+        name: `Category ${index + 1}`,
         description: "Enrollment application category.",
         accent: "#168341",
-      }]);
+      })));
     }
     if (method === "GET" && path === "/api/portal/settings") {
       return json({
@@ -57,6 +57,14 @@ class GuestApiFixture {
           buttonLabel: "Start application",
           backgroundColor: "#F5F8FA",
           logoDataUrl: null,
+          entryLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='5' fill='green'/%3E%3C/svg%3E" : null,
+          pinLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect width='10' height='10' fill='blue'/%3E%3C/svg%3E" : null,
+          cardLogoAlignment: "center",
+          cardLogoVerticalOffset: 0,
+          entryLogoAlignment: "left",
+          entryLogoVerticalOffset: 14,
+          pinLogoAlignment: "right",
+          pinLogoVerticalOffset: -14,
         })),
         theme: {
           pinScreenBackground: "#FFFFFF",
@@ -64,7 +72,13 @@ class GuestApiFixture {
           buttonPlacement: "right",
           categoryInputTransparent: true,
         },
-        screenCopy: {},
+        screenCopy: {
+          dashboard: {
+            title: "Choose a category to begin.",
+            description: "This dashboard introduction should appear once.",
+            sectionIdLabel: "START ENROLLMENT",
+          },
+        },
         pageThemes: {},
       });
     }
@@ -72,11 +86,12 @@ class GuestApiFixture {
       const body = request.postDataJSON();
       this.createCount += 1;
       this.accessKey = body.accessKey;
+      const categoryId = typeof body.categoryId === "string" ? body.categoryId : "category-1";
       this.draft = {
         id: applicationId,
         reference,
-        categoryId: "category-1",
-        categoryName: "Category One",
+        categoryId,
+        categoryName: `Category ${categoryId.slice(-1)}`,
         fullName: body.fullName,
         email: body.email,
         status: "received",
@@ -228,11 +243,14 @@ async function expectNoDocumentOverflow(page: Page) {
     const documentScroller = document.scrollingElement ?? document.documentElement;
     const shell = document.querySelector<HTMLElement>(".ew-shell");
     const previewScroll = document.querySelector<HTMLElement>(".ew-preview .ew-content-scroll");
-    const singlePage = document.querySelector<HTMLElement>(".guest-dashboard-shell, .category-entry-screen");
+    const singlePage = document.querySelector<HTMLElement>(".category-entry-screen")
+      ?? document.querySelector<HTMLElement>(".guest-dashboard-shell");
     const geometry = (element: HTMLElement | null) => element ? {
+      className: element.className,
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
       overflowY: getComputedStyle(element).overflowY,
+      rectTop: element.getBoundingClientRect().top,
       rectHeight: element.getBoundingClientRect().height,
     } : null;
     const htmlStyle = getComputedStyle(document.documentElement);
@@ -322,7 +340,10 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.route("**/api/**", (route) => api.handle(route));
 
   await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Choose a category to begin." })).toHaveCount(1);
+  await expect(page.getByText("This dashboard introduction should appear once.")).toHaveCount(1);
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
+  await expect(page.getByTestId("guest-dashboard-category-category-4")).toBeVisible();
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
@@ -332,9 +353,52 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
+  await expect(page.locator(".category-one-bank-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
+  await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-left/);
+  await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "14px");
+  await page.locator("form button[type=submit]").click();
+  await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
+  await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-right/);
+  await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "-14px");
   await expectNoDocumentOverflow(page);
   expect(api.createCount).toBe(1);
   expect(api.draft?.categoryId).toBe("category-1");
+});
+
+test("keeps every guest category entry and PIN screen within one phone viewport", async ({ browser }) => {
+  for (const categoryId of ["category-1", "category-2", "category-3", "category-4"]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 568 } });
+    const page = await context.newPage();
+    const api = new GuestApiFixture();
+    await page.route("**/api/**", (route) => api.handle(route));
+    await page.goto("/dashboard");
+    await page.getByTestId(`guest-dashboard-category-${categoryId}`).click();
+    await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
+    await page.getByTestId("input-guest-email").fill("jordan@example.test");
+    await page.getByTestId("button-continue-guest-contact").click();
+
+    await expect(page.locator(".category-entry-screen")).toBeVisible();
+    await expectNoDocumentOverflow(page);
+    const nextButton = page.locator("form button[type=submit]").first();
+    await nextButton.click();
+    if (categoryId === "category-2") {
+      await expect(page.locator(".category-entry-screen")).not.toHaveClass(/entry-pin-stage/);
+      await expectNoDocumentOverflow(page);
+      await page.locator("form button[type=submit]").first().click();
+    }
+    await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-pin-stage/);
+    await expectNoDocumentOverflow(page);
+    const pinKeys = page.locator(".pin-entry-key");
+    for (let index = 0; index < await pinKeys.count(); index += 1) {
+      const box = await pinKeys.nth(index).boundingBox();
+      expect(box, `${categoryId} keypad key ${index} should be visible`).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(568);
+    }
+    await context.close();
+  }
 });
 
 test("redirects retired account-based applicant URLs to the shared dashboard", async ({ page }) => {

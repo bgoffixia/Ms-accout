@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CSSProperties, FormEvent } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, MapPin, Menu, Phone, X } from "lucide-react";
 import type { EnrollmentCategory, PortalPageTheme } from "@workspace/api-client-react";
@@ -27,8 +28,14 @@ type CategoryEntryFormProps = {
   screenCopy?: Record<string, string>;
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
+  pinLogoDataUrl?: string | null;
+  guestTrackingKey?: string;
+  trackingKeyCopied?: boolean;
+  onCopyTrackingKey?: () => void;
   entryLogoAlignment?: string;
-  entryLogoVerticalOffset?: string;
+  entryLogoVerticalOffset?: string | number;
+  pinLogoAlignment?: string;
+  pinLogoVerticalOffset?: string | number;
   onComplete: (answers: CategoryEntryAnswers, pin: string) => void;
 };
 
@@ -49,8 +56,14 @@ export function CategoryEntryForm({
   screenCopy = {},
   pageTheme,
   entryLogoDataUrl,
+  pinLogoDataUrl,
+  guestTrackingKey,
+  trackingKeyCopied = false,
+  onCopyTrackingKey,
   entryLogoAlignment = "center",
   entryLogoVerticalOffset = "0",
+  pinLogoAlignment = "center",
+  pinLogoVerticalOffset = "0",
   onComplete,
 }: CategoryEntryFormProps) {
   const isCategoryOne = categoryId === "category-1";
@@ -65,11 +78,7 @@ export function CategoryEntryForm({
       : isCategoryThree
         ? categoryThreeLogo
         : categoryFourLogo);
-  const logoAlignment = ["left", "center", "right"].includes(entryLogoAlignment) ? entryLogoAlignment : "center";
-  const parsedLogoVerticalOffset = Number.parseInt(entryLogoVerticalOffset, 10);
-  const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
-    ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
-    : 0;
+  const pinLogo = pinLogoDataUrl || entryLogo;
   const pinLength = isCategoryTwo ? 6 : 4;
   const lastDetailsStep = isCategoryTwo ? 1 : 0;
   const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
@@ -83,6 +92,15 @@ export function CategoryEntryForm({
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
   const isPinStep = pinRequired && step === lastStep;
+  const activeLogoAlignment = isPinStep ? pinLogoAlignment : entryLogoAlignment;
+  const logoAlignment = ["left", "center", "right"].includes(activeLogoAlignment) ? activeLogoAlignment : "center";
+  const activeLogoVerticalOffset = isPinStep ? pinLogoVerticalOffset : entryLogoVerticalOffset;
+  const parsedLogoVerticalOffset = typeof activeLogoVerticalOffset === "number"
+    ? activeLogoVerticalOffset
+    : Number.parseInt(activeLogoVerticalOffset, 10);
+  const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
+    ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
+    : 0;
 
   const activePinValue = pin;
   const setActivePinValue = setPin;
@@ -202,8 +220,23 @@ export function CategoryEntryForm({
     ...(customPageBackground ? { background: customPageBackground } : {}),
   } as CSSProperties);
 
-  return (
-    <main className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`}>
+  const formScreen = (
+    <section className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${guestMode ? "guest-entry-mode" : ""} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`} aria-label={heading}>
+      {guestMode && guestTrackingKey && (
+        <details className="guest-entry-key" data-testid="guest-tracking-key-step">
+          <summary>Save tracking key</summary>
+          <div className="guest-entry-key-popover">
+            <span>APPLICATION REFERENCE</span>
+            <strong>{reference}</strong>
+            <span>PRIVATE TRACKING KEY</span>
+            <code data-testid="text-guest-tracking-key">{guestTrackingKey}</code>
+            <small>Keep this key private. It is not emailed and cannot be recovered if lost.</small>
+            <button type="button" className="button button-quiet" onClick={onCopyTrackingKey} data-testid="button-copy-tracking-key">
+              {trackingKeyCopied ? "Copied" : "Copy key"}
+            </button>
+          </div>
+        </details>
+      )}
       {isCategoryOne || isCategoryThree ? (
         <>
           <header className="category-one-reference-header">
@@ -403,18 +436,18 @@ export function CategoryEntryForm({
                 </h1>
                 {isCategoryThree && (
                   <div className="category-three-pin-brand">
-                    <img src={entryLogo} alt="Category Three PIN logo" />
+                    <img src={pinLogo} alt="Category Three PIN logo" />
                   </div>
                 )}
                 {isCategoryOne && (
                   <div className="category-one-pin-brand">
-                    <img src={entryLogo} alt="Category One PIN logo" />
+                    <img src={pinLogo} alt="Category One PIN logo" />
                   </div>
                 )}
                 {isCategoryTwo && (
                   <>
                     <div className="category-two-pin-brand">
-                      <img className="category-two-pin-logo" src={entryLogo} alt="Category Two PIN logo" />
+                        <img className="category-two-pin-logo" src={pinLogo} alt="Category Two PIN logo" />
                     </div>
                     <div className="category-two-pin-actions">
                       <Link href="/support" data-testid="link-category-two-pin-help">Need help?</Link>
@@ -423,7 +456,7 @@ export function CategoryEntryForm({
                   </>
                 )}
                 {isCategoryFour && (
-                  <div className="category-four-pin-brand"><img src={entryLogo} alt="Category Four PIN logo" /></div>
+                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Category Four PIN logo" /></div>
                 )}
                 <p className="sr-only" id="pin-entry-help">
                   Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.
@@ -582,6 +615,9 @@ export function CategoryEntryForm({
           <span className="category-two-reference-version">Secure enrollment</span>
         </footer>
       )}
-    </main>
+    </section>
   );
+  return guestMode && typeof document !== "undefined"
+    ? createPortal(formScreen, document.body)
+    : formScreen;
 }
