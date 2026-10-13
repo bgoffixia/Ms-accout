@@ -235,7 +235,6 @@ export function CategoryEntryForm({
   const customPageBackground = pageThemeBackground(pageTheme);
   const formBackgroundStyle = ({
     "--entry-logo-offset-y": `${logoVerticalOffset}px`,
-    "--entry-logo-layout-size": `${Math.max(24, Math.min(240, typeof entryLogoSize === "number" && Number.isFinite(entryLogoSize) ? entryLogoSize : 176))}px`,
     ...(isPinStep && categoryPinBackground ? {
       backgroundColor: categoryPinBackground,
       "--entry-background": categoryPinBackground,
