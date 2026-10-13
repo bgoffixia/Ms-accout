@@ -28,6 +28,8 @@ class GuestApiFixture {
   accessKey = "";
   createCount = 0;
   lookupCount = 0;
+  categoryOneTitle = "Category One";
+  screenCopyOverrides: Record<string, Record<string, string>> = {};
   readonly uploadedEvidence: { id: string; slot: string; objectPath: string }[] = [];
   private evidenceId = 0;
 
@@ -52,7 +54,7 @@ class GuestApiFixture {
         hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
         cards: ["category-1", "category-2", "category-3", "category-4"].map((id) => ({
           id,
-          title: id === "category-1" ? "Category One" : id,
+          title: id === "category-1" ? this.categoryOneTitle : id,
           description: "Enrollment category.",
           buttonLabel: "Start application",
           backgroundColor: "#F5F8FA",
@@ -84,6 +86,7 @@ class GuestApiFixture {
             description: "This dashboard introduction should appear once.",
             sectionIdLabel: "START ENROLLMENT",
           },
+          ...this.screenCopyOverrides,
         },
         pageThemes: {},
       });
@@ -690,6 +693,21 @@ test("preserves the same guest application across verification failure, reload, 
 
 test("lets guests skip incomplete fields and the PIN while keeping final submission gated", async ({ page }) => {
   const api = new GuestApiFixture();
+  api.categoryOneTitle = "Configured Category One";
+  api.screenCopyOverrides = {
+    "category-entry-1": {
+      sectionIdLabel: "CONFIGURED CATEGORY LABEL",
+      nameLabel: "Configured entry name",
+      nicknameLabel: "Configured entry nickname",
+    },
+    "workflow-step-1": {
+      title: "Configured personal details",
+      field_personalInformation_firstName: "Configured first name",
+    },
+    "workflow-step-8": {
+      title: "Configured final preview",
+    },
+  };
   await page.setViewportSize({ width: 390, height: 568 });
   await page.route("**/api/**", (route) => api.handle(route));
   await page.route("**/api/__clerk/v1/client/**", (route) =>
@@ -716,6 +734,15 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
     await expectNoDocumentOverflow(page);
   }
   await expect(page.getByTestId("section-declaration")).toBeVisible();
+  await expect(page.getByTestId("enrollment-preview")).toContainText("Configured final preview");
+  await expect(page.getByTestId("review-section-0")).toContainText("Configured personal details");
+  await expect(page.getByTestId("review-firstName")).toContainText("Configured first name");
+  await expect(page.getByTestId("review-category")).toContainText("CONFIGURED CATEGORY LABEL");
+  await expect(page.getByTestId("review-category")).toContainText("Configured Category One");
+  await expect(page.getByTestId("review-category-name")).toContainText("Configured entry name");
+  await expect(page.getByTestId("review-category-name")).toContainText("Not provided");
+  await expect(page.getByTestId("review-category-nickname")).toContainText("Configured entry nickname");
+  await expect(page.getByTestId("review-category-nickname")).toContainText("Not provided");
   await page.getByTestId("section-declaration").locator("label").click();
   await expect(page.getByTestId("check-declaration")).toBeChecked();
   await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
