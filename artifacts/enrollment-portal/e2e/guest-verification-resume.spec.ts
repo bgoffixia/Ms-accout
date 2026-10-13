@@ -356,10 +356,13 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
     { width: 1280, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
-    for (const path of ["/", "/guest/apply", "/dashboard", "/guest/track"]) {
+    for (const path of ["/", "/guest/apply", "/dashboard", "/enrollment-categories", "/guest/track"]) {
       await page.goto(path);
       await expect(page.locator(".portal-frame")).toBeVisible();
       await expectNoDocumentOverflow(page);
+      if (path === "/dashboard" || path === "/enrollment-categories") {
+        await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
+      }
       if (path !== "/") {
         await expect(page.locator(".guest-page")).toHaveCSS("overflow-y", "hidden");
       }
@@ -367,7 +370,7 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   }
 });
 
-test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
+test("starts from the public enrollment category page and opens the selected category form after contact details", async ({ page }) => {
   const api = new GuestApiFixture();
   api.screenCopy["guest-contact"] = {
     title: "Who is applying?",
@@ -412,7 +415,7 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
 
-  await page.goto("/dashboard");
+  await page.goto("/enrollment-categories");
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expect(page.getByRole("heading", { name: "Who is applying?" })).toBeVisible();
