@@ -905,8 +905,8 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .step-indicator { color: #5a788e; font: 9px var(--app-font-mono); letter-spacing: .06em; white-space: nowrap; }
 .step-indicator i { color: #a0adb6; font-style: normal; }
 .category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.category-grid--with-row-divider { position: relative; row-gap: 20px; }
-.category-grid--with-row-divider::after {
+.category-grid.category-grid--with-row-divider { position: relative; row-gap: 20px; }
+.category-grid.category-grid--with-row-divider::after {
   position: absolute;
   z-index: 0;
   top: 50%;

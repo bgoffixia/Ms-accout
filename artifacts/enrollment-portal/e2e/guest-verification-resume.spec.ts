@@ -377,6 +377,23 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await expect(page.getByTestId("guest-dashboard-category-category-4")).toBeVisible();
   await expectSquareCategoryCards(page);
+  const cardDescriptions = page.locator(".dashboard-page-content .category-description");
+  await expect(cardDescriptions).toHaveCount(4);
+  for (const description of await cardDescriptions.all()) {
+    await expect(description).toBeVisible();
+    await expect(description).toHaveText(/.+/);
+  }
+  const divider = await page.locator(".dashboard-page-content .category-grid").evaluate((grid) => {
+    const style = getComputedStyle(grid, "::after");
+    return {
+      content: style.content,
+      height: Number.parseFloat(style.height),
+      rowGap: Number.parseFloat(getComputedStyle(grid).rowGap),
+    };
+  });
+  expect(divider.content).not.toBe("none");
+  expect(divider.height).toBeGreaterThanOrEqual(2);
+  expect(divider.rowGap).toBeGreaterThanOrEqual(16);
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");

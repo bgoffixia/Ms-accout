@@ -552,7 +552,7 @@ function Dashboard() {
           busy ? <LoadingPanel /> : <>
             <section className="selection-section rise-delay">
               <div className="section-line"><div><h2>Select an enrollment path</h2><p>Choose the option that best matches your application.</p></div><span className="step-indicator">STEP 01 / 03</span></div>
-              <div className="category-grid">
+              <div className={`category-grid${orderedCategories.length > 2 ? ' category-grid--with-row-divider' : ''}`}>
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
                   const cardSettings = portalSettings.data?.cards.find((card) => card.id === category.id);
