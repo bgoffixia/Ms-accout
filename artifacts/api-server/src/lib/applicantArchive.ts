@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:
 import { Readable } from "node:stream";
 import { createGzip } from "node:zlib";
 import { and, desc, eq } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
 import {
   applicantMasterArchiveAuditTable,
   applicantMasterArchiveCasesTable,
@@ -114,6 +115,20 @@ function sanitizeArchiveValue(value: unknown, fieldName = ""): unknown {
   }
   if (value instanceof Date) return value.toISOString();
   return value;
+}
+
+function sanitizeCorrectionHistory(history: unknown[]): unknown[] {
+  return history.flatMap((revision) => {
+    const record = asRecord(revision);
+    const changes = Array.isArray(record.changes)
+      ? record.changes.filter((change) => {
+          const row = asRecord(change);
+          return !privateKeyFields.test(String(row.field ?? row.path ?? ""));
+        })
+      : [];
+    const safeRevision = sanitizeArchiveValue({ ...record, changes });
+    return safeRevision === undefined ? [] : [safeRevision];
+  });
 }
 
 function asRecord(value: unknown): JsonRecord {
@@ -237,6 +252,7 @@ function casePayload(
   source: typeof guestPreapplicationsTable.$inferSelect | typeof enrollmentApplicationsTable.$inferSelect,
   linkedApplication?: typeof enrollmentApplicationsTable.$inferSelect | null,
   correctionHistory: unknown[] = [],
+  applicantContact?: { name: string; email: string },
 ): JsonRecord {
   const sourceRecord = source as unknown as JsonRecord;
   const guest = sourceType === "guest";
@@ -250,7 +266,7 @@ function casePayload(
     status: sourceRecord.status,
     createdAt: sourceRecord.createdAt,
     updatedAt: sourceRecord.updatedAt,
-    correctionHistory,
+    correctionHistory: sanitizeCorrectionHistory(correctionHistory),
   };
   if (guest) {
     payload.fullName = sourceRecord.fullName;
@@ -262,6 +278,8 @@ function casePayload(
     payload.linkedApplicationId = sourceRecord.linkedApplicationId;
   } else {
     payload.submittedAt = sourceRecord.submittedAt;
+    payload.fullName = applicantContact?.name ?? "";
+    payload.email = applicantContact?.email ?? "";
   }
   if (linkedApplication) {
     payload.linkedApplication = {
@@ -283,6 +301,12 @@ function safeFilename(value: string): string {
     .replace(/\s+/g, "_")
     .replace(/[^A-Za-z0-9._-]/g, "_")
     .slice(0, 60) || "evidence";
+}
+
+function readableEvidenceFilename(row: typeof applicantMasterArchiveEvidenceTable.$inferSelect): string {
+  if (!row.fileName.startsWith("enc:v1:")) return safeFilename(row.fileName);
+  const decoded = decryptJson(row.fileName);
+  return typeof decoded === "string" ? decoded : row.fileName;
 }
 
 function tarHeader(name: string, size: number): Buffer {
@@ -394,7 +418,7 @@ async function archiveEvidence(
         sourcePathEncrypted: encryptJson(sourcePath),
         archiveObjectPath: archivedPath,
         fieldPath,
-        fileName: safeFilename(fileName),
+        fileName: encryptJson(safeFilename(fileName)),
         evidenceType: metadata?.evidenceType ?? fieldPath.split(".")[0] ?? "applicant_evidence",
         contentType,
         sizeBytes,
@@ -553,7 +577,25 @@ export async function captureEnrollmentApplicantArchive(
       .limit(1);
     if (guest) return captureGuestApplicantArchive(guest, options);
   }
-  const payload = casePayload("application", application);
+  const answers = asRecord(application.answers);
+  const personalInformation = asRecord(answers.personalInformation);
+  let applicantName = String(
+    personalInformation.fullName ??
+    [personalInformation.firstName, personalInformation.lastName].filter(Boolean).join(" ") ??
+    "",
+  ).trim();
+  let applicantEmail = String(answers.email ?? answers.applicantEmail ?? "").trim();
+  if (application.clerkUserId) {
+    const user = await clerkClient.users.getUser(application.clerkUserId);
+    applicantName ||= [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+    applicantEmail ||= user.primaryEmailAddress?.emailAddress ??
+      user.emailAddresses.find((address) => address.id === user.primaryEmailAddressId)?.emailAddress ??
+      "";
+  }
+  const payload = casePayload("application", application, null, [], {
+    name: applicantName,
+    email: applicantEmail,
+  });
   return writeSnapshot("application", application.id, application.reference, payload, {
     actorUserId: options.actorUserId,
     eventType: options.eventType ?? "application_progress_saved",
@@ -589,7 +631,7 @@ async function getEvidencePresentation(archiveId: string) {
   for (const row of rows) {
     const sourcePath = decryptJson(row.sourcePathEncrypted);
     if (typeof sourcePath === "string") {
-      labels.set(sourcePath, `[Proof: ${row.fileName}]`);
+      labels.set(sourcePath, `[Proof: ${readableEvidenceFilename(row)}]`);
     }
   }
   return { rows, labels };
@@ -682,7 +724,7 @@ export async function getApplicantArchiveDetail(archiveId: string) {
     evidence: rows.map((row) => ({
       id: row.id,
       fieldPath: row.fieldPath,
-      fileName: row.fileName,
+      fileName: readableEvidenceFilename(row),
       evidenceType: row.evidenceType,
       contentType: row.contentType,
       sizeBytes: row.sizeBytes,
@@ -727,7 +769,7 @@ export async function createApplicantArchiveBundle(archiveId: string): Promise<R
     record: detail,
     proofFiles: files.map(({ row }) => ({
       id: row.id,
-      archivePath: `proofs/${row.id}-${safeFilename(row.fileName)}`,
+      archivePath: `proofs/${row.id}-${safeFilename(readableEvidenceFilename(row))}`,
       fieldPath: row.fieldPath,
       fileName: row.fileName,
       evidenceType: row.evidenceType,
@@ -741,7 +783,7 @@ export async function createApplicantArchiveBundle(archiveId: string): Promise<R
     yield manifest;
     yield tarPadding(manifest.length);
     for (const { row, file } of files) {
-      const name = `proofs/${row.id}-${safeFilename(row.fileName)}`;
+       const name = `proofs/${row.id}-${safeFilename(readableEvidenceFilename(row))}`;
       yield tarHeader(name, row.sizeBytes);
       for await (const chunk of file.createReadStream()) {
         yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -816,10 +858,15 @@ export async function restoreApplicantArchiveSnapshot(
     .where(eq(applicantMasterArchiveEvidenceTable.archiveId, archiveId));
   const pathMap = new Map<string, string>();
   const restoredEvidence: Array<{ row: typeof archivedEvidence[number]; objectPath: string }> = [];
+  const linkedAnswers = asRecord(asRecord(payload.linkedApplication).answers);
+  const recoverableSourcePaths = new Set([
+    ...collectEvidencePaths(rawAnswers).keys(),
+    ...collectEvidencePaths(linkedAnswers).keys(),
+  ]);
   for (const row of archivedEvidence) {
     if (row.availability !== "available" || !row.archiveObjectPath) continue;
     const originalPath = decryptJson(row.sourcePathEncrypted);
-    if (typeof originalPath !== "string" || !collectEvidencePaths(rawAnswers).has(originalPath)) continue;
+    if (typeof originalPath !== "string" || !recoverableSourcePaths.has(originalPath)) continue;
     const objectPath = await objectStorage.copyPrivateObjectEntity(
       row.archiveObjectPath,
       "uploads",
@@ -877,7 +924,7 @@ export async function restoreApplicantArchiveSnapshot(
         applicationId: guest.id,
         evidenceType,
         evidenceSlot,
-        fileName: row.fileName,
+        fileName: readableEvidenceFilename(row),
         contentType: row.contentType,
         sizeBytes: row.sizeBytes,
         objectPath,

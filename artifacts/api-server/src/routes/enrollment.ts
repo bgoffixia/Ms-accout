@@ -3056,7 +3056,7 @@ router.get(
   "/admin/archive/:archiveId",
   requirePrimaryAdmin,
   async (req, res): Promise<void> => {
-    const archiveId = req.params.archiveId;
+    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
     if (!/^[0-9a-f-]{36}$/i.test(archiveId)) {
       res.status(400).json({ error: "Archive record not found." });
       return;
@@ -3086,7 +3086,7 @@ router.get(
   "/admin/archive/:archiveId/bundle",
   requirePrimaryAdmin,
   async (req, res): Promise<void> => {
-    const archiveId = req.params.archiveId;
+    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
     if (!/^[0-9a-f-]{36}$/i.test(archiveId)) {
       res.status(400).json({ error: "Archive record not found." });
       return;
@@ -3137,7 +3137,7 @@ router.post(
   "/admin/archive/:archiveId/restore",
   requirePrimaryAdmin,
   async (req, res): Promise<void> => {
-    const archiveId = req.params.archiveId;
+    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
     const snapshotId = typeof req.body?.snapshotId === "string" ? req.body.snapshotId : "";
     if (
       !/^[0-9a-f-]{36}$/i.test(archiveId) ||
@@ -3187,7 +3187,7 @@ router.post(
   "/admin/archive/:archiveId/delete",
   requirePrimaryAdmin,
   async (req, res): Promise<void> => {
-    const archiveId = req.params.archiveId;
+    const archiveId = typeof req.params.archiveId === "string" ? req.params.archiveId : "";
     if (!/^[0-9a-f-]{36}$/i.test(archiveId) || req.body?.confirm !== true) {
       res.status(400).json({ error: "Confirm that this archive should be permanently deleted." });
       return;

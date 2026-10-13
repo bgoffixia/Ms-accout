@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { Readable } from "node:stream";
+import { gunzipSync } from "node:zlib";
 
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
@@ -20,6 +22,10 @@ const mockState = vi.hoisted(() => ({
       guestPreapplicationsTable: makeTable("guest_preapplications"),
       guestPreapplicationEvidenceTable: makeTable("guest_preapplication_evidence"),
       guestPreapplicationRevisionsTable: makeTable("guest_preapplication_revisions"),
+      applicantMasterArchiveCasesTable: makeTable("applicant_master_archive_cases"),
+      applicantMasterArchiveSnapshotsTable: makeTable("applicant_master_archive_snapshots"),
+      applicantMasterArchiveEvidenceTable: makeTable("applicant_master_archive_evidence"),
+      applicantMasterArchiveAuditTable: makeTable("applicant_master_archive_audit"),
       enrollmentApplicationsTable: makeTable("enrollment_applications"),
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
@@ -282,8 +288,10 @@ vi.mock("@clerk/express", () => ({
   getAuth: vi.fn((request: any) => ({ userId: request.headers["x-test-user"] ?? null })),
 }));
 
-vi.mock("../lib/objectStorage", () => ({
-  ObjectNotFoundError: class ObjectNotFoundError extends Error {},
+vi.mock("../lib/objectStorage", () => {
+  const TestObjectNotFoundError = class ObjectNotFoundError extends Error {};
+  return {
+  ObjectNotFoundError: TestObjectNotFoundError,
   ObjectStorageService: class {
     async getObjectEntityUploadURL() {
       mockState.uploadCount += 1;
@@ -315,9 +323,24 @@ vi.mock("../lib/objectStorage", () => ({
       mockState.storageObjects.delete(path);
     }
 
+    async copyPrivateObjectEntity(sourcePath: string, folder: "archive" | "uploads") {
+      const source = mockState.storageObjects.get(sourcePath);
+      if (!source) throw new TestObjectNotFoundError(`Missing mocked object ${sourcePath}`);
+      const destination = `/objects/${folder}/${crypto.randomUUID()}`;
+      mockState.storageObjects.set(destination, { ...source, public: false });
+      return destination;
+    }
+
+    async deleteArchiveObjectEntity(path: string) {
+      if (!/^\/objects\/archive\/[0-9a-f-]+$/i.test(path)) {
+        throw new Error("Invalid archive object path.");
+      }
+      mockState.storageObjects.delete(path);
+    }
+
     async getObjectEntityFile(path: string) {
       const object = mockState.storageObjects.get(path);
-      if (!object) throw new Error(`Missing mocked object ${path}`);
+      if (!object) throw new TestObjectNotFoundError(`Missing mocked object ${path}`);
       const stream: any = {
         on() {
           return stream;
@@ -339,11 +362,12 @@ vi.mock("../lib/objectStorage", () => ({
         delete: async () => {
           mockState.storageObjects.delete(path);
         },
-        createReadStream: () => stream,
+        createReadStream: () => Readable.from([object.bytes]),
       };
     }
   },
-}));
+  };
+});
 
 import express from "express";
 import router from "./enrollment";
@@ -388,6 +412,10 @@ describe("guest application verification and persistence", () => {
       "guest_preapplications",
       "guest_preapplication_evidence",
       "guest_preapplication_revisions",
+      "applicant_master_archive_cases",
+      "applicant_master_archive_snapshots",
+      "applicant_master_archive_evidence",
+      "applicant_master_archive_audit",
       "enrollment_applications",
       "application_events",
       "portal_settings",
@@ -427,6 +455,14 @@ describe("guest application verification and persistence", () => {
         verification: { status: "verified" },
       },
       publicMetadata: { role: "sub_admin" },
+    });
+    mockState.users.set("primary-admin", {
+      id: "primary-admin",
+      primaryEmailAddress: {
+        emailAddress: "admin@example.test",
+        verification: { status: "verified" },
+      },
+      publicMetadata: { role: "admin" },
     });
     mockState.users.set("administrator", {
       id: "administrator",
@@ -1283,4 +1319,105 @@ describe("guest application verification and persistence", () => {
     expect(mockState.storageObjects.has("/objects/test/submitted-file")).toBe(true);
     expect(inactiveDraft.answers).toEqual({ proofOfIdentity: {} });
   });
+
+  it("restricts archive access to the primary admin, retains evidence privately, and excludes PIN values", async () => {
+    const guest = newRow("guest_preapplications", {
+      id: "guest-archive-case",
+      submissionId: "guest-archive-submission",
+      reference: "ENR-ARCHIVE-001",
+      fullName: "Archive Applicant",
+      email: "archive@example.test",
+      phone: null,
+      categoryId: "category-1",
+      currentStep: 3,
+      answers: {
+        proofOfIdentity: { frontObjectPath: "/objects/test-private/evidence" },
+        pin: "432109",
+        pinHash: "scrypt$guest-pin-hash",
+      },
+      pinHash: "scrypt$top-level-pin-hash",
+      submissionStatus: "draft",
+      emailVerified: false,
+    }) as Record<string, unknown>;
+    tableRows("guest_preapplications").push(guest);
+    mockState.storageObjects.set("/objects/test-private/evidence", {
+      contentType: "image/png",
+      bytes: privatePng,
+    });
+
+    const unauthenticated = await fetch(`${baseUrl}/admin/archive`);
+    expect(unauthenticated.status).toBe(401);
+    const reviewerResponse = await fetch(`${baseUrl}/admin/archive`, {
+      headers: { "x-test-user": "reviewer" },
+    });
+    expect(reviewerResponse.status).toBe(403);
+
+    const listResponse = await fetch(`${baseUrl}/admin/archive`, {
+      headers: { "x-test-user": "primary-admin" },
+    });
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as Array<{ id: string; reference: string }>;
+    expect(list).toHaveLength(1);
+    const recordId = list[0]!.id;
+
+    const archiveEvidence = tableRows("applicant_master_archive_evidence");
+    expect(archiveEvidence).toHaveLength(1);
+    const archiveObjectPath = archiveEvidence[0]!.archiveObjectPath as string;
+    expect(archiveObjectPath).toMatch(/^\/objects\/archive\//);
+    expect(mockState.storageObjects.get(archiveObjectPath)?.public).toBe(false);
+
+    const detailResponse = await fetch(`${baseUrl}/admin/archive/${recordId}`, {
+      headers: { "x-test-user": "primary-admin" },
+    });
+    expect(detailResponse.status).toBe(200);
+    const detail = await detailResponse.json() as {
+      snapshots: Array<{ id: string; payload: Record<string, unknown> }>;
+      evidence: Array<{ availability: string }>;
+    };
+    const detailText = JSON.stringify(detail);
+    expect(detailText).not.toContain("432109");
+    expect(detailText).not.toContain("scrypt$");
+    expect(detail.evidence[0]?.availability).toBe("available");
+    const snapshotId = detail.snapshots[0]!.id;
+    expect(String(tableRows("applicant_master_archive_snapshots")[0]!.payloadEncrypted))
+      .not.toContain("Archive Applicant");
+
+    const bundleResponse = await fetch(`${baseUrl}/admin/archive/${recordId}/bundle`, {
+      headers: { "x-test-user": "primary-admin" },
+    });
+    expect(bundleResponse.status).toBe(200);
+    const tar = gunzipSync(Buffer.from(await bundleResponse.arrayBuffer()));
+    const manifestLength = Number.parseInt(
+      tar.subarray(124, 136).toString("ascii").replace(/\0.*$/, "").trim(),
+      8,
+    );
+    const manifest = tar.subarray(512, 512 + manifestLength).toString("utf8");
+    expect(manifest).toContain("Archive Applicant");
+    expect(manifest).not.toContain("432109");
+    expect(manifest).not.toContain("scrypt$");
+    expect(tar.includes(privatePng)).toBe(true);
+
+    guest.fullName = "Changed Applicant";
+    guest.status = "closed";
+    const restoreResponse = await fetch(`${baseUrl}/admin/archive/${recordId}/restore`, {
+      method: "POST",
+      headers: { "x-test-user": "primary-admin", "content-type": "application/json" },
+      body: JSON.stringify({ snapshotId, confirm: true }),
+    });
+    expect(restoreResponse.status).toBe(200);
+    expect(guest.fullName).toBe("Archive Applicant");
+    expect(guest.status).toBe("closed");
+    expect(guest.pinHash).toBe("scrypt$top-level-pin-hash");
+
+    const deleteResponse = await fetch(`${baseUrl}/admin/archive/${recordId}/delete`, {
+      method: "POST",
+      headers: { "x-test-user": "primary-admin", "content-type": "application/json" },
+      body: JSON.stringify({ confirm: true }),
+    });
+    expect(deleteResponse.status).toBe(200);
+    expect(mockState.rows.get("applicant_master_archive_audit")?.map((row) => row.action))
+      .toContain("delete_completed");
+    expect([...mockState.storageObjects.keys()].some((path) => path.startsWith("/objects/archive/")))
+      .toBe(false);
+  }, 15000);
 });

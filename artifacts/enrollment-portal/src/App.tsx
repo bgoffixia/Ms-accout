@@ -6,7 +6,7 @@ import { useSignIn, useSignUp } from '@clerk/react/legacy';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import {
-  Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
+  Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
   ChevronDown, CircleHelp, FileCheck2, FileText, Headphones, Home, LifeBuoy,
   GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Upload, X,
 } from 'lucide-react';
@@ -49,6 +49,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { CategoryEntryForm, type CategoryEntryAnswers } from './components/CategoryEntryForm';
+import { AdminApplicantArchive } from './components/AdminApplicantArchive';
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityHeroVisual, SecurityLoadingIndicator } from './components/SecurityVisuals';
@@ -1161,6 +1162,7 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
       { href: '/admin', key: 'overview', label: 'Admin home', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
       { href: '/admin/settings', key: 'settings', label: 'Portal settings', icon: Settings, testId: 'link-admin-settings' },
+      { href: '/admin/archive', key: 'archive', label: 'Applicant archive', icon: Archive, testId: 'link-admin-archive' },
     ] : []),
     { href: '/admin/support', key: 'support', label: 'Support inbox', icon: Headphones, testId: 'link-admin-support' },
   ];
@@ -1196,6 +1198,7 @@ function AdminGate({ children }: { children: ReactNode }) {
   if (!isSignedIn) return <SignedOutNotice />;
   const role = user?.publicMetadata?.role;
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
+  if (location === '/admin/archive' && role !== 'admin') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">SUPER ADMIN ONLY</div><h1>Applicant archive access required</h1><p>The master archive is restricted to the primary administrator.</p><Link href={role === 'sub_admin' ? '/admin/review' : '/admin/support'} className="button button-primary">Return to your staff workspace <ArrowRight size={15} /></Link></div></main>;
   const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
   if (role === 'admin' && reviewerOnlyRoute) return <AdminReviewRestricted />;
   if (role === 'moderator' && location !== '/admin/support') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><Headphones size={21} /></span><div className="eyebrow">SUPPORT STAFF</div><h1>Support workspace</h1><p>Moderator access is limited to support requests.</p><Link href="/admin/support" className="button button-primary" data-testid="link-moderator-support">Open support inbox <ArrowRight size={15} /></Link></div></main>;
@@ -4023,6 +4026,7 @@ function RoutedPages() {
     <Route path="/admin/review" component={() => <AdminGate><AdminQueue /></AdminGate>} />
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
+    <Route path="/admin/archive" component={() => <AdminGate><AdminShell active="archive"><AdminApplicantArchive /></AdminShell></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />
     <Route path="/admin/pre-applications" component={() => <AdminGate><GuestFollowupPage /></AdminGate>} />
