@@ -2946,9 +2946,6 @@ function GuestApplicationPage() {
             isSaving={updateGuest.isPending}
             error={progressError}
             guestMode
-            guestTrackingKey={created.accessKey}
-            trackingKeyCopied={copied}
-            onCopyTrackingKey={() => void copyKey()}
             pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
             categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
             screenCopy={categoryEntryCopy}

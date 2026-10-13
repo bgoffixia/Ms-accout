@@ -360,12 +360,15 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.getByTestId("button-continue-guest-contact").click();
 
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
+  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expect(page.locator(".category-one-bank-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
   await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-left/);
   await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "14px");
   await page.locator("form button[type=submit]").click();
+  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
   await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
   await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-right/);
   await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "-14px");
@@ -462,13 +465,15 @@ test("preserves the same guest application across verification failure, reload, 
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
+  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await page.setViewportSize({ width: 390, height: 568 });
   await page.locator("form button[type=submit]").click();
   const pinInput = page.getByTestId("input-entry-pin");
+  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
   await expect(page.locator("#pin-entry-heading")).toHaveCSS("font-size", "12px");
   await expectNoDocumentOverflow(page);
   const keypadButtons = await page.locator(".pin-entry-key").all();

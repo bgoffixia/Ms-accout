@@ -29,9 +29,6 @@ type CategoryEntryFormProps = {
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
   pinLogoDataUrl?: string | null;
-  guestTrackingKey?: string;
-  trackingKeyCopied?: boolean;
-  onCopyTrackingKey?: () => void;
   entryLogoAlignment?: string;
   entryLogoVerticalOffset?: string | number;
   pinLogoAlignment?: string;
@@ -57,9 +54,6 @@ export function CategoryEntryForm({
   pageTheme,
   entryLogoDataUrl,
   pinLogoDataUrl,
-  guestTrackingKey,
-  trackingKeyCopied = false,
-  onCopyTrackingKey,
   entryLogoAlignment = "center",
   entryLogoVerticalOffset = "0",
   pinLogoAlignment = "center",
@@ -222,21 +216,6 @@ export function CategoryEntryForm({
 
   const formScreen = (
     <section className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${guestMode ? "guest-entry-mode" : ""} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`} aria-label={heading}>
-      {guestMode && guestTrackingKey && (
-        <details className="guest-entry-key" data-testid="guest-tracking-key-step">
-          <summary>Save tracking key</summary>
-          <div className="guest-entry-key-popover">
-            <span>APPLICATION REFERENCE</span>
-            <strong>{reference}</strong>
-            <span>PRIVATE TRACKING KEY</span>
-            <code data-testid="text-guest-tracking-key">{guestTrackingKey}</code>
-            <small>Keep this key private. It is not emailed and cannot be recovered if lost.</small>
-            <button type="button" className="button button-quiet" onClick={onCopyTrackingKey} data-testid="button-copy-tracking-key">
-              {trackingKeyCopied ? "Copied" : "Copy key"}
-            </button>
-          </div>
-        </details>
-      )}
       {isCategoryOne || isCategoryThree ? (
         <>
           <header className="category-one-reference-header">
