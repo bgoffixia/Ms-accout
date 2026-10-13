@@ -37,46 +37,51 @@ const privateMetadataFields = /^(clerkUserId|reviewerUserId|updatedByUserId|revi
 type ArchiveKeyring = {
   activeKeyId: string;
   keys: Map<string, Buffer>;
+  alternateKeys: Map<string, Buffer>;
   signature: string;
 };
 
-let archiveRotation: { signature: string; promise: Promise<void> } | undefined;
+let archiveRotation: {
+  signature: string;
+  promise: Promise<{ snapshotsReencrypted: number; evidenceRecordsReencrypted: number }>;
+} | undefined;
 
-function archiveKeyring(): ArchiveKeyring {
+function archiveKeyring(): ArchiveKeyring | null {
   const configured = process.env.APPLICANT_ARCHIVE_KEYS?.trim();
-  if (!configured) {
-    throw new Error(
-      "Applicant archive encryption is not configured. Set APPLICANT_ARCHIVE_KEYS before using the archive.",
-    );
-  }
+  if (!configured) return null;
 
   const keys = new Map<string, Buffer>();
+  const alternateKeys = new Map<string, Buffer>();
   let activeKeyId: string;
   let materials: Record<string, string>;
-  let parsed: unknown;
   if (configured.startsWith("{")) {
+    let parsed: unknown;
     try {
       parsed = JSON.parse(configured);
     } catch {
       throw new Error("APPLICANT_ARCHIVE_KEYS must contain a valid JSON keyring.");
     }
-  }
-
-  if (parsed !== undefined) {
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("APPLICANT_ARCHIVE_KEYS must contain a valid JSON keyring.");
+    }
     const value = parsed as { activeKeyId?: unknown; keys?: unknown };
     activeKeyId = typeof value.activeKeyId === "string" ? value.activeKeyId : "";
     materials = value.keys !== null && typeof value.keys === "object" && !Array.isArray(value.keys)
       ? value.keys as Record<string, string>
       : {};
   } else {
-    activeKeyId = `key-${createHash("sha256").update(configured).digest("hex").slice(0, 12)}`;
+    activeKeyId = "archive-1";
     materials = { [activeKeyId]: configured };
   }
 
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(activeKeyId) || activeKeyId === "legacy-session") {
     throw new Error("APPLICANT_ARCHIVE_KEYS must name a valid activeKeyId.");
   }
-  const derivedEntries: Array<{ keyId: string; alias: string; key: Buffer }> = [];
+  const derivedEntries: Array<{
+    alias: string;
+    key: Buffer;
+    alternateKey: Buffer | null;
+  }> = [];
   for (const [keyId, material] of Object.entries(materials)) {
     if (
       !/^[A-Za-z0-9._-]{1,64}$/.test(keyId) ||
@@ -88,19 +93,24 @@ function archiveKeyring(): ArchiveKeyring {
         "Every APPLICANT_ARCHIVE_KEYS entry must have a valid key ID and at least 32 characters of key material.",
       );
     }
-    const key = createHmac("sha256", material)
+    const rawKey = decodeLegacyRawKey(material);
+    const derivedKey = createHmac("sha256", material)
       .update("civic-enroll-applicant-archive-v2")
       .digest();
+    const key = rawKey ?? derivedKey;
+    const alternateKey = rawKey ? derivedKey : null;
     const alias = `key-${createHash("sha256").update(material).digest("hex").slice(0, 12)}`;
-    derivedEntries.push({ keyId, alias, key });
     keys.set(keyId, key);
+    derivedEntries.push({ alias, key, alternateKey });
+    if (alternateKey) alternateKeys.set(keyId, alternateKey);
   }
-  for (const { alias, key } of derivedEntries) {
+  for (const { alias, key, alternateKey } of derivedEntries) {
     const collision = keys.get(alias);
     if (collision && !collision.equals(key)) {
       throw new Error("APPLICANT_ARCHIVE_KEYS contains colliding key IDs.");
     }
     keys.set(alias, key);
+    if (alternateKey) alternateKeys.set(alias, alternateKey);
   }
   if (!keys.has(activeKeyId)) {
     throw new Error("APPLICANT_ARCHIVE_KEYS activeKeyId must refer to an entry in keys.");
@@ -109,71 +119,96 @@ function archiveKeyring(): ArchiveKeyring {
   return {
     activeKeyId,
     keys,
+    alternateKeys,
     signature: createHash("sha256").update(configured).digest("hex"),
   };
+}
+
+function decodeLegacyRawKey(value: string): Buffer | null {
+  if (/^[A-Fa-f0-9]{64}$/.test(value)) return Buffer.from(value, "hex");
+  const isBase64Url = /^[A-Za-z0-9_-]{43}$/.test(value);
+  const isBase64 = /^[A-Za-z0-9+/]{43}=$/.test(value);
+  if (!isBase64Url && !isBase64) return null;
+  const key = Buffer.from(value, isBase64Url ? "base64url" : "base64");
+  const canonical = key.toString(isBase64Url ? "base64url" : "base64");
+  return key.length === 32 && canonical === value ? key : null;
 }
 
 function legacyArchiveEncryptionKey(): Buffer {
   const secret = process.env.SESSION_SECRET;
   if (!secret) {
     throw new Error(
-      "Legacy applicant archive records still need the previous SESSION_SECRET for key migration.",
+      "Legacy applicant archive records require the previous SESSION_SECRET for migration.",
     );
   }
   return createHmac("sha256", secret).update("civic-enroll-applicant-archive-v1").digest();
 }
 
-function encryptJson(value: unknown, keyring = archiveKeyring()): string {
+function activeArchiveEncryptionKey(): { keyId: string; key: Buffer } | null {
+  const keyring = archiveKeyring();
+  if (!keyring) return null;
+  const key = keyring.keys.get(keyring.activeKeyId);
+  if (!key) throw new Error("The active applicant archive key is unavailable.");
+  return { keyId: keyring.activeKeyId, key };
+}
+
+function encryptJson(value: unknown, providedKeyring?: ArchiveKeyring | null): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", keyring.keys.get(keyring.activeKeyId)!, iv);
+  const activeKey = providedKeyring
+    ? { keyId: providedKeyring.activeKeyId, key: providedKeyring.keys.get(providedKeyring.activeKeyId)! }
+    : activeArchiveEncryptionKey();
+  const key = activeKey?.key ?? legacyArchiveEncryptionKey();
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([
     cipher.update(JSON.stringify(value), "utf8"),
     cipher.final(),
   ]);
-  return [
-    "enc:v2",
-    keyring.activeKeyId,
+  const envelope = [
     iv.toString("base64url"),
     cipher.getAuthTag().toString("base64url"),
     ciphertext.toString("base64url"),
-  ].join(":");
+  ];
+  return activeKey
+    ? ["enc:v2", activeKey.keyId, ...envelope].join(":")
+    : ["enc:v1", ...envelope].join(":");
 }
 
-function decryptJson(value: string, keyring = archiveKeyring()): unknown {
+function decryptJson(value: string, providedKeyring?: ArchiveKeyring | null): unknown {
   const parts = value.split(":");
   const version = parts[1];
-  const keyId = version === "v2" ? parts[2] : null;
-  const ivPart = version === "v2" ? parts[3] : parts[2];
-  const tagPart = version === "v2" ? parts[4] : parts[3];
-  const ciphertextPart = version === "v2" ? parts[5] : parts[4];
+  const keyId = version === "v2" ? parts[2] : undefined;
+  const offset = version === "v2" ? 3 : 2;
+  const ivPart = parts[offset];
+  const tagPart = parts[offset + 1];
+  const ciphertextPart = parts[offset + 2];
   if (
     parts[0] !== "enc" ||
-    !["v1", "v2"].includes(version ?? "") ||
+    (version !== "v1" && version !== "v2") ||
+    (version === "v2" && (!keyId || !/^[A-Za-z0-9._-]{1,64}$/.test(keyId))) ||
     !ivPart ||
     !tagPart ||
     !ciphertextPart ||
-    (version === "v2" && (!keyId || !keyring.keys.has(keyId)))
+    parts.length !== offset + 3
   ) {
-    if (version === "v2" && keyId && !keyring.keys.has(keyId)) {
-      throw new Error(
-        `Applicant archive key "${keyId}" is missing. Restore that key in APPLICANT_ARCHIVE_KEYS before rotating keys.`,
-      );
-    }
     throw new Error("The applicant archive contains an unsupported encrypted record.");
   }
-  const key = version === "v1"
-    ? legacyArchiveEncryptionKey()
-    : keyring.keys.get(keyId!)!;
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    key,
-    Buffer.from(ivPart, "base64url"),
-  );
-  decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(ciphertextPart, "base64url")),
-    decipher.final(),
-  ]).toString("utf8");
+  let plaintext: string | undefined;
+  for (const key of archiveKeysForVersion(version, keyId, providedKeyring)) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivPart, "base64url"));
+      decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
+      plaintext = Buffer.concat([
+        decipher.update(Buffer.from(ciphertextPart, "base64url")),
+        decipher.final(),
+      ]).toString("utf8");
+      break;
+    } catch {
+      // Older v2 archives may have used the encoded 32-byte key directly.
+    }
+  }
+  if (plaintext === undefined) {
+    throw new Error("The applicant archive could not be decrypted with the configured keys.");
+  }
   return JSON.parse(plaintext) as unknown;
 }
 
@@ -205,8 +240,12 @@ function archiveBankAccounts(value: unknown): unknown {
   return output;
 }
 
-async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<void> {
+async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<{
+  snapshotsReencrypted: number;
+  evidenceRecordsReencrypted: number;
+}> {
   const snapshots = await db.select().from(applicantMasterArchiveSnapshotsTable);
+  let snapshotsReencrypted = 0;
   for (const snapshot of snapshots) {
     const payloadKeyId = encryptedKeyId(snapshot.payloadEncrypted);
     const changesKeyId = encryptedKeyId(snapshot.changesEncrypted);
@@ -234,9 +273,11 @@ async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<void> 
           eq(applicantMasterArchiveSnapshotsTable.changesEncrypted, snapshot.changesEncrypted),
         ));
     }
+    if (payloadEncrypted || changesEncrypted) snapshotsReencrypted += 1;
   }
 
   const evidenceRows = await db.select().from(applicantMasterArchiveEvidenceTable);
+  let evidenceRecordsReencrypted = 0;
   for (const evidence of evidenceRows) {
     const sourcePath = decryptJson(evidence.sourcePathEncrypted, keyring);
     if (typeof sourcePath !== "string") {
@@ -278,11 +319,19 @@ async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<void> 
           eq(applicantMasterArchiveEvidenceTable.sourceFingerprint, evidence.sourceFingerprint),
         ));
     }
+    if (sourcePathEncrypted || fileName || sourceFingerprint !== evidence.sourceFingerprint) {
+      evidenceRecordsReencrypted += 1;
+    }
   }
+  return { snapshotsReencrypted, evidenceRecordsReencrypted };
 }
 
-async function ensureArchiveKeyMigration(): Promise<void> {
+async function ensureArchiveKeyMigration(): Promise<{
+  snapshotsReencrypted: number;
+  evidenceRecordsReencrypted: number;
+}> {
   const keyring = archiveKeyring();
+  if (!keyring) return { snapshotsReencrypted: 0, evidenceRecordsReencrypted: 0 };
   if (archiveRotation?.signature === keyring.signature) {
     return archiveRotation.promise;
   }
@@ -422,9 +471,17 @@ function collectEvidencePaths(
 }
 
 function fingerprintForPath(objectPath: string): string {
-  return createHash("sha256").update(objectPath).digest("hex");
+  const activeKey = activeArchiveEncryptionKey();
+  return createHmac("sha256", activeKey?.key ?? legacyArchiveEncryptionKey())
+    .update(objectPath)
+    .digest("hex");
 }
 
+function isEncryptedWithActiveKey(value: string): boolean {
+  const activeKey = activeArchiveEncryptionKey();
+  if (!activeKey) return value.startsWith("enc:v1:");
+  return value.startsWith(`enc:v2:${activeKey.keyId}:`);
+}
 function readableDiffValue(value: unknown): unknown {
   return presentArchiveValue(value, new Map());
 }
@@ -565,7 +622,7 @@ function safeFilename(value: string): string {
 }
 
 function readableEvidenceFilename(row: typeof applicantMasterArchiveEvidenceTable.$inferSelect): string {
-  if (!row.fileName.startsWith("enc:")) return safeFilename(row.fileName);
+  if (!/^enc:v[12]:/.test(row.fileName)) return safeFilename(row.fileName);
   const decoded = decryptJson(row.fileName);
   return typeof decoded === "string" ? decoded : row.fileName;
 }
@@ -638,12 +695,16 @@ async function archiveEvidence(
     .select()
     .from(applicantMasterArchiveEvidenceTable)
     .where(eq(applicantMasterArchiveEvidenceTable.archiveId, archiveId));
-  const existing = new Map(existingRows.map((row) => [row.sourceFingerprint, row]));
+  const existing = new Map<string, typeof existingRows[number]>();
+  for (const row of existingRows) {
+    const sourcePath = decryptJson(row.sourcePathEncrypted);
+    if (typeof sourcePath === "string") existing.set(sourcePath, row);
+  }
   const supplied = new Map(suppliedMetadata.map((item) => [item.objectPath, item]));
 
   for (const [sourcePath, fieldPath] of paths) {
+    if (existing.has(sourcePath)) continue;
     const fingerprint = fingerprintForPath(sourcePath);
-    if (existing.has(fingerprint)) continue;
     const metadata = supplied.get(sourcePath);
     let fileName = metadata?.fileName ?? safeFilename(sourcePath.split("/").at(-1) ?? "evidence");
     let contentType = metadata?.contentType ?? "application/octet-stream";
@@ -697,7 +758,7 @@ async function archiveEvidence(
     if (stored?.archiveObjectPath !== archivedPath && archivedPath) {
       await objectStorage.deleteArchiveObjectEntity(archivedPath).catch(() => undefined);
     }
-    if (stored) existing.set(fingerprint, stored);
+    if (stored) existing.set(sourcePath, stored);
   }
   return [...existing.values()];
 }
@@ -918,6 +979,15 @@ export async function ensureInitialApplicantArchive(): Promise<void> {
   }
 }
 
+export async function rotateApplicantArchiveKeys(): Promise<{
+  snapshotsReencrypted: number;
+  evidenceRecordsReencrypted: number;
+}> {
+  if (!archiveKeyring()) {
+    throw new Error("Applicant archive key rotation requires an active archive key.");
+  }
+  return ensureArchiveKeyMigration();
+}
 async function getEvidencePresentation(archiveId: string) {
   const rows = await db
     .select()
@@ -1320,4 +1390,27 @@ export async function getApplicantArchiveCase(archiveId: string) {
     .where(eq(applicantMasterArchiveCasesTable.id, archiveId))
     .limit(1);
   return archiveCase ?? null;
+}
+
+function archiveKeysForVersion(
+  version: string,
+  keyId?: string,
+  providedKeyring?: ArchiveKeyring | null,
+): Buffer[] {
+  if (version === "v1") return [legacyArchiveEncryptionKey()];
+  if (version === "v2" && keyId) {
+    const keyring = providedKeyring ?? archiveKeyring();
+    const keys: Buffer[] = [];
+    const currentKey = keyring?.keys.get(keyId);
+    const alternateKey = keyring?.alternateKeys.get(keyId);
+    if (currentKey) keys.push(currentKey);
+    if (alternateKey && !keys.some((key) => key.equals(alternateKey))) {
+      keys.push(alternateKey);
+    }
+    if (keys.length > 0) return keys;
+    throw new Error(
+      `Applicant archive key "${keyId}" is missing. Restore that key in APPLICANT_ARCHIVE_KEYS before rotating keys.`,
+    );
+  }
+  throw new Error("The applicant archive contains an unsupported encrypted record.");
 }

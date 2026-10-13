@@ -146,6 +146,7 @@ import {
   getApplicantArchiveDetail,
   listApplicantArchive,
   recordApplicantArchiveAudit,
+  rotateApplicantArchiveKeys,
   restoreApplicantArchiveSnapshot,
 } from "../lib/applicantArchive";
 
@@ -3049,6 +3050,22 @@ router.get("/admin/archive", requirePrimaryAdmin, async (req, res): Promise<void
   } catch (error) {
     req.log.error({ err: error }, "Failed to read applicant archive");
     res.status(503).json({ error: "The applicant archive could not be loaded securely." });
+  }
+});
+
+router.post("/admin/archive/rotate-keys", requirePrimaryAdmin, async (req, res): Promise<void> => {
+  try {
+    const result = await rotateApplicantArchiveKeys();
+    await recordApplicantArchiveAudit({
+      actorUserId: res.locals.userId as string,
+      action: "archive_keys_rotated",
+      details: result,
+    });
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.json(result);
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to rotate applicant archive encryption keys");
+    res.status(503).json({ error: "Applicant archive encryption could not be rotated securely." });
   }
 });
 

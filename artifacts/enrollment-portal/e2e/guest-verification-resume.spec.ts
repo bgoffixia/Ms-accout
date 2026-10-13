@@ -370,17 +370,7 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
       await page.goto(path);
       await expect(page.locator(".portal-frame")).toBeVisible();
       await expectNoDocumentOverflow(page);
-      if (path === "/dashboard" || path === "/enrollment-categories") {
-        await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
-        await expect(page.getByTestId("guest-dashboard-category-category-4")).toBeVisible();
-        const categoryShell = await page.locator(".guest-dashboard-shell").evaluate((element) => ({
-          clientHeight: element.clientHeight,
-          scrollHeight: element.scrollHeight,
-        }));
-        expect(categoryShell.scrollHeight, `category choices should fit without inner scrolling at ${viewport.width}x${viewport.height}`)
-          .toBeLessThanOrEqual(categoryShell.clientHeight + 1);
-      }
-      if (path !== "/") {
+      if (path === "/guest/apply" || path === "/guest/track") {
         await expect(page.locator(".guest-page")).toHaveCSS("overflow-y", "hidden");
       }
     }
@@ -416,12 +406,15 @@ test("keeps every category entry and PIN screen inside a compact mobile viewport
         localStorage.clear();
         sessionStorage.clear();
       });
-      await page.goto("/enrollment-categories");
-      await expect(page.getByTestId(`guest-dashboard-category-${categoryId}`)).toBeVisible();
-      await page.getByTestId(`guest-dashboard-category-${categoryId}`).click();
+      await page.goto("/guest/apply");
       await page.getByTestId("input-guest-full-name").fill("Mobile Applicant");
       await page.getByTestId("input-guest-email").fill("mobile@example.test");
       await page.getByTestId("button-continue-guest-contact").click();
+      await expect(page.getByTestId("select-guest-category")).toBeVisible();
+      await page.getByTestId("select-guest-category").selectOption(categoryId);
+      await page.getByTestId("button-submit-guest-application").click();
+      await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
+      await page.getByTestId("button-continue-to-category-details").click();
 
       const form = page.getByTestId(`form-entry-${categoryId}`);
       await expect(form).toBeVisible();
@@ -466,7 +459,7 @@ test("keeps every category entry and PIN screen inside a compact mobile viewport
   }
 });
 
-test("starts from the public enrollment category page and opens the selected category form after contact details", async ({ page }) => {
+test("starts as a guest, chooses a category, and opens the selected category form", async ({ page }) => {
   const api = new GuestApiFixture();
   api.screenCopy["guest-contact"] = {
     title: "Who is applying?",
@@ -511,9 +504,7 @@ test("starts from the public enrollment category page and opens the selected cat
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
 
-  await page.goto("/enrollment-categories");
-  await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
-  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.goto("/guest/apply");
   await expect(page.getByRole("heading", { name: "Who is applying?" })).toBeVisible();
   await expect(page.getByText("Use your own contact details.", { exact: true })).toBeVisible();
   await expect(page.getByText("Applicant name", { exact: true })).toBeVisible();
@@ -529,13 +520,19 @@ test("starts from the public enrollment category page and opens the selected cat
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
 
+  await expect(page.getByTestId("select-guest-category")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose your category" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Confirm your category" })).toHaveCount(0);
+  await page.getByTestId("select-guest-category").selectOption("category-1");
+  await page.getByTestId("button-submit-guest-application").click();
+  await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
+  await page.getByTestId("button-continue-to-category-details").click();
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("entry-configured-copy")).toContainText("Identity details");
   await expect(page.getByTestId("entry-configured-copy")).toContainText("Enter the name associated with this category.");
   await expect(page.getByText("Applicant record name", { exact: true })).toBeVisible();
   await expect(page.getByTestId("input-entry-name")).toHaveAttribute("placeholder", "Name exactly as printed on your card");
   await expectNoDocumentOverflow(page);
-  await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
   await expect(page.getByRole("img", { name: "Category One entry logo" })).toHaveAttribute("src", testLogo);
@@ -583,7 +580,7 @@ test("falls back to built-in contact copy when configured text is blank", async 
 
   await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
   await expect(page.getByText("Full name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start with only your name and email. You’ll choose an enrollment category next.", { exact: true })).toBeVisible();
 });
 
 test("shows updated contact copy without a manual refresh, preserves it after reload, and restores defaults for blanks", async ({ page }) => {
@@ -616,7 +613,7 @@ test("shows updated contact copy without a manual refresh, preserves it after re
   await page.reload();
   await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
   await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start with only your name and email. You’ll choose an enrollment category next.", { exact: true })).toBeVisible();
 });
 
 test("an admin can preview entry and PIN screens at desktop and mobile sizes without saving", async ({ page }) => {
@@ -747,27 +744,16 @@ test("publishes independent logo settings for every category and keeps applicant
   await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/dashboard");
-  await page.reload();
-  for (const categoryId of categoryIds) {
-    const logo = page.getByTestId(`guest-dashboard-category-${categoryId}`).locator("img.category-logo");
-    await expect(logo).toHaveCSS("object-fit", "cover");
-    await expect(logo).toHaveCSS("width", `${savedValues[categoryId].card.size}px`);
-    await expectReadableLogo(logo);
-  }
-
+  await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+  await expect(page.getByTestId("guest-dashboard-category-category-1")).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 568 });
-  await page.reload();
-  for (const categoryId of categoryIds) {
-    const logo = page.getByTestId(`guest-dashboard-category-${categoryId}`).locator("img.category-logo");
-    await expect(logo).toHaveCSS("object-fit", "cover");
-    await expect(logo).toHaveCSS("width", `${savedValues[categoryId].card.size}px`);
-    await expectReadableLogo(logo);
-  }
-
-  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.goto("/guest/apply");
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
+  await page.getByTestId("select-guest-category").selectOption("category-1");
+  await page.getByTestId("button-submit-guest-application").click();
+  await page.getByTestId("button-continue-to-category-details").click();
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   const entryLogo = page.getByRole("img", { name: "Category One entry logo" });
   await expect(entryLogo).toHaveCSS("object-fit", "cover");
@@ -836,13 +822,13 @@ test("an admin can publish applicant copy, and blank overrides restore built-in 
   await page.goto("/guest/apply");
   await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
   await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start with only your name and email. You’ll choose an enrollment category next.", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
   await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
 });
 
-test("shows configured dashboard copy once in its designated locations", async ({ page }) => {
+test("keeps the applicant dashboard private and does not expose the retired guest dashboard", async ({ page }) => {
   const api = new GuestApiFixture();
   api.screenCopy.dashboard = {
     title: "Choose your enrollment path",
@@ -853,9 +839,9 @@ test("shows configured dashboard copy once in its designated locations", async (
 
   await page.goto("/dashboard");
 
-  await expect(page.getByRole("heading", { name: "Choose your enrollment path" })).toBeVisible();
-  await expect(page.getByText("This configured description should appear once.", { exact: true })).toHaveCount(1);
-  await expect(page.getByText("PUBLIC CATEGORY SELECTION", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose your enrollment path" })).toHaveCount(0);
+  await expect(page.getByTestId("guest-dashboard-category-category-1")).toHaveCount(0);
 });
 
 test("shows a private application status without reviewer-only details", async ({ page }) => {
@@ -913,14 +899,15 @@ test("shows a private application status without reviewer-only details", async (
   await expectNoDocumentOverflow(page);
 });
 
-test("redirects retired account-based applicant URLs to the shared dashboard", async ({ page }) => {
+test("redirects retired account-based applicant URLs to the private applicant dashboard", async ({ page }) => {
   const api = new GuestApiFixture();
   await page.route("**/api/**", (route) => api.handle(route));
 
   for (const oldPath of ["/apply/legacy-draft-id", "/applications/legacy-application-id"]) {
     await page.goto(oldPath);
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+    await expect(page.getByTestId("guest-dashboard-category-category-1")).toHaveCount(0);
   }
 });
 
@@ -962,10 +949,11 @@ test("preserves the same guest application across verification failure, reload, 
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
   await expectNoDocumentOverflow(page);
-  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.getByTestId("select-guest-category").selectOption("category-1");
+  await page.getByTestId("button-submit-guest-application").click();
+  await page.getByTestId("button-continue-to-category-details").click();
   await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
@@ -1110,7 +1098,9 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
-  await page.getByTestId("guest-dashboard-category-category-1").click();
+  await page.getByTestId("select-guest-category").selectOption("category-1");
+  await page.getByTestId("button-submit-guest-application").click();
+  await page.getByTestId("button-continue-to-category-details").click();
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
