@@ -224,6 +224,44 @@ export class ObjectStorageService {
     await objectFile.delete();
   }
 
+  async copyPrivateObjectEntity(
+    sourcePath: string,
+    destinationFolder: 'archive' | 'uploads',
+    owner: string,
+  ): Promise<string> {
+    if (!/^\/objects\/[A-Za-z0-9/_-]+$/.test(sourcePath) || sourcePath.includes('..')) {
+      throw new ObjectNotFoundError();
+    }
+    const sourceFile = await this.getObjectEntityFile(sourcePath);
+    const objectId = randomUUID();
+    const targetPath = `/objects/${destinationFolder}/${objectId}`;
+    const privateObjectDir = this.getPrivateObjectDir().replace(/\/+$/, '');
+    const { bucketName, objectName } = parseObjectPath(
+      `${privateObjectDir}/${destinationFolder}/${objectId}`,
+    );
+    const destinationFile = objectStorageClient.bucket(bucketName).file(objectName);
+
+    try {
+      await sourceFile.copy(destinationFile);
+      await setObjectAclPolicy(destinationFile, {
+        owner,
+        visibility: 'private',
+      });
+      return targetPath;
+    } catch (error) {
+      await destinationFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async deleteArchiveObjectEntity(objectPath: string): Promise<void> {
+    if (!/^\/objects\/archive\/[0-9a-f-]{36}$/i.test(objectPath)) {
+      throw new ObjectNotFoundError();
+    }
+    const objectFile = await this.getObjectEntityFile(objectPath);
+    await objectFile.delete({ ignoreNotFound: true });
+  }
+
   async canAccessObjectEntity({
     userId,
     objectFile,

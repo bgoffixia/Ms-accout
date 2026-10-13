@@ -9,6 +9,10 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "./objectStorage";
+import {
+  captureGuestApplicantArchive,
+  ensureInitialApplicantArchive,
+} from "./applicantArchive";
 
 export const INCOMPLETE_GUEST_UPLOAD_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const COMPLETED_GUEST_DRAFT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -16,6 +20,8 @@ const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const objectStorage = new ObjectStorageService();
 let cleanupInProgress = false;
+let archiveBackfillComplete = false;
+let archiveBackfillPromise: Promise<void> | null = null;
 
 type EvidenceRow = typeof guestPreapplicationEvidenceTable.$inferSelect;
 
@@ -110,6 +116,15 @@ export async function cleanupExpiredGuestEvidence(now = new Date()): Promise<voi
   let candidateDraftCount = 0;
 
   try {
+    if (!archiveBackfillComplete) {
+      archiveBackfillPromise ??= ensureInitialApplicantArchive();
+      try {
+        await archiveBackfillPromise;
+        archiveBackfillComplete = true;
+      } finally {
+        archiveBackfillPromise = null;
+      }
+    }
     const [expiredUploads, expiredUnreferencedGuestEvidence, inactiveDrafts] = await Promise.all([
       db
         .select()
@@ -152,6 +167,16 @@ export async function cleanupExpiredGuestEvidence(now = new Date()): Promise<voi
 
     for (const applicationId of applicationIds) {
       try {
+        const [archiveCandidate] = await db
+          .select()
+          .from(guestPreapplicationsTable)
+          .where(eq(guestPreapplicationsTable.id, applicationId))
+          .limit(1);
+        if (archiveCandidate) {
+          await captureGuestApplicantArchive(archiveCandidate, {
+            eventType: "evidence_cleanup_preservation",
+          });
+        }
         const result = await db.transaction(async (transaction) => {
           const [application] = await transaction
             .select()

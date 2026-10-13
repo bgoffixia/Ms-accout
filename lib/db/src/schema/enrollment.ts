@@ -182,6 +182,112 @@ export const enrollmentApplicationsTable = pgTable(
   ],
 );
 
+export const applicantMasterArchiveCasesTable = pgTable(
+  "applicant_master_archive_cases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    reference: text("reference").notNull(),
+    historyUnavailable: boolean("history_unavailable").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("applicant_master_archive_source_idx").on(
+      table.sourceType,
+      table.sourceId,
+    ),
+    index("applicant_master_archive_reference_idx").on(table.reference),
+  ],
+);
+
+export const applicantMasterArchiveSnapshotsTable = pgTable(
+  "applicant_master_archive_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    archiveId: uuid("archive_id")
+      .notNull()
+      .references(() => applicantMasterArchiveCasesTable.id, {
+        onDelete: "cascade",
+      }),
+    version: integer("version").notNull(),
+    eventType: text("event_type").notNull(),
+    actorUserId: text("actor_user_id"),
+    payloadEncrypted: text("payload_encrypted").notNull(),
+    changesEncrypted: text("changes_encrypted").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("applicant_master_archive_snapshot_version_idx").on(
+      table.archiveId,
+      table.version,
+    ),
+    index("applicant_master_archive_snapshot_created_idx").on(
+      table.archiveId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const applicantMasterArchiveEvidenceTable = pgTable(
+  "applicant_master_archive_evidence",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    archiveId: uuid("archive_id")
+      .notNull()
+      .references(() => applicantMasterArchiveCasesTable.id, {
+        onDelete: "cascade",
+      }),
+    sourceFingerprint: text("source_fingerprint").notNull(),
+    sourcePathEncrypted: text("source_path_encrypted").notNull(),
+    archiveObjectPath: text("archive_object_path"),
+    fieldPath: text("field_path").notNull(),
+    fileName: text("file_name").notNull(),
+    evidenceType: text("evidence_type").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    availability: text("availability").notNull().default("available"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("applicant_master_archive_evidence_fingerprint_idx").on(
+      table.archiveId,
+      table.sourceFingerprint,
+    ),
+    index("applicant_master_archive_evidence_case_idx").on(table.archiveId),
+  ],
+);
+
+export const applicantMasterArchiveAuditTable = pgTable(
+  "applicant_master_archive_audit",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    archiveId: uuid("archive_id"),
+    reference: text("reference"),
+    actorUserId: text("actor_user_id"),
+    action: text("action").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("applicant_master_archive_audit_case_idx").on(
+      table.archiveId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const applicationEventsTable = pgTable(
   "application_events",
   {

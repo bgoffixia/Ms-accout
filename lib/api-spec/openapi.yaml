@@ -895,6 +895,115 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SupportTicket"
+  /admin/archive:
+    get:
+      operationId: listApplicantArchive
+      tags: [administration]
+      summary: List applicant archive cases (primary administrator only)
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        "200":
+          description: Applicant archive records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApplicantArchiveListItem"
+  /admin/archive/{archiveId}:
+    parameters:
+      - name: archiveId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getApplicantArchive
+      tags: [administration]
+      summary: Read a protected applicant archive record (primary administrator only)
+      responses:
+        "200":
+          description: Decrypted archive record and correction history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicantArchiveDetail"
+  /admin/archive/{archiveId}/bundle:
+    get:
+      operationId: downloadApplicantArchiveBundle
+      tags: [administration]
+      summary: Download the readable archive manifest and private proof copies
+      parameters:
+        - name: archiveId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Gzipped tar archive with manifest and proof files
+          content:
+            application/gzip:
+              schema:
+                type: string
+                format: binary
+  /admin/archive/{archiveId}/restore:
+    post:
+      operationId: restoreApplicantArchiveSnapshot
+      tags: [administration]
+      summary: Restore saved applicant fields to an existing live record
+      parameters:
+        - name: archiveId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicantArchiveRestoreInput"
+      responses:
+        "200":
+          description: Restored application fields; PIN was not restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicantArchiveRestoreResult"
+  /admin/archive/{archiveId}/delete:
+    post:
+      operationId: deleteApplicantArchive
+      tags: [administration]
+      summary: Permanently delete an applicant archive after explicit confirmation
+      parameters:
+        - name: archiveId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicantArchiveDeleteInput"
+      responses:
+        "200":
+          description: Archive record and private proof copies deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicantArchiveDeleteResult"
   /admin/support/tickets:
     get:
       operationId: listSupportTicketsForAdmin
@@ -968,6 +1077,152 @@ paths:
                 $ref: "#/components/schemas/SupportTicket"
 components:
   schemas:
+    ApplicantArchiveListItem:
+      type: object
+      required: [id, reference, applicantName, applicantEmail, categoryId, status, versionCount, historyUnavailable, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        applicantName:
+          type: string
+        applicantEmail:
+          type: string
+        categoryId:
+          type: string
+        status:
+          type: string
+        versionCount:
+          type: integer
+        historyUnavailable:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+    ApplicantArchiveChange:
+      type: object
+      required: [field, before, after]
+      properties:
+        field:
+          type: string
+        before: {}
+        after: {}
+    ApplicantArchiveSnapshot:
+      type: object
+      required: [id, version, eventType, createdAt, payload, changes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        eventType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApplicantArchiveChange"
+    ApplicantArchiveEvidence:
+      type: object
+      required: [id, fieldPath, fileName, evidenceType, contentType, sizeBytes, availability, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fieldPath:
+          type: string
+        fileName:
+          type: string
+        evidenceType:
+          type: string
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+        availability:
+          type: string
+          enum: [available, missing]
+        createdAt:
+          type: string
+          format: date-time
+    ApplicantArchiveDetail:
+      type: object
+      required: [id, reference, sourceType, applicantName, applicantEmail, categoryId, status, historyUnavailable, updatedAt, snapshots, evidence]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        sourceType:
+          type: string
+          enum: [guest, application]
+        applicantName:
+          type: string
+        applicantEmail:
+          type: string
+        categoryId:
+          type: string
+        status:
+          type: string
+        historyUnavailable:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+        snapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApplicantArchiveSnapshot"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApplicantArchiveEvidence"
+    ApplicantArchiveRestoreInput:
+      type: object
+      required: [snapshotId, confirm]
+      properties:
+        snapshotId:
+          type: string
+          format: uuid
+        confirm:
+          type: boolean
+          const: true
+    ApplicantArchiveRestoreResult:
+      type: object
+      required: [restored, reference, version, pinRestored]
+      properties:
+        restored:
+          type: boolean
+        reference:
+          type: string
+        version:
+          type: integer
+        pinRestored:
+          type: boolean
+    ApplicantArchiveDeleteInput:
+      type: object
+      required: [confirm]
+      properties:
+        confirm:
+          type: boolean
+          const: true
+    ApplicantArchiveDeleteResult:
+      type: object
+      required: [deleted, reference]
+      properties:
+        deleted:
+          type: boolean
+        reference:
+          type: string
     HealthStatus:
       type: object
       properties:

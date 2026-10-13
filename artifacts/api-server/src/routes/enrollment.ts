@@ -136,6 +136,18 @@ import {
 } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
 import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
+import {
+  captureEnrollmentApplicantArchive,
+  captureGuestApplicantArchive,
+  createApplicantArchiveBundle,
+  deleteApplicantArchiveCase,
+  ensureInitialApplicantArchive,
+  getApplicantArchiveCase,
+  getApplicantArchiveDetail,
+  listApplicantArchive,
+  recordApplicantArchiveAudit,
+  restoreApplicantArchiveSnapshot,
+} from "../lib/applicantArchive";
 
 type ApplicationStatus =
   | "draft"
@@ -1483,6 +1495,9 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       return;
     }
 
+    await captureGuestApplicantArchive(created, {
+      eventType: "guest_application_started",
+    });
     res.status(201).json(
       CreateGuestPreapplicationResponse.parse(
         serializeGuestPreapplicationStatus(created),
@@ -1593,6 +1608,9 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(404).json({ error: "Guest application not found." });
       return;
     }
+    await captureGuestApplicantArchive(updated, {
+      eventType: "guest_progress_saved",
+    });
     res.json(
       UpdateGuestPreapplicationProgressResponse.parse(
         serializeGuestPreapplicationStatus(updated, portalSettings.requiredFields ?? []),
@@ -1702,6 +1720,9 @@ router.patch(
         res.status(409).json({ error: "This guest application has already been submitted or closed." });
         return;
       }
+      await captureGuestApplicantArchive(updated, {
+        eventType: "guest_contact_corrected",
+      });
       res.json(
         UpdateGuestPreapplicationEmailResponse.parse(
           serializeGuestPreapplicationStatus(
@@ -1921,6 +1942,16 @@ router.post(
           });
         }
       });
+      const [updatedApplication] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, application.id))
+        .limit(1);
+      if (updatedApplication) {
+        await captureGuestApplicantArchive(updatedApplication, {
+          eventType: "guest_evidence_saved",
+        });
+      }
       res.json(CompleteGuestApplicantEvidenceUploadResponse.parse({
         evidenceId: completed.id,
         evidenceType: completed.evidenceType,
@@ -2128,6 +2159,10 @@ router.post(
         res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
         return;
       }
+      await captureEnrollmentApplicantArchive(submitted, {
+        actorUserId: userId,
+        eventType: "guest_application_submitted",
+      });
       res.json(SubmitGuestPreapplicationResponse.parse(
         await serializeApplicationWithPortalSettings(submitted),
       ));
@@ -2213,6 +2248,10 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
       res.status(500).json({ error: "The application draft could not be created." });
       return;
     }
+    await captureEnrollmentApplicantArchive(created, {
+      actorUserId: res.locals.userId as string,
+      eventType: "application_draft_created",
+    });
     res.status(201).json(
       CreateApplicationDraftResponse.parse(
         await serializeApplicationWithPortalSettings(created),
@@ -2383,6 +2422,10 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     res.status(409).json({ error: "This submission request could not be completed." });
     return;
   }
+  await captureEnrollmentApplicantArchive(outcome.application, {
+    actorUserId: res.locals.userId as string,
+    eventType: "application_submitted",
+  });
   res
     .status(outcome.created ? 201 : 200)
     .json(SubmitNewApplicationResponse.parse(
@@ -2642,6 +2685,10 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     res.status(500).json({ error: "The application could not be saved." });
     return;
   }
+  await captureEnrollmentApplicantArchive(updated, {
+    actorUserId: res.locals.userId as string,
+    eventType: "application_progress_saved",
+  });
   res.json(UpdateApplicationResponse.parse(
     await serializeApplicationWithPortalSettings(updated),
   ));
@@ -2806,6 +2853,10 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     });
     return;
   }
+  await captureEnrollmentApplicantArchive(submitted, {
+    actorUserId: res.locals.userId as string,
+    eventType: "application_submitted",
+  });
   res.json(SubmitApplicationResponse.parse(
     await serializeApplicationWithPortalSettings(submitted),
   ));
@@ -2981,6 +3032,182 @@ router.post(
   },
 );
 router.use("/admin", requireAdmin);
+
+router.get("/admin/archive", requirePrimaryAdmin, async (req, res): Promise<void> => {
+  try {
+    await ensureInitialApplicantArchive();
+    const rawSearch = typeof req.query.search === "string" ? req.query.search : "";
+    const search = rawSearch.trim().slice(0, 120);
+    const records = await listApplicantArchive(search);
+    await recordApplicantArchiveAudit({
+      actorUserId: res.locals.userId as string,
+      action: "archive_list_viewed",
+      details: { resultCount: records.length },
+    });
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.json(records);
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to read applicant archive");
+    res.status(503).json({ error: "The applicant archive could not be loaded securely." });
+  }
+});
+
+router.get(
+  "/admin/archive/:archiveId",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const archiveId = req.params.archiveId;
+    if (!/^[0-9a-f-]{36}$/i.test(archiveId)) {
+      res.status(400).json({ error: "Archive record not found." });
+      return;
+    }
+    try {
+      const detail = await getApplicantArchiveDetail(archiveId);
+      if (!detail) {
+        res.status(404).json({ error: "Archive record not found." });
+        return;
+      }
+      await recordApplicantArchiveAudit({
+        archiveId,
+        reference: detail.reference,
+        actorUserId: res.locals.userId as string,
+        action: "archive_record_viewed",
+      });
+      res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.json(detail);
+    } catch (error) {
+      req.log.error({ err: error, archiveId }, "Failed to read applicant archive record");
+      res.status(503).json({ error: "The applicant archive record could not be loaded securely." });
+    }
+  },
+);
+
+router.get(
+  "/admin/archive/:archiveId/bundle",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const archiveId = req.params.archiveId;
+    if (!/^[0-9a-f-]{36}$/i.test(archiveId)) {
+      res.status(400).json({ error: "Archive record not found." });
+      return;
+    }
+    try {
+      const archiveCase = await getApplicantArchiveCase(archiveId);
+      if (!archiveCase) {
+        res.status(404).json({ error: "Archive record not found." });
+        return;
+      }
+      const bundle = await createApplicantArchiveBundle(archiveId);
+      if (!bundle) {
+        res.status(404).json({ error: "Archive record not found." });
+        return;
+      }
+      await recordApplicantArchiveAudit({
+        archiveId,
+        reference: archiveCase.reference,
+        actorUserId: res.locals.userId as string,
+        action: "archive_bundle_exported",
+      });
+      const safeReference = archiveCase.reference.replace(/[^A-Za-z0-9_-]/g, "_");
+      res.setHeader("Content-Type", "application/gzip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="applicant-${safeReference}-archive.tar.gz"`,
+      );
+      res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      bundle.on("error", (error) => {
+        req.log.error({ err: error, archiveId }, "Failed to stream applicant archive bundle");
+        if (res.headersSent) res.destroy(error);
+        else res.status(503).json({ error: "The archive bundle could not be downloaded." });
+      });
+      bundle.pipe(res);
+    } catch (error) {
+      req.log.error({ err: error, archiveId }, "Failed to create applicant archive bundle");
+      if (!res.headersSent) {
+        res.status(503).json({ error: "The archive bundle could not be downloaded." });
+      } else {
+        res.destroy(error as Error);
+      }
+    }
+  },
+);
+
+router.post(
+  "/admin/archive/:archiveId/restore",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const archiveId = req.params.archiveId;
+    const snapshotId = typeof req.body?.snapshotId === "string" ? req.body.snapshotId : "";
+    if (
+      !/^[0-9a-f-]{36}$/i.test(archiveId) ||
+      !/^[0-9a-f-]{36}$/i.test(snapshotId) ||
+      req.body?.confirm !== true
+    ) {
+      res.status(400).json({ error: "Choose a saved version and confirm the restore." });
+      return;
+    }
+    try {
+      const restored = await restoreApplicantArchiveSnapshot(
+        archiveId,
+        snapshotId,
+        res.locals.userId as string,
+      );
+      await recordApplicantArchiveAudit({
+        archiveId,
+        reference: restored.reference,
+        actorUserId: res.locals.userId as string,
+        action: "archive_snapshot_restored",
+        details: { snapshotId, version: restored.version, pinRestored: false },
+      });
+      res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.json({
+        restored: true,
+        reference: restored.reference,
+        version: restored.version,
+        pinRestored: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("not found")) {
+        res.status(404).json({ error: message });
+        return;
+      }
+      if (message.includes("no longer exists")) {
+        res.status(409).json({ error: message });
+        return;
+      }
+      req.log.error({ err: error, archiveId, snapshotId }, "Failed to restore applicant archive snapshot");
+      res.status(503).json({ error: "The saved version could not be restored." });
+    }
+  },
+);
+
+router.post(
+  "/admin/archive/:archiveId/delete",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const archiveId = req.params.archiveId;
+    if (!/^[0-9a-f-]{36}$/i.test(archiveId) || req.body?.confirm !== true) {
+      res.status(400).json({ error: "Confirm that this archive should be permanently deleted." });
+      return;
+    }
+    try {
+      const reference = await deleteApplicantArchiveCase(
+        archiveId,
+        res.locals.userId as string,
+      );
+      if (!reference) {
+        res.status(404).json({ error: "Archive record not found." });
+        return;
+      }
+      res.json({ deleted: true, reference });
+    } catch (error) {
+      req.log.error({ err: error, archiveId }, "Failed to delete applicant archive record");
+      res.status(503).json({ error: "The archive could not be fully deleted." });
+    }
+  },
+);
 
 router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Promise<void> => {
   try {
@@ -3248,6 +3475,17 @@ router.post(
         .update(guestPreapplicationsTable)
         .set({ updatedAt: new Date(), updatedByUserId: res.locals.userId as string })
         .where(eq(guestPreapplicationsTable.id, applicationId));
+      const [updatedApplication] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, applicationId))
+        .limit(1);
+      if (updatedApplication) {
+        await captureGuestApplicantArchive(updatedApplication, {
+          actorUserId: res.locals.userId as string,
+          eventType: "reviewer_evidence_saved",
+        });
+      }
       res.json(
         CompleteGuestPreapplicationEvidenceUploadResponse.parse(
           serializeGuestEvidence(completed),
@@ -3339,6 +3577,10 @@ router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, asy
       res.status(404).json({ error: "Guest pre-application not found." });
       return;
     }
+    await captureGuestApplicantArchive(updated, {
+      actorUserId: res.locals.userId as string,
+      eventType: "reviewer_status_changed",
+    });
     res.json(
       UpdateAdminGuestPreapplicationResponse.parse(
         await serializeAdminGuestPreapplicationWithEvidence(
@@ -4109,6 +4351,10 @@ router.post(
       });
       return;
     }
+    await captureEnrollmentApplicantArchive(updated, {
+      actorUserId: res.locals.userId as string,
+      eventType: "reviewer_decision_recorded",
+    });
     res.json(DecideApplicationResponse.parse(
       await serializeApplicationWithPortalSettings(updated),
     ));
