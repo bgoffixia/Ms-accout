@@ -74,6 +74,11 @@ class GuestApiFixture {
         pageThemes: {},
       });
     }
+    if (method === "PUT" && path === "/api/admin/settings") {
+      const settings = request.postDataJSON();
+      this.screenCopy = settings.screenCopy;
+      return json(settings);
+    }
     if (method === "POST" && path === "/api/guest/preapplications") {
       const body = request.postDataJSON();
       this.createCount += 1;
@@ -446,6 +451,95 @@ test("falls back to built-in contact copy when configured text is blank", async 
   await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
   await expect(page.getByText("Full name", { exact: true })).toBeVisible();
   await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
+});
+
+test("shows updated contact copy without a manual refresh, preserves it after reload, and restores defaults for blanks", async ({ page }) => {
+  const api = new GuestApiFixture();
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/guest/apply");
+  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
+  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
+
+  api.screenCopy["guest-contact"] = {
+    title: "Applicant information",
+    description: "Use the contact details associated with this request.",
+    fullNameLabel: "Applicant's legal name",
+  };
+  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible();
+  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
+
+  api.screenCopy["guest-contact"] = {
+    title: "   ",
+    description: "",
+    fullNameLabel: " ",
+  };
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
+  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
+});
+
+test("an admin can publish applicant copy, and blank overrides restore built-in text", async ({ page }) => {
+  test.skip(process.env.E2E_AUTH_MOCK !== "1", "Uses an isolated test-only administrator session.");
+  const api = new GuestApiFixture();
+  await page.addInitScript(() => localStorage.setItem("e2e-clerk-role", "admin"));
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/admin/settings");
+  await expect(page.getByTestId("button-save-portal-settings")).toBeVisible();
+  await page.locator("#settings-workflow-copy details").filter({ hasText: "guest-contact" }).locator("summary").click();
+  await page.getByTestId("input-copy-guest-contact-title").fill("Applicant information");
+  await page.getByTestId("input-copy-guest-contact-description").fill("Use the contact details associated with this request.");
+  await page.getByTestId("input-copy-guest-contact-fullNameLabel").fill("Applicant's legal name");
+  const publishResponse = page.waitForResponse((response) =>
+    response.request().method() === "PUT" && new URL(response.url()).pathname === "/api/admin/settings",
+  );
+  await page.getByTestId("button-save-portal-settings").click();
+  expect((await publishResponse).ok()).toBe(true);
+  expect(api.screenCopy["guest-contact"]).toMatchObject({
+    title: "Applicant information",
+    description: "Use the contact details associated with this request.",
+    fullNameLabel: "Applicant's legal name",
+  });
+
+  await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
+  await page.goto("/guest/apply");
+  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible();
+  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Applicant information" })).toBeVisible();
+  await expect(page.getByText("Use the contact details associated with this request.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Applicant's legal name", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => localStorage.setItem("e2e-clerk-role", "admin"));
+  await page.goto("/admin/settings");
+  await page.locator("#settings-workflow-copy details").filter({ hasText: "guest-contact" }).locator("summary").click();
+  await page.getByTestId("input-copy-guest-contact-title").fill("");
+  await page.getByTestId("input-copy-guest-contact-description").fill("");
+  await page.getByTestId("input-copy-guest-contact-fullNameLabel").fill("");
+  const resetResponse = page.waitForResponse((response) =>
+    response.request().method() === "PUT" && new URL(response.url()).pathname === "/api/admin/settings",
+  );
+  await page.getByTestId("button-save-portal-settings").click();
+  expect((await resetResponse).ok()).toBe(true);
+
+  await page.evaluate(() => localStorage.removeItem("e2e-clerk-role"));
+  await page.goto("/guest/apply");
+  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
+  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
+  await expect(page.getByLabel("Full name", { exact: true })).toBeVisible();
 });
 
 test("shows configured dashboard copy once in its designated locations", async ({ page }) => {

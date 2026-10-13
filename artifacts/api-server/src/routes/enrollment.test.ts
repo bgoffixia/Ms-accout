@@ -912,7 +912,11 @@ describe("guest application verification and persistence", () => {
         categoryInputTransparent: true,
       },
       screenCopy: {
-        "guest-contact": { title: "Start an application" },
+        "guest-contact": {
+          title: "Start an application",
+          description: "Enter the details used for this application.",
+          fullNameLabel: "Applicant's legal name",
+        },
         "guest-status": { title: "Check your progress" },
       },
       requiredFields: ["personalInformation.firstName"],
@@ -943,7 +947,47 @@ describe("guest application verification and persistence", () => {
     );
     expect(savedSettings.response.status).toBe(200);
     expect(savedSettings.body.requiredFields).toEqual(["personalInformation.firstName"]);
+    expect(savedSettings.body.screenCopy["guest-contact"]).toEqual({
+      title: "Start an application",
+      description: "Enter the details used for this application.",
+      fullNameLabel: "Applicant's legal name",
+    });
     expect(savedSettings.body.screenCopy["guest-status"].title).toBe("Check your progress");
+    const publicSettings = await request("/portal/settings");
+    expect(publicSettings.response.status).toBe(200);
+    expect(publicSettings.body.screenCopy["guest-contact"]).toEqual({
+      title: "Start an application",
+      description: "Enter the details used for this application.",
+      fullNameLabel: "Applicant's legal name",
+    });
+    const blankCopySettings = {
+      ...settings,
+      screenCopy: {
+        ...settings.screenCopy,
+        "guest-contact": {
+          title: " ",
+          description: "",
+          fullNameLabel: " ",
+        },
+      },
+    };
+    const savedBlankCopy = await request(
+      "/admin/settings",
+      { method: "PUT", body: JSON.stringify(blankCopySettings) },
+      "administrator",
+    );
+    expect(savedBlankCopy.response.status).toBe(200);
+    expect(savedBlankCopy.body.screenCopy["guest-contact"]).toEqual({
+      title: " ",
+      description: "",
+      fullNameLabel: " ",
+    });
+    const publicBlankCopy = await request("/portal/settings");
+    expect(publicBlankCopy.body.screenCopy["guest-contact"]).toEqual({
+      title: " ",
+      description: "",
+      fullNameLabel: " ",
+    });
     expect(savedSettings.body.cards.map((card: Record<string, unknown>) => [
       card.cardLogoSize,
       card.cardLogoFit,
