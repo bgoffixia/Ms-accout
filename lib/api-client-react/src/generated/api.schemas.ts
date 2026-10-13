@@ -5,6 +5,98 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ApplicantArchiveListItem {
+  id: string;
+  reference: string;
+  applicantName: string;
+  applicantEmail: string;
+  categoryId: string;
+  status: string;
+  versionCount: number;
+  historyUnavailable: boolean;
+  updatedAt: string;
+}
+
+export interface ApplicantArchiveChange {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
+
+export type ApplicantArchiveSnapshotPayload = { [key: string]: unknown };
+
+export interface ApplicantArchiveSnapshot {
+  id: string;
+  version: number;
+  eventType: string;
+  createdAt: string;
+  payload: ApplicantArchiveSnapshotPayload;
+  changes: ApplicantArchiveChange[];
+}
+
+export type ApplicantArchiveEvidenceAvailability = typeof ApplicantArchiveEvidenceAvailability[keyof typeof ApplicantArchiveEvidenceAvailability];
+
+
+export const ApplicantArchiveEvidenceAvailability = {
+  available: 'available',
+  missing: 'missing',
+} as const;
+
+export interface ApplicantArchiveEvidence {
+  id: string;
+  fieldPath: string;
+  fileName: string;
+  evidenceType: string;
+  contentType: string;
+  sizeBytes: number;
+  availability: ApplicantArchiveEvidenceAvailability;
+  createdAt: string;
+}
+
+export type ApplicantArchiveDetailSourceType = typeof ApplicantArchiveDetailSourceType[keyof typeof ApplicantArchiveDetailSourceType];
+
+
+export const ApplicantArchiveDetailSourceType = {
+  guest: 'guest',
+  application: 'application',
+} as const;
+
+export interface ApplicantArchiveDetail {
+  id: string;
+  reference: string;
+  sourceType: ApplicantArchiveDetailSourceType;
+  applicantName: string;
+  applicantEmail: string;
+  categoryId: string;
+  status: string;
+  historyUnavailable: boolean;
+  updatedAt: string;
+  snapshots: ApplicantArchiveSnapshot[];
+  evidence: ApplicantArchiveEvidence[];
+}
+
+export interface ApplicantArchiveRestoreInput {
+  snapshotId: string;
+  confirm: true;
+}
+
+export interface ApplicantArchiveRestoreResult {
+  restored: boolean;
+  reference: string;
+  version: number;
+  pinRestored: boolean;
+}
+
+export const ApplicantArchiveDeleteInputValue = {
+  confirm: true,
+} as const;
+export type ApplicantArchiveDeleteInput = typeof ApplicantArchiveDeleteInputValue;
+
+export interface ApplicantArchiveDeleteResult {
+  deleted: boolean;
+  reference: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -1146,6 +1238,13 @@ export const ListAdminUsersAccountStatus = {
   active: 'active',
   suspended: 'suspended',
 } as const;
+
+export type ListApplicantArchiveParams = {
+/**
+ * @maxLength 120
+ */
+search?: string;
+};
 
 export type ListSupportTicketsForAdminParams = {
 search?: string;

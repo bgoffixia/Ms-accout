@@ -30,6 +30,12 @@ import type {
   AdminUserList,
   AdminUserRoleUpdate,
   AdminUserStatusUpdate,
+  ApplicantArchiveDeleteInput,
+  ApplicantArchiveDeleteResult,
+  ApplicantArchiveDetail,
+  ApplicantArchiveListItem,
+  ApplicantArchiveRestoreInput,
+  ApplicantArchiveRestoreResult,
   ApplicantSummary,
   ApplicationDecision,
   ApplicationDraftInput,
@@ -54,6 +60,7 @@ import type {
   GuestPreapplicationStatus,
   HealthStatus,
   ListAdminUsersParams,
+  ListApplicantArchiveParams,
   ListApplicationsForReviewParams,
   ListSupportTicketsForAdminParams,
   NewApplicationSubmissionInput,
@@ -3718,6 +3725,422 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getAddApplicantSupportMessageMutationOptions(options));
+    }
+
+export const getListApplicantArchiveUrl = (params?: ListApplicantArchiveParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/archive?${stringifiedParams}` : `/api/admin/archive`
+}
+
+/**
+ * @summary List applicant archive cases (primary administrator only)
+ */
+export const listApplicantArchive = async (params?: ListApplicantArchiveParams, options?: Parameters<typeof customFetch>[1]): Promise<ApplicantArchiveListItem[]> => {
+
+  return customFetch<ApplicantArchiveListItem[]>(getListApplicantArchiveUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListApplicantArchiveQueryKey = (params?: ListApplicantArchiveParams,) => {
+    return [
+    `/api/admin/archive`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListApplicantArchiveQueryOptions = <TData = Awaited<ReturnType<typeof listApplicantArchive>>, TError = ErrorType<unknown>>(params?: ListApplicantArchiveParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplicantArchive>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListApplicantArchiveQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listApplicantArchive>>> = ({ signal }) => listApplicantArchive(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApplicantArchive>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListApplicantArchiveQueryResult = NonNullable<Awaited<ReturnType<typeof listApplicantArchive>>>
+export type ListApplicantArchiveQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List applicant archive cases (primary administrator only)
+ */
+
+export function useListApplicantArchive<TData = Awaited<ReturnType<typeof listApplicantArchive>>, TError = ErrorType<unknown>>(
+ params?: ListApplicantArchiveParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplicantArchive>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListApplicantArchiveQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetApplicantArchiveUrl = (archiveId: string,) => {
+
+
+
+
+  return `/api/admin/archive/${archiveId}`
+}
+
+/**
+ * @summary Read a protected applicant archive record (primary administrator only)
+ */
+export const getApplicantArchive = async (archiveId: string, options?: Parameters<typeof customFetch>[1]): Promise<ApplicantArchiveDetail> => {
+
+  return customFetch<ApplicantArchiveDetail>(getGetApplicantArchiveUrl(archiveId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetApplicantArchiveQueryKey = (archiveId: string,) => {
+    return [
+    `/api/admin/archive/${archiveId}`
+    ] as const;
+    }
+
+
+export const getGetApplicantArchiveQueryOptions = <TData = Awaited<ReturnType<typeof getApplicantArchive>>, TError = ErrorType<unknown>>(archiveId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplicantArchive>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApplicantArchiveQueryKey(archiveId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApplicantArchive>>> = ({ signal }) => getApplicantArchive(archiveId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: archiveId !== null && archiveId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApplicantArchive>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetApplicantArchiveQueryResult = NonNullable<Awaited<ReturnType<typeof getApplicantArchive>>>
+export type GetApplicantArchiveQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read a protected applicant archive record (primary administrator only)
+ */
+
+export function useGetApplicantArchive<TData = Awaited<ReturnType<typeof getApplicantArchive>>, TError = ErrorType<unknown>>(
+ archiveId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApplicantArchive>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetApplicantArchiveQueryOptions(archiveId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadApplicantArchiveBundleUrl = (archiveId: string,) => {
+
+
+
+
+  return `/api/admin/archive/${archiveId}/bundle`
+}
+
+/**
+ * @summary Download the readable archive manifest and private proof copies
+ */
+export const downloadApplicantArchiveBundle = async (archiveId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadApplicantArchiveBundleUrl(archiveId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadApplicantArchiveBundleQueryKey = (archiveId: string,) => {
+    return [
+    `/api/admin/archive/${archiveId}/bundle`
+    ] as const;
+    }
+
+
+export const getDownloadApplicantArchiveBundleQueryOptions = <TData = Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>, TError = ErrorType<unknown>>(archiveId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadApplicantArchiveBundleQueryKey(archiveId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>> = ({ signal }) => downloadApplicantArchiveBundle(archiveId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: archiveId !== null && archiveId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadApplicantArchiveBundleQueryResult = NonNullable<Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>>
+export type DownloadApplicantArchiveBundleQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download the readable archive manifest and private proof copies
+ */
+
+export function useDownloadApplicantArchiveBundle<TData = Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>, TError = ErrorType<unknown>>(
+ archiveId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadApplicantArchiveBundle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadApplicantArchiveBundleQueryOptions(archiveId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRestoreApplicantArchiveSnapshotUrl = (archiveId: string,) => {
+
+
+
+
+  return `/api/admin/archive/${archiveId}/restore`
+}
+
+/**
+ * @summary Restore saved applicant fields to an existing live record
+ */
+export const restoreApplicantArchiveSnapshot = async (archiveId: string,
+    applicantArchiveRestoreInput: ApplicantArchiveRestoreInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicantArchiveRestoreResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ApplicantArchiveRestoreResult>(getRestoreApplicantArchiveSnapshotUrl(archiveId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(applicantArchiveRestoreInput)
+  }
+);}
+
+
+
+
+
+export const getRestoreApplicantArchiveSnapshotMutationKey = () => ['restoreApplicantArchiveSnapshot'] as const;
+
+export const getRestoreApplicantArchiveSnapshotMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreApplicantArchiveSnapshot>>, TError,RestoreApplicantArchiveSnapshotMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restoreApplicantArchiveSnapshot>>, TError,RestoreApplicantArchiveSnapshotMutationVariables, TContext> => {
+
+const mutationKey = getRestoreApplicantArchiveSnapshotMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restoreApplicantArchiveSnapshot>>, RestoreApplicantArchiveSnapshotMutationVariables> = (props) => {
+          const {archiveId,data} = props ?? {};
+
+          return  restoreApplicantArchiveSnapshot(archiveId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestoreApplicantArchiveSnapshotMutationResult = NonNullable<Awaited<ReturnType<typeof restoreApplicantArchiveSnapshot>>>
+    export type RestoreApplicantArchiveSnapshotMutationBody = BodyType<ApplicantArchiveRestoreInput>
+    export type RestoreApplicantArchiveSnapshotMutationError = ErrorType<unknown>
+    export type RestoreApplicantArchiveSnapshotMutationVariables = {archiveId: string;data: BodyType<ApplicantArchiveRestoreInput>}
+
+    /**
+ * @summary Restore saved applicant fields to an existing live record
+ */
+export const useRestoreApplicantArchiveSnapshot = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreApplicantArchiveSnapshot>>, TError,RestoreApplicantArchiveSnapshotMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof restoreApplicantArchiveSnapshot>>,
+        TError,
+        RestoreApplicantArchiveSnapshotMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRestoreApplicantArchiveSnapshotMutationOptions(options));
+    }
+
+export const getDeleteApplicantArchiveUrl = (archiveId: string,) => {
+
+
+
+
+  return `/api/admin/archive/${archiveId}/delete`
+}
+
+/**
+ * @summary Permanently delete an applicant archive after explicit confirmation
+ */
+export const deleteApplicantArchive = async (archiveId: string,
+    applicantArchiveDeleteInput: ApplicantArchiveDeleteInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicantArchiveDeleteResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ApplicantArchiveDeleteResult>(getDeleteApplicantArchiveUrl(archiveId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(applicantArchiveDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getDeleteApplicantArchiveMutationKey = () => ['deleteApplicantArchive'] as const;
+
+export const getDeleteApplicantArchiveMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApplicantArchive>>, TError,DeleteApplicantArchiveMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteApplicantArchive>>, TError,DeleteApplicantArchiveMutationVariables, TContext> => {
+
+const mutationKey = getDeleteApplicantArchiveMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteApplicantArchive>>, DeleteApplicantArchiveMutationVariables> = (props) => {
+          const {archiveId,data} = props ?? {};
+
+          return  deleteApplicantArchive(archiveId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteApplicantArchiveMutationResult = NonNullable<Awaited<ReturnType<typeof deleteApplicantArchive>>>
+    export type DeleteApplicantArchiveMutationBody = BodyType<ApplicantArchiveDeleteInput>
+    export type DeleteApplicantArchiveMutationError = ErrorType<unknown>
+    export type DeleteApplicantArchiveMutationVariables = {archiveId: string;data: BodyType<ApplicantArchiveDeleteInput>}
+
+    /**
+ * @summary Permanently delete an applicant archive after explicit confirmation
+ */
+export const useDeleteApplicantArchive = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApplicantArchive>>, TError,DeleteApplicantArchiveMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteApplicantArchive>>,
+        TError,
+        DeleteApplicantArchiveMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteApplicantArchiveMutationOptions(options));
     }
 
 export const getListSupportTicketsForAdminUrl = (params?: ListSupportTicketsForAdminParams,) => {

@@ -1583,6 +1583,120 @@ export const AddApplicantSupportMessageResponse = zod.object({
 
 
 /**
+ * @summary List applicant archive cases (primary administrator only)
+ */
+export const listApplicantArchiveQuerySearchMax = 120;
+
+
+
+export const ListApplicantArchiveQueryParams = zod.object({
+  "search": zod.coerce.string().max(listApplicantArchiveQuerySearchMax).optional()
+})
+
+export const ListApplicantArchiveResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "applicantName": zod.string(),
+  "applicantEmail": zod.string(),
+  "categoryId": zod.string(),
+  "status": zod.string(),
+  "versionCount": zod.number().int(),
+  "historyUnavailable": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListApplicantArchiveResponse = zod.array(ListApplicantArchiveResponseItem)
+
+
+/**
+ * @summary Read a protected applicant archive record (primary administrator only)
+ */
+export const GetApplicantArchiveParams = zod.object({
+  "archiveId": zod.coerce.string().uuid()
+})
+
+export const GetApplicantArchiveResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "sourceType": zod.enum(['guest', 'application']),
+  "applicantName": zod.string(),
+  "applicantEmail": zod.string(),
+  "categoryId": zod.string(),
+  "status": zod.string(),
+  "historyUnavailable": zod.boolean(),
+  "updatedAt": zod.coerce.date(),
+  "snapshots": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "version": zod.number().int(),
+  "eventType": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "changes": zod.array(zod.object({
+  "field": zod.string(),
+  "before": zod.unknown(),
+  "after": zod.unknown()
+}))
+})),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "fieldPath": zod.string(),
+  "fileName": zod.string(),
+  "evidenceType": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "availability": zod.enum(['available', 'missing']),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Download the readable archive manifest and private proof copies
+ */
+export const DownloadApplicantArchiveBundleParams = zod.object({
+  "archiveId": zod.coerce.string().uuid()
+})
+
+export const DownloadApplicantArchiveBundleResponse = zod.unknown()
+
+
+/**
+ * @summary Restore saved applicant fields to an existing live record
+ */
+export const RestoreApplicantArchiveSnapshotParams = zod.object({
+  "archiveId": zod.coerce.string().uuid()
+})
+
+export const RestoreApplicantArchiveSnapshotBody = zod.object({
+  "snapshotId": zod.string().uuid(),
+  "confirm": zod.literal(true)
+})
+
+export const RestoreApplicantArchiveSnapshotResponse = zod.object({
+  "restored": zod.boolean(),
+  "reference": zod.string(),
+  "version": zod.number().int(),
+  "pinRestored": zod.boolean()
+})
+
+
+/**
+ * @summary Permanently delete an applicant archive after explicit confirmation
+ */
+export const DeleteApplicantArchiveParams = zod.object({
+  "archiveId": zod.coerce.string().uuid()
+})
+
+export const DeleteApplicantArchiveBody = zod.object({
+  "confirm": zod.literal(true)
+})
+
+export const DeleteApplicantArchiveResponse = zod.object({
+  "deleted": zod.boolean(),
+  "reference": zod.string()
+})
+
+
+/**
  * @summary List support requests for authorized administrators
  */
 export const ListSupportTicketsForAdminQueryParams = zod.object({
