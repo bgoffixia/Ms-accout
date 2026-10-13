@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createCipheriv, createHmac, randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import { gunzipSync } from "node:zlib";
 
@@ -371,12 +372,48 @@ vi.mock("../lib/objectStorage", () => {
 
 import express from "express";
 import router from "./enrollment";
+import { captureGuestApplicantArchive } from "../lib/applicantArchive";
 import { cleanupExpiredGuestEvidence } from "../lib/guestEvidenceCleanup";
 
 const accessKey = "a".repeat(43);
 const contactEmail = "applicant@example.test";
 const privatePng = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const privateMp4 = Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
+const testArchiveKeyring = JSON.stringify({
+  activeKeyId: "test-archive-key",
+  keys: { "test-archive-key": "test-only-archive-key-material-0123456789" },
+});
+
+function encryptLegacyFixture(value: unknown, context: string): string {
+  const key = createHmac("sha256", "test-session-secret").update(context).digest();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(JSON.stringify(value), "utf8"),
+    cipher.final(),
+  ]);
+  return [
+    "enc:v1",
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    ciphertext.toString("base64url"),
+  ].join(":");
+}
+
+function encryptLegacyBankFixture(value: string): string {
+  const key = createHmac("sha256", "test-session-secret")
+    .update("civic-enroll-bank-v1")
+    .digest();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return [
+    "enc:v1",
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    ciphertext.toString("base64url"),
+  ].join(":");
+}
 
 describe("guest application verification and persistence", () => {
   const app = express();
@@ -387,6 +424,7 @@ describe("guest application verification and persistence", () => {
     process.env.PRIVATE_OBJECT_DIR = "test-private";
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "test-bucket";
     process.env.SESSION_SECRET = "test-session-secret";
+    process.env.APPLICANT_ARCHIVE_KEYS = testArchiveKeyring;
     app.use(express.json());
     app.use((request: any, _response: any, next: () => void) => {
       request.log = { error: () => undefined, warn: () => undefined, info: () => undefined };
@@ -407,6 +445,8 @@ describe("guest application verification and persistence", () => {
   });
 
   beforeEach(() => {
+    process.env.SESSION_SECRET = "test-session-secret";
+    process.env.APPLICANT_ARCHIVE_KEYS = testArchiveKeyring;
     mockState.rows.clear();
     for (const name of [
       "guest_preapplications",
@@ -1419,5 +1459,165 @@ describe("guest application verification and persistence", () => {
       .toContain("delete_completed");
     expect([...mockState.storageObjects.keys()].some((path) => path.startsWith("/objects/archive/")))
       .toBe(false);
+  }, 15000);
+
+  it("rewraps legacy archive data before session-secret rotation and stays readable after retiring its old archive key", async () => {
+    const sessionSecretBefore = process.env.SESSION_SECRET;
+    const archiveKeysBefore = process.env.APPLICANT_ARCHIVE_KEYS;
+    const sessionSecret = "test-session-secret";
+    const oldArchiveKey = "rotation-test-key-a-material-0123456789";
+    const newArchiveKey = "rotation-test-key-b-material-0123456789";
+    const archiveId = crypto.randomUUID();
+    const guestId = crypto.randomUUID();
+    const snapshotId = crypto.randomUUID();
+    const accountNumberEncrypted = encryptLegacyBankFixture("001234567890");
+
+    try {
+      process.env.SESSION_SECRET = sessionSecret;
+      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
+        activeKeyId: "archive-key-a",
+        keys: { "archive-key-a": oldArchiveKey },
+      });
+
+      const guest = newRow("guest_preapplications", {
+        id: guestId,
+        submissionId: crypto.randomUUID(),
+        reference: "ENR-ROTATION-001",
+        fullName: "Rotation Applicant",
+        email: "rotation@example.test",
+        categoryId: "category-1",
+        answers: { bankDetails: { accountNumberEncrypted } },
+      }) as Record<string, unknown>;
+      tableRows("guest_preapplications").push(guest);
+      const proofPath = "/objects/test-private/legacy-proof";
+      const archivedProofPath = `/objects/archive/${crypto.randomUUID()}`;
+      const evidenceId = crypto.randomUUID();
+      mockState.storageObjects.set(archivedProofPath, {
+        contentType: "application/pdf",
+        bytes: privatePng,
+        public: false,
+      });
+      tableRows("applicant_master_archive_evidence").push(newRow(
+        "applicant_master_archive_evidence",
+        {
+          id: evidenceId,
+          archiveId,
+          sourceFingerprint: "legacy-proof-fingerprint",
+          sourcePathEncrypted: encryptLegacyFixture(
+            proofPath,
+            "civic-enroll-applicant-archive-v1",
+          ),
+          archiveObjectPath: archivedProofPath,
+          fieldPath: "proofOfIdentity.front",
+          fileName: encryptLegacyFixture(
+            "identity-card.pdf",
+            "civic-enroll-applicant-archive-v1",
+          ),
+          evidenceType: "identity_document",
+          contentType: "application/pdf",
+          sizeBytes: privatePng.length,
+          availability: "available",
+        },
+      ));
+      tableRows("applicant_master_archive_cases").push(newRow(
+        "applicant_master_archive_cases",
+        {
+          id: archiveId,
+          sourceType: "guest",
+          sourceId: guestId,
+          reference: "ENR-ROTATION-001",
+          historyUnavailable: false,
+        },
+      ));
+      const oldPayload = {
+        recordType: "guest",
+        reference: "ENR-ROTATION-001",
+        categoryId: "category-1",
+        currentStep: 4,
+        answers: {
+          bankDetails: {
+            bankName: "Test Bank",
+            accountNumberEncrypted,
+          },
+        },
+        status: "received",
+        fullName: "Rotation Applicant",
+        email: "rotation@example.test",
+        correctionHistory: [],
+      };
+      tableRows("applicant_master_archive_snapshots").push(newRow(
+        "applicant_master_archive_snapshots",
+        {
+          id: snapshotId,
+          archiveId,
+          version: 1,
+          eventType: "initial_archive_snapshot",
+          actorUserId: null,
+          payloadEncrypted: encryptLegacyFixture(
+            oldPayload,
+            "civic-enroll-applicant-archive-v1",
+          ),
+          changesEncrypted: encryptLegacyFixture(
+            [],
+            "civic-enroll-applicant-archive-v1",
+          ),
+        },
+      ));
+
+      const firstRead = await fetch(`${baseUrl}/admin/archive`, {
+        headers: { "x-test-user": "primary-admin" },
+      });
+      expect(firstRead.status).toBe(200);
+      let snapshot = tableRows("applicant_master_archive_snapshots")[0]!;
+      expect(String(snapshot.payloadEncrypted)).toMatch(/^enc:v2:archive-key-a:/);
+
+      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
+        activeKeyId: "archive-key-b",
+        keys: {
+          "archive-key-a": oldArchiveKey,
+          "archive-key-b": newArchiveKey,
+        },
+      });
+      process.env.SESSION_SECRET = "rotated-session-secret";
+
+      const rotatedRead = await fetch(`${baseUrl}/admin/archive/${archiveId}`, {
+        headers: { "x-test-user": "primary-admin" },
+      });
+      expect(rotatedRead.status).toBe(200);
+      const detail = await rotatedRead.json() as {
+        snapshots: Array<{ payload: { answers: { bankDetails: { accountNumber: string } } } }>;
+        evidence: Array<{ fileName: string }>;
+      };
+      expect(detail.snapshots[0]?.payload.answers.bankDetails.accountNumber).toBe("001234567890");
+      expect(detail.evidence[0]?.fileName).toBe("identity-card.pdf");
+      snapshot = tableRows("applicant_master_archive_snapshots")[0]!;
+      expect(String(snapshot.payloadEncrypted)).toMatch(/^enc:v2:archive-key-b:/);
+      const evidence = tableRows("applicant_master_archive_evidence")[0]!;
+      expect(String(evidence.sourcePathEncrypted)).toMatch(/^enc:v2:archive-key-b:/);
+      expect(String(evidence.fileName)).toMatch(/^enc:v2:archive-key-b:/);
+
+      process.env.APPLICANT_ARCHIVE_KEYS = JSON.stringify({
+        activeKeyId: "archive-key-b",
+        keys: { "archive-key-b": newArchiveKey },
+      });
+      guest.currentStep = 5;
+      const progressCapture = await captureGuestApplicantArchive(
+        guest as any,
+        { eventType: "guest_progress_saved" },
+      );
+      expect(progressCapture.created).toBe(true);
+      const afterRetirementRead = await fetch(`${baseUrl}/admin/archive/${archiveId}`, {
+        headers: { "x-test-user": "primary-admin" },
+      });
+      expect(afterRetirementRead.status).toBe(200);
+      const retained = await afterRetirementRead.json() as typeof detail;
+      expect(retained.snapshots[0]?.payload.answers.bankDetails.accountNumber).toBe("001234567890");
+      expect(retained.evidence[0]?.fileName).toBe("identity-card.pdf");
+    } finally {
+      if (sessionSecretBefore === undefined) delete process.env.SESSION_SECRET;
+      else process.env.SESSION_SECRET = sessionSecretBefore;
+      if (archiveKeysBefore === undefined) delete process.env.APPLICANT_ARCHIVE_KEYS;
+      else process.env.APPLICANT_ARCHIVE_KEYS = archiveKeysBefore;
+    }
   }, 15000);
 });

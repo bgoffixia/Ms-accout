@@ -73,19 +73,34 @@ function archiveKeyring(): ArchiveKeyring {
     materials = { [activeKeyId]: configured };
   }
 
-  if (!/^[A-Za-z0-9._-]{1,64}$/.test(activeKeyId)) {
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(activeKeyId) || activeKeyId === "legacy-session") {
     throw new Error("APPLICANT_ARCHIVE_KEYS must name a valid activeKeyId.");
   }
+  const derivedEntries: Array<{ keyId: string; alias: string; key: Buffer }> = [];
   for (const [keyId, material] of Object.entries(materials)) {
-    if (!/^[A-Za-z0-9._-]{1,64}$/.test(keyId) || typeof material !== "string" || material.length < 32) {
+    if (
+      !/^[A-Za-z0-9._-]{1,64}$/.test(keyId) ||
+      keyId === "legacy-session" ||
+      typeof material !== "string" ||
+      material.length < 32
+    ) {
       throw new Error(
         "Every APPLICANT_ARCHIVE_KEYS entry must have a valid key ID and at least 32 characters of key material.",
       );
     }
-    keys.set(
-      keyId,
-      createHmac("sha256", material).update("civic-enroll-applicant-archive-v2").digest(),
-    );
+    const key = createHmac("sha256", material)
+      .update("civic-enroll-applicant-archive-v2")
+      .digest();
+    const alias = `key-${createHash("sha256").update(material).digest("hex").slice(0, 12)}`;
+    derivedEntries.push({ keyId, alias, key });
+    keys.set(keyId, key);
+  }
+  for (const { alias, key } of derivedEntries) {
+    const collision = keys.get(alias);
+    if (collision && !collision.equals(key)) {
+      throw new Error("APPLICANT_ARCHIVE_KEYS contains colliding key IDs.");
+    }
+    keys.set(alias, key);
   }
   if (!keys.has(activeKeyId)) {
     throw new Error("APPLICANT_ARCHIVE_KEYS activeKeyId must refer to an entry in keys.");
@@ -178,12 +193,10 @@ function archiveBankAccounts(value: unknown): unknown {
     if (key === "accountNumberEncrypted") {
       if (typeof child !== "string") continue;
       const accountNumber = decryptBankAccount(child);
-      if (!accountNumber) {
-        throw new Error(
-          "An archived bank account could not be unlocked. Keep the current SESSION_SECRET until archive key migration completes.",
-        );
-      }
-      output.accountNumber = accountNumber;
+      if (accountNumber) output.accountNumber = accountNumber;
+      output.accountNumberCiphertextFingerprint = createHash("sha256")
+        .update(child)
+        .digest("hex");
       continue;
     }
     if (key === "accountNumberLast4" || key === "accountNumberMasked") continue;
@@ -225,6 +238,11 @@ async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<void> 
 
   const evidenceRows = await db.select().from(applicantMasterArchiveEvidenceTable);
   for (const evidence of evidenceRows) {
+    const sourcePath = decryptJson(evidence.sourcePathEncrypted, keyring);
+    if (typeof sourcePath !== "string") {
+      throw new Error("The applicant archive contains an invalid encrypted proof path.");
+    }
+    const sourceFingerprint = fingerprintForPath(sourcePath);
     const sourceKeyId = encryptedKeyId(evidence.sourcePathEncrypted);
     const fileNameKeyId = encryptedKeyId(evidence.fileName);
     const sourcePathEncrypted = sourceKeyId && sourceKeyId !== keyring.activeKeyId
@@ -249,6 +267,15 @@ async function migrateArchiveEncryption(keyring: ArchiveKeyring): Promise<void> 
         .where(and(
           eq(applicantMasterArchiveEvidenceTable.id, evidence.id),
           eq(applicantMasterArchiveEvidenceTable.fileName, evidence.fileName),
+        ));
+    }
+    if (sourceFingerprint !== evidence.sourceFingerprint) {
+      await db
+        .update(applicantMasterArchiveEvidenceTable)
+        .set({ sourceFingerprint })
+        .where(and(
+          eq(applicantMasterArchiveEvidenceTable.id, evidence.id),
+          eq(applicantMasterArchiveEvidenceTable.sourceFingerprint, evidence.sourceFingerprint),
         ));
     }
   }
@@ -320,7 +347,7 @@ function sanitizeCorrectionHistory(history: unknown[]): unknown[] {
           return !privateKeyFields.test(String(row.field ?? row.path ?? ""));
         })
       : [];
-    const safeRevision = sanitizeArchiveValue({ ...record, changes });
+    const safeRevision = sanitizeArchiveValue(archiveBankAccounts({ ...record, changes }));
     return safeRevision === undefined ? [] : [safeRevision];
   });
 }
@@ -342,7 +369,12 @@ function presentArchiveValue(value: unknown, evidence: Map<string, string>): unk
     const bank = asRecord(record.bankDetails);
     const output: JsonRecord = {};
     for (const [key, child] of Object.entries(record)) {
-      if (key === "accountNumberEncrypted" || key === "accountNumberLast4" || key === "accountNumberMasked") {
+      if (
+        key === "accountNumberEncrypted" ||
+        key === "accountNumberLast4" ||
+        key === "accountNumberMasked" ||
+        key === "accountNumberCiphertextFingerprint"
+      ) {
         continue;
       }
       if (key === "bankDetails") continue;
@@ -351,7 +383,12 @@ function presentArchiveValue(value: unknown, evidence: Map<string, string>): unk
     if (Object.hasOwn(record, "bankDetails")) {
       const bankOutput: JsonRecord = {};
       for (const [key, child] of Object.entries(bank)) {
-        if (key === "accountNumberEncrypted" || key === "accountNumberLast4" || key === "accountNumberMasked") continue;
+        if (
+          key === "accountNumberEncrypted" ||
+          key === "accountNumberLast4" ||
+          key === "accountNumberMasked" ||
+          key === "accountNumberCiphertextFingerprint"
+        ) continue;
         bankOutput[key] = presentArchiveValue(child, evidence);
       }
       if (typeof bank.accountNumberEncrypted === "string") {
@@ -385,9 +422,7 @@ function collectEvidencePaths(
 }
 
 function fingerprintForPath(objectPath: string): string {
-  return createHmac("sha256", archiveEncryptionKey())
-    .update(objectPath)
-    .digest("hex");
+  return createHash("sha256").update(objectPath).digest("hex");
 }
 
 function readableDiffValue(value: unknown): unknown {
@@ -409,7 +444,10 @@ function collectFieldChanges(
     const keys = new Set([...Object.keys(previous), ...Object.keys(current)]);
     for (const key of keys) {
       const path = prefix ? `${prefix}.${key}` : key;
-      if (["createdAt", "updatedAt", "correctionHistory"].includes(key) || key.startsWith("__")) continue;
+      if (
+        ["createdAt", "updatedAt", "correctionHistory", "accountNumberCiphertextFingerprint"].includes(key) ||
+        key.startsWith("__")
+      ) continue;
       collectFieldChanges(previous[key], current[key], path, changes);
     }
     return changes;
@@ -441,6 +479,35 @@ function collectFieldChanges(
   return changes;
 }
 
+function mergeArchiveBankNumbers(previous: unknown, current: unknown): unknown {
+  if (Array.isArray(current)) {
+    const previousItems = Array.isArray(previous) ? previous : [];
+    return current.map((item, index) => mergeArchiveBankNumbers(previousItems[index], item));
+  }
+  if (current === null || typeof current !== "object") return current;
+
+  const previousRecord = asRecord(previous);
+  const currentRecord = current as JsonRecord;
+  const output: JsonRecord = { ...currentRecord };
+  const fingerprint = currentRecord.accountNumberCiphertextFingerprint;
+  if (typeof fingerprint === "string" && typeof currentRecord.accountNumber !== "string") {
+    if (
+      previousRecord.accountNumberCiphertextFingerprint !== fingerprint ||
+      typeof previousRecord.accountNumber !== "string"
+    ) {
+      throw new Error(
+        "The bank account changed after SESSION_SECRET rotation and could not be archived. Restore the previous secret or re-enter the account details.",
+      );
+    }
+    output.accountNumber = previousRecord.accountNumber;
+  }
+  for (const [key, value] of Object.entries(currentRecord)) {
+    if (key === "accountNumberCiphertextFingerprint") continue;
+    output[key] = mergeArchiveBankNumbers(previousRecord[key], value);
+  }
+  return output;
+}
+
 function casePayload(
   sourceType: ArchiveSourceType,
   source: typeof guestPreapplicationsTable.$inferSelect | typeof enrollmentApplicationsTable.$inferSelect,
@@ -456,7 +523,7 @@ function casePayload(
     reference: sourceRecord.reference,
     categoryId: sourceRecord.categoryId,
     currentStep: sourceRecord.currentStep,
-    answers: sanitizeArchiveValue(answers),
+    answers: sanitizeArchiveValue(archiveBankAccounts(answers)),
     status: sourceRecord.status,
     createdAt: sourceRecord.createdAt,
     updatedAt: sourceRecord.updatedAt,
@@ -480,7 +547,7 @@ function casePayload(
       categoryId: linkedApplication.categoryId,
       currentStep: linkedApplication.currentStep,
       status: linkedApplication.status,
-      answers: sanitizeArchiveValue(linkedApplication.answers ?? {}),
+      answers: sanitizeArchiveValue(archiveBankAccounts(linkedApplication.answers ?? {})),
       submittedAt: linkedApplication.submittedAt,
       createdAt: linkedApplication.createdAt,
       updatedAt: linkedApplication.updatedAt,
@@ -498,7 +565,7 @@ function safeFilename(value: string): string {
 }
 
 function readableEvidenceFilename(row: typeof applicantMasterArchiveEvidenceTable.$inferSelect): string {
-  if (!row.fileName.startsWith("enc:v1:")) return safeFilename(row.fileName);
+  if (!row.fileName.startsWith("enc:")) return safeFilename(row.fileName);
   const decoded = decryptJson(row.fileName);
   return typeof decoded === "string" ? decoded : row.fileName;
 }
@@ -648,6 +715,7 @@ async function writeSnapshot(
     evidenceMetadata?: EvidenceMetadata[];
   },
 ) {
+  await ensureArchiveKeyMigration();
   const archiveCase = await createOrFindCase(
     sourceType,
     sourceId,
@@ -677,7 +745,8 @@ async function writeSnapshot(
   const previous = latest
     ? asRecord(decryptJson(latest.payloadEncrypted))
     : {};
-  const changes = latest ? collectFieldChanges(previous, payload) : [];
+  const archivePayload = mergeArchiveBankNumbers(previous, payload) as JsonRecord;
+  const changes = latest ? collectFieldChanges(previous, archivePayload) : [];
   if (latest && options.eventType !== "initial_archive_snapshot" && changes.length === 0) {
     await db
       .update(applicantMasterArchiveCasesTable)
@@ -697,7 +766,7 @@ async function writeSnapshot(
       version: (latest?.version ?? 0) + 1,
       eventType: options.eventType,
       actorUserId: options.actorUserId ?? null,
-      payloadEncrypted: encryptJson(payload),
+      payloadEncrypted: encryptJson(archivePayload),
       changesEncrypted: encryptJson(changes),
     })
     .returning();
@@ -799,8 +868,25 @@ export async function captureEnrollmentApplicantArchive(
 }
 
 export async function ensureInitialApplicantArchive(): Promise<void> {
+  await ensureArchiveKeyMigration();
   const guests = await db.select().from(guestPreapplicationsTable);
   for (const guest of guests) {
+    const [archiveCase] = await db
+      .select()
+      .from(applicantMasterArchiveCasesTable)
+      .where(and(
+        eq(applicantMasterArchiveCasesTable.sourceType, "guest"),
+        eq(applicantMasterArchiveCasesTable.sourceId, guest.id),
+      ))
+      .limit(1);
+    if (archiveCase) {
+      const [existingSnapshot] = await db
+        .select()
+        .from(applicantMasterArchiveSnapshotsTable)
+        .where(eq(applicantMasterArchiveSnapshotsTable.archiveId, archiveCase.id))
+        .limit(1);
+      if (existingSnapshot) continue;
+    }
     await captureGuestApplicantArchive(guest, {
       eventType: "initial_archive_snapshot",
       onlyIfMissing: true,
@@ -809,6 +895,22 @@ export async function ensureInitialApplicantArchive(): Promise<void> {
   const applications = await db.select().from(enrollmentApplicationsTable);
   for (const application of applications) {
     if (application.sourceGuestPreapplicationId) continue;
+    const [archiveCase] = await db
+      .select()
+      .from(applicantMasterArchiveCasesTable)
+      .where(and(
+        eq(applicantMasterArchiveCasesTable.sourceType, "application"),
+        eq(applicantMasterArchiveCasesTable.sourceId, application.id),
+      ))
+      .limit(1);
+    if (archiveCase) {
+      const [existingSnapshot] = await db
+        .select()
+        .from(applicantMasterArchiveSnapshotsTable)
+        .where(eq(applicantMasterArchiveSnapshotsTable.archiveId, archiveCase.id))
+        .limit(1);
+      if (existingSnapshot) continue;
+    }
     await captureEnrollmentApplicantArchive(application, {
       eventType: "initial_archive_snapshot",
       onlyIfMissing: true,
@@ -855,6 +957,7 @@ function readableSnapshot(snapshot: typeof applicantMasterArchiveSnapshotsTable.
 }
 
 export async function listApplicantArchive(search = "") {
+  await ensureArchiveKeyMigration();
   const cases = await db
     .select()
     .from(applicantMasterArchiveCasesTable)
@@ -891,6 +994,7 @@ export async function listApplicantArchive(search = "") {
 }
 
 export async function getApplicantArchiveDetail(archiveId: string) {
+  await ensureArchiveKeyMigration();
   const [archiveCase] = await db
     .select()
     .from(applicantMasterArchiveCasesTable)
@@ -1007,6 +1111,7 @@ export async function restoreApplicantArchiveSnapshot(
   snapshotId: string,
   actorUserId: string,
 ): Promise<{ reference: string; version: number }> {
+  await ensureArchiveKeyMigration();
   const [archiveCase] = await db
     .select()
     .from(applicantMasterArchiveCasesTable)
