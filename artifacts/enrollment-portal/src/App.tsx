@@ -177,6 +177,64 @@ function copyText(settings: PortalSettings | undefined, screen: string, key: str
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
+const requiredFieldCopyKeys: Record<string, { screen: string; key: string }> = {
+  'Category entry name': { screen: 'category-entry', key: 'nameLabel' },
+  'Category entry nickname': { screen: 'category-entry', key: 'nicknameLabel' },
+  'Category entry surname': { screen: 'category-entry', key: 'surnameLabel' },
+  'First name': { screen: 'workflow-step-1', key: 'field_personalInformation_firstName' },
+  'Middle name': { screen: 'workflow-step-1', key: 'field_personalInformation_middleName' },
+  Surname: { screen: 'workflow-step-1', key: 'field_personalInformation_surname' },
+  'Date of birth': { screen: 'workflow-step-1', key: 'field_personalInformation_dateOfBirth' },
+  Nationality: { screen: 'workflow-step-1', key: 'field_personalInformation_nationality' },
+  'Personal phone number': { screen: 'workflow-step-1', key: 'field_personalInformation_phone' },
+  'Email address': { screen: 'workflow-step-1', key: 'field_personalInformation_email' },
+  'Residential address': { screen: 'workflow-step-1', key: 'field_personalInformation_residentialAddress' },
+  'State or region': { screen: 'workflow-step-1', key: 'field_personalInformation_stateRegion' },
+  City: { screen: 'workflow-step-1', key: 'field_personalInformation_city' },
+  'Postal code': { screen: 'workflow-step-1', key: 'field_personalInformation_postalCode' },
+  'Next-of-kin full name': { screen: 'workflow-step-2', key: 'field_nextOfKin_fullName' },
+  'Next-of-kin relationship': { screen: 'workflow-step-2', key: 'field_nextOfKin_relationship' },
+  'Next-of-kin phone number': { screen: 'workflow-step-2', key: 'field_nextOfKin_phone' },
+  'Next-of-kin email address': { screen: 'workflow-step-2', key: 'field_nextOfKin_email' },
+  'Next-of-kin residential address': { screen: 'workflow-step-2', key: 'field_nextOfKin_residentialAddress' },
+  'Next-of-kin city': { screen: 'workflow-step-2', key: 'field_nextOfKin_city' },
+  'Next-of-kin state or region': { screen: 'workflow-step-2', key: 'field_nextOfKin_stateRegion' },
+  'Highest qualification': { screen: 'workflow-step-3', key: 'field_education_highestQualification' },
+  Institution: { screen: 'workflow-step-3', key: 'field_education_institution' },
+  'Course or field': { screen: 'workflow-step-3', key: 'field_education_courseField' },
+  'Education start year': { screen: 'workflow-step-3', key: 'field_education_startYear' },
+  'Education completion year': { screen: 'workflow-step-3', key: 'field_education_completionYear' },
+  'Certification status': { screen: 'workflow-step-3', key: 'field_education_certificationStatus' },
+  'Additional qualifications': { screen: 'workflow-step-3', key: 'field_education_additionalQualifications' },
+  'Education certificate': { screen: 'workflow-step-3', key: 'field_education_certificateObjectPath' },
+  'Employment status': { screen: 'workflow-step-4', key: 'field_workInformation_employmentStatus' },
+  Occupation: { screen: 'workflow-step-4', key: 'field_workInformation_occupation' },
+  Employer: { screen: 'workflow-step-4', key: 'field_workInformation_employer' },
+  'Business name': { screen: 'workflow-step-4', key: 'field_workInformation_businessName' },
+  'Business or work address': { screen: 'workflow-step-4', key: 'field_workInformation_workAddress' },
+  'Work phone': { screen: 'workflow-step-4', key: 'field_workInformation_workPhone' },
+  'Years of experience': { screen: 'workflow-step-4', key: 'field_workInformation_yearsExperience' },
+  'Identity document type': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_documentType' },
+  'Identity document number': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_documentNumber' },
+  'Identity document front': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_frontObjectPath' },
+  'Identity document back': { screen: 'workflow-step-5', key: 'field_proofOfIdentity_backObjectPath' },
+  'Video recording consent': { screen: 'workflow-step-6', key: 'field_liveVideoRecording_consentAccepted' },
+  'Verification video': { screen: 'workflow-step-6', key: 'field_liveVideoRecording_objectPath' },
+  'Bank name': { screen: 'workflow-step-7', key: 'field_bankDetails_bankName' },
+  'Account holder': { screen: 'workflow-step-7', key: 'field_bankDetails_accountHolder' },
+  'Account number': { screen: 'workflow-step-7', key: 'field_bankDetails_accountNumber' },
+  'Account type': { screen: 'workflow-step-7', key: 'field_bankDetails_accountType' },
+};
+
+function requiredFieldDisplayText(settings: PortalSettings | undefined, label: string, categoryId: string) {
+  const copyKey = requiredFieldCopyKeys[label];
+  if (!copyKey) return label;
+  const screen = copyKey.screen === 'category-entry'
+    ? `category-entry-${categoryId}`
+    : copyKey.screen;
+  return copyText(settings, screen, copyKey.key, label);
+}
+
 function categoryCardLogoStyle(card: PortalSettings['cards'][number] | undefined): CSSProperties {
   const alignment = card?.cardLogoAlignment ?? 'left';
   const verticalOffset = Number(card?.cardLogoVerticalOffset ?? 0);
@@ -272,11 +330,11 @@ function PublicLanding() {
         <PortalWordmark className="portal-wordmark-landing" />
         <div className="landing-content rise">
           <div className="eyebrow"><span className="eyebrow-rule" />SECURE ENROLLMENT</div>
-          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to Our Enrollment Portal')}</h1>
-          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.')}</p>
+          <h1>{hero?.title ?? 'Welcome to Our Enrollment Portal'}</h1>
+          <p className="landing-lede">{hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.'}</p>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
-              {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
+              {primaryLabel} <ArrowRight size={17} />
             </Link>
             <Link href="/guest/track" className="landing-secondary-link" data-testid="link-track-application">
               Track an application <ArrowRight size={15} />
@@ -556,7 +614,7 @@ function Dashboard() {
         {failure ? <ErrorPanel message="Your enrollment information is temporarily unavailable." retry={() => { void summary.refetch(); void applications.refetch(); void categories.refetch(); }} /> :
           busy ? <LoadingPanel /> : <>
             <section className="selection-section rise-delay">
-              <div className="section-line"><div><h2>{copyText(portalSettings.data, 'dashboard', 'title', 'Select an enrollment path')}</h2><p>{copyText(portalSettings.data, 'dashboard', 'description', 'Choose the option that best matches your application.')}</p></div><span className="step-indicator">{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'STEP 01 / 03')}</span></div>
+              <div className="section-line"><div><h2>Select an enrollment path</h2><p>Choose the option that best matches your application.</p></div><span className="step-indicator">{copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'STEP 01 / 03')}</span></div>
               <div className="category-grid">
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
@@ -928,7 +986,7 @@ function ApplicationDetail() {
       <PageHeading
         eyebrow="APPLICATION STATUS"
         title={copyText(portalSettings.data, 'application-status', 'title', record.categoryName)}
-        detail={`Reference ${record.reference} · Last updated ${formatDate(record.updatedAt)}`}
+        detail={copyText(portalSettings.data, 'application-status', 'description', `Reference ${record.reference} · Last updated ${formatDate(record.updatedAt)}`)}
         action={<StatusPill status={applicationDisplayStatus(record)} testId={`status-detail-${record.id}`} />}
       />
       <div className="detail-grid">
@@ -942,7 +1000,7 @@ function ApplicationDetail() {
             <b>Items still needed</b><ul>{record.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>
           </div> : null}
           {(record.missingRequiredFields?.length ?? 0) > 0 && <div className="review-note" data-testid="application-configured-requirements">
-            <b>Required items still missing</b><ul>{record.missingRequiredFields?.map((item) => <li key={item}>{item}</li>)}</ul>
+            <b>Required items still missing</b><ul>{record.missingRequiredFields?.map((item) => <li key={item}>{requiredFieldDisplayText(portalSettings.data, item, record.categoryId)}</li>)}</ul>
           </div>}
           {record.applicantFollowup && <div className="review-note"><b>Update from the review team</b><p>{record.applicantFollowup}</p></div>}
           {['draft', 'needs_information'].includes(record.status) && <Link href={`/apply/${record.id}`} className="button button-primary" data-testid="link-continue-draft">{record.status === 'needs_information' ? 'Provide requested information' : 'Continue application'} <ArrowRight size={15} /></Link>}
@@ -954,6 +1012,7 @@ function ApplicationDetail() {
 }
 
 function SupportPage() {
+  const portalSettings = useGetPortalSettings();
   const tickets = useListMySupportTickets();
   const applications = useListMyApplications();
   const create = useCreateSupportTicket();
@@ -979,7 +1038,11 @@ function SupportPage() {
   };
   return <AppFrame active="support">
     <div className="support-page">
-      <PageHeading eyebrow="APPLICANT SUPPORT" title="We’re here to help." detail="Send a secure message about your enrollment or an application." />
+      <PageHeading
+        eyebrow="APPLICANT SUPPORT"
+        title={copyText(portalSettings.data, 'support', 'title', 'We’re here to help.')}
+        detail={copyText(portalSettings.data, 'support', 'description', 'Send a secure message about your enrollment or an application.')}
+      />
       <div className="support-grid">
         <section className="support-form-card">
           <div className="form-card-heading"><span className="form-card-icon"><MessageCircle size={18} /></span><div><h2>Send a message</h2><p>Replies will appear in your support history.</p></div></div>
@@ -1126,9 +1189,14 @@ function AdminReviewRestricted() {
 }
 
 function AdminManagementHome() {
+  const portalSettings = useGetPortalSettings();
   return <AdminShell active="overview">
     <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff." />
+      <PageHeading
+        eyebrow="SECURE STAFF WORKSPACE"
+        title={copyText(portalSettings.data, 'admin-overview', 'title', 'Admin home')}
+        detail={copyText(portalSettings.data, 'admin-overview', 'description', 'Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff.')}
+      />
       <section className="admin-overview-actions" aria-label="Administration actions">
         <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-admin-home-users">
           <span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} />
@@ -1159,6 +1227,7 @@ function draftProgressLabel(application: {
 }
 
 function AdminQueue() {
+  const portalSettings = useGetPortalSettings();
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ ...(status ? { status: status as 'draft' | 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' } : {}), ...(search.trim() ? { search: search.trim() } : {}) }), [status, search]);
@@ -1167,7 +1236,12 @@ function AdminQueue() {
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   return <AdminShell active="review">
     <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Review queue" detail="See saved applicant progress and review applications when they are submitted." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <PageHeading
+        eyebrow="SECURE STAFF WORKSPACE"
+        title={copyText(portalSettings.data, 'admin-review', 'title', 'Review queue')}
+        detail={copyText(portalSettings.data, 'admin-review', 'description', 'See saved applicant progress and review applications when they are submitted.')}
+        action={<div className="server-access"><span className="server-dot" /> Service access</div>}
+      />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reference or applicant" aria-label="Search applications" data-testid="input-review-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter by status</span><select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-review-status">
@@ -1193,6 +1267,7 @@ function AccessError({ retry }: { retry: () => void }) {
 }
 
 function AdminOverview() {
+  const portalSettings = useGetPortalSettings();
   const overview = useGetAdminOverview();
   const recentQuery = useListApplicationsForReview();
   const { user } = useUser();
@@ -1211,7 +1286,10 @@ function AdminOverview() {
     ['Unresolved support requests', overview.data?.unresolvedSupportRequests, 'support'],
   ] as const;
   return <AdminShell active="overview"><div className="admin-page">
-    <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Overview" detail="Live enrollment and support totals from the service." action={<div className="admin-overview-heading-actions">
+    <PageHeading eyebrow="SECURE STAFF WORKSPACE"
+      title={copyText(portalSettings.data, 'admin-overview', 'title', 'Overview')}
+      detail={copyText(portalSettings.data, 'admin-overview', 'description', 'Live enrollment and support totals from the service.')}
+      action={<div className="admin-overview-heading-actions">
       {canEditPortal && <Link href="/admin/settings" className="button button-primary" data-testid="link-overview-edit-modifications"><Settings size={16} /> Edit &amp; modifications</Link>}
       {canReview && <Link href="/admin/review" className={`button ${canEditPortal ? 'button-quiet' : 'button-primary'}`} data-testid="link-overview-review">Open review queue <ArrowRight size={15} /></Link>}
     </div>} />
@@ -1624,6 +1702,11 @@ function AdminSettings() {
       ['field_proofOfIdentity_documentType', 'Document type'], ['field_proofOfIdentity_documentNumber', 'Document number'],
       ['field_proofOfIdentity_frontObjectPath', 'Front image upload label'], ['field_proofOfIdentity_backObjectPath', 'Back image upload label'],
     ],
+    'workflow-step-6': [
+      ['field_liveVideoRecording_consentAccepted', 'Video recording consent label'],
+      ['field_liveVideoRecording_objectPath', 'Verification video upload label'],
+      ['field_liveVideoRecording_durationSeconds', 'Recording length label'],
+    ],
     'workflow-step-7': [
       ['field_bankDetails_bankName', 'Bank'], ['field_bankDetails_accountHolder', 'Account holder'],
       ['field_bankDetails_accountNumber', 'Account number'], ['field_bankDetails_accountType', 'Account type'],
@@ -1709,9 +1792,19 @@ function AdminSettings() {
   ] as [NonNullable<PortalSettings['requiredFields']>[number], string][]).map(([id, label]) => ({ id, label }));
   const copyKeysForScreen = (screen: string) => {
     if (screen === 'dashboard') return ['title', 'description', 'sectionIdLabel', 'buttonLabel'];
-    if (guestPageFields[screen]) return ['title', 'description', 'buttonLabel', ...guestPageFields[screen].map(([key]) => key)];
+    if (guestPageFields[screen]) {
+      return [
+        'title',
+        'description',
+        ...(screen === 'guest-dashboard' ? ['sectionIdLabel'] : []),
+        ...(screen === 'guest-category' ? ['buttonLabel'] : []),
+        ...guestPageFields[screen].map(([key]) => key),
+      ];
+    }
     if (screen.startsWith('category-entry-')) return ['title', 'description', 'backButtonLabel'];
-    if (screen === 'application-status') return ['title'];
+    if (screen === 'application-status' || screen === 'support' || screen.startsWith('admin-')) {
+      return ['title', 'description'];
+    }
     if (screen.startsWith('workflow-step-')) {
       return ['title', 'description', 'sectionIdLabel', 'buttonLabel', 'backButtonLabel', ...(workflowFieldLabels[screen] ?? []).map(([key]) => key)];
     }
@@ -1947,14 +2040,7 @@ function AdminSettings() {
         <summary>{label}<span>{screen}</span></summary>
         {currentCopyPreview(screen, label)}
         <div className="settings-inline-fields">
-          {([
-            'title', 'description', 'sectionIdLabel',
-            ...(screen.startsWith('category-entry-')
-              ? ['backButtonLabel']
-              : ['buttonLabel', ...(screen.startsWith('workflow-step-')
-                ? ['backButtonLabel', ...(workflowFieldLabels[screen] ?? []).map(([key]) => key)]
-                : (guestPageFields[screen] ?? []).map(([key]) => key))]),
-          ] as string[]).map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : [...(workflowFieldLabels[screen] ?? []), ...(guestPageFields[screen] ?? [])].find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
+          {copyKeysForScreen(screen).map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'backButtonLabel' ? 'Back button label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : [...(workflowFieldLabels[screen] ?? []), ...(guestPageFields[screen] ?? [])].find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
             {['description', 'privacyText', 'securityText', 'confirmDescription', 'chooseDescription', 'declarationDescription', 'submittedMessage', 'draftMessage', 'securityNote', 'missingRequirementsMessage'].includes(key)
               ? <textarea className="text-input form-textarea" rows={3} value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
               : <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key.endsWith('Label') ? 60 : 500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />}
@@ -2141,6 +2227,7 @@ function AdminApplicationReview() {
 }
 
 function AdminSupport() {
+  const portalSettings = useGetPortalSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const filters = useMemo(() => ({
@@ -2183,7 +2270,11 @@ function AdminSupport() {
   };
   return <AdminShell active="support">
     <div className="support-admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Support inbox" detail="Manage applicant messages and send a considered reply." />
+      <PageHeading
+        eyebrow="SECURE STAFF WORKSPACE"
+        title={copyText(portalSettings.data, 'admin-support', 'title', 'Support inbox')}
+        detail={copyText(portalSettings.data, 'admin-support', 'description', 'Manage applicant messages and send a considered reply.')}
+      />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference or user" aria-label="Search support requests" data-testid="input-support-search" /></label>
         <label className="filter-select"><span className="sr-only">Filter support status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} data-testid="select-support-status"><option value="">All request statuses</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option></select><ChevronDown size={15} /></label>
@@ -3285,7 +3376,7 @@ function GuestTrackingPage() {
               : guestCopy('draftMessage', 'Your progress is saved as an unsubmitted draft. Continue when ready; incomplete fields and failed email verification do not remove saved progress.')}</p></div>
         {(status.missingRequiredFields?.length ?? 0) > 0 && <div className="review-note" data-testid="guest-configured-requirements">
           <b>{guestCopy('missingRequirementsTitle', 'Required items still missing')}</b>
-          <ul>{status.missingRequiredFields?.map((item) => <li key={item}>{item}</li>)}</ul>
+          <ul>{status.missingRequiredFields?.map((item) => <li key={item}>{requiredFieldDisplayText(portalSettings.data, item, status.categoryId)}</li>)}</ul>
         </div>}
         {status.submissionStatus === 'submitted' && status.outstandingRequirements.length > 0 && <div className="review-note" data-testid="guest-outstanding-requirements">
           <b>{guestCopy('outstandingItemsTitle', 'Items still needed')}</b><ul>{status.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>

@@ -15,6 +15,7 @@ type GuestDraft = {
   submissionStatus: "draft" | "submitted";
   emailVerified: boolean;
   hasPin: boolean;
+  missingRequiredFields?: string[];
   linkedApplicationId: string | null;
   currentStep: number;
   detailsComplete: boolean;
@@ -329,6 +330,26 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
 
 test("starts from the public shared dashboard and opens the selected category form after contact details", async ({ page }) => {
   const api = new GuestApiFixture();
+  api.screenCopy["guest-contact"] = {
+    title: "Who is applying?",
+    description: "Use your own contact details.",
+    fullNameLabel: "Applicant name",
+    emailLabel: "Applicant email",
+    continueLabel: "Choose a category",
+    privacyText: "Only enrollment staff can view these details.",
+  };
+  api.screenCopy["category-entry-1"] = {
+    title: "Identity details",
+    description: "Enter the name associated with this category.",
+    nameLabel: "Applicant record name",
+    pinLabel: "Create your secure PIN",
+  };
+  api.screenCopy["workflow-step-1"] = {
+    title: "Personal details",
+    description: "Enter your legal information.",
+    sectionIdLabel: "PERSONAL DETAILS",
+    field_personalInformation_firstName: "Applicant given name",
+  };
   const testLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jv2sAAAAASUVORK5CYII=";
   api.logoOverrides["category-1"] = {
     entryLogoDataUrl: testLogo,
@@ -344,11 +365,19 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.goto("/dashboard");
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await page.getByTestId("guest-dashboard-category-category-1").click();
+  await expect(page.getByRole("heading", { name: "Who is applying?" })).toBeVisible();
+  await expect(page.getByText("Use your own contact details.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Applicant name", { exact: true })).toBeVisible();
+  await expect(page.getByText("Applicant email", { exact: true })).toBeVisible();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
 
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
+  await expect(page.getByTestId("entry-configured-copy")).toContainText("Identity details");
+  await expect(page.getByTestId("entry-configured-copy")).toContainText("Enter the name associated with this category.");
+  await expect(page.getByText("Applicant record name", { exact: true })).toBeVisible();
+  await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("guest-tracking-key-step")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
@@ -359,9 +388,36 @@ test("starts from the public shared dashboard and opens the selected category fo
   expect(api.draft?.categoryId).toBe("category-1");
 
   await page.getByTestId("button-entry-continue").click();
+  await expect(page.locator("#pin-entry-heading")).toHaveText("Create your secure PIN");
+  await expectNoDocumentOverflow(page);
   await expect(page.getByRole("img", { name: "Category One PIN logo" })).toHaveAttribute("src", testLogo);
   await expect(page.getByTestId("form-entry-category-1")).toHaveClass(/entry-logo-align-right/);
   await expect(page.getByTestId("form-entry-category-1")).toHaveCSS("--entry-logo-offset-y", "-14px");
+  for (const digit of ["4", "8", "2", "6"]) {
+    await page.getByTestId(`button-pin-key-${digit}`).click();
+  }
+  await page.getByTestId("button-pin-key-confirm").click();
+  await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Personal details" })).toBeVisible();
+  await expect(page.locator(".ew-stage-heading .ew-stage-number")).toContainText("PERSONAL DETAILS");
+  await expect(page.getByLabel("Applicant given name")).toBeVisible();
+  await expect(page.getByText("Enter your legal information.", { exact: true })).toBeVisible();
+});
+
+test("falls back to built-in contact copy when configured text is blank", async ({ page }) => {
+  const api = new GuestApiFixture();
+  api.screenCopy["guest-contact"] = {
+    title: "   ",
+    description: "",
+    fullNameLabel: " ",
+  };
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  await page.goto("/guest/apply");
+
+  await expect(page.getByRole("heading", { name: "Your contact details" })).toBeVisible();
+  await expect(page.getByText("Full name", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start with only your name and email. You’ll continue to the applicant dashboard to choose a category.", { exact: true })).toBeVisible();
 });
 
 test("shows configured dashboard copy once in its designated locations", async ({ page }) => {
@@ -382,6 +438,17 @@ test("shows configured dashboard copy once in its designated locations", async (
 
 test("shows a private application status without reviewer-only details", async ({ page }) => {
   const api = new GuestApiFixture();
+  api.screenCopy["guest-status"] = {
+    title: "Your enrollment progress",
+    description: "Enter your secure details to check the application.",
+    referenceLabel: "File reference",
+    keyLabel: "Private access key",
+    lookupButtonLabel: "Check my progress",
+    currentStatusLabel: "Review stage",
+  };
+  api.screenCopy["workflow-step-1"] = {
+    field_personalInformation_firstName: "Applicant given name",
+  };
   api.accessKey = "test-private-tracking-key";
   api.draft = {
     id: applicationId,
@@ -400,19 +467,25 @@ test("shows a private application status without reviewer-only details", async (
     answers: {},
     createdAt: "2026-10-12T12:00:00.000Z",
     updatedAt: "2026-10-12T12:02:00.000Z",
+    missingRequiredFields: ["First name"],
   };
   await page.setViewportSize({ width: 390, height: 568 });
   await page.route("**/api/**", (route) => api.handle(route));
 
   await page.goto("/guest/track");
+  await expect(page.getByRole("heading", { name: "Your enrollment progress" })).toBeVisible();
+  await expect(page.getByText("Enter your secure details to check the application.", { exact: true })).toBeVisible();
+  await expect(page.getByText("File reference", { exact: true })).toBeVisible();
+  await expect(page.getByText("Private access key", { exact: true })).toBeVisible();
   await page.getByTestId("input-track-reference").fill(reference);
   await page.getByTestId("input-track-key").fill(api.accessKey);
-  await page.getByTestId("button-lookup-guest-status").click();
+  await page.getByRole("button", { name: /Check my progress/ }).click();
 
   const status = page.getByTestId("guest-public-status");
   await expect(status).toBeVisible();
   await expect(status).toContainText(reference);
   await expect(status).toContainText("Not verified");
+  await expect(status).toContainText("Applicant given name");
   await expect(status).not.toContainText(reviewerOnlyNote);
   await expectControlInsideViewport(page, page.getByTestId("button-resume-guest-application"));
   await expectNoDocumentOverflow(page);

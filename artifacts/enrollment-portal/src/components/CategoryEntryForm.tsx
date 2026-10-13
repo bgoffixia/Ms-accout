@@ -341,6 +341,12 @@ export function CategoryEntryForm({
       <div className={`entry-content ${isCategoryOne || isCategoryThree ? "category-one-reference-content" : ""} ${isCategoryTwo ? "category-two-reference-content" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-content category-four-reference-content" : ""}`}>
         <section className={`entry-card ${isCategoryOne || isCategoryThree ? "category-one-reference-card" : ""} ${isCategoryTwo ? "category-two-reference-card" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-card category-four-reference-card" : ""}`} aria-labelledby="category-entry-heading">
           <h1 id="category-entry-heading" className="sr-only">{heading}</h1>
+          {!isPinStep && (screenCopy.title?.trim() || screenCopy.description?.trim()) && (
+            <div className={`entry-configurable-copy entry-configurable-copy-${categoryId}`} aria-hidden="true" data-testid="entry-configured-copy">
+              {screenCopy.title?.trim() && <h2>{screenCopy.title}</h2>}
+              {screenCopy.description?.trim() && <p>{screenCopy.description}</p>}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} noValidate>
             {!isPinStep && (

@@ -254,9 +254,33 @@ export function EnrollmentWizard({
   const titleForStep = (index: number) =>
     (index === 7 && privateTrackingKey ? previewCopy.title : undefined) ||
     copyForStep(index).title || stageTitles[index];
+  const configuredFieldLabel = (index: number, path: string, fallback: string) =>
+    copyForStep(index)[`field_${path.replaceAll('.', '_')}`]?.trim() || fallback;
   const fieldLabel = (index: number, path: string, fallback: string) => {
-    const label = copyForStep(index)[`field_${path.replaceAll('.', '_')}`]?.trim() || fallback;
+    const label = configuredFieldLabel(index, path, fallback);
     return requiredFields.includes(path) ? `${label} (Required)` : label;
+  };
+  const requiredFieldLabel = (path: string) => {
+    const categoryCopy = screenCopy[`category-entry-${application.categoryId}`] ?? {};
+    if (path === 'name') return categoryCopy.nameLabel?.trim() || (application.categoryId === 'category-2' ? 'Login' : 'Name');
+    if (path === 'nickname') return categoryCopy.nicknameLabel?.trim() || 'Nickname';
+    if (path === 'surname') return categoryCopy.surnameLabel?.trim() || 'Surname';
+    const sectionStep: Record<string, number> = {
+      personalInformation: 0,
+      nextOfKin: 1,
+      education: 2,
+      workInformation: 3,
+      proofOfIdentity: 4,
+      liveVideoRecording: 5,
+      bankDetails: 6,
+    };
+    const [sectionName, fieldName] = path.split('.', 2);
+    const stepIndex = sectionStep[sectionName ?? ''];
+    if (stepIndex === undefined || !fieldName) {
+      return path.split('.').at(-1)?.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()) ?? path;
+    }
+    const fallback = fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase());
+    return configuredFieldLabel(stepIndex, path, fallback);
   };
   const saved = application.answers ?? {};
   const [answers, setAnswers] = useState<WizardAnswers>(() => {
@@ -966,9 +990,9 @@ export function EnrollmentWizard({
                   [fieldLabel(4, 'proofOfIdentity.backObjectPath', 'Document back'), isBackRequired || requiredFields.includes('proofOfIdentity.backObjectPath') ? answer(answers, 'proofOfIdentity', 'backObjectPath') ? 'Uploaded reference attached' : 'Not uploaded' : 'Not applicable', 'identityBack'],
                 ])}
                 {!evidenceLater && reviewStage(5, titleForStep(5), [
-                  ['Consent', answer(answers, 'liveVideoRecording', 'consentAccepted') ? 'Consent given' : 'Not confirmed', 'liveVideoConsent'],
-                  ['Recording length', answer(answers, 'liveVideoRecording', 'durationSeconds') ? `${answer(answers, 'liveVideoRecording', 'durationSeconds')} seconds recorded locally` : 'Not recorded', 'liveVideoDuration'],
-                  ['Saved video reference', answer(answers, 'liveVideoRecording', 'objectPath') ? 'Reference attached' : 'Not uploaded', 'liveVideoReference'],
+                  [fieldLabel(5, 'liveVideoRecording.consentAccepted', 'Consent'), answer(answers, 'liveVideoRecording', 'consentAccepted') ? 'Consent given' : 'Not confirmed', 'liveVideoConsent'],
+                  [fieldLabel(5, 'liveVideoRecording.durationSeconds', 'Recording length'), answer(answers, 'liveVideoRecording', 'durationSeconds') ? `${answer(answers, 'liveVideoRecording', 'durationSeconds')} seconds recorded locally` : 'Not recorded', 'liveVideoDuration'],
+                  [fieldLabel(5, 'liveVideoRecording.objectPath', 'Saved video reference'), answer(answers, 'liveVideoRecording', 'objectPath') ? 'Reference attached' : 'Not uploaded', 'liveVideoReference'],
                 ])}
                 {reviewStage(6, titleForStep(6), [
                   [fieldLabel(6, 'bankDetails.bankName', 'Bank'), answer(answers, 'bankDetails', 'bankName'), 'bankName'], [fieldLabel(6, 'bankDetails.accountHolder', 'Account holder'), answer(answers, 'bankDetails', 'accountHolder'), 'accountHolder'],
@@ -995,7 +1019,7 @@ export function EnrollmentWizard({
               </section>}
               {privateTrackingKey && missingConfiguredFields.length > 0 && <section className="ew-configured-missing" role="status" data-testid="configured-required-missing">
                 <b>{previewCopy.missingRequirementsTitle || 'Required items still missing'}</b>
-                <ul>{missingConfiguredFields.map((field) => <li key={field}>{field.split('.').pop()?.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()) ?? field}</li>)}</ul>
+                <ul>{missingConfiguredFields.map((field) => <li key={field}>{requiredFieldLabel(field)}</li>)}</ul>
               </section>}
               <section className="ew-declaration" data-testid="section-declaration">
                 <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>{privateTrackingKey && previewCopy.declarationTitle || 'Applicant declaration'}</b><p>{privateTrackingKey && previewCopy.declarationDescription || 'I confirm that the information above is complete and accurate to the best of my knowledge.'}</p></div></div>
@@ -1021,7 +1045,7 @@ export function EnrollmentWizard({
                         ? previewCopy.verifyEmailMessage || 'A one-time code is being sent to your contact email. Enter it in the verification window; your saved application remains available if verification fails.'
                         : (previewCopy.missingRequirementsMessage || 'Email verification and your category PIN are required to submit. {missing} Other incomplete items can be provided later: {incomplete}.')
                           .replaceAll('{missing}', missingConfiguredFields.length
-                            ? `Complete the administrator-required items: ${missingConfiguredFields.map((field) => field.split('.').pop()).join(', ')}.`
+                            ? `Complete the administrator-required items: ${missingConfiguredFields.map(requiredFieldLabel).join(', ')}.`
                             : '')
                           .replaceAll('{incomplete}', missingUploads.join(', ') || 'application details and evidence')
                     : evidenceLater

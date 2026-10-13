@@ -4,3 +4,4 @@
 - [Optional enrollment sections](optional-enrollment-sections.md) — Keep completion gates aligned with sections the applicant is told they may skip.
 - [Applicant viewport locking](applicant-viewport-lock.md) — Root overflow hidden alone may leave a programmatic document scroll range; keep scrolling inside panels.
 - [Portal settings compatibility](portal-settings-compatibility.md) — Normalize missing settings with safe defaults and retain existing screen-copy keys.
+- [Generated API type freshness](generated-api-type-freshness.md) — Regenerate API client declarations from OpenAPI when schema fields exist but leaf typechecks still miss them.
