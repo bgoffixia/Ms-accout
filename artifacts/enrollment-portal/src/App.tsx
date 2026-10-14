@@ -322,6 +322,21 @@ function PublicLanding() {
   );
 }
 
+function staffReviewReturnPath(value: string | null): string | null {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
+    return null;
+  }
+  const path = value.split(/[?#]/, 1)[0];
+  if (
+    path === '/admin/review' ||
+    path === '/admin/pre-applications' ||
+    /^\/admin\/applications\/[0-9a-f-]{36}$/i.test(path)
+  ) {
+    return path;
+  }
+  return null;
+}
+
 function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; allowlistedEmail?: string }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
@@ -329,21 +344,26 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
   const staffSignInRegistration = mode === 'in' && new URLSearchParams(window.location.search).get('staffRegistration') === '1';
   const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration;
   const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
+  const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
   const guestAuthContext = guestSubmissionIntent ? readGuestAuthContext() : null;
   const completionUrl = staffRegistrationIntent
     ? `${basePath}/auth/complete?staffRegistration=1`
     : guestSubmissionIntent
       ? `${basePath}/auth/complete?guestApplication=1`
-      : `${basePath}/auth/complete`;
+      : reviewReturnPath
+        ? `${basePath}/auth/complete?returnTo=${encodeURIComponent(reviewReturnPath)}`
+        : `${basePath}/auth/complete`;
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       setLocation(staffRegistrationIntent
         ? '/auth/complete?staffRegistration=1'
         : guestSubmissionIntent
           ? '/auth/complete?guestApplication=1'
-          : '/auth/complete', { replace: true });
+          : reviewReturnPath
+            ? `/auth/complete?returnTo=${encodeURIComponent(reviewReturnPath)}`
+            : '/auth/complete', { replace: true });
     }
-  }, [isLoaded, isSignedIn, staffRegistrationIntent, guestSubmissionIntent, setLocation]);
+  }, [isLoaded, isSignedIn, staffRegistrationIntent, guestSubmissionIntent, reviewReturnPath, setLocation]);
   if (isLoaded && isSignedIn) return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your secure workspace" /></main>;
   return <main className="auth-page portal-frame">
     <div className="auth-brand"><PortalWordmark /><span>SECURE ACCESS</span></div>
@@ -429,6 +449,7 @@ function AuthComplete() {
   const [claimError, setClaimError] = useState('');
   const isStaffRegistration = new URLSearchParams(window.location.search).get('staffRegistration') === '1';
   const isGuestSubmission = new URLSearchParams(window.location.search).get('guestApplication') === '1';
+  const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
 
   useEffect(() => {
     if (!isLoaded || !userLoaded) return;
@@ -456,8 +477,8 @@ function AuthComplete() {
       });
       return;
     }
-    setLocation(['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard', { replace: true });
-  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isGuestSubmission, claimStaffAccess.mutate]);
+    setLocation(reviewReturnPath ?? (['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard'), { replace: true });
+  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isGuestSubmission, reviewReturnPath, claimStaffAccess.mutate]);
 
   if (claimError) return <main className="signedout-page portal-frame" data-testid={isGuestSubmission ? 'guest-submit-error' : 'staff-claim-error'}>
     <PortalWordmark />
@@ -479,11 +500,11 @@ function AuthComplete() {
   return <main className="portal-frame auth-loading"><LoadingPanel label="Opening your secure workspace" /></main>;
 }
 
-function SignedOutNotice() {
+function SignedOutNotice({ returnTo }: { returnTo?: string | null } = {}) {
   return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card">
     <span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">SECURE ACCESS</div>
     <h1>Sign in to continue</h1><p>Your application workspace is private. Sign in to view or manage your enrollment.</p>
-    <Link href="/sign-in" className="button button-primary" data-testid="link-auth-sign-in">Continue to sign in <ArrowRight size={16} /></Link>
+    <Link href={returnTo ? `/sign-in?returnTo=${encodeURIComponent(returnTo)}` : '/sign-in'} className="button button-primary" data-testid="link-auth-sign-in">Continue to sign in <ArrowRight size={16} /></Link>
   </div></main>;
 }
 
@@ -1125,7 +1146,7 @@ function AdminGate({ children }: { children: ReactNode }) {
   const { isLoaded: userLoaded, user } = useUser();
   const [location] = useLocation();
   if (!isLoaded || (isSignedIn && !userLoaded)) return <main className="portal-frame auth-loading"><LoadingPanel label="Checking staff access" /></main>;
-  if (!isSignedIn) return <SignedOutNotice />;
+  if (!isSignedIn) return <SignedOutNotice returnTo={staffReviewReturnPath(location)} />;
   const role = user?.publicMetadata?.role;
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
   const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
