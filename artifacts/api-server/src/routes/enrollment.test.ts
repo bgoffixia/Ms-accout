@@ -489,6 +489,35 @@ describe("guest application verification and persistence", () => {
     expect(sent.options.headers["Idempotency-Key"]).toBe(`guest-contact:${created.body.id}`);
   });
 
+  it("notifies the sub-admin for meaningful saved-step changes but not no-op retries", async () => {
+    const created = await createGuestDraft();
+    expect(mockState.emailRequests).toHaveLength(1);
+
+    const progress = {
+      reference: created.body.reference,
+      accessKey,
+      currentStep: 1,
+      answers: {},
+      complete: false,
+    };
+    const saved = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(progress),
+    });
+    expect(saved.response.status).toBe(200);
+    expect(mockState.rows.get("guest_preapplication_revisions")).toHaveLength(1);
+    expect(mockState.emailRequests).toHaveLength(2);
+    expect(JSON.parse(mockState.emailRequests[1].options.body as string).text)
+      .toContain("Next of kin");
+
+    const retry = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(progress),
+    });
+    expect(retry.response.status).toBe(200);
+    expect(mockState.emailRequests).toHaveLength(2);
+  });
+
   it("updates the canonical and answer contact emails while leaving the application unverified", async () => {
     const created = await createGuestDraft();
     expect(created.response.status).toBe(201);

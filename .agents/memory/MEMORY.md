@@ -3,3 +3,4 @@
 - [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.
 - [Optional enrollment sections](optional-enrollment-sections.md) — Keep completion gates aligned with sections the applicant is told they may skip.
 - [Applicant viewport locking](applicant-viewport-lock.md) — Root overflow hidden alone may leave a programmatic document scroll range; keep scrolling inside panels.
+- [Reviewer email alerts](reviewer-email-alerts.md) — Start reviewer emails after category selection; send alerts for meaningful progress, evidence, corrections, and submission.
