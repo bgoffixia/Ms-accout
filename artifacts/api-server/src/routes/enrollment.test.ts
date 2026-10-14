@@ -954,6 +954,26 @@ describe("guest application verification and persistence", () => {
       revision.changes.some((change: any) => change.after === "Partial"),
     )).toBe(true);
 
+    const reviewerApplication = await request(
+      `/admin/applications/${submitted.body.id}`,
+      {},
+      "reviewer",
+    );
+    expect(reviewerApplication.response.status).toBe(200);
+    expect(reviewerApplication.body).toMatchObject({
+      id: submitted.body.id,
+      reference,
+      status: "submitted",
+      applicantName: "Partial Applicant",
+      applicantEmail: contactEmail,
+    });
+    const adminApplication = await request(
+      `/admin/applications/${submitted.body.id}`,
+      {},
+      "administrator",
+    );
+    expect(adminApplication.response.status).toBe(403);
+
     const unprivilegedHistory = await request(
       `/admin/applications/${submitted.body.id}/guest-history`,
       {},
