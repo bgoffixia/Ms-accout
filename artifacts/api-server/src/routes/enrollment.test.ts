@@ -745,7 +745,11 @@ describe("guest application verification and persistence", () => {
     const privateFilePath = `/admin/guest-preapplications/${applicationId}/evidence/${visibleDraft.body[0].evidence[0].id}/file`;
     expect((await request(privateFilePath)).response.status).toBe(401);
     expect((await request(privateFilePath, {}, "applicant-unverified")).response.status).toBe(403);
-    expect((await request(privateFilePath, {}, "administrator")).response.status).toBe(403);
+    const adminDraftDownload = await fetch(`${baseUrl}${privateFilePath}`, {
+      headers: { "x-test-user": "administrator" },
+    });
+    expect(adminDraftDownload.status).toBe(200);
+    expect(Buffer.from(await adminDraftDownload.arrayBuffer()).length).toBeGreaterThan(0);
     const reviewerDownload = await fetch(`${baseUrl}${privateFilePath}`, {
       headers: { "x-test-user": "reviewer" },
     });
@@ -839,7 +843,11 @@ describe("guest application verification and persistence", () => {
     const submittedEvidencePath = finalReviewerRecord.body.evidence[0].downloadUrl.replace("/api", "");
     expect((await request(submittedEvidencePath)).response.status).toBe(401);
     expect((await request(submittedEvidencePath, {}, "applicant-verified")).response.status).toBe(403);
-    expect((await request(submittedEvidencePath, {}, "administrator")).response.status).toBe(403);
+    const adminSubmittedEvidenceDownload = await fetch(`${baseUrl}${submittedEvidencePath}`, {
+      headers: { "x-test-user": "administrator" },
+    });
+    expect(adminSubmittedEvidenceDownload.status).toBe(200);
+    expect(Buffer.from(await adminSubmittedEvidenceDownload.arrayBuffer()).length).toBeGreaterThan(0);
     const submittedEvidenceDownload = await fetch(`${baseUrl}${submittedEvidencePath}`, {
       headers: { "x-test-user": "reviewer" },
     });
@@ -853,11 +861,13 @@ describe("guest application verification and persistence", () => {
       "reviewer",
     );
     expect(missingEvidenceDownload.response.status).toBe(404);
-    expect((await request(
+    const adminSubmittedRecord = await request(
       `/admin/applications/${successfulSubmit.body.id}`,
       {},
       "administrator",
-    )).response.status).toBe(403);
+    );
+    expect(adminSubmittedRecord.response.status).toBe(200);
+    expect(adminSubmittedRecord.body.applicantEmail).toBe("corrected@example.test");
     expect((await request(
       `/admin/applications/${successfulSubmit.body.id}`,
       {},
