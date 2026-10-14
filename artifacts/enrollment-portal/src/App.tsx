@@ -2115,11 +2115,11 @@ function AdminApplicationReview() {
         </section>
       </div>
       <section className="review-category-selection">
-        <div className="detail-card-title"><ContactRound size={17} /><h2>Contact details · verified email</h2></div>
+        <div className="detail-card-title"><FileText size={17} /><h2>Contact details</h2></div>
         <div className="review-field"><span>Contact name</span><b>{String(readAnswerGroup(application.answers, 'contactDetails').fullName ?? application.applicantName ?? 'Not provided')}</b></div>
         <div className="review-field"><span>Contact email</span><b>{String(readAnswerGroup(application.answers, 'contactDetails').email ?? application.applicantEmail ?? 'Not provided')}</b></div>
         <div className="review-field"><span>Contact phone</span><b>{String(readAnswerGroup(application.answers, 'contactDetails').phone ?? readAnswerGroup(application.answers, 'personalInformation').phone ?? 'Not provided')}</b></div>
-        <div className="review-field"><span>Email verification</span><b>{readAnswerGroup(application.answers, 'contactDetails').emailVerified === true ? 'Verified before submission' : 'Not verified'}</b></div>
+        <div className="review-field"><span>Email verification</span><b>{typeof readAnswerGroup(application.answers, 'contactDetails').emailVerified === 'boolean' ? readAnswerGroup(application.answers, 'contactDetails').emailVerified === true ? 'Verified before submission' : 'Not verified' : 'Managed by the applicant account'}</b></div>
       </section>
       <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Section 1 · Category selection</h2></div>
@@ -3408,7 +3408,7 @@ function GuestFollowupPage() {
                 <summary>Review saved application details <small>{progressLabel(application)}</small></summary>
                 <div className="guest-admin-record-sections">
                   <section className="review-category-selection" data-testid={`guest-contact-details-${application.id}`}>
-                    <div className="detail-card-title"><ContactRound size={17} /><h2>Contact details</h2></div>
+                    <div className="detail-card-title"><FileText size={17} /><h2>Contact details</h2></div>
                     <div className="review-field"><span>Name from first step</span><b>{application.fullName || 'Not provided'}</b></div>
                     <div className="review-field"><span>Email from first step</span><b>{application.email || 'Not provided'}</b></div>
                     <div className="review-field"><span>Phone from first step</span><b>{application.phone || 'Not provided'}</b></div>

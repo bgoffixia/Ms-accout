@@ -654,12 +654,27 @@ describe("guest application verification and persistence", () => {
     expect(visibleDraft.body[0]).toMatchObject({
       id: applicationId,
       categoryId: "category-1",
+      fullName: "Test Applicant",
+      email: contactEmail,
+      phone: "+1 555 555 0100",
       emailVerified: false,
       submissionStatus: "draft",
       currentStep: 7,
       detailsComplete: true,
       hasPin: true,
       reviewReady: true,
+    });
+    expect(visibleDraft.body[0].answers).toMatchObject({
+      name: "Test Applicant",
+      nickname: "TA",
+      personalInformation: {
+        firstName: "Test",
+        email: contactEmail,
+      },
+      nextOfKin: { fullName: "Next Contact" },
+      education: { institution: "Test College" },
+      workInformation: { employmentStatus: "student" },
+      reviewDeclarationAccepted: true,
     });
     expect(visibleDraft.body[0].evidence).toHaveLength(2);
     expect(visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl)).toBe(true);
@@ -745,6 +760,40 @@ describe("guest application verification and persistence", () => {
     const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(finalReviewerList.response.status).toBe(200);
     expect(finalReviewerList.body).toHaveLength(0);
+
+    const finalReviewerRecord = await request(
+      `/admin/applications/${successfulSubmit.body.id}`,
+      {},
+      "reviewer",
+    );
+    expect(finalReviewerRecord.response.status).toBe(200);
+    expect((await request(
+      `/admin/applications/${successfulSubmit.body.id}`,
+      {},
+      "administrator",
+    )).response.status).toBe(403);
+    expect((await request(
+      `/admin/applications/${successfulSubmit.body.id}`,
+      {},
+      "applicant-verified",
+    )).response.status).toBe(403);
+    expect(finalReviewerRecord.body).toMatchObject({
+      applicantName: "Test Applicant",
+      applicantEmail: "corrected@example.test",
+      hasPin: true,
+      answers: {
+        contactDetails: {
+          fullName: "Test Applicant",
+          email: "corrected@example.test",
+          phone: "+1 555 555 0100",
+          emailVerified: true,
+        },
+        nextOfKin: { fullName: "Next Contact" },
+        education: { institution: "Test College" },
+        workInformation: { employmentStatus: "student" },
+      },
+    });
+    expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("4826");
   });
 
   it("allows partial guest submission after verified email while keeping the category PIN mandatory", async () => {
