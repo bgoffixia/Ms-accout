@@ -341,7 +341,7 @@ paths:
     post:
       operationId: submitGuestPreapplication
       tags: [enrollment]
-      summary: Verify the signed-in applicant email and submit the saved guest application
+      summary: Submit a saved guest application before email verification
       parameters:
         - name: applicationId
           in: path
@@ -357,7 +357,32 @@ paths:
               $ref: "#/components/schemas/GuestApplicationAccessInput"
       responses:
         "200":
-          description: Verified guest application submitted and linked to the applicant account
+          description: Guest application submitted; email verification is required only for status access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestPreapplicationStatus"
+  /guest/preapplications/{applicationId}/link:
+    post:
+      operationId: linkGuestPreapplicationAccount
+      tags: [enrollment]
+      summary: Link a submitted guest application to its verified applicant account
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestApplicationAccessInput"
+      responses:
+        "200":
+          description: Verified guest application linked to the applicant account for status access
           content:
             application/json:
               schema:
@@ -416,6 +441,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AdminGuestPreapplication"
+  /admin/guest-preapplications/{applicationId}/pin:
+    get:
+      operationId: getAdminGuestPreapplicationPin
+      tags: [administration]
+      summary: Reveal a guest applicant PIN to an authorized reviewer
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: PIN value, if this record has an encrypted PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewerPin"
   /admin/guest-preapplications/{applicationId}:
     patch:
       operationId: updateAdminGuestPreapplication
@@ -560,6 +604,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrollmentApplication"
+  /admin/applications/{applicationId}/pin:
+    get:
+      operationId: getAdminApplicationPin
+      tags: [administration]
+      summary: Reveal an applicant PIN to an authorized reviewer
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PIN value, if this record has an encrypted PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewerPin"
   /admin/applications/{applicationId}/evidence/{evidenceId}/file:
     get:
       operationId: downloadSubmittedApplicationEvidence
@@ -1033,7 +1095,7 @@ components:
           format: date-time
     GuestPreapplicationStatus:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, hasPin, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, hasPin, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
       properties:
         id:
           type: string
@@ -1056,6 +1118,8 @@ components:
           type: string
           enum: [draft, submitted]
         emailVerified:
+          type: boolean
+        emailVerificationRequired:
           type: boolean
         hasPin:
           type: boolean
@@ -1333,6 +1397,14 @@ components:
           description: Present only for authorized review records linked to a submitted guest application.
           items:
             $ref: "#/components/schemas/AdminGuestPreapplicationEvidence"
+    ReviewerPin:
+      type: object
+      required: [pin, available]
+      properties:
+        pin:
+          type: ["string", "null"]
+        available:
+          type: boolean
     ApplicationInput:
       type: object
       required: [categoryId]

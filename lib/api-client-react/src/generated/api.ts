@@ -58,6 +58,7 @@ import type {
   ListSupportTicketsForAdminParams,
   NewApplicationSubmissionInput,
   PortalSettings,
+  ReviewerPin,
   StaffAccessClaimResponse,
   StaffRegistrationCheckInput,
   StaffRegistrationCheckResponse,
@@ -1452,10 +1453,10 @@ export const getSubmitGuestPreapplicationUrl = (applicationId: string,) => {
 }
 
 /**
- * @summary Verify the signed-in applicant email and submit the saved guest application
+ * @summary Submit a saved guest application before email verification
  */
 export const submitGuestPreapplication = async (applicationId: string,
-    guestApplicationAccessInput: GuestApplicationAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<EnrollmentApplication> => {
+    guestApplicationAccessInput: GuestApplicationAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1471,7 +1472,7 @@ export const submitGuestPreapplication = async (applicationId: string,
     }
     return headers;
   };
-return customFetch<EnrollmentApplication>(getSubmitGuestPreapplicationUrl(applicationId),
+return customFetch<GuestPreapplicationStatus>(getSubmitGuestPreapplicationUrl(applicationId),
   {
     ...options,
     method: 'POST',
@@ -1486,7 +1487,7 @@ return customFetch<EnrollmentApplication>(getSubmitGuestPreapplicationUrl(applic
 
 export const getSubmitGuestPreapplicationMutationKey = () => ['submitGuestPreapplication'] as const;
 
-export const getSubmitGuestPreapplicationMutationOptions = <TError = ErrorType<void>,
+export const getSubmitGuestPreapplicationMutationOptions = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGuestPreapplication>>, TError,SubmitGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof submitGuestPreapplication>>, TError,SubmitGuestPreapplicationMutationVariables, TContext> => {
 
@@ -1515,13 +1516,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SubmitGuestPreapplicationMutationResult = NonNullable<Awaited<ReturnType<typeof submitGuestPreapplication>>>
     export type SubmitGuestPreapplicationMutationBody = BodyType<GuestApplicationAccessInput>
-    export type SubmitGuestPreapplicationMutationError = ErrorType<void>
+    export type SubmitGuestPreapplicationMutationError = ErrorType<unknown>
     export type SubmitGuestPreapplicationMutationVariables = {applicationId: string;data: BodyType<GuestApplicationAccessInput>}
 
     /**
- * @summary Verify the signed-in applicant email and submit the saved guest application
+ * @summary Submit a saved guest application before email verification
  */
-export const useSubmitGuestPreapplication = <TError = ErrorType<void>,
+export const useSubmitGuestPreapplication = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitGuestPreapplication>>, TError,SubmitGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof submitGuestPreapplication>>,
@@ -1530,6 +1531,95 @@ export const useSubmitGuestPreapplication = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSubmitGuestPreapplicationMutationOptions(options));
+    }
+
+export const getLinkGuestPreapplicationAccountUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/guest/preapplications/${applicationId}/link`
+}
+
+/**
+ * @summary Link a submitted guest application to its verified applicant account
+ */
+export const linkGuestPreapplicationAccount = async (applicationId: string,
+    guestApplicationAccessInput: GuestApplicationAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<EnrollmentApplication> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EnrollmentApplication>(getLinkGuestPreapplicationAccountUrl(applicationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(guestApplicationAccessInput)
+  }
+);}
+
+
+
+
+
+export const getLinkGuestPreapplicationAccountMutationKey = () => ['linkGuestPreapplicationAccount'] as const;
+
+export const getLinkGuestPreapplicationAccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGuestPreapplicationAccount>>, TError,LinkGuestPreapplicationAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkGuestPreapplicationAccount>>, TError,LinkGuestPreapplicationAccountMutationVariables, TContext> => {
+
+const mutationKey = getLinkGuestPreapplicationAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkGuestPreapplicationAccount>>, LinkGuestPreapplicationAccountMutationVariables> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  linkGuestPreapplicationAccount(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkGuestPreapplicationAccountMutationResult = NonNullable<Awaited<ReturnType<typeof linkGuestPreapplicationAccount>>>
+    export type LinkGuestPreapplicationAccountMutationBody = BodyType<GuestApplicationAccessInput>
+    export type LinkGuestPreapplicationAccountMutationError = ErrorType<void>
+    export type LinkGuestPreapplicationAccountMutationVariables = {applicationId: string;data: BodyType<GuestApplicationAccessInput>}
+
+    /**
+ * @summary Link a submitted guest application to its verified applicant account
+ */
+export const useLinkGuestPreapplicationAccount = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGuestPreapplicationAccount>>, TError,LinkGuestPreapplicationAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkGuestPreapplicationAccount>>,
+        TError,
+        LinkGuestPreapplicationAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLinkGuestPreapplicationAccountMutationOptions(options));
     }
 
 export const getCheckStaffRegistrationEmailUrl = () => {
@@ -1759,6 +1849,83 @@ export function useListAdminGuestPreapplications<TData = Awaited<ReturnType<type
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAdminGuestPreapplicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminGuestPreapplicationPinUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/admin/guest-preapplications/${applicationId}/pin`
+}
+
+/**
+ * @summary Reveal a guest applicant PIN to an authorized reviewer
+ */
+export const getAdminGuestPreapplicationPin = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<ReviewerPin> => {
+
+  return customFetch<ReviewerPin>(getGetAdminGuestPreapplicationPinUrl(applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminGuestPreapplicationPinQueryKey = (applicationId: string,) => {
+    return [
+    `/api/admin/guest-preapplications/${applicationId}/pin`
+    ] as const;
+    }
+
+
+export const getGetAdminGuestPreapplicationPinQueryOptions = <TData = Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError = ErrorType<unknown>>(applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminGuestPreapplicationPinQueryKey(applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>> = ({ signal }) => getAdminGuestPreapplicationPin(applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminGuestPreapplicationPinQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>>
+export type GetAdminGuestPreapplicationPinQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Reveal a guest applicant PIN to an authorized reviewer
+ */
+
+export function useGetAdminGuestPreapplicationPin<TData = Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError = ErrorType<unknown>>(
+ applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminGuestPreapplicationPinQueryOptions(applicationId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2250,6 +2417,83 @@ export function useGetAdminApplication<TData = Awaited<ReturnType<typeof getAdmi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminApplicationQueryOptions(applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminApplicationPinUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/admin/applications/${applicationId}/pin`
+}
+
+/**
+ * @summary Reveal an applicant PIN to an authorized reviewer
+ */
+export const getAdminApplicationPin = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<ReviewerPin> => {
+
+  return customFetch<ReviewerPin>(getGetAdminApplicationPinUrl(applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminApplicationPinQueryKey = (applicationId: string,) => {
+    return [
+    `/api/admin/applications/${applicationId}/pin`
+    ] as const;
+    }
+
+
+export const getGetAdminApplicationPinQueryOptions = <TData = Awaited<ReturnType<typeof getAdminApplicationPin>>, TError = ErrorType<unknown>>(applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminApplicationPinQueryKey(applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminApplicationPin>>> = ({ signal }) => getAdminApplicationPin(applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationPin>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminApplicationPinQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminApplicationPin>>>
+export type GetAdminApplicationPinQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Reveal an applicant PIN to an authorized reviewer
+ */
+
+export function useGetAdminApplicationPin<TData = Awaited<ReturnType<typeof getAdminApplicationPin>>, TError = ErrorType<unknown>>(
+ applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminApplicationPinQueryOptions(applicationId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

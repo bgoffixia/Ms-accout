@@ -789,6 +789,20 @@ describe("guest application verification and persistence", () => {
     });
     expect(visibleDraft.body[0].evidence).toHaveLength(2);
     expect(visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl)).toBe(true);
+    expect(JSON.stringify(visibleDraft.body)).not.toContain("4826");
+    const preverificationPin = await request(
+      `/admin/guest-preapplications/${applicationId}/pin`,
+      {},
+      "reviewer",
+    );
+    expect(preverificationPin.response.status).toBe(200);
+    expect(preverificationPin.body).toEqual({ pin: "4826", available: true });
+    expect(preverificationPin.response.headers.get("cache-control")).toContain("no-store");
+    expect((await request(
+      `/admin/guest-preapplications/${applicationId}/pin`,
+      {},
+      "applicant-unverified",
+    )).response.status).toBe(403);
 
     const privateFilePath = `/admin/guest-preapplications/${applicationId}/evidence/${visibleDraft.body[0].evidence[0].id}/file`;
     expect((await request(privateFilePath)).response.status).toBe(401);
@@ -823,18 +837,23 @@ describe("guest application verification and persistence", () => {
     const unverifiedSubmit = await request(
       `/guest/preapplications/${applicationId}/submit`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
-      "applicant-unverified",
     );
-    expect(unverifiedSubmit.response.status).toBe(403);
+    expect(unverifiedSubmit.response.status).toBe(200);
+    expect(unverifiedSubmit.body).toMatchObject({
+      submissionStatus: "submitted",
+      emailVerified: false,
+      emailVerificationRequired: true,
+      linkedApplicationId: null,
+    });
 
     const mismatchedSubmit = await request(
-      `/guest/preapplications/${applicationId}/submit`,
+      `/guest/preapplications/${applicationId}/link`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
       "applicant-mismatch",
     );
     expect(mismatchedSubmit.response.status).toBe(403);
     const originalEmailSubmit = await request(
-      `/guest/preapplications/${applicationId}/submit`,
+      `/guest/preapplications/${applicationId}/link`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
       "applicant-verified",
     );
@@ -847,21 +866,29 @@ describe("guest application verification and persistence", () => {
     expect(afterFailures.body[0].id).toBe(applicationId);
     expect(afterFailures.body[0].email).toBe("corrected@example.test");
     expect(afterFailures.body[0].emailVerified).toBe(false);
+    expect(afterFailures.body[0].submissionStatus).toBe("submitted");
 
-    const successfulSubmit = await request(
-      `/guest/preapplications/${applicationId}/submit`,
+    const unverifiedStatusLink = await request(
+      `/guest/preapplications/${applicationId}/link`,
+      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      "applicant-unverified",
+    );
+    expect(unverifiedStatusLink.response.status).toBe(403);
+
+    const successfulLink = await request(
+      `/guest/preapplications/${applicationId}/link`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
       "applicant-corrected-verified",
     );
-    expect(successfulSubmit.response.status).toBe(200);
-    expect(successfulSubmit.body.status).toBe("submitted");
+    expect(successfulLink.response.status).toBe(200);
+    expect(successfulLink.body.status).toBe("submitted");
     const retry = await request(
-      `/guest/preapplications/${applicationId}/submit`,
+      `/guest/preapplications/${applicationId}/link`,
       { method: "POST", body: JSON.stringify({ reference, accessKey }) },
       "applicant-corrected-verified",
     );
     expect(retry.response.status).toBe(200);
-    expect(retry.body.id).toBe(successfulSubmit.body.id);
+    expect(retry.body.id).toBe(successfulLink.body.id);
     expect(mockState.rows.get("enrollment_applications")).toHaveLength(1);
 
     const storedDraft = mockState.rows.get("guest_preapplications")?.[0];
@@ -869,7 +896,7 @@ describe("guest application verification and persistence", () => {
       submissionStatus: "submitted",
       emailVerified: true,
       clerkUserId: "applicant-corrected-verified",
-      linkedApplicationId: successfulSubmit.body.id,
+      linkedApplicationId: successfulLink.body.id,
     });
     expect(String(storedDraft?.pinHash)).toMatch(/^scrypt\$/);
     const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
@@ -877,17 +904,25 @@ describe("guest application verification and persistence", () => {
     expect(finalReviewerList.body).toHaveLength(0);
 
     const finalReviewerRecord = await request(
-      `/admin/applications/${successfulSubmit.body.id}`,
+      `/admin/applications/${successfulLink.body.id}`,
       {},
       "reviewer",
     );
     expect(finalReviewerRecord.response.status).toBe(200);
     expect(finalReviewerRecord.body.evidence).toHaveLength(2);
     expect(finalReviewerRecord.body.evidence.every((item: any) =>
-      item.downloadUrl === `/api/admin/applications/${successfulSubmit.body.id}/evidence/${item.id}/file`,
+      item.downloadUrl === `/api/admin/applications/${successfulLink.body.id}/evidence/${item.id}/file`,
     )).toBe(true);
     expect(JSON.stringify(finalReviewerRecord.body.evidence)).not.toContain("objectPath");
     expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("/objects/test/");
+    const linkedReviewerPin = await request(
+      `/admin/applications/${successfulLink.body.id}/pin`,
+      {},
+      "reviewer",
+    );
+    expect(linkedReviewerPin.response.status).toBe(200);
+    expect(linkedReviewerPin.body).toEqual({ pin: "4826", available: true });
+    expect(linkedReviewerPin.response.headers.get("cache-control")).toContain("no-store");
     const submittedEvidencePath = finalReviewerRecord.body.evidence[0].downloadUrl.replace("/api", "");
     expect((await request(submittedEvidencePath)).response.status).toBe(401);
     expect((await request(submittedEvidencePath, {}, "applicant-verified")).response.status).toBe(403);
@@ -904,20 +939,20 @@ describe("guest application verification and persistence", () => {
     expect(submittedEvidenceDownload.headers.get("content-disposition")).toContain("attachment");
     expect(Buffer.from(await submittedEvidenceDownload.arrayBuffer()).length).toBeGreaterThan(0);
     const missingEvidenceDownload = await request(
-      `/admin/applications/${successfulSubmit.body.id}/evidence/${crypto.randomUUID()}/file`,
+      `/admin/applications/${successfulLink.body.id}/evidence/${crypto.randomUUID()}/file`,
       {},
       "reviewer",
     );
     expect(missingEvidenceDownload.response.status).toBe(404);
     const adminSubmittedRecord = await request(
-      `/admin/applications/${successfulSubmit.body.id}`,
+      `/admin/applications/${successfulLink.body.id}`,
       {},
       "administrator",
     );
     expect(adminSubmittedRecord.response.status).toBe(200);
     expect(adminSubmittedRecord.body.applicantEmail).toBe("corrected@example.test");
     expect((await request(
-      `/admin/applications/${successfulSubmit.body.id}`,
+      `/admin/applications/${successfulLink.body.id}`,
       {},
       "applicant-verified",
     )).response.status).toBe(403);
@@ -940,7 +975,7 @@ describe("guest application verification and persistence", () => {
     expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("4826");
   });
 
-  it("allows partial guest submission after verified email while keeping the category PIN mandatory", async () => {
+  it("allows partial guest submission before email verification while keeping the category PIN mandatory", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",
       body: JSON.stringify({
@@ -989,6 +1024,7 @@ describe("guest application verification and persistence", () => {
         complete: false,
         answers: {
           personalInformation: { firstName: "Partial", email: contactEmail },
+          reviewDeclarationAccepted: true,
         },
       }),
     });
@@ -1003,14 +1039,26 @@ describe("guest application verification and persistence", () => {
       "applicant-verified",
     );
     expect(submitted.response.status).toBe(200);
-    expect(submitted.body.status).toBe("submitted");
-    expect(submitted.body.outstandingRequirements.length).toBeGreaterThan(0);
+    expect(submitted.body).toMatchObject({
+      submissionStatus: "submitted",
+      emailVerified: false,
+      emailVerificationRequired: true,
+      linkedApplicationId: null,
+    });
+
+    const linked = await request(
+      `/guest/preapplications/${applicationId}/link`,
+      { method: "POST", body: submitBody },
+      "applicant-verified",
+    );
+    expect(linked.response.status).toBe(200);
+    expect(linked.body.status).toBe("submitted");
 
     const savedRevisionRows = mockState.rows.get("guest_preapplication_revisions") ?? [];
     expect(savedRevisionRows.length).toBeGreaterThan(0);
     expect(JSON.stringify(savedRevisionRows)).not.toContain("739102");
     const reviewerHistory = await request(
-      `/admin/applications/${submitted.body.id}/guest-history`,
+      `/admin/applications/${linked.body.id}/guest-history`,
       {},
       "reviewer",
     );
@@ -1022,38 +1070,38 @@ describe("guest application verification and persistence", () => {
     )).toBe(true);
 
     const reviewerApplication = await request(
-      `/admin/applications/${submitted.body.id}`,
+      `/admin/applications/${linked.body.id}`,
       {},
       "reviewer",
     );
     expect(reviewerApplication.response.status).toBe(200);
     expect(reviewerApplication.body).toMatchObject({
-      id: submitted.body.id,
+      id: linked.body.id,
       reference,
       status: "submitted",
       applicantName: "Partial Applicant",
       applicantEmail: contactEmail,
     });
     const adminApplication = await request(
-      `/admin/applications/${submitted.body.id}`,
+      `/admin/applications/${linked.body.id}`,
       {},
       "administrator",
     );
     expect(adminApplication.response.status).toBe(200);
     expect(adminApplication.body).toMatchObject({
-      id: submitted.body.id,
+      id: linked.body.id,
       reference,
       applicantEmail: contactEmail,
     });
     const adminHistory = await request(
-      `/admin/applications/${submitted.body.id}/guest-history`,
+      `/admin/applications/${linked.body.id}/guest-history`,
       {},
       "administrator",
     );
     expect(adminHistory.response.status).toBe(200);
 
     const unprivilegedHistory = await request(
-      `/admin/applications/${submitted.body.id}/guest-history`,
+      `/admin/applications/${linked.body.id}/guest-history`,
       {},
       "applicant-unverified",
     );

@@ -381,6 +381,7 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "status": zod.enum(['received', 'contacted', 'closed']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
   "hasPin": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(lookupGuestPreapplicationResponseCurrentStepMin).max(lookupGuestPreapplicationResponseCurrentStepMax),
@@ -435,6 +436,7 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "status": zod.enum(['received', 'contacted', 'closed']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
   "hasPin": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressResponseCurrentStepMin).max(updateGuestPreapplicationProgressResponseCurrentStepMax),
@@ -484,6 +486,7 @@ export const UpdateGuestPreapplicationEmailResponse = zod.object({
   "status": zod.enum(['received', 'contacted', 'closed']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
   "hasPin": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationEmailResponseCurrentStepMin).max(updateGuestPreapplicationEmailResponseCurrentStepMax),
@@ -564,7 +567,7 @@ export const CompleteGuestApplicantEvidenceUploadResponse = zod.object({
 
 
 /**
- * @summary Verify the signed-in applicant email and submit the saved guest application
+ * @summary Submit a saved guest application before email verification
  */
 export const SubmitGuestPreapplicationParams = zod.object({
   "applicationId": zod.coerce.string().uuid()
@@ -581,7 +584,54 @@ export const SubmitGuestPreapplicationBody = zod.object({
   "accessKey": zod.string().regex(submitGuestPreapplicationBodyAccessKeyRegExp)
 })
 
+export const submitGuestPreapplicationResponseCurrentStepMin = 0;
+export const submitGuestPreapplicationResponseCurrentStepMax = 7;
+
+
+
 export const SubmitGuestPreapplicationResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
+  "hasPin": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
+  "currentStep": zod.number().int().min(submitGuestPreapplicationResponseCurrentStepMin).max(submitGuestPreapplicationResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Link a submitted guest application to its verified applicant account
+ */
+export const LinkGuestPreapplicationAccountParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const linkGuestPreapplicationAccountBodyReferenceMin = 8;
+export const linkGuestPreapplicationAccountBodyReferenceMax = 32;
+
+export const linkGuestPreapplicationAccountBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+
+
+export const LinkGuestPreapplicationAccountBody = zod.object({
+  "reference": zod.string().min(linkGuestPreapplicationAccountBodyReferenceMin).max(linkGuestPreapplicationAccountBodyReferenceMax),
+  "accessKey": zod.string().regex(linkGuestPreapplicationAccountBodyAccessKeyRegExp)
+})
+
+export const LinkGuestPreapplicationAccountResponse = zod.object({
   "id": zod.string(),
   "reference": zod.string(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
@@ -657,6 +707,7 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "status": zod.enum(['received', 'contacted', 'closed']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
   "hasPin": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseOneCurrentStepMin).max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
@@ -697,6 +748,19 @@ export const ListAdminGuestPreapplicationsResponse = zod.array(ListAdminGuestPre
 
 
 /**
+ * @summary Reveal a guest applicant PIN to an authorized reviewer
+ */
+export const GetAdminGuestPreapplicationPinParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const GetAdminGuestPreapplicationPinResponse = zod.object({
+  "pin": zod.string().nullable(),
+  "available": zod.boolean()
+})
+
+
+/**
  * @summary Update guest pre-application follow-up status
  */
 export const UpdateAdminGuestPreapplicationParams = zod.object({
@@ -725,6 +789,7 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "status": zod.enum(['received', 'contacted', 'closed']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
   "hasPin": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseOneCurrentStepMin).max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
@@ -893,6 +958,19 @@ export const GetAdminApplicationResponse = zod.object({
   "uploadedAt": zod.coerce.date().nullable(),
   "downloadUrl": zod.string().nullable()
 })).optional().describe('Present only for authorized review records linked to a submitted guest application.')
+})
+
+
+/**
+ * @summary Reveal an applicant PIN to an authorized reviewer
+ */
+export const GetAdminApplicationPinParams = zod.object({
+  "applicationId": zod.coerce.string()
+})
+
+export const GetAdminApplicationPinResponse = zod.object({
+  "pin": zod.string().nullable(),
+  "available": zod.boolean()
 })
 
 

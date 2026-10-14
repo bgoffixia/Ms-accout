@@ -21,6 +21,7 @@ export interface GuestPreapplicationStatus {
   status: GuestPreapplicationStatusValue;
   submissionStatus: GuestPreapplicationStatusSubmissionStatus;
   emailVerified: boolean;
+  emailVerificationRequired: boolean;
   hasPin: boolean;
   /** @nullable */
   linkedApplicationId: string | null;

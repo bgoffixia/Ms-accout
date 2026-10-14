@@ -98,6 +98,7 @@ export * from './portalSettingsScreenCopy';
 export * from './portalSettingsTheme';
 export * from './portalSettingsThemeButtonPlacement';
 export * from './portalSettingsThemeButtonSize';
+export * from './reviewerPin';
 export * from './staffAccessClaimResponse';
 export * from './staffAccessClaimResponseRole';
 export * from './staffRegistrationCheckInput';

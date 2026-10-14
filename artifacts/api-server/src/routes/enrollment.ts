@@ -48,6 +48,10 @@ import {
   GetAdminGuestApplicationHistoryResponse,
   GetAdminApplicationParams,
   GetAdminApplicationResponse,
+  GetAdminApplicationPinParams,
+  GetAdminApplicationPinResponse,
+  GetAdminGuestPreapplicationPinParams,
+  GetAdminGuestPreapplicationPinResponse,
   GetAdminOverviewResponse,
   GetApplicationParams,
   GetApplicationResponse,
@@ -82,6 +86,9 @@ import {
   SubmitGuestPreapplicationBody,
   SubmitGuestPreapplicationParams,
   SubmitGuestPreapplicationResponse,
+  LinkGuestPreapplicationAccountBody,
+  LinkGuestPreapplicationAccountParams,
+  LinkGuestPreapplicationAccountResponse,
   RequestGuestPreapplicationEvidenceUploadBody,
   RequestGuestPreapplicationEvidenceUploadParams,
   RequestGuestPreapplicationEvidenceUploadResponse,
@@ -395,8 +402,11 @@ function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
 
 function serializeGuestPreapplicationStatus(
   application: typeof guestPreapplicationsTable.$inferSelect,
+  restrictUnverifiedSubmittedStatus = false,
 ) {
   const answers = application.answers ?? {};
+  const emailVerificationRequired =
+    application.submissionStatus === "submitted" && !application.emailVerified;
   return {
     id: application.id,
     reference: application.reference,
@@ -407,18 +417,28 @@ function serializeGuestPreapplicationStatus(
     status: application.status,
     submissionStatus: application.submissionStatus,
     emailVerified: application.emailVerified,
+    emailVerificationRequired,
     hasPin: Boolean(application.pinHash),
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
-    answers: applicantSafeAnswers(answers),
-    reviewStatus: application.submissionStatus === "submitted" ? "submitted" : null,
+    answers:
+      restrictUnverifiedSubmittedStatus && emailVerificationRequired
+        ? {}
+        : applicantSafeAnswers(answers),
+    reviewStatus:
+      application.submissionStatus === "submitted" && !emailVerificationRequired
+        ? "submitted"
+        : null,
     applicantFollowup: null,
-    outstandingRequirements: outstandingApplicationRequirements(
-      application.categoryId,
-      answers,
-      Boolean(application.pinHash),
-    ),
+    outstandingRequirements:
+      restrictUnverifiedSubmittedStatus && emailVerificationRequired
+        ? []
+        : outstandingApplicationRequirements(
+            application.categoryId,
+            answers,
+            Boolean(application.pinHash),
+          ),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
   };
@@ -427,7 +447,8 @@ function serializeGuestPreapplicationStatus(
 async function serializeGuestPreapplicationStatusWithReview(
   application: typeof guestPreapplicationsTable.$inferSelect,
 ) {
-  const status = serializeGuestPreapplicationStatus(application);
+  const status = serializeGuestPreapplicationStatus(application, true);
+  if (status.emailVerificationRequired) return status;
   if (!application.linkedApplicationId) return status;
   const [linkedApplication] = await db
     .select()
@@ -729,6 +750,52 @@ function bankEncryptionKey(): Buffer | null {
   return secret
     ? createHmac("sha256", secret).update("civic-enroll-bank-v1").digest()
     : null;
+}
+
+function applicantPinEncryptionKey(): Buffer | null {
+  const secret = process.env.SESSION_SECRET;
+  return secret
+    ? createHmac("sha256", secret).update("civic-enroll-review-pin-v1").digest()
+    : null;
+}
+
+function encryptReviewerPin(pin: string): string | null {
+  const key = applicantPinEncryptionKey();
+  if (!key) return null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(pin, "utf8"),
+    cipher.final(),
+  ]);
+  return [
+    "pin:enc:v1",
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    ciphertext.toString("base64url"),
+  ].join(":");
+}
+
+function decryptReviewerPin(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith("pin:enc:v1:")) return null;
+  const key = applicantPinEncryptionKey();
+  if (!key) return null;
+  const [, , , ivPart, tagPart, ciphertextPart] = value.split(":");
+  if (!ivPart || !tagPart || !ciphertextPart) return null;
+  try {
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      key,
+      Buffer.from(ivPart, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(ciphertextPart, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 function encryptAccountNumber(accountNumber: string): string | null {
@@ -1352,6 +1419,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       return;
     }
     let pinHash = application.pinHash;
+    let pinEncrypted = application.pinEncrypted;
     if (parsedBody.data.pin) {
       const requiredLength = categoryPinLength(application.categoryId);
       if (parsedBody.data.pin.length !== requiredLength) {
@@ -1362,6 +1430,12 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       }
       const salt = randomBytes(16).toString("hex");
       pinHash = `scrypt$${salt}$${scryptSync(parsedBody.data.pin, salt, 64).toString("hex")}`;
+      const encryptedPin = encryptReviewerPin(parsedBody.data.pin);
+      if (!encryptedPin) {
+        res.status(503).json({ error: "PIN review storage is unavailable. The PIN was not saved." });
+        return;
+      }
+      pinEncrypted = encryptedPin;
     }
     const currentStep = parsedBody.data.currentStep;
     const hasPin = Boolean(pinHash);
@@ -1388,6 +1462,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
           answers: prepared.answers,
           detailsComplete,
           pinHash,
+          pinEncrypted,
           updatedAt: new Date(),
         })
         .where(eq(guestPreapplicationsTable.id, application.id))
@@ -1785,8 +1860,6 @@ router.post("/staff/registration-check", (req, res): void => {
   );
 });
 
-router.use(authenticate);
-
 router.post(
   "/guest/preapplications/:applicationId/submit",
   async (req, res): Promise<void> => {
@@ -1796,9 +1869,120 @@ router.post(
       res.status(400).json({ error: "The saved application could not be submitted." });
       return;
     }
+
+    try {
+      const [preapplication] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .limit(1);
+      if (
+        !preapplication ||
+        preapplication.reference !== parsedBody.data.reference.trim().toUpperCase() ||
+        !matchesGuestAccessKey(preapplication.accessKeyHash, parsedBody.data.accessKey)
+      ) {
+        res.status(404).json({ error: "The application reference and private key could not be verified." });
+        return;
+      }
+      if (preapplication.status === "closed") {
+        res.status(409).json({ error: "This application was closed and cannot be submitted." });
+        return;
+      }
+      if (!preapplication.pinHash) {
+        res.status(400).json({ error: "Create a category PIN before submitting the application." });
+        return;
+      }
+      if (preapplication.answers?.reviewDeclarationAccepted !== true) {
+        res.status(400).json({ error: "Confirm the application declaration before submitting." });
+        return;
+      }
+      if (!(await guestEvidencePathsAreOwned(preapplication.id, preapplication.answers ?? {}))) {
+        res.status(400).json({ error: "One or more evidence references are not attached to this application." });
+        return;
+      }
+
+      const now = new Date();
+      const result = await db.transaction(async (transaction) => {
+        const [current] = await transaction
+          .select()
+          .from(guestPreapplicationsTable)
+          .where(eq(guestPreapplicationsTable.id, preapplication.id))
+          .for("update")
+          .limit(1);
+        if (!current || current.status === "closed") return { application: null, changed: false };
+        if (current.submissionStatus === "submitted") {
+          return { application: current, changed: false };
+        }
+        if (current.linkedApplicationId || !current.pinHash) {
+          return { application: null, changed: false };
+        }
+
+        const [updated] = await transaction
+          .update(guestPreapplicationsTable)
+          .set({
+            submissionStatus: "submitted",
+            currentStep: 7,
+            updatedAt: now,
+          })
+          .where(and(
+            eq(guestPreapplicationsTable.id, current.id),
+            eq(guestPreapplicationsTable.submissionStatus, "draft"),
+            isNull(guestPreapplicationsTable.linkedApplicationId),
+          ))
+          .returning();
+        if (updated) {
+          await transaction.insert(guestPreapplicationRevisionsTable).values({
+            applicationId: updated.id,
+            currentStep: 7,
+            changes: [{
+              field: "Submission",
+              before: "Not submitted",
+              after: "Submitted before email verification",
+            }],
+          });
+        }
+        return { application: updated ?? null, changed: Boolean(updated) };
+      });
+
+      if (!result.application) {
+        res.status(409).json({ error: "The application could not be submitted. Refresh and try again." });
+        return;
+      }
+      if (result.changed) {
+        await notifyEnrollmentReviewer(req, {
+          kind: "application_submitted",
+          reference: result.application.reference,
+          categoryName: categoryName(result.application.categoryId),
+          currentStep: result.application.currentStep,
+          idempotencyKey: `guest-submit:${result.application.id}`,
+        });
+      }
+      res.json(
+        SubmitGuestPreapplicationResponse.parse(
+          await serializeGuestPreapplicationStatusWithReview(result.application),
+        ),
+      );
+    } catch (error) {
+      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit guest application");
+      res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
+    }
+  },
+);
+
+router.use(authenticate);
+
+router.post(
+  "/guest/preapplications/:applicationId/link",
+  async (req, res): Promise<void> => {
+    const parsedParams = LinkGuestPreapplicationAccountParams.safeParse(req.params);
+    const parsedBody = LinkGuestPreapplicationAccountBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "The saved application could not be submitted." });
+      return;
+    }
     const userId = res.locals.userId as string | undefined;
     if (!userId) {
-      res.status(401).json({ error: "Verify your email and sign in to submit." });
+      res.status(401).json({ error: "Verify your email and sign in to view application status." });
       return;
     }
 
@@ -1809,7 +1993,7 @@ router.post(
         ? normalizeEmail(primaryEmail.emailAddress)
         : "";
       if (!normalizedEmail || primaryEmail?.verification?.status !== "verified") {
-        res.status(403).json({ error: "Verify your email address before submitting this application." });
+        res.status(403).json({ error: "Verify your email address before opening application status." });
         return;
       }
 
@@ -1850,11 +2034,16 @@ router.post(
             ))
             .limit(1);
           if (existingApplication) {
-            res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(existingApplication)));
+            res.json(LinkGuestPreapplicationAccountResponse.parse(serializeApplication(existingApplication)));
             return;
           }
         }
-        res.status(409).json({ error: "This application has already been submitted by another account." });
+        if (preapplication.linkedApplicationId || preapplication.clerkUserId) {
+          res.status(409).json({ error: "This application is already linked to another account." });
+          return;
+        }
+      } else {
+        res.status(409).json({ error: "Submit the application before verifying email for status access." });
         return;
       }
       if (!preapplication.pinHash) {
@@ -1877,7 +2066,7 @@ router.post(
           .limit(1);
         if (
           !currentPreapplication ||
-          currentPreapplication.submissionStatus !== "draft" ||
+          currentPreapplication.submissionStatus !== "submitted" ||
           currentPreapplication.email !== normalizedEmail ||
           currentPreapplication.linkedApplicationId
         ) return null;
@@ -1913,6 +2102,7 @@ router.post(
             status: "submitted",
             currentStep: 7,
             pinHash: preapplication.pinHash,
+            pinEncrypted: preapplication.pinEncrypted,
             answers: reviewAnswers,
             submittedAt: now,
             updatedAt: now,
@@ -1933,15 +2123,14 @@ router.post(
           await transaction.insert(applicationEventsTable).values({
             applicationId: application.id,
             actorUserId: userId,
-            eventType: "guest_application_submitted",
-            note: "Applicant email verified and guest application submitted.",
+            eventType: "guest_email_verified",
+            note: "Applicant verified their email and linked the submitted guest application.",
           });
         }
 
         await transaction
           .update(guestPreapplicationsTable)
           .set({
-            submissionStatus: "submitted",
             emailVerified: true,
             clerkUserId: userId,
             linkedApplicationId: application.id,
@@ -1950,7 +2139,7 @@ router.post(
           })
           .where(and(
             eq(guestPreapplicationsTable.id, preapplication.id),
-            eq(guestPreapplicationsTable.submissionStatus, "draft"),
+            eq(guestPreapplicationsTable.submissionStatus, "submitted"),
             isNull(guestPreapplicationsTable.linkedApplicationId),
           ));
         return application;
@@ -1960,15 +2149,7 @@ router.post(
         res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
         return;
       }
-      await notifyEnrollmentReviewer(req, {
-        kind: "application_submitted",
-        reference: submitted.reference,
-        categoryName: categoryName(submitted.categoryId),
-        currentStep: submitted.currentStep,
-        applicationId: submitted.id,
-        idempotencyKey: `guest-submit:${submitted.id}`,
-      });
-      res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(submitted)));
+      res.json(LinkGuestPreapplicationAccountResponse.parse(serializeApplication(submitted)));
     } catch (error) {
       req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit verified guest application");
       res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
@@ -2108,6 +2289,8 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     "pin",
     "pinconfirmation",
     "pinhash",
+    "pinencrypted",
+    "pinvalueencrypted",
     "pincode",
     "pinvalue",
   ]);
@@ -2158,6 +2341,11 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   const now = new Date();
   const salt = randomBytes(16).toString("hex");
   const pinHash = `scrypt$${salt}$${scryptSync(parsed.data.pin, salt, 64).toString("hex")}`;
+  const pinEncrypted = encryptReviewerPin(parsed.data.pin);
+  if (!pinEncrypted) {
+    res.status(503).json({ error: "PIN review storage is unavailable. The application was not submitted." });
+    return;
+  }
   const outcome = await db.transaction(async (transaction) => {
     const [duplicate] = await transaction
       .select()
@@ -2175,6 +2363,7 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
         status: "submitted",
         currentStep: 7,
         pinHash,
+        pinEncrypted,
         answers,
         submittedAt: now,
         updatedAt: now,
@@ -2410,6 +2599,13 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
         return `scrypt$${salt}$${scryptSync(parsed.data.pin, salt, 64).toString("hex")}`;
       })()
     : undefined;
+  const pinEncrypted = parsed.data.pin
+    ? encryptReviewerPin(parsed.data.pin) ?? undefined
+    : undefined;
+  if (parsed.data.pin && !pinEncrypted) {
+    res.status(503).json({ error: "PIN review storage is unavailable. The PIN was not saved." });
+    return;
+  }
   const notificationStep = parsed.data.currentStep ?? application.currentStep;
   const shouldNotifyReviewer =
     categoryChanged ||
@@ -2425,12 +2621,19 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
           ? { currentStep: parsed.data.currentStep }
           : {}),
         ...(categoryChanged
-          ? { categoryId: nextCategoryId, answers: {}, currentStep: 0, pinHash: null }
+          ? {
+              categoryId: nextCategoryId,
+              answers: {},
+              currentStep: 0,
+              pinHash: null,
+              pinEncrypted: null,
+            }
           : {}),
         ...(!categoryChanged && submittedAnswers !== undefined
           ? { answers: submittedAnswers }
           : {}),
         ...(pinHash ? { pinHash } : {}),
+        ...(pinEncrypted ? { pinEncrypted } : {}),
         updatedAt: new Date(),
       })
       .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
@@ -2514,6 +2717,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
 
   let answers = application.answers ?? {};
   let pinHash = application.pinHash;
+  let pinEncrypted = application.pinEncrypted;
   if (application.status === "draft") {
     if (body.data.categoryId && body.data.categoryId !== application.categoryId) {
       res.status(409).json({
@@ -2565,6 +2769,12 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
       }
       const salt = randomBytes(16).toString("hex");
       pinHash = `scrypt$${salt}$${scryptSync(body.data.pin, salt, 64).toString("hex")}`;
+      const encryptedPin = encryptReviewerPin(body.data.pin);
+      if (!encryptedPin) {
+        res.status(503).json({ error: "PIN review storage is unavailable. The PIN was not saved." });
+        return;
+      }
+      pinEncrypted = encryptedPin;
     }
   }
   if (!pinHash) {
@@ -2598,6 +2808,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
         answers: { ...answers, __requestedSections: [] },
         currentStep: 7,
         pinHash,
+        pinEncrypted,
         submittedAt: now,
         updatedAt: now,
       })
@@ -2815,7 +3026,7 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
     const applications = await db
       .select()
       .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.submissionStatus, "draft"))
+      .where(isNull(guestPreapplicationsTable.linkedApplicationId))
       .orderBy(desc(guestPreapplicationsTable.createdAt));
     const evidenceRows = applications.length
       ? await db
@@ -2865,6 +3076,39 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
     res.status(503).json({ error: "Guest pre-applications are temporarily unavailable." });
   }
 });
+
+router.get(
+  "/admin/guest-preapplications/:applicationId/pin",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    const params = GetAdminGuestPreapplicationPinParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(404).json({ error: "Applicant PIN not found." });
+      return;
+    }
+    const [application] = await db
+      .select({
+        pinHash: guestPreapplicationsTable.pinHash,
+        pinEncrypted: guestPreapplicationsTable.pinEncrypted,
+      })
+      .from(guestPreapplicationsTable)
+      .where(eq(guestPreapplicationsTable.id, params.data.applicationId))
+      .limit(1);
+    if (!application) {
+      res.status(404).json({ error: "Applicant record not found." });
+      return;
+    }
+    const pin = application.pinHash
+      ? decryptReviewerPin(application.pinEncrypted)
+      : null;
+    res.json(GetAdminGuestPreapplicationPinResponse.parse({
+      pin,
+      available: pin !== null,
+    }));
+  },
+);
 
 router.get(
   "/admin/applications/:applicationId/guest-history",
@@ -3601,6 +3845,39 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
   }
   res.json(GetAdminApplicationResponse.parse(response));
 });
+
+router.get(
+  "/admin/applications/:applicationId/pin",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    const params = GetAdminApplicationPinParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(404).json({ error: "Applicant PIN not found." });
+      return;
+    }
+    const [application] = await db
+      .select({
+        pinHash: enrollmentApplicationsTable.pinHash,
+        pinEncrypted: enrollmentApplicationsTable.pinEncrypted,
+      })
+      .from(enrollmentApplicationsTable)
+      .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
+      .limit(1);
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    const pin = application.pinHash
+      ? decryptReviewerPin(application.pinEncrypted)
+      : null;
+    res.json(GetAdminApplicationPinResponse.parse({
+      pin,
+      available: pin !== null,
+    }));
+  },
+);
 
 router.get(
   "/admin/applications/:applicationId/evidence/:evidenceId/file",

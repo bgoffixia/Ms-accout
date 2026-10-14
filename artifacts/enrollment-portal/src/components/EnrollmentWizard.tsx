@@ -30,7 +30,6 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
-  emailVerified?: boolean;
   onDeclarationChange?: (accepted: boolean, answers: Record<string, unknown>) => void;
   uploadEvidence?: (
     file: File,
@@ -241,7 +240,7 @@ export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit, onChangeCategory,
   onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
-  emailVerified = false, onDeclarationChange,
+  onDeclarationChange,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -651,7 +650,7 @@ export function EnrollmentWizard({
     return missing;
   }, [answers, application.hasPin, evidenceLater, isBackRequired, storageAvailable]);
   const readyToSubmit = privateTrackingKey
-    ? application.hasPin && declarationAccepted && emailVerified
+    ? application.hasPin && declarationAccepted
     : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
@@ -909,7 +908,7 @@ export function EnrollmentWizard({
             <div className="ew-content-scroll">
               <div className="ew-progress-line"><span style={{ width: '100%' }} /></div>
               {heading(7, titleForStep(7), copyForStep(7).description || (privateTrackingKey
-                ? 'Review your details and uploaded evidence. An email code is required to submit; if verification fails, this saved draft remains available to authorized reviewers.'
+                ? 'Review your details and uploaded evidence. You can submit now; an email code afterward unlocks the applicant status page. Reviewers can access the submitted record even if verification is delayed.'
                 : evidenceLater
                 ? "Review your details. Staff will arrange the required identity files and verification video later."
                 : "Check your details carefully. Incomplete secure uploads must be attached before you can submit."),
@@ -956,7 +955,7 @@ export function EnrollmentWizard({
                 ])}
               </div>
               {privateTrackingKey && updateContactEmail && <section className="ew-email-correction" data-testid="section-correct-contact-email">
-                <div><b>Need to correct your contact email?</b><p>Use an address you can verify before submitting. Your application remains an unverified draft.</p></div>
+                <div><b>Need to correct your contact email?</b><p>Use an address you can verify after submitting to access your enrollment status page.</p></div>
                 <label className="ew-field" htmlFor="guest-contact-email">
                   <span className="ew-label">Contact email</span>
                   <input id="guest-contact-email" className="ew-input" type="email" autoComplete="email" maxLength={320}
@@ -967,7 +966,7 @@ export function EnrollmentWizard({
                     }} data-testid="input-correct-contact-email" />
                 </label>
                 {emailCorrectionError && <p className="ew-field-error" role="alert" data-testid="error-correct-contact-email">{emailCorrectionError}</p>}
-                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Verify this address when you submit.</p>}
+                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Verify this address after submission to access status.</p>}
                 <button type="button" className="ew-button ew-button-quiet" onClick={() => void correctContactEmail()}
                   disabled={isSaving || contactEmailInput.trim().toLowerCase() === (application.applicantEmail ?? '').trim().toLowerCase()}
                   data-testid="button-save-contact-email">Save contact email</button>
@@ -988,13 +987,11 @@ export function EnrollmentWizard({
               </section>
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
-                  <div><b>{readyToSubmit ? 'Ready to submit' : privateTrackingKey && declarationAccepted && !emailVerified ? 'Verify your email to continue' : 'A few required items are still missing'}</b>
+                  <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
                   <p>{privateTrackingKey
                     ? readyToSubmit
-                      ? 'Your email is verified and your category PIN is saved. Submit now; any incomplete details or evidence remain visible to reviewers.'
-                      : declarationAccepted && !emailVerified
-                        ? 'A one-time code is being sent to your contact email. Enter it in the verification window; your saved application remains available if verification fails.'
-                        : `Email verification and your category PIN are required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
+                      ? 'Your category PIN is saved. Submit now; verify your email afterward to unlock status access. Any incomplete details or evidence remain visible to reviewers.'
+                      : `Your category PIN and applicant declaration are required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length
@@ -1009,7 +1006,7 @@ export function EnrollmentWizard({
               <span className="ew-save-note">You can edit any section before submitting.</span>
               <button type="button" className="ew-button ew-button-primary" onClick={() => void beginSubmit()}
                 disabled={!readyToSubmit || isSaving || isSubmitting || readOnly} data-testid="button-submit-enrollment">
-                {isSubmitting ? 'Submitting…' : privateTrackingKey && !emailVerified ? 'Verify email to unlock submit' : copyForStep(7).buttonLabel || 'Submit Enrollment'} <ArrowRight size={15} /></button>
+                {isSubmitting ? 'Submitting…' : copyForStep(7).buttonLabel || 'Submit Enrollment'} <ArrowRight size={15} /></button>
             </footer>
           </div>}
       </section>

@@ -14,6 +14,7 @@ type GuestDraft = {
   status: "received";
   submissionStatus: "draft" | "submitted";
   emailVerified: boolean;
+  emailVerificationRequired: boolean;
   hasPin: boolean;
   linkedApplicationId: string | null;
   currentStep: number;
@@ -106,6 +107,7 @@ class GuestApiFixture {
         status: "received",
         submissionStatus: "draft",
         emailVerified: false,
+        emailVerificationRequired: false,
         hasPin: false,
         linkedApplicationId: null,
         currentStep: 0,
@@ -165,6 +167,13 @@ class GuestApiFixture {
     }
     if (method === "POST" && path === `/api/guest/preapplications/${applicationId}/submit`) {
       if (!this.draft) return json({ message: "Not found" }, 404);
+      this.draft.submissionStatus = "submitted";
+      this.draft.emailVerified = false;
+      this.draft.emailVerificationRequired = true;
+      return json(this.statusResponse());
+    }
+    if (method === "POST" && path === `/api/guest/preapplications/${applicationId}/link`) {
+      if (!this.draft) return json({ message: "Not found" }, 404);
       this.markVerifiedSubmission();
       return json({
         id: "7aed516d-1e70-41a9-a239-4568b8fbc7c2",
@@ -191,6 +200,7 @@ class GuestApiFixture {
     if (!this.draft) throw new Error("The browser test did not create a guest draft.");
     this.draft.submissionStatus = "submitted";
     this.draft.emailVerified = true;
+    this.draft.emailVerificationRequired = false;
     this.draft.linkedApplicationId = "7aed516d-1e70-41a9-a239-4568b8fbc7c2";
   }
 
@@ -230,8 +240,11 @@ class GuestApiFixture {
   }
 
   private statusResponse() {
+    const emailVerificationRequired = this.draft!.submissionStatus === "submitted" && !this.draft!.emailVerified;
     return {
       ...this.draft,
+      emailVerificationRequired,
+      answers: emailVerificationRequired ? {} : this.draft!.answers,
       // Deliberately include a reviewer-only value in the fixture to ensure it
       // never becomes visible in the applicant's resumed experience.
       reviewNote: reviewerOnlyNote,
@@ -519,7 +532,7 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
   }
 });
 
-test("preserves the same guest application across verification failure, reload, and verified return", async ({ page }) => {
+test("submits before email verification and gates status access until the applicant verifies", async ({ page }) => {
   const api = new GuestApiFixture();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
@@ -650,7 +663,8 @@ test("preserves the same guest application across verification failure, reload, 
   await expect(
     page.getByTestId("button-submit-enrollment"),
     `Submission readiness: ${await page.getByTestId("state-submit-readiness").innerText()}`,
-  ).toBeDisabled();
+    ).toBeEnabled();
+  await page.getByTestId("button-submit-enrollment").click();
   await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
   await expect(page.getByTestId("input-guest-email-otp")).toBeVisible();
   await page.getByRole("button", { name: "Close email verification" }).click();
@@ -661,21 +675,26 @@ test("preserves the same guest application across verification failure, reload, 
   expect(api.draft?.currentStep).toBe(7);
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
   expect(api.draft?.emailVerified).toBe(false);
+  expect(api.draft?.submissionStatus).toBe("submitted");
+  expect(api.draft?.linkedApplicationId).toBeNull();
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("submitted");
 
-  // Returning without a verified session models a failed/cancelled verification.
-  // A reload must restore the saved draft from the server, not create another one.
+  await page.goto("/guest/track");
+  await page.getByTestId("input-track-reference").fill(reference);
+  await page.getByTestId("input-track-key").fill(api.accessKey);
+  await page.getByTestId("button-lookup-guest-status").click();
+  await expect(page.getByTestId("guest-status-verification-required")).toBeVisible();
+  await expect(page.getByTestId("guest-public-status")).toHaveCount(0);
+  await expect(page.getByTestId("guest-status-verification-required")).not.toContainText("Jordan");
+  await page.getByRole("button", { name: "Close email verification" }).click();
+
+  // Reloading after an unsuccessful email verification keeps the submission,
+  // while its private status remains gated.
   await page.goto("/guest/apply?resume=1");
-  await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
-  await expect(page.getByTestId("text-application-reference")).toHaveText(reference);
-  await page.reload();
-  await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
-  await expect(page.getByTestId("text-application-reference")).toHaveText(reference);
-  await expect(page.getByTestId("review-section-0")).toContainText("Jordan");
-  await expect(page.getByTestId("review-identityFront")).toContainText("Uploaded reference attached");
-  await expect(page.getByTestId("review-liveVideoReference")).toContainText("Reference attached");
-  await expect(page.getByTestId("enrollment-wizard")).not.toContainText(api.accessKey);
-  await expect(page.getByTestId("enrollment-wizard")).not.toContainText("private/guest-evidence/");
-  await expect(page.getByTestId("enrollment-wizard")).not.toContainText(reviewerOnlyNote);
+  await expect(page.getByTestId("guest-submission-confirmation")).toBeVisible();
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("submitted");
+  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(reviewerOnlyNote);
+  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText("Jordan");
   expect(api.lookupCount).toBeGreaterThanOrEqual(2);
   expect(api.createCount).toBe(1);
 
@@ -683,10 +702,10 @@ test("preserves the same guest application across verification failure, reload, 
   // A later browser return should show the existing submitted application.
   api.markVerifiedSubmission();
   await page.goto("/guest/apply?resume=1");
-  await expect(page.getByTestId("guest-application-success")).toBeVisible();
-  await expect(page.getByTestId("guest-application-success")).toContainText("Your application was submitted.");
-  await expect(page.getByTestId("text-guest-reference")).toHaveText(reference);
-  await expect(page.getByTestId("guest-application-success")).not.toContainText(reviewerOnlyNote);
+  await expect(page.getByTestId("guest-submission-confirmation")).toBeVisible();
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Your application was submitted.");
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText(reference);
+  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(reviewerOnlyNote);
   expect(api.createCount).toBe(1);
   expect(api.draft?.linkedApplicationId).toBe("7aed516d-1e70-41a9-a239-4568b8fbc7c2");
 });
@@ -748,7 +767,7 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
   await expect(page.getByTestId("review-category-nickname")).toContainText("Not provided");
   await page.getByTestId("section-declaration").locator("label").click();
   await expect(page.getByTestId("check-declaration")).toBeChecked();
-  await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
+  await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("button-submit-enrollment")).toBeDisabled();
   await expectNoDocumentOverflow(page);
 

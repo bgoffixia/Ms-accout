@@ -156,6 +156,7 @@ export interface GuestPreapplicationStatus {
   status: GuestPreapplicationStatusValue;
   submissionStatus: GuestPreapplicationStatusSubmissionStatus;
   emailVerified: boolean;
+  emailVerificationRequired: boolean;
   hasPin: boolean;
   /** @nullable */
   linkedApplicationId: string | null;
@@ -429,6 +430,12 @@ export interface EnrollmentApplication {
   submittedAt?: string | null;
   /** Present only for authorized review records linked to a submitted guest application. */
   evidence?: AdminGuestPreapplicationEvidence[];
+}
+
+export interface ReviewerPin {
+  /** @nullable */
+  pin: string | null;
+  available: boolean;
 }
 
 export type ApplicationInputCategoryId = typeof ApplicationInputCategoryId[keyof typeof ApplicationInputCategoryId];
