@@ -48,7 +48,17 @@ export const ListMyApplicationsResponseItem = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 export const ListMyApplicationsResponse = zod.array(ListMyApplicationsResponseItem)
 
@@ -96,7 +106,17 @@ export const SubmitNewApplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 
@@ -123,7 +143,17 @@ export const CreateApplicationDraftResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 
@@ -150,7 +180,17 @@ export const GetApplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 
@@ -192,7 +232,17 @@ export const UpdateApplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 
@@ -230,7 +280,17 @@ export const SubmitApplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 
@@ -537,7 +597,17 @@ export const SubmitGuestPreapplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 
@@ -777,7 +847,17 @@ export const ListApplicationsForReviewResponseItem = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 export const ListApplicationsForReviewResponse = zod.array(ListApplicationsForReviewResponseItem)
 
@@ -802,8 +882,29 @@ export const GetAdminApplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
+
+
+/**
+ * @summary Download private evidence attached to a submitted guest application
+ */
+export const DownloadSubmittedApplicationEvidenceParams = zod.object({
+  "applicationId": zod.coerce.string(),
+  "evidenceId": zod.coerce.string().uuid()
+})
+
+export const DownloadSubmittedApplicationEvidenceResponse = zod.unknown()
 
 
 /**
@@ -1334,7 +1435,17 @@ export const DecideApplicationResponse = zod.object({
   "outstandingRequirements": zod.array(zod.string()).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish()
+  "submittedAt": zod.coerce.date().nullish(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
+  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "sizeBytes": zod.number().int(),
+  "uploadedAt": zod.coerce.date().nullable(),
+  "downloadUrl": zod.string().nullable()
+})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
 })
 
 

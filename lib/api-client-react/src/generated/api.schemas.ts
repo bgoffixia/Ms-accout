@@ -427,6 +427,8 @@ export interface EnrollmentApplication {
   updatedAt: string;
   /** @nullable */
   submittedAt?: string | null;
+  /** Present only for authorized review records linked to a submitted guest application. */
+  evidence?: AdminGuestPreapplicationEvidence[];
 }
 
 export type ApplicationInputCategoryId = typeof ApplicationInputCategoryId[keyof typeof ApplicationInputCategoryId];

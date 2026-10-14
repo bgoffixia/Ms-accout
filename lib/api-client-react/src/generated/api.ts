@@ -2262,6 +2262,88 @@ export function useGetAdminApplication<TData = Awaited<ReturnType<typeof getAdmi
 
 
 
+export const getDownloadSubmittedApplicationEvidenceUrl = (applicationId: string,
+    evidenceId: string,) => {
+
+
+
+
+  return `/api/admin/applications/${applicationId}/evidence/${evidenceId}/file`
+}
+
+/**
+ * @summary Download private evidence attached to a submitted guest application
+ */
+export const downloadSubmittedApplicationEvidence = async (applicationId: string,
+    evidenceId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadSubmittedApplicationEvidenceUrl(applicationId,evidenceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadSubmittedApplicationEvidenceQueryKey = (applicationId: string,
+    evidenceId: string,) => {
+    return [
+    `/api/admin/applications/${applicationId}/evidence/${evidenceId}/file`
+    ] as const;
+    }
+
+
+export const getDownloadSubmittedApplicationEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>, TError = ErrorType<void>>(applicationId: string,
+    evidenceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadSubmittedApplicationEvidenceQueryKey(applicationId,evidenceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>> = ({ signal }) => downloadSubmittedApplicationEvidence(applicationId,evidenceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined && evidenceId !== null && evidenceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadSubmittedApplicationEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>>
+export type DownloadSubmittedApplicationEvidenceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download private evidence attached to a submitted guest application
+ */
+
+export function useDownloadSubmittedApplicationEvidence<TData = Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>, TError = ErrorType<void>>(
+ applicationId: string,
+    evidenceId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadSubmittedApplicationEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadSubmittedApplicationEvidenceQueryOptions(applicationId,evidenceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetAdminOverviewUrl = () => {
 
 

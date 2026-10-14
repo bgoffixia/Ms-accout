@@ -2047,6 +2047,15 @@ function AdminApplicationReview() {
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   const application = review.data;
   if (!application) return <AdminShell><section className="state-card"><span className="state-icon"><FileText size={20} /></span><h2>Application not in this review queue</h2><p>It may have changed status or may not be available to this staff account.</p><Link href="/admin" className="button button-primary" data-testid="link-back-review">Back to review queue</Link></section></AdminShell>;
+  const evidence = application.evidence;
+  const identity = readAnswerGroup(application.answers, 'proofOfIdentity');
+  const requiredEvidenceSlots = [
+    { slot: 'identity_front', label: 'Identity document front' },
+    ...(['National ID', 'Driver license', 'Passport card'].includes(String(identity.documentType))
+      ? [{ slot: 'identity_back', label: 'Identity document back' }]
+      : []),
+    { slot: 'verification_video', label: 'Verification video' },
+  ];
   const makeDecision = (decision: ApplicationDecision['decision']) => {
     setError('');
     if (decision === 'reject' && !note.trim()) { setError('Add the reason for rejecting this application.'); return; }
@@ -2128,13 +2137,33 @@ function AdminApplicationReview() {
         <div className="review-field"><span>Category PIN</span><b>{application.hasPin ? 'Set (value is protected)' : 'Not set'}</b></div>
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
+      {evidence !== undefined && <section className="detail-card submitted-evidence-panel" data-testid="submitted-guest-evidence">
+        <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
+        <p className="field-help">Files are available only to authorized enrollment reviewers. Each download is served through a secure, non-cached link.</p>
+        <ul className="guest-evidence-list" aria-label="Submitted application evidence">
+          {evidence.map((item) => <li key={item.id} data-testid={`submitted-evidence-${item.id}`}>
+            <span>
+              <b>{item.evidenceSlot === 'identity_front' ? 'Identity document front' : item.evidenceSlot === 'identity_back' ? 'Identity document back' : item.evidenceSlot === 'education_certificate' ? 'Education certificate' : item.evidenceSlot === 'verification_video' ? 'Verification video' : 'Identity document'}</b>
+              <small>{item.fileName}{item.uploadedAt ? ` · ${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : ''}</small>
+            </span>
+            {item.uploadedAt && item.downloadUrl
+              ? <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-submitted-evidence-${item.id}`}>Download securely</a>
+              : <small className="submitted-evidence-state">Pending — upload verification</small>}
+          </li>)}
+          {requiredEvidenceSlots.filter((required) =>
+            !evidence.some((item) => item.evidenceSlot === required.slot),
+          ).map((required) => <li key={required.slot} data-testid={`missing-submitted-evidence-${required.slot}`}>
+            <span><b>{required.label}</b><small>Missing — no file was attached</small></span>
+          </li>)}
+        </ul>
+      </section>}
       <div className="admin-record-sections">
         <AdminAnswerSection title="Section 2 · Personal information" data={readAnswerGroup(application.answers, 'personalInformation')} />
         <AdminAnswerSection title="Section 3 · Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicant was asked to share these details with the contact’s permission." />
         <AdminAnswerSection title="Section 4 · Education" data={readAnswerGroup(application.answers, 'education')} />
         <AdminAnswerSection title="Section 5 · Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
-        <AdminAnswerSection title="Section 6 · Proof of identity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Private identity-image preview and download are disabled until private storage is configured." />
-        <AdminAnswerSection title="Section 7 · Video recording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="No identity or liveness conclusion is made from this recording. Secure playback is unavailable until private storage is configured." />
+        <AdminAnswerSection title="Section 6 · Proof of identity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
+        <AdminAnswerSection title="Section 7 · Video recording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="No identity or liveness conclusion is made from this recording. The uploaded file is listed in the evidence panel above." />
         <AdminAnswerSection title="Section 8 · Bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown to authorized reviewers only; the account number is encrypted in storage." />
       </div>
       <section className="detail-card admin-history-card">

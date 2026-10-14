@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminGuestPreapplicationEvidence } from './adminGuestPreapplicationEvidence';
 import type { ApplicationStatus } from './applicationStatus';
 import type { EnrollmentApplicationAnswers } from './enrollmentApplicationAnswers';
 import type { EnrollmentApplicationCategoryId } from './enrollmentApplicationCategoryId';
@@ -31,4 +32,6 @@ export interface EnrollmentApplication {
   updatedAt: Date;
   /** @nullable */
   submittedAt?: Date | null;
+  /** Present only for authorized review records linked to a submitted guest application. */
+  evidence?: AdminGuestPreapplicationEvidence[];
 }

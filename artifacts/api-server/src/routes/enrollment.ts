@@ -88,6 +88,7 @@ import {
   CompleteGuestPreapplicationEvidenceUploadParams,
   CompleteGuestPreapplicationEvidenceUploadResponse,
   DownloadGuestPreapplicationEvidenceParams,
+  DownloadSubmittedApplicationEvidenceParams,
   AdminGuestPreapplicationEvidence,
   UpdateAdminGuestPreapplicationBody,
   UpdateAdminGuestPreapplicationParams,
@@ -436,6 +437,9 @@ function serializeAdminGuestPreapplication(
   );
   return {
     ...serializeGuestPreapplicationStatus(application),
+    answers: answersWithoutEvidencePaths(
+      applicantSafeAnswers(application.answers ?? {}),
+    ),
     fullName: application.fullName,
     email: application.email,
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
@@ -812,6 +816,16 @@ function applicantSafeAnswers(answers: Record<string, unknown>) {
   return safeAnswers;
 }
 
+function answersWithoutEvidencePaths(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(answersWithoutEvidencePaths);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !key.toLowerCase().endsWith("objectpath"))
+      .map(([key, child]) => [key, answersWithoutEvidencePaths(child)]),
+  );
+}
+
 function privateReviewAnswers(answers: Record<string, unknown>) {
   const result = applicantSafeAnswers(answers);
   const bank = asRecord(result.bankDetails);
@@ -1073,6 +1087,7 @@ function hasRequiredCategoryDetails(
 function serializeApplication(
   application: typeof enrollmentApplicationsTable.$inferSelect,
   includeSensitiveBankDetails = false,
+  hideEvidenceObjectPaths = false,
 ) {
   const answers = application.answers ?? {};
   const contactDetails = asRecord(answers.contactDetails);
@@ -1088,7 +1103,9 @@ function serializeApplication(
     status: application.status,
     currentStep: application.currentStep,
     hasPin: Boolean(application.pinHash),
-    answers: applicantAnswers,
+    answers: hideEvidenceObjectPaths
+      ? answersWithoutEvidencePaths(applicantAnswers)
+      : applicantAnswers,
     applicantName:
       (typeof contactDetails.fullName === "string"
         ? contactDetails.fullName
@@ -3444,6 +3461,7 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
     return;
   }
   let reviewApplication = application;
+  let sourceGuestSubmissionStatus: string | null = null;
   if (application.sourceGuestPreapplicationId) {
     const [sourceGuestApplication] = await db
       .select({
@@ -3451,11 +3469,13 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
         email: guestPreapplicationsTable.email,
         phone: guestPreapplicationsTable.phone,
         emailVerified: guestPreapplicationsTable.emailVerified,
+        submissionStatus: guestPreapplicationsTable.submissionStatus,
       })
       .from(guestPreapplicationsTable)
       .where(eq(guestPreapplicationsTable.id, application.sourceGuestPreapplicationId))
       .limit(1);
     if (sourceGuestApplication) {
+      sourceGuestSubmissionStatus = sourceGuestApplication.submissionStatus;
       reviewApplication = {
         ...application,
         answers: {
@@ -3470,12 +3490,112 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
       };
     }
   }
-  res.json(
-    GetAdminApplicationResponse.parse(
-      serializeApplication(reviewApplication, true),
-    ),
-  );
+  const response: Record<string, unknown> = serializeApplication(reviewApplication, true, true);
+  if (
+    application.sourceGuestPreapplicationId &&
+    sourceGuestSubmissionStatus === "submitted"
+  ) {
+    const evidence = await db
+      .select()
+      .from(guestPreapplicationEvidenceTable)
+      .where(eq(
+        guestPreapplicationEvidenceTable.applicationId,
+        application.sourceGuestPreapplicationId,
+      ))
+      .orderBy(desc(guestPreapplicationEvidenceTable.createdAt));
+    response.evidence = evidence.map((item) => ({
+      ...serializeGuestEvidence(item),
+      downloadUrl: item.uploadedAt
+        ? `/api/admin/applications/${application.id}/evidence/${item.id}/file`
+        : null,
+    }));
+  }
+  res.json(GetAdminApplicationResponse.parse(response));
 });
+
+router.get(
+  "/admin/applications/:applicationId/evidence/:evidenceId/file",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    const params = DownloadSubmittedApplicationEvidenceParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(404).json({ error: "Uploaded evidence file not found." });
+      return;
+    }
+    const { applicationId, evidenceId } = params.data;
+    try {
+      const [application] = await db
+        .select()
+        .from(enrollmentApplicationsTable)
+        .where(eq(enrollmentApplicationsTable.id, applicationId))
+        .limit(1);
+      if (!application?.sourceGuestPreapplicationId) {
+        res.status(404).json({ error: "Uploaded evidence file not found." });
+        return;
+      }
+      const [sourceGuestApplication] = await db
+        .select({
+          submissionStatus: guestPreapplicationsTable.submissionStatus,
+        })
+        .from(guestPreapplicationsTable)
+        .where(eq(
+          guestPreapplicationsTable.id,
+          application.sourceGuestPreapplicationId,
+        ))
+        .limit(1);
+      if (sourceGuestApplication?.submissionStatus !== "submitted") {
+        res.status(404).json({ error: "Uploaded evidence file not found." });
+        return;
+      }
+      const [evidence] = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(and(
+          eq(guestPreapplicationEvidenceTable.id, evidenceId),
+          eq(
+            guestPreapplicationEvidenceTable.applicationId,
+            application.sourceGuestPreapplicationId,
+          ),
+        ))
+        .limit(1);
+      if (!evidence?.uploadedAt) {
+        res.status(404).json({ error: "Uploaded evidence file not found." });
+        return;
+      }
+      const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+      const [metadata] = await objectFile.getMetadata();
+      res.setHeader("Content-Type", evidence.contentType);
+      res.setHeader("Content-Length", String(metadata.size));
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename*=UTF-8''${encodeURIComponent(safeEvidenceFileName(evidence.fileName))}`,
+      );
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      const stream = objectFile.createReadStream();
+      stream.on("error", (error) => {
+        req.log.error(
+          { err: error, applicationId, evidenceId },
+          "Failed to stream submitted application evidence",
+        );
+        if (res.headersSent) res.destroy(error);
+        else res.status(503).json({ error: "The evidence file could not be downloaded." });
+      });
+      stream.pipe(res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(404).json({ error: "Uploaded evidence file not found." });
+        return;
+      }
+      req.log.error(
+        { err: error, applicationId, evidenceId },
+        "Failed to open submitted application evidence",
+      );
+      res.status(503).json({ error: "The evidence file could not be downloaded." });
+    }
+  },
+);
 
 router.get(
   "/admin/applications/:applicationId/history",
@@ -3570,7 +3690,9 @@ router.get("/admin/applications", requireReviewer, async (req, res): Promise<voi
     .where(and(...filters))
     .orderBy(desc(enrollmentApplicationsTable.updatedAt))
     .limit(300);
-  const serialized = applications.map((application) => serializeApplication(application));
+  const serialized = applications.map((application) =>
+    serializeApplication(application, false, true),
+  );
   const search = parsed.data.search?.trim().toLowerCase();
   const results = search
     ? serialized.filter((application) =>
@@ -3683,7 +3805,7 @@ router.post(
       });
       return;
     }
-    res.json(DecideApplicationResponse.parse(serializeApplication(updated)));
+    res.json(DecideApplicationResponse.parse(serializeApplication(updated, false, true)));
   },
 );
 

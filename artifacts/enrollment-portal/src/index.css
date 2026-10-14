@@ -3560,6 +3560,8 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .guest-evidence-list small { overflow-wrap: anywhere; color: #84949e; font-size: 8px; }
 .guest-evidence-download { flex: 0 0 auto; color: #24618a; font-size: 9px; font-weight: 700; text-decoration: none; }
 .guest-evidence-download:hover { text-decoration: underline; }
+.submitted-evidence-panel > .guest-evidence-list { margin-top: 14px; }
+.submitted-evidence-state { flex: 0 0 auto; color: #8a6119; font-size: 9px; font-weight: 700; }
 .guest-admin-name strong, .guest-admin-category strong { display: block; color: #28465c; font-size: 11px; }
 .guest-admin-name small, .guest-admin-contact small, .guest-admin-category small, .guest-admin-status small { display: block; margin-top: 5px; color: #84949e; font-size: 9px; line-height: 1.4; }
 .guest-admin-contact a { display: block; overflow-wrap: anywhere; color: #24618a; font-size: 10px; text-decoration: none; }

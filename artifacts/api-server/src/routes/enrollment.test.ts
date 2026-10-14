@@ -767,6 +767,29 @@ describe("guest application verification and persistence", () => {
       "reviewer",
     );
     expect(finalReviewerRecord.response.status).toBe(200);
+    expect(finalReviewerRecord.body.evidence).toHaveLength(2);
+    expect(finalReviewerRecord.body.evidence.every((item: any) =>
+      item.downloadUrl === `/api/admin/applications/${successfulSubmit.body.id}/evidence/${item.id}/file`,
+    )).toBe(true);
+    expect(JSON.stringify(finalReviewerRecord.body.evidence)).not.toContain("objectPath");
+    expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("/objects/test/");
+    const submittedEvidencePath = finalReviewerRecord.body.evidence[0].downloadUrl.replace("/api", "");
+    expect((await request(submittedEvidencePath)).response.status).toBe(401);
+    expect((await request(submittedEvidencePath, {}, "applicant-verified")).response.status).toBe(403);
+    expect((await request(submittedEvidencePath, {}, "administrator")).response.status).toBe(403);
+    const submittedEvidenceDownload = await fetch(`${baseUrl}${submittedEvidencePath}`, {
+      headers: { "x-test-user": "reviewer" },
+    });
+    expect(submittedEvidenceDownload.status).toBe(200);
+    expect(submittedEvidenceDownload.headers.get("cache-control")).toContain("no-store");
+    expect(submittedEvidenceDownload.headers.get("content-disposition")).toContain("attachment");
+    expect(Buffer.from(await submittedEvidenceDownload.arrayBuffer()).length).toBeGreaterThan(0);
+    const missingEvidenceDownload = await request(
+      `/admin/applications/${successfulSubmit.body.id}/evidence/${crypto.randomUUID()}/file`,
+      {},
+      "reviewer",
+    );
+    expect(missingEvidenceDownload.response.status).toBe(404);
     expect((await request(
       `/admin/applications/${successfulSubmit.body.id}`,
       {},
