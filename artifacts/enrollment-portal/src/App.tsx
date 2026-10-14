@@ -2115,9 +2115,17 @@ function AdminApplicationReview() {
         </section>
       </div>
       <section className="review-category-selection">
+        <div className="detail-card-title"><ContactRound size={17} /><h2>Contact details · verified email</h2></div>
+        <div className="review-field"><span>Contact name</span><b>{String(readAnswerGroup(application.answers, 'contactDetails').fullName ?? application.applicantName ?? 'Not provided')}</b></div>
+        <div className="review-field"><span>Contact email</span><b>{String(readAnswerGroup(application.answers, 'contactDetails').email ?? application.applicantEmail ?? 'Not provided')}</b></div>
+        <div className="review-field"><span>Contact phone</span><b>{String(readAnswerGroup(application.answers, 'contactDetails').phone ?? readAnswerGroup(application.answers, 'personalInformation').phone ?? 'Not provided')}</b></div>
+        <div className="review-field"><span>Email verification</span><b>{readAnswerGroup(application.answers, 'contactDetails').emailVerified === true ? 'Verified before submission' : 'Not verified'}</b></div>
+      </section>
+      <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Section 1 · Category selection</h2></div>
         <div className="review-field"><span>Selected card</span><b>{application.categoryName}</b></div>
         <div className="review-field"><span>Category-specific information</span><b>{getCategoryEntryFields(application.answers, application.categoryId).map((field) => `${field.label}: ${field.value}`).join(' · ') || 'No entry details provided'}</b></div>
+        <div className="review-field"><span>Category PIN</span><b>{application.hasPin ? 'Set (value is protected)' : 'Not set'}</b></div>
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
       <div className="admin-record-sections">
@@ -3390,7 +3398,7 @@ function GuestFollowupPage() {
                 ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
                 : <small>No phone provided</small>}</div>
               <div className="guest-admin-category"><strong>{application.categoryName}</strong><small>{application.reference}</small></div>
-              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>NOT SUBMITTED · EMAIL NOT VERIFIED</small><small>{progressLabel(application)}</small></div>
+              <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>NOT SUBMITTED · EMAIL {application.emailVerified ? 'VERIFIED' : 'NOT VERIFIED'}</small><small>{progressLabel(application)}</small></div>
               <div className="guest-admin-actions">
                 {application.status === 'received' && <button type="button" className="button button-primary guest-admin-action" onClick={() => setApplicationStatus(application, 'contacted')} disabled={update.isPending} data-testid={`button-guest-contacted-${application.id}`}>Mark contacted</button>}
                 {application.status !== 'closed' && <button type="button" className="guest-admin-close" onClick={() => setApplicationStatus(application, 'closed')} disabled={update.isPending} data-testid={`button-guest-close-${application.id}`}>Close</button>}
@@ -3399,6 +3407,13 @@ function GuestFollowupPage() {
               <details className="guest-admin-details" data-testid={`details-guest-application-${application.id}`}>
                 <summary>Review saved application details <small>{progressLabel(application)}</small></summary>
                 <div className="guest-admin-record-sections">
+                  <section className="review-category-selection" data-testid={`guest-contact-details-${application.id}`}>
+                    <div className="detail-card-title"><ContactRound size={17} /><h2>Contact details</h2></div>
+                    <div className="review-field"><span>Name from first step</span><b>{application.fullName || 'Not provided'}</b></div>
+                    <div className="review-field"><span>Email from first step</span><b>{application.email || 'Not provided'}</b></div>
+                    <div className="review-field"><span>Phone from first step</span><b>{application.phone || 'Not provided'}</b></div>
+                    <div className="review-field"><span>Email verification</span><b>{application.emailVerified ? 'Verified' : 'Not verified yet'}</b></div>
+                  </section>
                   <section className="guest-evidence-panel">
                     <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
                     <div className={`guest-review-readiness ${application.reviewReady ? 'is-ready' : ''}`} role="status">

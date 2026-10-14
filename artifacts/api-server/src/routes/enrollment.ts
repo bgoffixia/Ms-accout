@@ -1075,6 +1075,7 @@ function serializeApplication(
   includeSensitiveBankDetails = false,
 ) {
   const answers = application.answers ?? {};
+  const contactDetails = asRecord(answers.contactDetails);
   const applicantAnswers = includeSensitiveBankDetails
     ? privateReviewAnswers(answers)
     : applicantSafeAnswers(answers);
@@ -1089,6 +1090,9 @@ function serializeApplication(
     hasPin: Boolean(application.pinHash),
     answers: applicantAnswers,
     applicantName:
+      (typeof contactDetails.fullName === "string"
+        ? contactDetails.fullName
+        : null) ??
       answerString(answers, "fullName") ??
       ([
         answerString(answers, "name") ??
@@ -1104,6 +1108,9 @@ function serializeApplication(
         .join(" ") ||
         null),
     applicantEmail:
+      (typeof contactDetails.email === "string"
+        ? contactDetails.email
+        : null) ??
       answerString(answers, "email") ??
       (typeof personalInformation.email === "string"
         ? personalInformation.email
@@ -1801,6 +1808,7 @@ router.post(
           currentPreapplication.linkedApplicationId
         ) return null;
 
+        const currentAnswers = currentPreapplication.answers ?? {};
         const currentEvidence = await transaction
           .select({
             objectPath: guestPreapplicationEvidenceTable.objectPath,
@@ -1809,7 +1817,17 @@ router.post(
           })
           .from(guestPreapplicationEvidenceTable)
           .where(eq(guestPreapplicationEvidenceTable.applicationId, preapplication.id));
-        if (!evidenceRowsOwnAnswers(currentEvidence, answers)) return null;
+        if (!evidenceRowsOwnAnswers(currentEvidence, currentAnswers)) return null;
+        const reviewAnswers = {
+          ...currentAnswers,
+          contactDetails: {
+            fullName: currentPreapplication.fullName,
+            email: currentPreapplication.email,
+            phone: currentPreapplication.phone,
+            emailVerified: true,
+          },
+          __requestedSections: [],
+        };
 
         const [created] = await transaction
           .insert(enrollmentApplicationsTable)
@@ -1821,7 +1839,7 @@ router.post(
             status: "submitted",
             currentStep: 7,
             pinHash: preapplication.pinHash,
-            answers: { ...answers, __requestedSections: [] },
+            answers: reviewAnswers,
             submittedAt: now,
             updatedAt: now,
           })
@@ -3425,9 +3443,36 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
     res.status(404).json({ error: "Application not found." });
     return;
   }
+  let reviewApplication = application;
+  if (application.sourceGuestPreapplicationId) {
+    const [sourceGuestApplication] = await db
+      .select({
+        fullName: guestPreapplicationsTable.fullName,
+        email: guestPreapplicationsTable.email,
+        phone: guestPreapplicationsTable.phone,
+        emailVerified: guestPreapplicationsTable.emailVerified,
+      })
+      .from(guestPreapplicationsTable)
+      .where(eq(guestPreapplicationsTable.id, application.sourceGuestPreapplicationId))
+      .limit(1);
+    if (sourceGuestApplication) {
+      reviewApplication = {
+        ...application,
+        answers: {
+          ...(application.answers ?? {}),
+          contactDetails: {
+            fullName: sourceGuestApplication.fullName,
+            email: sourceGuestApplication.email,
+            phone: sourceGuestApplication.phone,
+            emailVerified: sourceGuestApplication.emailVerified,
+          },
+        },
+      };
+    }
+  }
   res.json(
     GetAdminApplicationResponse.parse(
-      serializeApplication(application, true),
+      serializeApplication(reviewApplication, true),
     ),
   );
 });
