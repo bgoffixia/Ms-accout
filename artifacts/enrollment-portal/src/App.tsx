@@ -8,7 +8,7 @@ import { shadcn } from '@clerk/themes';
 import {
   Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
   ChevronDown, CircleHelp, Copy, FileCheck2, FileText, Headphones, Home, LifeBuoy,
-  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Upload, X,
+  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Trash2, Upload, X,
 } from 'lucide-react';
 import {
   getGetApplicationQueryKey, getGetApplicantSummaryQueryKey,
@@ -37,13 +37,14 @@ import {
   useUpdateAdminUserStatus, useUpdateApplication,
   useUpdateAdminUserRole, useGetPortalSettings, useUpdatePortalSettings,
   useUpdateAdminGuestPreapplication,
+  useClearApplicantRecords,
   useCreateAdminUserInvitation,
   useCreateApplicationDraft,
   useRequestGuestPreapplicationEvidenceUpload,
   useCompleteGuestPreapplicationEvidenceUpload,
 } from '@workspace/api-client-react';
 import type {
-  AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, EnrollmentApplication, EnrollmentCategory,
+  AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
   GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -2540,11 +2541,13 @@ function isExistingClerkEmail(error: unknown) {
 function GuestEmailVerificationDialog({
   email,
   fullName,
+  ready = true,
   onClose,
   onVerified,
 }: {
   email: string;
   fullName: string;
+  ready?: boolean;
   onClose: () => void;
   onVerified: () => void | Promise<void>;
 }) {
@@ -2616,7 +2619,7 @@ function GuestEmailVerificationDialog({
   };
 
   useEffect(() => {
-    if (!userLoaded || started.current) return;
+    if (!ready || !userLoaded || started.current) return;
     const activeEmail = user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase();
     if (activeEmail === email.trim().toLowerCase() && user?.primaryEmailAddress?.verification?.status === 'verified') {
       started.current = true;
@@ -2634,11 +2637,11 @@ function GuestEmailVerificationDialog({
     if (!signUpLoaded || !signInLoaded || !signUp || !signIn) return;
     started.current = true;
     void startVerification();
-  }, [userLoaded, user, email, signUpLoaded, signInLoaded, signUp, signIn]);
+  }, [ready, userLoaded, user, email, signUpLoaded, signInLoaded, signUp, signIn]);
 
   const verifyCode = async (event: FormEvent) => {
     event.preventDefault();
-    if (busy) return;
+    if (!ready || busy) return;
     if (emailCodeVerified) {
       setBusy(true);
       setError('');
@@ -2680,24 +2683,26 @@ function GuestEmailVerificationDialog({
   };
 
   return <div className="otp-dialog-backdrop" onMouseDown={(event) => {
-    if (event.target === event.currentTarget) onClose();
+    if (event.target === event.currentTarget && ready && !busy) onClose();
   }}>
     <section className="success-dialog otp-dialog" role="dialog" aria-modal="true" aria-labelledby="guest-otp-title" data-testid="modal-guest-email-otp">
-      <button type="button" className="modal-close" onClick={onClose} aria-label="Close email verification"><span aria-hidden="true">×</span></button>
+      <button type="button" className="modal-close" onClick={onClose} disabled={!ready || busy} aria-label="Close email verification"><span aria-hidden="true">×</span></button>
       <div className="success-dialog-icon"><ShieldCheck size={25} /></div>
       <span className="eyebrow">EMAIL VERIFICATION</span>
-      <h2 id="guest-otp-title">Check your inbox</h2>
-      <p>Your application has been submitted. We sent a one-time code to <strong>{email}</strong>. Verify this address to open the enrollment status page. If verification fails, your submitted record remains available to authorized reviewers.</p>
+      <h2 id="guest-otp-title">{ready ? 'Check your inbox' : 'Submitting your application'}</h2>
+      <p>{ready
+        ? <>Your application has been submitted. We sent a one-time code to <strong>{email}</strong>. Verify this address to open the enrollment status page. If verification fails, your submitted record remains available to authorized reviewers.</>
+        : 'Your saved details are being submitted. We’ll send the email verification code as soon as submission is confirmed.'}</p>
       <form onSubmit={(event) => void verifyCode(event)} className="otp-entry-form">
         <label className="field-label" htmlFor="guest-email-otp">Email code</label>
-        <input id="guest-email-otp" className="text-input otp-entry-input" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 8))} inputMode="numeric" autoComplete="one-time-code" autoFocus data-testid="input-guest-email-otp" />
+        <input id="guest-email-otp" className="text-input otp-entry-input" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 8))} inputMode="numeric" autoComplete="one-time-code" autoFocus disabled={!ready} data-testid="input-guest-email-otp" />
         {error && <p className="inline-error" role="alert" data-testid="text-guest-otp-error">{error}</p>}
-        {!flow && !error && <p className="field-help" role="status">Sending your verification code…</p>}
-        <button type="submit" className="button button-primary" disabled={busy || (!emailCodeVerified && (!flow || code.trim().length < 4))} data-testid="button-verify-guest-email">
+        {ready && !flow && !error && <p className="field-help" role="status">Sending your verification code…</p>}
+        <button type="submit" className="button button-primary" disabled={!ready || busy || (!emailCodeVerified && (!flow || code.trim().length < 4))} data-testid="button-verify-guest-email">
           {busy ? 'Working…' : emailCodeVerified ? 'Open status page' : 'Verify email'} <ArrowRight size={15} />
         </button>
       </form>
-      {!emailCodeVerified && <button type="button" className="text-action otp-resend" onClick={() => void resendCode()} disabled={busy} data-testid="button-resend-guest-otp">
+      {ready && !emailCodeVerified && <button type="button" className="text-action otp-resend" onClick={() => void resendCode()} disabled={busy} data-testid="button-resend-guest-otp">
         {busy ? 'Sending…' : 'Send a new code'}
       </button>}
     </section>
@@ -2730,6 +2735,7 @@ function GuestApplicationPage() {
   const [contactSaveError, setContactSaveError] = useState('');
   const [progressError, setProgressError] = useState('');
   const [verificationOpen, setVerificationOpen] = useState(false);
+  const [verificationReady, setVerificationReady] = useState(false);
   const [resumeError, setResumeError] = useState('');
   const [resumeLoading, setResumeLoading] = useState(false);
   const resumeStarted = useRef(false);
@@ -3019,16 +3025,22 @@ function GuestApplicationPage() {
 
   const submitGuestApplication = async (answers: Record<string, unknown>): Promise<boolean> => {
     if (!created || !created.application.hasPin) return false;
-    if (!(await saveGuestProgress(answers, 7, false))) return false;
+    setVerificationReady(false);
+    setVerificationOpen(true);
+    if (!(await saveGuestProgress(answers, 7, false))) {
+      setVerificationOpen(false);
+      return false;
+    }
     try {
       await submitGuest.mutateAsync({
         applicationId: created.application.id,
         data: { reference: created.application.reference, accessKey: created.accessKey },
       });
       setStage('complete');
-      setVerificationOpen(true);
+      setVerificationReady(true);
       return true;
     } catch (error) {
+      setVerificationOpen(false);
       setProgressError(error instanceof Error
         ? error.message
         : 'The application could not be submitted. Your saved details remain available.');
@@ -3084,6 +3096,7 @@ function GuestApplicationPage() {
       {verificationOpen && <GuestEmailVerificationDialog
         email={created.application.email}
         fullName={created.application.fullName}
+        ready={verificationReady}
         onClose={() => setVerificationOpen(false)}
         onVerified={linkGuestStatus}
       />}
@@ -3136,6 +3149,7 @@ function GuestApplicationPage() {
       {verificationOpen && <GuestEmailVerificationDialog
         email={created.application.email}
         fullName={created.application.fullName}
+        ready={verificationReady}
         onClose={() => setVerificationOpen(false)}
         onVerified={linkGuestStatus}
       />}
@@ -3648,6 +3662,9 @@ function ApplicantsPage() {
   const portalSettings = useGetPortalSettings();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearSearch, setClearSearch] = useState('');
+  const [selectedClearIds, setSelectedClearIds] = useState<string[]>([]);
   const applicationFilters = useMemo(
     () => ({
       ...(status && ['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected'].includes(status)
@@ -3658,6 +3675,7 @@ function ApplicantsPage() {
     [search, status],
   );
   const submittedApplications = useListApplicationsForReview(applicationFilters);
+  const allApplicationsForClear = useListApplicationsForReview();
   const applications = useListAdminGuestPreapplications({
     query: {
       queryKey: getListAdminGuestPreapplicationsQueryKey(),
@@ -3667,6 +3685,7 @@ function ApplicantsPage() {
     request: { cache: 'no-store' },
   });
   const update = useUpdateAdminGuestPreapplication();
+  const clearApplicantRecords = useClearApplicantRecords();
   const role = String(user?.publicMetadata?.role);
   const canReview = role === 'sub_admin' || role === 'admin';
   const searchTerm = search.trim().toLowerCase();
@@ -3689,6 +3708,42 @@ function ApplicantsPage() {
   }, [applications.data, portalSettings.data, searchTerm, status]);
   const guestStatusFilter = ['received', 'contacted', 'closed'].includes(status);
   const matchingEnrollmentApplications = guestStatusFilter ? [] : submittedApplications.data ?? [];
+  const clearableApplicants = useMemo(() => [
+    ...(allApplicationsForClear.data ?? []).map((application) => ({
+      id: application.id,
+      type: 'enrollment_application' as const,
+      fullName: application.applicantName || 'Applicant',
+      email: application.applicantEmail || 'No email',
+      categoryName: configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName),
+      reference: application.reference,
+      status: application.status === 'draft' ? 'Draft' : application.status.replaceAll('_', ' '),
+      updatedAt: application.updatedAt,
+    })),
+    ...(applications.data ?? []).map((application) => ({
+      id: application.id,
+      type: 'guest_preapplication' as const,
+      fullName: application.fullName || 'Applicant',
+      email: application.email || 'No email',
+      categoryName: configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName),
+      reference: application.reference,
+      status: application.submissionStatus === 'submitted'
+        ? 'Submitted'
+        : application.status.replaceAll('_', ' '),
+      updatedAt: application.updatedAt,
+    })),
+  ], [allApplicationsForClear.data, applications.data, portalSettings.data]);
+  const clearSearchTerm = clearSearch.trim().toLowerCase();
+  const visibleClearApplicants = clearableApplicants.filter((applicant) => [
+    applicant.fullName,
+    applicant.email,
+    applicant.categoryName,
+    applicant.reference,
+    applicant.status,
+  ].join(' ').toLowerCase().includes(clearSearchTerm));
+  const selectedClearSet = new Set(selectedClearIds);
+  const visibleClearIds = visibleClearApplicants.map((applicant) => `${applicant.type}:${applicant.id}`);
+  const allVisibleClearSelected = visibleClearIds.length > 0 &&
+    visibleClearIds.every((id) => selectedClearSet.has(id));
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
   const guestStepLabel: Record<number, string> = {
@@ -3735,6 +3790,64 @@ function ApplicantsPage() {
     });
   };
 
+  const openClearRecords = () => {
+    setClearSearch('');
+    setSelectedClearIds([]);
+    setFeedback('');
+    setFeedbackIsError(false);
+    setClearDialogOpen(true);
+  };
+
+  const toggleClearApplicant = (key: string) => {
+    setSelectedClearIds((current) =>
+      current.includes(key) ? current.filter((id) => id !== key) : [...current, key],
+    );
+  };
+
+  const toggleVisibleClearApplicants = () => {
+    setSelectedClearIds((current) => {
+      if (allVisibleClearSelected) return current.filter((id) => !visibleClearIds.includes(id));
+      return [...new Set([...current, ...visibleClearIds])];
+    });
+  };
+
+  const clearSelectedApplicants = () => {
+    const selectedRecords = clearableApplicants.filter((applicant) =>
+      selectedClearSet.has(`${applicant.type}:${applicant.id}`),
+    );
+    const data: ClearApplicantRecordsInput = {
+      guestPreapplicationIds: selectedRecords
+        .filter((record) => record.type === 'guest_preapplication')
+        .map((record) => record.id),
+      enrollmentApplicationIds: selectedRecords
+        .filter((record) => record.type === 'enrollment_application')
+        .map((record) => record.id),
+    };
+    if (!data.guestPreapplicationIds.length && !data.enrollmentApplicationIds.length) return;
+    clearApplicantRecords.mutate({ data }, {
+      onSuccess: (result) => {
+        const failedIds = new Set(result.failedRecords.map((record) => `${record.type}:${record.id}`));
+        void queryClient.invalidateQueries({ queryKey: getListApplicationsForReviewQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetAdminOverviewQueryKey() });
+        if (result.failedRecords.length) {
+          setSelectedClearIds([...failedIds]);
+          setFeedback(`${result.clearedCount} applicant record${result.clearedCount === 1 ? '' : 's'} cleared. ${result.failedRecords.length} could not be cleared; retry or deselect them.`);
+          setFeedbackIsError(true);
+          return;
+        }
+        setFeedback(`${result.clearedCount} applicant record${result.clearedCount === 1 ? '' : 's'} cleared.`);
+        setFeedbackIsError(false);
+        setSelectedClearIds([]);
+        setClearDialogOpen(false);
+      },
+      onError: () => {
+        setFeedback('The selected applicant records could not be cleared. Please retry.');
+        setFeedbackIsError(true);
+      },
+    });
+  };
+
   if (!canReview) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card">
     <span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div>
     <h1>Reviewer access required</h1><p>Guest application review is available to authorized administrators and sub-administrators.</p>
@@ -3753,8 +3866,50 @@ function ApplicantsPage() {
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, category, or reference" aria-label="Search all applicants" data-testid="input-applicants-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter applicants by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-applicants-status">
           <option value="">All statuses</option><option value="draft">In progress</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="needs_information">Needs information</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="received">Guest draft: received</option><option value="contacted">Guest draft: contacted</option><option value="closed">Guest draft: closed</option>
-        </select><ChevronDown size={15} /></label>
+         </select><ChevronDown size={15} /></label>
+        <button type="button" className="button button-quiet clear-record-trigger" onClick={openClearRecords} data-testid="button-clear-records">
+          <Trash2 size={15} /> Clear record
+        </button>
       </div>
+      {clearDialogOpen && <div className="clear-record-backdrop" onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !clearApplicantRecords.isPending) setClearDialogOpen(false);
+      }}>
+        <section className="clear-record-dialog" role="dialog" aria-modal="true" aria-labelledby="clear-record-title" data-testid="dialog-clear-records">
+          <header className="clear-record-dialog-head">
+            <div><span className="eyebrow">RECORD MANAGEMENT</span><h2 id="clear-record-title">Select applicant records</h2></div>
+            <button type="button" className="modal-close" onClick={() => setClearDialogOpen(false)} disabled={clearApplicantRecords.isPending} aria-label="Close applicant selection">×</button>
+          </header>
+          <p className="clear-record-warning"><Trash2 size={16} /> Clearing permanently deletes selected applicant details and their private evidence. This cannot be undone.</p>
+          <label className="searchbox clear-record-search"><Search size={16} /><input type="search" value={clearSearch} onChange={(event) => setClearSearch(event.target.value)} placeholder="Search applicants, email, category, or reference" aria-label="Search records to clear" data-testid="input-clear-record-search" /></label>
+          <div className="clear-record-select-all">
+            <label><input type="checkbox" checked={allVisibleClearSelected} onChange={toggleVisibleClearApplicants} disabled={!visibleClearApplicants.length || clearApplicantRecords.isPending} /> Select all shown</label>
+            <span>{selectedClearIds.length} selected · {clearableApplicants.length} total</span>
+          </div>
+          <div className="clear-record-list" data-testid="clear-record-list">
+            {allApplicationsForClear.isLoading || applications.isLoading
+              ? <LoadingPanel label="Loading applicant records" />
+              : !clearableApplicants.length
+                ? <EmptyPanel title="No applicant records" message="There are no records available to clear." />
+                : !visibleClearApplicants.length
+                  ? <EmptyPanel title="No matching records" message="Try a different search term." />
+                  : visibleClearApplicants.map((applicant) => {
+                    const key = `${applicant.type}:${applicant.id}`;
+                    return <label className="clear-record-row" key={key} data-testid={`clear-record-row-${applicant.id}`}>
+                      <input type="checkbox" checked={selectedClearSet.has(key)} onChange={() => toggleClearApplicant(key)} disabled={clearApplicantRecords.isPending} />
+                      <span className="clear-record-row-info"><strong>{applicant.fullName}</strong><small>{applicant.email} · {applicant.categoryName}</small></span>
+                      <span className="clear-record-row-status"><strong>{applicant.status}</strong><small>{applicant.reference}</small></span>
+                    </label>;
+                  })}
+          </div>
+          {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="clear-record-feedback">{feedback}</p>}
+          <footer className="clear-record-dialog-actions">
+            <button type="button" className="button button-quiet" onClick={() => setClearDialogOpen(false)} disabled={clearApplicantRecords.isPending}>Cancel</button>
+            <button type="button" className="button button-danger" onClick={clearSelectedApplicants} disabled={!selectedClearIds.length || clearApplicantRecords.isPending} data-testid="button-confirm-clear-records">
+              <Trash2 size={15} /> {clearApplicantRecords.isPending ? 'Clearing…' : `Clear selected (${selectedClearIds.length})`}
+            </button>
+          </footer>
+        </section>
+      </div>}
       <section className="queue-card" aria-label="Submitted and account-based applications" data-testid="applicants-enrollment-list">
         <div className="queue-card-head"><div><b>Enrollment applications</b><span>Submitted applications and signed-in drafts</span></div><span className="queue-count" data-testid="text-applicants-enrollment-count">{submittedApplications.isLoading ? '…' : matchingEnrollmentApplications.length}</span></div>
         {submittedApplications.isLoading ? <LoadingPanel label="Loading enrollment applications" /> :

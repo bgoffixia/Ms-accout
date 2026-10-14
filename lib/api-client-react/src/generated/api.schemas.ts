@@ -500,6 +500,32 @@ export interface DeleteMyApplicationDraftsResponse {
   deletedCount: number;
 }
 
+export type ApplicantRecordIdentifierType = typeof ApplicantRecordIdentifierType[keyof typeof ApplicantRecordIdentifierType];
+
+
+export const ApplicantRecordIdentifierType = {
+  guest_preapplication: 'guest_preapplication',
+  enrollment_application: 'enrollment_application',
+} as const;
+
+export interface ApplicantRecordIdentifier {
+  type: ApplicantRecordIdentifierType;
+  id: string;
+}
+
+export interface ClearApplicantRecordsInput {
+  /** @maxItems 100 */
+  guestPreapplicationIds: string[];
+  /** @maxItems 100 */
+  enrollmentApplicationIds: string[];
+}
+
+export interface ApplicantRecordsClearResult {
+  /** @minimum 0 */
+  clearedCount: number;
+  failedRecords: ApplicantRecordIdentifier[];
+}
+
 export type ApplicationUpdateCategoryId = typeof ApplicationUpdateCategoryId[keyof typeof ApplicationUpdateCategoryId];
 
 

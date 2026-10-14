@@ -748,6 +748,33 @@ export const ListAdminGuestPreapplicationsResponse = zod.array(ListAdminGuestPre
 
 
 /**
+ * @summary Permanently remove selected applicant records and their private evidence
+ */
+export const clearApplicantRecordsBodyGuestPreapplicationIdsMax = 100;
+
+export const clearApplicantRecordsBodyEnrollmentApplicationIdsMax = 100;
+
+
+
+export const ClearApplicantRecordsBody = zod.object({
+  "guestPreapplicationIds": zod.array(zod.string().uuid()).max(clearApplicantRecordsBodyGuestPreapplicationIdsMax),
+  "enrollmentApplicationIds": zod.array(zod.string().uuid()).max(clearApplicantRecordsBodyEnrollmentApplicationIdsMax)
+})
+
+export const clearApplicantRecordsResponseClearedCountMin = 0;
+
+
+
+export const ClearApplicantRecordsResponse = zod.object({
+  "clearedCount": zod.number().int().min(clearApplicantRecordsResponseClearedCountMin),
+  "failedRecords": zod.array(zod.object({
+  "type": zod.enum(['guest_preapplication', 'enrollment_application']),
+  "id": zod.string().uuid()
+}))
+})
+
+
+/**
  * @summary Reveal a guest applicant PIN to an authorized reviewer
  */
 export const GetAdminGuestPreapplicationPinParams = zod.object({

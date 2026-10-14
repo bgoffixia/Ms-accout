@@ -30,12 +30,14 @@ import type {
   AdminUserList,
   AdminUserRoleUpdate,
   AdminUserStatusUpdate,
+  ApplicantRecordsClearResult,
   ApplicantSummary,
   ApplicationDecision,
   ApplicationDraftInput,
   ApplicationEvent,
   ApplicationNoteInput,
   ApplicationUpdate,
+  ClearApplicantRecordsInput,
   DeleteMyApplicationDraftsResponse,
   EnrollmentApplication,
   EnrollmentCategory,
@@ -1860,6 +1862,94 @@ export function useListAdminGuestPreapplications<TData = Awaited<ReturnType<type
 
 
 
+
+export const getClearApplicantRecordsUrl = () => {
+
+
+
+
+  return `/api/admin/applicants/clear`
+}
+
+/**
+ * @summary Permanently remove selected applicant records and their private evidence
+ */
+export const clearApplicantRecords = async (clearApplicantRecordsInput: ClearApplicantRecordsInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicantRecordsClearResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ApplicantRecordsClearResult>(getClearApplicantRecordsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(clearApplicantRecordsInput)
+  }
+);}
+
+
+
+
+
+export const getClearApplicantRecordsMutationKey = () => ['clearApplicantRecords'] as const;
+
+export const getClearApplicantRecordsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearApplicantRecords>>, TError,ClearApplicantRecordsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearApplicantRecords>>, TError,ClearApplicantRecordsMutationVariables, TContext> => {
+
+const mutationKey = getClearApplicantRecordsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearApplicantRecords>>, ClearApplicantRecordsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  clearApplicantRecords(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearApplicantRecordsMutationResult = NonNullable<Awaited<ReturnType<typeof clearApplicantRecords>>>
+    export type ClearApplicantRecordsMutationBody = BodyType<ClearApplicantRecordsInput>
+    export type ClearApplicantRecordsMutationError = ErrorType<void>
+    export type ClearApplicantRecordsMutationVariables = {data: BodyType<ClearApplicantRecordsInput>}
+
+    /**
+ * @summary Permanently remove selected applicant records and their private evidence
+ */
+export const useClearApplicantRecords = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearApplicantRecords>>, TError,ClearApplicantRecordsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clearApplicantRecords>>,
+        TError,
+        ClearApplicantRecordsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getClearApplicantRecordsMutationOptions(options));
+    }
 
 export const getGetAdminGuestPreapplicationPinUrl = (applicationId: string,) => {
 

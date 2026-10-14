@@ -441,6 +441,30 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AdminGuestPreapplication"
+  /admin/applicants/clear:
+    post:
+      operationId: clearApplicantRecords
+      tags: [administration]
+      summary: Permanently remove selected applicant records and their private evidence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearApplicantRecordsInput"
+      responses:
+        "200":
+          description: Number of selected records removed and any records that could not be cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicantRecordsClearResult"
+        "400":
+          description: Invalid applicant selection
+        "401":
+          description: Sign-in required
+        "403":
+          description: Reviewer access required
   /admin/guest-preapplications/{applicationId}/pin:
     get:
       operationId: getAdminGuestPreapplicationPin
@@ -1453,6 +1477,43 @@ components:
         deletedCount:
           type: integer
           minimum: 0
+    ApplicantRecordIdentifier:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [guest_preapplication, enrollment_application]
+        id:
+          type: string
+          format: uuid
+    ClearApplicantRecordsInput:
+      type: object
+      required: [guestPreapplicationIds, enrollmentApplicationIds]
+      properties:
+        guestPreapplicationIds:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+        enrollmentApplicationIds:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+    ApplicantRecordsClearResult:
+      type: object
+      required: [clearedCount, failedRecords]
+      properties:
+        clearedCount:
+          type: integer
+          minimum: 0
+        failedRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApplicantRecordIdentifier"
     ApplicationUpdate:
       type: object
       properties:

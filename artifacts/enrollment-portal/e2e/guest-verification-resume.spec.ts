@@ -666,6 +666,7 @@ test("submits before email verification and gates status access until the applic
     ).toBeEnabled();
   await page.getByTestId("button-submit-enrollment").click();
   await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
   await expect(page.getByTestId("input-guest-email-otp")).toBeVisible();
   await page.getByRole("button", { name: "Close email verification" }).click();
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);

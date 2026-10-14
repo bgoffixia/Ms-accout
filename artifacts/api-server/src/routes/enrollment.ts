@@ -58,6 +58,8 @@ import {
   GetApplicantSummaryResponse,
   GetPortalSettingsResponse,
   DeleteMyDraftsResponse,
+  ClearApplicantRecordsBody,
+  ClearApplicantRecordsResponse,
   ListAdminUsersQueryParams,
   ListAdminUsersResponse,
   ListApplicationsForReviewQueryParams,
@@ -3020,6 +3022,187 @@ router.post(
   },
 );
 router.use("/admin", requireAdmin);
+
+router.post("/admin/applicants/clear", requireReviewer, async (req, res): Promise<void> => {
+  const parsed = ClearApplicantRecordsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Select at least one applicant record to clear." });
+    return;
+  }
+
+  const guestIds = [...new Set(parsed.data.guestPreapplicationIds)];
+  const requestedApplicationIds = [...new Set(parsed.data.enrollmentApplicationIds)];
+  if (!guestIds.length && !requestedApplicationIds.length) {
+    res.status(400).json({ error: "Select at least one applicant record to clear." });
+    return;
+  }
+  if (guestIds.length + requestedApplicationIds.length > 100) {
+    res.status(400).json({ error: "Clear no more than 100 applicant records at a time." });
+    return;
+  }
+
+  const guestTargetKey = (id: string) => `guest_preapplication:${id}`;
+  const enrollmentTargetKey = (id: string) => `enrollment_application:${id}`;
+  const requestedKeys = new Set([
+    ...guestIds.map(guestTargetKey),
+    ...requestedApplicationIds.map(enrollmentTargetKey),
+  ]);
+  const failedKeys = new Set<string>();
+
+  try {
+    const selectedApplications = requestedApplicationIds.length
+      ? await db.select().from(enrollmentApplicationsTable)
+        .where(inArray(enrollmentApplicationsTable.id, requestedApplicationIds))
+      : [];
+    const selectedGuests = guestIds.length
+      ? await db.select().from(guestPreapplicationsTable)
+        .where(inArray(guestPreapplicationsTable.id, guestIds))
+      : [];
+    const selectedApplicationById = new Map(
+      selectedApplications.map((application) => [application.id, application]),
+    );
+    const selectedGuestById = new Map(
+      selectedGuests.map((application) => [application.id, application]),
+    );
+
+    for (const id of requestedApplicationIds) {
+      if (!selectedApplicationById.has(id)) failedKeys.add(enrollmentTargetKey(id));
+    }
+    for (const id of guestIds) {
+      if (!selectedGuestById.has(id)) failedKeys.add(guestTargetKey(id));
+    }
+
+    const sourceGuestIds = selectedApplications
+      .map((application) => application.sourceGuestPreapplicationId)
+      .filter((id): id is string => Boolean(id));
+    const missingSourceGuestIds = sourceGuestIds.filter((id) => !selectedGuestById.has(id));
+    const sourceGuests = missingSourceGuestIds.length
+      ? await db.select().from(guestPreapplicationsTable)
+        .where(inArray(guestPreapplicationsTable.id, missingSourceGuestIds))
+      : [];
+    const guestsToDelete = new Map([
+      ...selectedGuests.map((application) => [application.id, application] as const),
+      ...sourceGuests.map((application) => [application.id, application] as const),
+    ]);
+
+    const linkedApplicationIds = [...new Set(
+      [...guestsToDelete.values()]
+        .map((application) => application.linkedApplicationId)
+        .filter((id): id is string => Boolean(id)),
+    )].filter((id) => !selectedApplicationById.has(id));
+    const linkedApplications = linkedApplicationIds.length
+      ? await db.select().from(enrollmentApplicationsTable)
+        .where(inArray(enrollmentApplicationsTable.id, linkedApplicationIds))
+      : [];
+    const applicationsToDelete = new Map([
+      ...selectedApplications.map((application) => [application.id, application] as const),
+      ...linkedApplications.map((application) => [application.id, application] as const),
+    ]);
+
+    const evidenceByGuestId = new Map<string, Array<typeof guestPreapplicationEvidenceTable.$inferSelect>>();
+    const allGuestIds = [...guestsToDelete.keys()];
+    const evidenceRows = allGuestIds.length
+      ? await db.select().from(guestPreapplicationEvidenceTable)
+        .where(inArray(guestPreapplicationEvidenceTable.applicationId, allGuestIds))
+      : [];
+    for (const evidence of evidenceRows) {
+      const records = evidenceByGuestId.get(evidence.applicationId) ?? [];
+      records.push(evidence);
+      evidenceByGuestId.set(evidence.applicationId, records);
+    }
+
+    const failedGuestIds = new Set<string>();
+    for (const [guestId, evidenceItems] of evidenceByGuestId) {
+      for (const evidence of evidenceItems) {
+        if (!evidence.objectPath.startsWith("/objects/")) {
+          failedGuestIds.add(guestId);
+          break;
+        }
+        try {
+          const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+          await objectFile.delete({ ignoreNotFound: true });
+        } catch (error) {
+          if (error instanceof ObjectNotFoundError) continue;
+          failedGuestIds.add(guestId);
+          req.log.error(
+            { err: error, applicationId: guestId, evidenceId: evidence.id },
+            "Failed to remove applicant evidence while clearing a record",
+          );
+          break;
+        }
+      }
+    }
+
+    for (const guestId of failedGuestIds) {
+      if (requestedKeys.has(guestTargetKey(guestId))) failedKeys.add(guestTargetKey(guestId));
+      for (const application of applicationsToDelete.values()) {
+        if (
+          application.sourceGuestPreapplicationId === guestId &&
+          requestedKeys.has(enrollmentTargetKey(application.id))
+        ) {
+          failedKeys.add(enrollmentTargetKey(application.id));
+        }
+      }
+      const guest = guestsToDelete.get(guestId);
+      if (
+        guest?.linkedApplicationId &&
+        requestedKeys.has(enrollmentTargetKey(guest.linkedApplicationId))
+      ) {
+        failedKeys.add(enrollmentTargetKey(guest.linkedApplicationId));
+      }
+    }
+
+    const deletableApplications = [...applicationsToDelete.values()]
+      .filter((application) => !failedGuestIds.has(application.sourceGuestPreapplicationId ?? ""));
+    const deletableGuestIds = [...guestsToDelete.keys()]
+      .filter((id) => !failedGuestIds.has(id));
+
+    const deleted = await db.transaction(async (transaction) => {
+      const removedApplications = deletableApplications.length
+        ? await transaction.delete(enrollmentApplicationsTable)
+          .where(inArray(
+            enrollmentApplicationsTable.id,
+            deletableApplications.map((application) => application.id),
+          ))
+          .returning({ id: enrollmentApplicationsTable.id })
+        : [];
+      if (deletableGuestIds.length) {
+        await transaction.delete(guestPreapplicationEvidenceTable)
+          .where(inArray(guestPreapplicationEvidenceTable.applicationId, deletableGuestIds));
+        await transaction.delete(guestPreapplicationRevisionsTable)
+          .where(inArray(guestPreapplicationRevisionsTable.applicationId, deletableGuestIds));
+      }
+      const removedGuests = deletableGuestIds.length
+        ? await transaction.delete(guestPreapplicationsTable)
+          .where(inArray(guestPreapplicationsTable.id, deletableGuestIds))
+          .returning({ id: guestPreapplicationsTable.id })
+        : [];
+      return {
+        applicationIds: new Set(removedApplications.map((application) => application.id)),
+        guestIds: new Set(removedGuests.map((application) => application.id)),
+      };
+    });
+
+    for (const id of guestIds) {
+      if (!deleted.guestIds.has(id)) failedKeys.add(guestTargetKey(id));
+    }
+    for (const id of requestedApplicationIds) {
+      if (!deleted.applicationIds.has(id)) failedKeys.add(enrollmentTargetKey(id));
+    }
+    const clearedCount = requestedKeys.size - failedKeys.size;
+    const failedRecords = [...failedKeys].map((key) => {
+      const [type, id] = key.split(":");
+      return {
+        type: type as "guest_preapplication" | "enrollment_application",
+        id: id ?? "",
+      };
+    });
+    res.json(ClearApplicantRecordsResponse.parse({ clearedCount, failedRecords }));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to clear selected applicant records");
+    res.status(503).json({ error: "The selected applicant records could not be cleared. Please retry." });
+  }
+});
 
 router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Promise<void> => {
   try {

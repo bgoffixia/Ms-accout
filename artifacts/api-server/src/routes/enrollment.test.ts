@@ -1235,4 +1235,72 @@ describe("guest application verification and persistence", () => {
     expect(mockState.storageObjects.has("/objects/test/submitted-file")).toBe(true);
     expect(inactiveDraft.answers).toEqual({ proofOfIdentity: {} });
   });
+
+  it("lets a sub-admin clear a selected applicant and removes linked evidence", async () => {
+    const guestId = crypto.randomUUID();
+    const enrollmentId = crypto.randomUUID();
+    const evidenceId = crypto.randomUUID();
+    const evidencePath = "/objects/test/clear-applicant-evidence";
+    const guest = newRow("guest_preapplications", {
+      id: guestId,
+      submissionId: crypto.randomUUID(),
+      reference: "GUEST-CLEAR-1",
+      accessKeyHash: "private-key-hash",
+      categoryId: "category-1",
+      fullName: "Clear Test Applicant",
+      email: contactEmail,
+      submissionStatus: "submitted",
+      linkedApplicationId: enrollmentId,
+    });
+    const enrollment = newRow("enrollment_applications", {
+      id: enrollmentId,
+      reference: "ENR-CLEAR-1",
+      clerkUserId: "applicant-verified",
+      sourceGuestPreapplicationId: guestId,
+      categoryId: "category-1",
+      status: "submitted",
+      answers: {},
+    });
+    const evidence = newRow("guest_preapplication_evidence", {
+      id: evidenceId,
+      applicationId: guestId,
+      evidenceType: "identity_document",
+      evidenceSlot: "identity_front",
+      fileName: "identity.png",
+      contentType: "image/png",
+      sizeBytes: privatePng.length,
+      objectPath: evidencePath,
+      uploadedAt: new Date(),
+      uploadedByUserId: null,
+    });
+    mockState.rows.set("guest_preapplications", [guest]);
+    mockState.rows.set("enrollment_applications", [enrollment]);
+    mockState.rows.set("guest_preapplication_evidence", [evidence]);
+    mockState.rows.set("guest_preapplication_revisions", []);
+    mockState.storageObjects.set(evidencePath, {
+      contentType: "image/png",
+      bytes: privatePng,
+    });
+
+    const body = {
+      guestPreapplicationIds: [],
+      enrollmentApplicationIds: [enrollmentId],
+    };
+    const denied = await request("/admin/applicants/clear", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, "applicant-unverified");
+    expect(denied.response.status).toBe(403);
+
+    const cleared = await request("/admin/applicants/clear", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, "reviewer");
+    expect(cleared.response.status, JSON.stringify(cleared.body)).toBe(200);
+    expect(cleared.body).toEqual({ clearedCount: 1, failedRecords: [] });
+    expect(mockState.rows.get("guest_preapplications")).toEqual([]);
+    expect(mockState.rows.get("enrollment_applications")).toEqual([]);
+    expect(mockState.rows.get("guest_preapplication_evidence")).toEqual([]);
+    expect(mockState.storageObjects.has(evidencePath)).toBe(false);
+  });
 });
