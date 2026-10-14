@@ -3271,9 +3271,15 @@ function ApplicantsPage() {
   const { user } = useUser();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
   const applicationFilters = useMemo(
-    () => (search.trim() ? { search: search.trim() } : {}),
-    [search],
+    () => ({
+      ...(status && ['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected'].includes(status)
+        ? { status: status as 'draft' | 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' }
+        : {}),
+      ...(search.trim() ? { search: search.trim() } : {}),
+    }),
+    [search, status],
   );
   const submittedApplications = useListApplicationsForReview(applicationFilters);
   const applications = useListAdminGuestPreapplications({
@@ -3292,15 +3298,22 @@ function ApplicantsPage() {
   const searchTerm = search.trim().toLowerCase();
   const matchingGuestApplications = useMemo(() => {
     const records = applications.data ?? [];
-    if (!searchTerm) return records;
-    return records.filter((application) => [
-      application.fullName,
-      application.email,
-      application.phone ?? '',
-      application.categoryName,
-      application.reference,
-    ].join(' ').toLowerCase().includes(searchTerm));
-  }, [applications.data, searchTerm]);
+    return records.filter((application) => {
+      const matchesSearch = !searchTerm || [
+        application.fullName,
+        application.email,
+        application.phone ?? '',
+        application.categoryName,
+        application.reference,
+      ].join(' ').toLowerCase().includes(searchTerm);
+      const matchesStatus = !status ||
+        (status === 'draft' && application.status !== 'closed') ||
+        application.status === status;
+      return matchesSearch && matchesStatus;
+    });
+  }, [applications.data, searchTerm, status]);
+  const guestStatusFilter = ['received', 'contacted', 'closed'].includes(status);
+  const matchingEnrollmentApplications = guestStatusFilter ? [] : submittedApplications.data ?? [];
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
@@ -3408,13 +3421,16 @@ function ApplicantsPage() {
       <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Applicants" detail="Review submitted enrollments and saved guest drafts in one place." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, category, or reference" aria-label="Search all applicants" data-testid="input-applicants-search" /><span className="search-shortcut">⌘ K</span></label>
+        <label className="filter-select"><span className="sr-only">Filter applicants by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-applicants-status">
+          <option value="">All statuses</option><option value="draft">In progress</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="needs_information">Needs information</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="received">Guest draft: received</option><option value="contacted">Guest draft: contacted</option><option value="closed">Guest draft: closed</option>
+        </select><ChevronDown size={15} /></label>
       </div>
       <section className="queue-card" aria-label="Submitted and account-based applications" data-testid="applicants-enrollment-list">
-        <div className="queue-card-head"><div><b>Enrollment applications</b><span>Submitted applications and signed-in drafts</span></div><span className="queue-count" data-testid="text-applicants-enrollment-count">{submittedApplications.isLoading ? '…' : (submittedApplications.data ?? []).length}</span></div>
+        <div className="queue-card-head"><div><b>Enrollment applications</b><span>Submitted applications and signed-in drafts</span></div><span className="queue-count" data-testid="text-applicants-enrollment-count">{submittedApplications.isLoading ? '…' : matchingEnrollmentApplications.length}</span></div>
         {submittedApplications.isLoading ? <LoadingPanel label="Loading enrollment applications" /> :
           submittedApplications.isError ? <section className="state-card" role="alert"><h2>Enrollment applications unavailable</h2><p>Submitted applications could not be loaded.</p><button className="text-action" type="button" onClick={() => void submittedApplications.refetch()}>Try again <ArrowRight size={15} /></button></section> :
-            (submittedApplications.data ?? []).length === 0 ? <EmptyPanel title={searchTerm ? 'No matching applications' : 'No enrollment applications yet'} message={searchTerm ? 'Try a different applicant name, email, category, or reference.' : 'Submitted applications and signed-in drafts will appear here.'} /> :
-              <div className="queue-list">{(submittedApplications.data ?? []).map((application) => <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-applicant-enrollment-${application.id}`}>
+            matchingEnrollmentApplications.length === 0 ? <EmptyPanel title={searchTerm || status ? 'No matching applications' : 'No enrollment applications yet'} message={searchTerm || status ? 'Try changing the search or status filter.' : 'Submitted applications and signed-in drafts will appear here.'} /> :
+              <div className="queue-list">{matchingEnrollmentApplications.map((application) => <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-applicant-enrollment-${application.id}`}>
                 <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.applicantName || 'Applicant'}</b><small>{application.applicantEmail || 'No email'} · {application.categoryName} · {application.reference} · {application.status === 'draft' ? draftProgressLabel(application) : formatDate(application.submittedAt)}</small></span>
                 <StatusPill status={application.status} testId={`status-applicant-enrollment-${application.id}`} /><ArrowRight size={16} className="row-arrow" />
               </Link>)}</div>}
@@ -3428,7 +3444,7 @@ function ApplicantsPage() {
           <span className="state-icon error-icon"><Activity size={19} /></span><h2>Follow-up list unavailable</h2>
           <p>Guest pre-applications could not be loaded. Your access has not changed.</p>
           <button className="text-action" type="button" onClick={() => void applications.refetch()} data-testid="button-retry-guest-admin">Try again <ArrowRight size={15} /></button>
-        </section> : matchingGuestApplications.length === 0 ? <EmptyPanel title={searchTerm ? 'No matching guest drafts' : 'No guest applications yet'} message={searchTerm ? 'Try a different applicant name, email, category, or reference.' : 'New account-free applications will appear here for staff review.'} /> :
+        </section> : matchingGuestApplications.length === 0 ? <EmptyPanel title={searchTerm || status ? 'No matching guest drafts' : 'No guest applications yet'} message={searchTerm || status ? 'Try changing the search or status filter.' : 'New account-free applications will appear here for staff review.'} /> :
           <section className="guest-admin-list" aria-label="Guest application follow-up list" data-testid="guest-admin-list">
             <div className="guest-admin-list-head"><span>APPLICANT</span><span>CONTACT</span><span>CATEGORY / REFERENCE</span><span>STATUS</span><span>FOLLOW-UP</span></div>
             {matchingGuestApplications.map((application) => <article className="guest-admin-row" key={application.id} data-testid={`row-guest-preapplication-${application.id}`}>
