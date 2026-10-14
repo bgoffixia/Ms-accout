@@ -3317,6 +3317,7 @@ function AdminGuestApplicationReview() {
   const id = params.applicationId ?? '';
   const { user } = useUser();
   const queryClient = useQueryClient();
+  const portalSettings = useGetPortalSettings();
   const applications = useListAdminGuestPreapplications({
     query: {
       queryKey: getListAdminGuestPreapplicationsQueryKey(),
@@ -3356,7 +3357,12 @@ function AdminGuestApplicationReview() {
     ].filter(Boolean);
     const details = record.detailsComplete
       ? 'Details complete'
-      : `Saved through: ${stepLabels[record.currentStep] ?? 'Category details'}`;
+      : `Saved through: ${copyText(
+        portalSettings.data,
+        `workflow-step-${Math.min(8, Math.max(1, record.currentStep + 1))}`,
+        'title',
+        stepLabels[record.currentStep] ?? 'Category details',
+      )}`;
     return `${details} · email ${record.emailVerified ? 'verified' : 'not verified'} · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
   };
 
@@ -3440,13 +3446,15 @@ function AdminGuestApplicationReview() {
       <Link href="/admin/review" className="button button-primary" data-testid="link-guest-detail-not-found">Back to Applicants</Link>
     </section>
   </div></AdminShell>;
+  const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
+  const entryScreen = categoryEntryScreenId(application.categoryId);
 
   return <AdminShell active="review">
     <div className="admin-review-page guest-applicant-review-page">
       <Link href="/admin/review" className="back-link" data-testid="link-guest-review-back"><ArrowLeft size={16} /> Applicants</Link>
       <div className="review-title-row">
         <div><div className="eyebrow">ACCOUNT-FREE APPLICANT REVIEW</div><h1>{application.fullName || 'Applicant'}</h1>
-          <p className="mono">{application.reference} · {application.categoryName}</p></div>
+          <p className="mono">{application.reference} · {categoryTitle}</p></div>
         <StatusPill status={application.status} testId={`status-guest-review-detail-${application.id}`} />
       </div>
       {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-detail-feedback">{feedback}</p>}
@@ -3457,7 +3465,7 @@ function AdminGuestApplicationReview() {
           <div className="review-field"><span>Email</span><b>{application.email || 'Not provided'}</b></div>
           <div className="review-field"><span>Phone</span><b>{application.phone || 'Not provided'}</b></div>
           <div className="review-field"><span>Email verification</span><b>{application.emailVerified ? 'Verified' : 'Not verified'}</b></div>
-          <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+          <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected category')}</span><b>{categoryTitle}</b></div>
           <div className="review-field"><span>Application progress</span><b>{progressLabel(application)}</b></div>
           <div className="review-field"><span>Created</span><b>{formatDate(application.createdAt)}</b></div>
           <div className="review-field"><span>Last updated</span><b>{formatDate(application.updatedAt)}</b></div>
@@ -3499,21 +3507,21 @@ function AdminGuestApplicationReview() {
         </ul> : <p className="field-help">No private evidence files have been received yet.</p>}
       </section>
       <section className="review-category-selection">
-        <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Category details</h2></div>
-        <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+        <div className="detail-card-title"><CheckCircle2 size={17} /><h2>{copyText(portalSettings.data, entryScreen, 'title', categoryTitle)}</h2></div>
+        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected category')}</span><b>{categoryTitle}</b></div>
         <div className="review-field"><span>Category PIN</span><b>{application.hasPin ? 'Set (value is protected)' : 'Not set'}</b></div>
-        {getCategoryEntryFields(application.answers, application.categoryId).map((field) =>
+        {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
         <div className="review-field"><span>Applicant declaration</span><b>{application.answers.reviewDeclarationAccepted === true ? 'Accepted' : 'Not accepted'}</b></div>
       </section>
       <div className="admin-record-sections">
-        <AdminAnswerSection title="Personal information" data={readAnswerGroup(application.answers, 'personalInformation')} />
-        <AdminAnswerSection title="Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
-        <AdminAnswerSection title="Education" data={readAnswerGroup(application.answers, 'education')} />
-        <AdminAnswerSection title="Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
-        <AdminAnswerSection title="Proof of identity details" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
-        <AdminAnswerSection title="Video verification details" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="The uploaded video is listed in the evidence panel above." />
-        <AdminAnswerSection title="Optional bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown only to authorized reviewers." />
+        <AdminAnswerSection title="Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} />
+        <AdminAnswerSection title="Next of kin" settings={portalSettings.data} workflowStep={2} group="nextOfKin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
+        <AdminAnswerSection title="Education" settings={portalSettings.data} workflowStep={3} group="education" data={readAnswerGroup(application.answers, 'education')} />
+        <AdminAnswerSection title="Work information" settings={portalSettings.data} workflowStep={4} group="workInformation" data={readAnswerGroup(application.answers, 'workInformation')} />
+        <AdminAnswerSection title="Proof of identity details" settings={portalSettings.data} workflowStep={5} group="proofOfIdentity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
+        <AdminAnswerSection title="Video verification details" settings={portalSettings.data} workflowStep={6} group="liveVideoRecording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="The uploaded video is listed in the evidence panel above." />
+        <AdminAnswerSection title="Optional bank details" settings={portalSettings.data} workflowStep={7} group="bankDetails" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown only to authorized reviewers." />
       </div>
       <section className="detail-card admin-history-card" data-testid={`guest-preapplication-history-${application.id}`}>
         <div className="detail-card-title"><Activity size={17} /><h2>Saved entries and corrections</h2></div>
@@ -3532,6 +3540,7 @@ function AdminGuestApplicationReview() {
 function ApplicantsPage() {
   const { user } = useUser();
   const queryClient = useQueryClient();
+  const portalSettings = useGetPortalSettings();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const applicationFilters = useMemo(
@@ -3564,6 +3573,7 @@ function ApplicantsPage() {
         application.email,
         application.phone ?? '',
         application.categoryName,
+        configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName),
         application.reference,
       ].join(' ').toLowerCase().includes(searchTerm);
       const matchesStatus = !status ||
@@ -3571,7 +3581,7 @@ function ApplicantsPage() {
         application.status === status;
       return matchesSearch && matchesStatus;
     });
-  }, [applications.data, searchTerm, status]);
+  }, [applications.data, portalSettings.data, searchTerm, status]);
   const guestStatusFilter = ['received', 'contacted', 'closed'].includes(status);
   const matchingEnrollmentApplications = guestStatusFilter ? [] : submittedApplications.data ?? [];
   const [feedback, setFeedback] = useState('');
@@ -3596,7 +3606,12 @@ function ApplicantsPage() {
     ].filter(Boolean);
     const detailStatus = application.detailsComplete
       ? 'Details complete'
-      : `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
+      : `Saved through: ${copyText(
+        portalSettings.data,
+        `workflow-step-${Math.min(8, Math.max(1, application.currentStep + 1))}`,
+        'title',
+        guestStepLabel[application.currentStep] ?? 'Category details',
+      )}`;
     return `${detailStatus} · email not verified · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
   };
 
@@ -3623,7 +3638,12 @@ function ApplicantsPage() {
 
   return <AdminShell active="review">
     <div className="admin-page guest-admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Applicants" detail="Review submitted enrollments and saved guest drafts in one place." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <PageHeading
+        eyebrow={copyText(portalSettings.data, 'admin-review', 'sectionIdLabel', 'SECURE STAFF WORKSPACE')}
+        title={copyText(portalSettings.data, 'admin-review', 'title', 'Applicants')}
+        detail={copyText(portalSettings.data, 'admin-review', 'description', 'Review submitted enrollments and saved guest drafts in one place.')}
+        action={<div className="server-access"><span className="server-dot" /> Service access</div>}
+      />
       <div className="admin-toolbar">
         <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, category, or reference" aria-label="Search all applicants" data-testid="input-applicants-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter applicants by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-applicants-status">
@@ -3635,10 +3655,16 @@ function ApplicantsPage() {
         {submittedApplications.isLoading ? <LoadingPanel label="Loading enrollment applications" /> :
           submittedApplications.isError ? <section className="state-card" role="alert"><h2>Enrollment applications unavailable</h2><p>Submitted applications could not be loaded.</p><button className="text-action" type="button" onClick={() => void submittedApplications.refetch()}>Try again <ArrowRight size={15} /></button></section> :
             matchingEnrollmentApplications.length === 0 ? <EmptyPanel title={searchTerm || status ? 'No matching applications' : 'No enrollment applications yet'} message={searchTerm || status ? 'Try changing the search or status filter.' : 'Submitted applications and signed-in drafts will appear here.'} /> :
-              <div className="queue-list">{matchingEnrollmentApplications.map((application) => <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-applicant-enrollment-${application.id}`}>
-                <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.applicantName || 'Applicant'}</b><small>{application.applicantEmail || 'No email'} · {application.categoryName} · {application.reference} · {application.status === 'draft' ? draftProgressLabel(application) : formatDate(application.submittedAt)}</small></span>
+               <div className="queue-list">{matchingEnrollmentApplications.map((application) => {
+                 const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
+                 const entryTitle = copyText(portalSettings.data, categoryEntryScreenId(application.categoryId), 'title', 'Category entry');
+                 const categoryFields = getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data)
+                   .map((field) => `${field.label}: ${field.value}`).join(' · ');
+                 return <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-applicant-enrollment-${application.id}`}>
+                  <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.applicantName || 'Applicant'}</b><small>{application.applicantEmail || 'No email'} · {categoryTitle} · {entryTitle} · {application.reference} · {application.status === 'draft' ? draftProgressLabel(application) : formatDate(application.submittedAt)}{categoryFields ? ` · ${categoryFields}` : ''}</small></span>
                 <StatusPill status={application.status} testId={`status-applicant-enrollment-${application.id}`} /><ArrowRight size={16} className="row-arrow" />
-              </Link>)}</div>}
+               </Link>;
+               })}</div>}
       </section>
       <section aria-labelledby="guest-drafts-heading" data-testid="applicants-guest-drafts">
       <div className="admin-section-heading"><div><span className="eyebrow">ACCOUNT-FREE APPLICATIONS</span><h2 id="guest-drafts-heading">Saved guest drafts</h2></div><span className="queue-count" data-testid="text-applicants-guest-count">{applications.isLoading ? '…' : matchingGuestApplications.length}</span></div>
@@ -3657,7 +3683,11 @@ function ApplicantsPage() {
               <div className="guest-admin-contact"><a href={`mailto:${application.email}`} data-testid={`link-guest-email-${application.id}`}>{application.email}</a>{application.phone
                 ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
                 : <small>No phone provided</small>}</div>
-              <div className="guest-admin-category"><strong>{application.categoryName}</strong><small>{application.reference}</small></div>
+               <div className="guest-admin-category"><strong>{configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName)}</strong>
+                 <small>{copyText(portalSettings.data, categoryEntryScreenId(application.categoryId), 'title', 'Category entry')}</small>
+                 <small>{application.reference}</small>
+                 <small>{getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) => `${field.label}: ${field.value}`).join(' · ')}</small>
+               </div>
               <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>NOT SUBMITTED · EMAIL {application.emailVerified ? 'VERIFIED' : 'NOT VERIFIED'}</small><small>{progressLabel(application)}</small></div>
               <div className="guest-admin-actions">
                 <Link href={`/admin/guest-applications/${application.id}`} className="button button-primary guest-admin-action" data-testid={`link-guest-applicant-review-${application.id}`}>Review applicant</Link>
