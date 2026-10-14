@@ -3267,6 +3267,220 @@ function GuestTrackingPage() {
   </main>;
 }
 
+function AdminGuestApplicationReview() {
+  const params = useParams<{ applicationId?: string }>();
+  const id = params.applicationId ?? '';
+  const { user } = useUser();
+  const queryClient = useQueryClient();
+  const applications = useListAdminGuestPreapplications({
+    query: {
+      queryKey: getListAdminGuestPreapplicationsQueryKey(),
+      refetchInterval: 5_000,
+      refetchIntervalInBackground: false,
+      enabled: Boolean(id),
+    },
+    request: { cache: 'no-store' },
+  });
+  const update = useUpdateAdminGuestPreapplication();
+  const requestEvidenceUpload = useRequestGuestPreapplicationEvidenceUpload();
+  const completeEvidenceUpload = useCompleteGuestPreapplicationEvidenceUpload();
+  const [feedback, setFeedback] = useState('');
+  const [feedbackIsError, setFeedbackIsError] = useState(false);
+  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
+  const role = String(user?.publicMetadata?.role);
+  const canReview = role === 'sub_admin' || role === 'admin';
+  const application = applications.data?.find((record) => record.id === id);
+
+  const progressLabel = (record: AdminGuestPreapplication) => {
+    const uploaded = record.evidence.filter((item) => item.uploadedAt);
+    const hasFront = uploaded.some((item) => item.evidenceSlot === 'identity_front');
+    const hasVideo = uploaded.some((item) => item.evidenceSlot === 'verification_video');
+    const stepLabels: Record<number, string> = {
+      0: 'Personal information',
+      1: 'Next of kin',
+      2: 'Education',
+      3: 'Work information',
+      6: 'Bank details',
+      7: 'Application review',
+    };
+    if (record.reviewReady) return 'Ready for review · applicant has not submitted';
+    const missing = [
+      !record.hasPin && 'category PIN',
+      !hasFront && 'identity front',
+      !hasVideo && 'verification video',
+    ].filter(Boolean);
+    const details = record.detailsComplete
+      ? 'Details complete'
+      : `Saved through: ${stepLabels[record.currentStep] ?? 'Category details'}`;
+    return `${details} · email ${record.emailVerified ? 'verified' : 'not verified'} · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
+  };
+
+  const setApplicationStatus = (nextStatus: 'contacted' | 'closed') => {
+    if (!application) return;
+    setFeedback('');
+    setFeedbackIsError(false);
+    update.mutate({ applicationId: application.id, data: { status: nextStatus } }, {
+      onSuccess: () => {
+        setFeedback(`${application.reference} marked ${nextStatus}.`);
+        void queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
+      },
+      onError: () => {
+        setFeedbackIsError(true);
+        setFeedback(`The status for ${application.reference} could not be updated. Please try again.`);
+      },
+    });
+  };
+
+  const uploadEvidence = async (
+    evidenceType: 'identity_document' | 'verification_video',
+    file: File,
+  ) => {
+    if (!application) return;
+    const busyKey = `${application.id}:${evidenceType}`;
+    setEvidenceBusy(busyKey);
+    setFeedback('');
+    try {
+      const { evidenceId, uploadUrl } = await requestEvidenceUpload.mutateAsync({
+        applicationId: application.id,
+        data: {
+          evidenceType,
+          evidenceSlot: evidenceType === 'verification_video' ? 'verification_video' : 'identity_front',
+          fileName: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+        },
+      });
+      const result = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!result.ok) throw new Error('The file could not be stored securely.');
+      await completeEvidenceUpload.mutateAsync({ applicationId: application.id, evidenceId });
+      await queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
+      setFeedbackIsError(false);
+      setFeedback(`${file.name} was uploaded and verified.`);
+    } catch (error) {
+      setFeedbackIsError(true);
+      setFeedback(error instanceof Error ? error.message : `Could not upload ${file.name}. Please try again.`);
+    } finally {
+      setEvidenceBusy(null);
+    }
+  };
+
+  const handleEvidenceFile = (
+    evidenceType: 'identity_document' | 'verification_video',
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (file) void uploadEvidence(evidenceType, file);
+  };
+
+  if (!canReview) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card">
+    <span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div>
+    <h1>Reviewer access required</h1><p>Applicant records are available only to authorized administrators and sub-administrators.</p>
+    <Link href="/admin/review" className="button button-primary" data-testid="link-guest-detail-review-return">Return to Applicants <ArrowRight size={15} /></Link>
+  </div></main>;
+
+  if (applications.isLoading) return <AdminShell active="review"><LoadingPanel label="Loading applicant record" /></AdminShell>;
+  if (applications.isError) return <AdminShell active="review"><div className="admin-review-page">
+    <Link href="/admin/review" className="back-link"><ArrowLeft size={16} /> Applicants</Link>
+    <AccessError retry={() => void applications.refetch()} />
+  </div></AdminShell>;
+  if (!application) return <AdminShell active="review"><div className="admin-review-page">
+    <Link href="/admin/review" className="back-link"><ArrowLeft size={16} /> Applicants</Link>
+    <section className="state-card"><span className="state-icon"><FileText size={20} /></span><h2>Applicant record not found</h2>
+      <p>This guest application may have been removed or is no longer available in the reviewer workspace.</p>
+      <Link href="/admin/review" className="button button-primary" data-testid="link-guest-detail-not-found">Back to Applicants</Link>
+    </section>
+  </div></AdminShell>;
+
+  return <AdminShell active="review">
+    <div className="admin-review-page guest-applicant-review-page">
+      <Link href="/admin/review" className="back-link" data-testid="link-guest-review-back"><ArrowLeft size={16} /> Applicants</Link>
+      <div className="review-title-row">
+        <div><div className="eyebrow">ACCOUNT-FREE APPLICANT REVIEW</div><h1>{application.fullName || 'Applicant'}</h1>
+          <p className="mono">{application.reference} · {application.categoryName}</p></div>
+        <StatusPill status={application.status} testId={`status-guest-review-detail-${application.id}`} />
+      </div>
+      {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-detail-feedback">{feedback}</p>}
+      <div className="review-detail-grid">
+        <section className="detail-card applicant-record">
+          <div className="detail-card-title"><FileText size={17} /><h2>Applicant record</h2></div>
+          <div className="review-field"><span>Name</span><b>{application.fullName || 'Not provided'}</b></div>
+          <div className="review-field"><span>Email</span><b>{application.email || 'Not provided'}</b></div>
+          <div className="review-field"><span>Phone</span><b>{application.phone || 'Not provided'}</b></div>
+          <div className="review-field"><span>Email verification</span><b>{application.emailVerified ? 'Verified' : 'Not verified'}</b></div>
+          <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+          <div className="review-field"><span>Application progress</span><b>{progressLabel(application)}</b></div>
+          <div className="review-field"><span>Created</span><b>{formatDate(application.createdAt)}</b></div>
+          <div className="review-field"><span>Last updated</span><b>{formatDate(application.updatedAt)}</b></div>
+          <div className="review-field"><span>Submission</span><b>{application.submissionStatus === 'submitted' ? 'Submitted' : 'Not submitted'}</b></div>
+        </section>
+        <section className="decision-card guest-review-actions">
+          <div className="decision-head"><span className="decision-icon"><Activity size={19} /></span><div><h2>Reviewer actions</h2><p>Update the guest follow-up status or complete the private evidence file when supplied by the applicant.</p></div></div>
+          <div className="decision-actions guest-detail-actions">
+            {application.status === 'received' && <button type="button" className="decision-button approve" onClick={() => setApplicationStatus('contacted')} disabled={update.isPending} data-testid={`button-guest-detail-contacted-${application.id}`}>Mark contacted</button>}
+            {application.status !== 'closed' && <button type="button" className="decision-button reject" onClick={() => setApplicationStatus('closed')} disabled={update.isPending} data-testid={`button-guest-detail-close-${application.id}`}>Close application</button>}
+            {application.status === 'closed' && <span className="guest-admin-closed">This guest record is closed.</span>}
+          </div>
+        </section>
+      </div>
+      <section className="detail-card guest-evidence-panel guest-review-detail-evidence">
+        <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
+        <div className={`guest-review-readiness ${application.reviewReady ? 'is-ready' : ''}`} role="status">
+          <span>{application.reviewReady ? 'Ready for full review' : 'Not ready for submission'}</span>
+          <small>{application.detailsComplete ? 'Application details are complete.' : 'Application details are incomplete.'} Required for submission: PIN, identity front, and verification video.</small>
+        </div>
+        <div className="guest-evidence-upload-actions">
+          <label className="guest-evidence-upload"><Upload size={15} />
+            <span>{evidenceBusy === `${application.id}:identity_document` ? 'Uploading identity file…' : 'Add identity file'}</span>
+            <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" disabled={evidenceBusy !== null}
+              onChange={(event) => handleEvidenceFile('identity_document', event)} data-testid={`input-guest-detail-identity-${application.id}`} />
+          </label>
+          <label className="guest-evidence-upload"><Upload size={15} />
+            <span>{evidenceBusy === `${application.id}:verification_video` ? 'Uploading verification video…' : 'Add verification video'}</span>
+            <input type="file" accept="video/mp4,video/webm" disabled={evidenceBusy !== null}
+              onChange={(event) => handleEvidenceFile('verification_video', event)} data-testid={`input-guest-detail-video-${application.id}`} />
+          </label>
+        </div>
+        {application.evidence.length > 0 ? <ul className="guest-evidence-list" aria-label="Private evidence files">
+          {application.evidence.map((item) => <li key={item.id}>
+            <span><b>{item.evidenceSlot === 'identity_front' ? 'Identity document front' : item.evidenceSlot === 'identity_back' ? 'Identity document back' : item.evidenceSlot === 'education_certificate' ? 'Education certificate' : item.evidenceSlot === 'verification_video' ? 'Verification video' : 'Identity document'}</b>
+              <small>{item.fileName} · {item.uploadedAt ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : 'Upload pending verification'}</small></span>
+            {item.downloadUrl && <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-guest-detail-evidence-${item.id}`}>Download securely</a>}
+          </li>)}
+        </ul> : <p className="field-help">No private evidence files have been received yet.</p>}
+      </section>
+      <section className="review-category-selection">
+        <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Category details</h2></div>
+        <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+        {getCategoryEntryFields(application.answers, application.categoryId).map((field) =>
+          <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
+        <div className="review-field"><span>Applicant declaration</span><b>{application.answers.reviewDeclarationAccepted === true ? 'Accepted' : 'Not accepted'}</b></div>
+      </section>
+      <div className="admin-record-sections">
+        <AdminAnswerSection title="Personal information" data={readAnswerGroup(application.answers, 'personalInformation')} />
+        <AdminAnswerSection title="Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
+        <AdminAnswerSection title="Education" data={readAnswerGroup(application.answers, 'education')} />
+        <AdminAnswerSection title="Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
+        <AdminAnswerSection title="Optional bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown only to authorized reviewers." />
+      </div>
+      <section className="detail-card admin-history-card" data-testid={`guest-preapplication-history-${application.id}`}>
+        <div className="detail-card-title"><Activity size={17} /><h2>Saved entries and corrections</h2></div>
+        {application.history.length === 0 ? <p className="field-help">No changes have been recorded yet.</p> :
+          <div className="admin-history-list">{application.history.map((revision) => <article key={revision.id}>
+            <b>{`Saved at step ${revision.currentStep + 1}`}</b><span>{formatDate(revision.createdAt)}</span>
+            <ul>{revision.changes.map((change, index) => <li key={`${revision.id}-${index}`}>
+              <strong>{change.field.replace(/^answers\./, '').replaceAll('.', ' ').replaceAll('_', ' ')}</strong>: {change.before || '—'} → {change.after || '—'}
+            </li>)}</ul>
+          </article>)}</div>}
+      </section>
+    </div>
+  </AdminShell>;
+}
+
 function ApplicantsPage() {
   const { user } = useUser();
   const queryClient = useQueryClient();
@@ -3455,79 +3669,11 @@ function ApplicantsPage() {
               <div className="guest-admin-category"><strong>{application.categoryName}</strong><small>{application.reference}</small></div>
               <div className="guest-admin-status"><StatusPill status={application.status} testId={`status-guest-preapplication-${application.id}`} /><small>NOT SUBMITTED · EMAIL {application.emailVerified ? 'VERIFIED' : 'NOT VERIFIED'}</small><small>{progressLabel(application)}</small></div>
               <div className="guest-admin-actions">
+                <Link href={`/admin/guest-applications/${application.id}`} className="button button-primary guest-admin-action" data-testid={`link-guest-applicant-review-${application.id}`}>Review applicant</Link>
                 {application.status === 'received' && <button type="button" className="button button-primary guest-admin-action" onClick={() => setApplicationStatus(application, 'contacted')} disabled={update.isPending} data-testid={`button-guest-contacted-${application.id}`}>Mark contacted</button>}
                 {application.status !== 'closed' && <button type="button" className="guest-admin-close" onClick={() => setApplicationStatus(application, 'closed')} disabled={update.isPending} data-testid={`button-guest-close-${application.id}`}>Close</button>}
                 {application.status === 'closed' && <span className="guest-admin-closed">Closed</span>}
               </div>
-              <details className="guest-admin-details" data-testid={`details-guest-application-${application.id}`}>
-                <summary>Review saved application details <small>{progressLabel(application)}</small></summary>
-                <div className="guest-admin-record-sections">
-                  <section className="review-category-selection" data-testid={`guest-contact-details-${application.id}`}>
-                    <div className="detail-card-title"><FileText size={17} /><h2>Contact details</h2></div>
-                    <div className="review-field"><span>Name from first step</span><b>{application.fullName || 'Not provided'}</b></div>
-                    <div className="review-field"><span>Email from first step</span><b>{application.email || 'Not provided'}</b></div>
-                    <div className="review-field"><span>Phone from first step</span><b>{application.phone || 'Not provided'}</b></div>
-                    <div className="review-field"><span>Email verification</span><b>{application.emailVerified ? 'Verified' : 'Not verified yet'}</b></div>
-                  </section>
-                  <section className="guest-evidence-panel">
-                    <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
-                    <div className={`guest-review-readiness ${application.reviewReady ? 'is-ready' : ''}`} role="status">
-                      <span>{application.reviewReady ? 'Ready for full review' : 'Not ready for full review'}</span>
-                      <small>
-                        {application.detailsComplete ? 'Application details are complete.' : 'Complete application details first.'}
-                        {' '}Required before submission: PIN, identity front, and 12-second video.
-                      </small>
-                    </div>
-                    <div className="guest-evidence-upload-actions">
-                      <label className="guest-evidence-upload">
-                        <Upload size={15} />
-                        <span>{evidenceBusy === `${application.id}:identity_document` ? 'Uploading identity file…' : 'Add identity file'}</span>
-                        <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" disabled={evidenceBusy !== null}
-                          onChange={(event) => handleEvidenceFile(application, 'identity_document', event)}
-                          data-testid={`input-guest-identity-evidence-${application.id}`} />
-                      </label>
-                      <label className="guest-evidence-upload">
-                        <Upload size={15} />
-                        <span>{evidenceBusy === `${application.id}:verification_video` ? 'Uploading video…' : 'Add verification video'}</span>
-                        <input type="file" accept="video/mp4,video/webm" disabled={evidenceBusy !== null}
-                          onChange={(event) => handleEvidenceFile(application, 'verification_video', event)}
-                          data-testid={`input-guest-video-evidence-${application.id}`} />
-                      </label>
-                    </div>
-                    {application.evidence.length > 0 && <ul className="guest-evidence-list" aria-label="Private evidence files">
-                      {application.evidence.map((item) => <li key={item.id}>
-                        <span>
-                          <b>{item.evidenceSlot === 'identity_front' ? 'Identity document front' : item.evidenceSlot === 'identity_back' ? 'Identity document back' : item.evidenceSlot === 'education_certificate' ? 'Education certificate' : item.evidenceSlot === 'verification_video' ? 'Verification video' : 'Identity document'}</b>
-                          <small>{item.fileName} · {item.uploadedAt ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : 'Upload pending verification'}</small>
-                        </span>
-                        {item.downloadUrl && <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-guest-evidence-download-${item.id}`}>Download</a>}
-                      </li>)}
-                    </ul>}
-                  </section>
-                  <section className="review-category-selection">
-                    <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Category details</h2></div>
-                    <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
-                    {getCategoryEntryFields(application.answers, application.categoryId).map((field) =>
-                      <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
-                    <div className="review-field"><span>Applicant declaration</span><b>{application.answers.reviewDeclarationAccepted === true ? 'Accepted' : 'Not yet accepted'}</b></div>
-                  </section>
-                  <AdminAnswerSection title="Personal information" data={readAnswerGroup(application.answers, 'personalInformation')} />
-                  <AdminAnswerSection title="Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
-                  <AdminAnswerSection title="Education" data={readAnswerGroup(application.answers, 'education')} />
-                  <AdminAnswerSection title="Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
-                  <AdminAnswerSection title="Optional bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Account numbers are masked in this guest follow-up view." />
-                  <section className="guest-history-panel" data-testid={`guest-preapplication-history-${application.id}`}>
-                    <div className="detail-card-title"><Activity size={17} /><h2>Saved entries and corrections</h2></div>
-                    {application.history.length === 0 ? <p className="field-help">No changes have been recorded yet.</p> :
-                      <div className="admin-history-list">{application.history.map((revision) => <article key={revision.id}>
-                        <b>{`Saved at step ${revision.currentStep + 1}`}</b><span>{formatDate(revision.createdAt)}</span>
-                        <ul>{revision.changes.map((change, index) => <li key={`${revision.id}-${index}`}>
-                          <strong>{change.field.replace(/^answers\./, '').replaceAll('.', ' ').replaceAll('_', ' ')}</strong>: {change.before || '—'} → {change.after || '—'}
-                        </li>)}</ul>
-                      </article>)}</div>}
-                  </section>
-                </div>
-              </details>
             </article>)}
           </section>}
       </section>
