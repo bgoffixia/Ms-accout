@@ -346,7 +346,7 @@ function requireReviewer(
   res: Response,
   next: NextFunction,
 ): void {
-  if (res.locals.staffRole === "sub_admin") {
+  if (res.locals.staffRole === "sub_admin" || res.locals.staffRole === "admin") {
     next();
     return;
   }

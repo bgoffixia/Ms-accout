@@ -1102,16 +1102,15 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [menuOpen]);
-  const canReview = role === 'sub_admin';
+  const canReview = role === 'sub_admin' || role === 'admin';
   const canManage = role === 'admin';
   const navLinks = [
+    { href: '/admin', key: 'overview', label: canManage ? 'Admin home' : 'Overview', icon: Activity, testId: 'link-admin-overview' },
     ...(canReview ? [
-      { href: '/admin', key: 'overview', label: 'Overview', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/review', key: 'review', label: 'Review queue', icon: FileCheck2, testId: 'link-admin-review' },
       { href: '/admin/pre-applications', key: 'preapplications', label: 'Guest follow-up', icon: MessageCircle, testId: 'link-admin-preapplications' },
     ] : []),
     ...(canManage ? [
-      { href: '/admin', key: 'overview', label: 'Admin home', icon: Activity, testId: 'link-admin-overview' },
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
       { href: '/admin/settings', key: 'settings', label: 'Portal settings', icon: Settings, testId: 'link-admin-settings' },
     ] : []),
@@ -1149,31 +1148,22 @@ function AdminGate({ children }: { children: ReactNode }) {
   if (!isSignedIn) return <SignedOutNotice returnTo={staffReviewReturnPath(location)} />;
   const role = user?.publicMetadata?.role;
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
-  const reviewerOnlyRoute = location === '/admin/review' || location === '/admin/pre-applications' || location.startsWith('/admin/applications/');
-  if (role === 'admin' && reviewerOnlyRoute) return <AdminReviewRestricted />;
   if (role === 'moderator' && location !== '/admin/support') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><Headphones size={21} /></span><div className="eyebrow">SUPPORT STAFF</div><h1>Support workspace</h1><p>Moderator access is limited to support requests.</p><Link href="/admin/support" className="button button-primary" data-testid="link-moderator-support">Open support inbox <ArrowRight size={15} /></Link></div></main>;
   if (role === 'sub_admin' && (location === '/admin/users' || location === '/admin/settings')) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>Your staff role does not include user or portal settings management.</p><Link href="/admin/review" className="button button-primary" data-testid="link-subadmin-review">Open review queue <ArrowRight size={15} /></Link></div></main>;
   return <>{children}</>;
 }
 
-function AdminReviewRestricted() {
-  return <main className="signedout-page portal-frame" data-testid="admin-review-restricted">
-    <PortalWordmark />
-    <div className="signedout-card">
-      <span className="state-icon"><LockKeyhole size={21} /></span>
-      <div className="eyebrow">REVIEW ACCESS RESTRICTED</div>
-      <h1>Enrollment review is unavailable.</h1>
-      <p>Your Admin access includes staff and portal management. Enrollment review is reserved for Sub-admin reviewers.</p>
-      <Link href="/admin" className="button button-primary" data-testid="link-admin-management-home">Open Admin home <ArrowRight size={15} /></Link>
-    </div>
-  </main>;
-}
-
 function AdminManagementHome() {
   return <AdminShell active="overview">
     <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Manage portal configuration, staff access, and applicant support. Enrollment review is handled by review staff." />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Review applicant enrollments, manage portal configuration and staff access, and respond to applicant support." />
       <section className="admin-overview-actions" aria-label="Administration actions">
+        <Link href="/admin/review" className="detail-card admin-overview-link" data-testid="link-admin-home-review">
+          <span className="admin-action-icon"><FileCheck2 size={18} /></span><b>Review applications</b><span>Open submitted enrollment records and review their details.</span><strong>Staff access</strong><ArrowRight size={16} />
+        </Link>
+        <Link href="/admin/pre-applications" className="detail-card admin-overview-link" data-testid="link-admin-home-guest-followup">
+          <span className="admin-action-icon"><MessageCircle size={18} /></span><b>Guest follow-up</b><span>Review saved applicant details and progress, including drafts.</span><strong>Staff access</strong><ArrowRight size={16} />
+        </Link>
         <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-admin-home-users">
           <span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} />
         </Link>
@@ -1289,7 +1279,7 @@ function AdminOverview() {
   const recentQuery = useListApplicationsForReview();
   const { user } = useUser();
   const role = user?.publicMetadata?.role;
-  const canReview = role === 'sub_admin';
+  const canReview = role === 'sub_admin' || role === 'admin';
   const canEditPortal = user?.publicMetadata?.role === 'admin';
   if (overview.isError) return <AdminShell><AccessError retry={() => void overview.refetch()} /></AdminShell>;
   const metrics = [
@@ -3326,7 +3316,7 @@ function GuestFollowupPage() {
   const requestEvidenceUpload = useRequestGuestPreapplicationEvidenceUpload();
   const completeEvidenceUpload = useCompleteGuestPreapplicationEvidenceUpload();
   const role = String(user?.publicMetadata?.role);
-  const canReview = role === 'sub_admin';
+  const canReview = role === 'sub_admin' || role === 'admin';
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
@@ -3425,7 +3415,7 @@ function GuestFollowupPage() {
 
   if (!canReview) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card">
     <span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div>
-    <h1>Reviewer access required</h1><p>Guest application review is available to the authorized sub-administrator only.</p>
+    <h1>Reviewer access required</h1><p>Guest application review is available to authorized administrators and sub-administrators.</p>
     <Link href="/admin/support" className="button button-primary" data-testid="link-guest-followup-return">Return to staff workspace <ArrowRight size={15} /></Link>
   </div></main>;
 

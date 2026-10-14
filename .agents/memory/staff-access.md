@@ -3,9 +3,9 @@ name: Staff access
 description: Allowlisted staff self-registration and role-specific access boundaries.
 ---
 
-Two specifically authorized accounts may self-register through the staff route only after server-side allowlist and verified-email checks. The Admin role manages portal settings and staff users but cannot review enrollment; the Sub-admin role can review enrollment but cannot change settings or staff users. Other staff accounts remain invitation-only, with roles assigned from server-controlled invitation metadata. Never treat a hidden URL as authorization.
+Two specifically authorized accounts may self-register through the staff route only after server-side allowlist and verified-email checks. Admin and Sub-admin roles can review applicant enrollment records; only Admin can manage portal settings and staff users. Other staff accounts remain invitation-only, with roles assigned from server-controlled invitation metadata. Never treat a hidden URL as authorization.
 
-**Why:** The user assigned separate management and enrollment-review responsibilities to the two allowlisted self-signup accounts.
+**Why:** The user wants both Admin and Sub-admin to review applicant enrollment details while preserving Admin-only portal and staff management.
 
 Public/shared applicant pages must not display staff/admin entry links or role names, even when an authorized staff member visits a public route. Hiding links is only presentation; protected routes and APIs remain authoritative.
 

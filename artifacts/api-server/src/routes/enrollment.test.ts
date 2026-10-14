@@ -701,7 +701,16 @@ describe("guest application verification and persistence", () => {
     const applicantReviewerCheck = await request("/admin/guest-preapplications", {}, "applicant-unverified");
     expect(applicantReviewerCheck.response.status).toBe(403);
     const adminReviewerCheck = await request("/admin/guest-preapplications", {}, "administrator");
-    expect(adminReviewerCheck.response.status).toBe(403);
+    expect(adminReviewerCheck.response.status).toBe(200);
+    expect(adminReviewerCheck.body).toHaveLength(1);
+    const subAdminUserManagement = await request("/admin/users", {}, "reviewer");
+    expect(subAdminUserManagement.response.status).toBe(403);
+    const subAdminSettings = await request(
+      "/admin/settings",
+      { method: "PUT", body: JSON.stringify({}) },
+      "reviewer",
+    );
+    expect(subAdminSettings.response.status).toBe(403);
     const visibleDraft = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(visibleDraft.response.status).toBe(200);
     expect(visibleDraft.body).toHaveLength(1);
@@ -972,7 +981,18 @@ describe("guest application verification and persistence", () => {
       {},
       "administrator",
     );
-    expect(adminApplication.response.status).toBe(403);
+    expect(adminApplication.response.status).toBe(200);
+    expect(adminApplication.body).toMatchObject({
+      id: submitted.body.id,
+      reference,
+      applicantEmail: contactEmail,
+    });
+    const adminHistory = await request(
+      `/admin/applications/${submitted.body.id}/guest-history`,
+      {},
+      "administrator",
+    );
+    expect(adminHistory.response.status).toBe(200);
 
     const unprivilegedHistory = await request(
       `/admin/applications/${submitted.body.id}/guest-history`,
