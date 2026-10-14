@@ -721,11 +721,14 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
+  await expect(page.getByTestId("input-entry-name")).not.toHaveAttribute("placeholder");
+  await expect(page.getByTestId("input-entry-nickname")).not.toHaveAttribute("placeholder");
   await expectNoDocumentOverflow(page);
 
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("input-entry-pin")).toBeVisible();
-  await page.getByTestId("button-continue-without-pin").click();
+  await expect(page.getByText("Continue without a PIN")).toHaveCount(0);
+  await page.getByTestId("button-pin-continue").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   await expectNoDocumentOverflow(page);
 

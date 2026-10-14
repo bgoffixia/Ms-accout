@@ -358,7 +358,6 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder={isCategoryTwo ? "Enter your login" : "Enter your name"}
                       data-testid="input-entry-name"
                     />
                   </label>
@@ -374,7 +373,6 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={nickname}
                       onChange={(event) => setNickname(event.target.value)}
-                      placeholder="Enter your nickname"
                       data-testid="input-entry-nickname"
                     />
                   </label>
@@ -390,7 +388,6 @@ export function CategoryEntryForm({
                       required={!guestMode}
                       value={surname}
                       onChange={(event) => setSurname(event.target.value)}
-                      placeholder="Enter your surname"
                       data-testid="input-entry-surname"
                     />
                   </label>
@@ -526,8 +523,8 @@ export function CategoryEntryForm({
                     ✓
                   </button>
                 </div>
-                {guestMode && <button type="button" className="text-action pin-entry-skip" onClick={() => finish(true)} disabled={isSaving} data-testid="button-continue-without-pin">
-                  Continue without a PIN
+                {guestMode && <button type="button" className="text-action pin-entry-skip" onClick={() => finish(true)} disabled={isSaving} data-testid="button-pin-continue">
+                  Continue
                 </button>}
               </section>
             )}
