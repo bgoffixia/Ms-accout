@@ -589,6 +589,54 @@ describe("guest application verification and persistence", () => {
     });
   });
 
+  it("returns reviewer lists beyond the former 300-record cap for applicants and guests", async () => {
+    const guestRows = mockState.rows.get("guest_preapplications")!;
+    const enrollmentRows = mockState.rows.get("enrollment_applications")!;
+    const recordCount = 305;
+
+    for (let index = 0; index < recordCount; index += 1) {
+      guestRows.push(newRow("guest_preapplications", {
+        id: crypto.randomUUID(),
+        reference: `GUEST-${String(index).padStart(4, "0")}`,
+        categoryId: "category-1",
+        fullName: `Guest Applicant ${index}`,
+        email: `guest-${index}@example.test`,
+        status: "received",
+        submissionStatus: "draft",
+        answers: {},
+      }));
+      enrollmentRows.push(newRow("enrollment_applications", {
+        id: crypto.randomUUID(),
+        reference: `ENROLL-${String(index).padStart(4, "0")}`,
+        categoryId: "category-1",
+        status: "draft",
+        currentStep: 3,
+        pinHash: null,
+        answers: {
+          contactDetails: {
+            fullName: `Enrollment Applicant ${index}`,
+            email: `enrollment-${index}@example.test`,
+          },
+        },
+        reviewNote: null,
+        submittedAt: null,
+        sourceGuestPreapplicationId: null,
+      }));
+    }
+
+    const [guestList, enrollmentList] = await Promise.all([
+      request("/admin/guest-preapplications", {}, "reviewer"),
+      request("/admin/applications", {}, "reviewer"),
+    ]);
+
+    expect(guestList.response.status).toBe(200);
+    expect(guestList.body).toHaveLength(recordCount);
+    expect(guestList.body.some((application: any) => application.reference === "GUEST-0304")).toBe(true);
+    expect(enrollmentList.response.status).toBe(200);
+    expect(enrollmentList.body).toHaveLength(recordCount);
+    expect(enrollmentList.body.some((application: any) => application.reference === "ENROLL-0304")).toBe(true);
+  });
+
   it("keeps guest drafts and private evidence available through verification failures and links one successful submission", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",

@@ -171,6 +171,26 @@ function copyText(settings: PortalSettings | undefined, screen: string, key: str
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
+function configuredCategoryTitle(settings: PortalSettings | undefined, categoryId: string, fallback: string) {
+  const title = settings?.cards.find((card) => card.id === categoryId)?.title?.trim();
+  return title || fallback;
+}
+
+function categoryEntryScreenId(categoryId: string) {
+  return `category-entry-${categoryId.replace(/^category-/, '')}`;
+}
+
+function configuredFieldLabel(
+  settings: PortalSettings | undefined,
+  workflowStep: number | undefined,
+  group: string | undefined,
+  key: string,
+  fallback: string,
+) {
+  if (!workflowStep || !group) return fallback;
+  return copyText(settings, `workflow-step-${workflowStep}`, `field_${group}_${key}`, fallback);
+}
+
 function cardLogoPositionStyle(alignment?: string, verticalOffset?: number): CSSProperties {
   const alignSelf: CSSProperties['alignSelf'] = alignment === 'center'
     ? 'center'
@@ -706,12 +726,14 @@ function formatDate(date?: string | null) {
   return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
 }
 
-function getCategoryEntryFields(answers: Record<string, unknown>, categoryId: string) {
+function getCategoryEntryFields(answers: Record<string, unknown>, categoryId: string, settings?: PortalSettings) {
+  const screen = categoryEntryScreenId(categoryId);
+  const copy = settings?.screenCopy?.[screen];
   const fields = [
-    { label: 'Name', value: answers.name },
+    { label: copyText(settings, screen, 'nameLabel', 'Name'), value: answers.name },
     ...(categoryId === 'category-1'
-      ? [{ label: 'Nickname', value: answers.nickname }]
-      : [{ label: 'Surname', value: answers.surname }]),
+      ? [{ label: copy?.nicknameLabel?.trim() || 'Nickname', value: answers.nickname }]
+      : [{ label: copy?.surnameLabel?.trim() || 'Surname', value: answers.surname }]),
   ];
   return fields.filter((field): field is { label: string; value: string } =>
     typeof field.value === 'string' && field.value.trim().length > 0);
@@ -1991,12 +2013,29 @@ function displayAdminValue(value: unknown): string {
   return String(value);
 }
 
-function AdminAnswerSection({ title, data, note }: { title: string; data: Record<string, unknown>; note?: string }) {
+function AdminAnswerSection({
+  title,
+  data,
+  note,
+  settings,
+  workflowStep,
+  group,
+}: {
+  title: string;
+  data: Record<string, unknown>;
+  note?: string;
+  settings?: PortalSettings;
+  workflowStep?: number;
+  group?: string;
+}) {
   const entries = Object.entries(data).filter(([key]) => !key.startsWith('__') && !key.toLowerCase().includes('ciphertext') && !key.toLowerCase().includes('objectpath'));
+  const sectionTitle = workflowStep
+    ? copyText(settings, `workflow-step-${workflowStep}`, 'title', title)
+    : title;
   return <section className="detail-card admin-answer-section">
-    <div className="detail-card-title"><FileText size={17} /><h2>{title}</h2></div>
+    <div className="detail-card-title"><FileText size={17} /><h2>{sectionTitle}</h2></div>
     {entries.length ? entries.map(([key, value]) => <div className="review-field" key={key}>
-      <span>{key.replace(/([A-Z])/g, ' $1').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase())}</span>
+      <span>{configuredFieldLabel(settings, workflowStep, group, key, key.replace(/([A-Z])/g, ' $1').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()))}</span>
       <b>{displayAdminValue(value)}</b>
     </div>) : <p className="field-help">No information provided.</p>}
     {note && <p className="field-help">{note}</p>}
@@ -2007,6 +2046,7 @@ function AdminApplicationReview() {
   const params = useParams<{ applicationId?: string }>();
   const id = params.applicationId ?? '';
   const review = useGetAdminApplication(id);
+  const portalSettings = useGetPortalSettings();
   const history = useGetAdminApplicationHistory(id);
   const guestHistory = useGetAdminGuestApplicationHistory(id, {
     query: {
@@ -2025,6 +2065,9 @@ function AdminApplicationReview() {
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   const application = review.data;
   if (!application) return <AdminShell><section className="state-card"><span className="state-icon"><FileText size={20} /></span><h2>Application not in this review queue</h2><p>It may have changed status or may not be available to this staff account.</p><Link href="/admin" className="button button-primary" data-testid="link-back-review">Back to review queue</Link></section></AdminShell>;
+  const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
+  const entryScreen = categoryEntryScreenId(application.categoryId);
+  const categoryEntryTitle = copyText(portalSettings.data, entryScreen, 'title', categoryTitle);
   const evidence = application.evidence;
   const identity = readAnswerGroup(application.answers, 'proofOfIdentity');
   const requiredEvidenceSlots = [
@@ -2071,13 +2114,13 @@ function AdminApplicationReview() {
   return <AdminShell active="review">
     <div className="admin-review-page">
       <Link href="/admin/review" className="back-link" data-testid="link-review-back"><ArrowLeft size={16} /> Applicants</Link>
-      <div className="review-title-row"><div><div className="eyebrow">APPLICATION REVIEW</div><h1>{application.categoryName}</h1><p className="mono">{application.reference}</p></div><StatusPill status={application.status} testId={`status-review-detail-${application.id}`} /></div>
+      <div className="review-title-row"><div><div className="eyebrow">{copyText(portalSettings.data, 'admin-review', 'sectionIdLabel', 'APPLICATION REVIEW')}</div><h1>{categoryTitle}</h1><p className="mono">{application.reference}</p></div><StatusPill status={application.status} testId={`status-review-detail-${application.id}`} /></div>
       <div className="review-detail-grid">
         <section className="detail-card applicant-record">
           <div className="detail-card-title"><FileText size={17} /><h2>Applicant record</h2></div>
           <div className="review-field"><span>Applicant</span><b>{application.applicantName || 'Not provided'}</b></div>
           <div className="review-field"><span>Email</span><b>{application.applicantEmail || 'Not provided'}</b></div>
-          {getCategoryEntryFields(application.answers, application.categoryId).map((field) =>
+          {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
             <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
           <div className="review-field"><span>Created</span><b>{formatDate(application.createdAt)}</b></div>
           <div className="review-field"><span>Submitted</span><b>{formatDate(application.submittedAt)}</b></div>
@@ -2109,14 +2152,15 @@ function AdminApplicationReview() {
         <div className="review-field"><span>Email verification</span><b>{typeof readAnswerGroup(application.answers, 'contactDetails').emailVerified === 'boolean' ? readAnswerGroup(application.answers, 'contactDetails').emailVerified === true ? 'Verified before submission' : 'Not verified' : 'Managed by the applicant account'}</b></div>
       </section>
       <section className="review-category-selection">
-        <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Section 1 · Category selection</h2></div>
-        <div className="review-field"><span>Selected card</span><b>{application.categoryName}</b></div>
-        <div className="review-field"><span>Category-specific information</span><b>{getCategoryEntryFields(application.answers, application.categoryId).map((field) => `${field.label}: ${field.value}`).join(' · ') || 'No entry details provided'}</b></div>
+        <div className="detail-card-title"><CheckCircle2 size={17} /><h2>{categoryEntryTitle}</h2></div>
+        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected card')}</span><b>{categoryTitle}</b></div>
+        {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
+          <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
         <div className="review-field"><span>Category PIN</span><b>{application.hasPin ? 'Set (value is protected)' : 'Not set'}</b></div>
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
       {evidence !== undefined && <section className="detail-card submitted-evidence-panel" data-testid="submitted-guest-evidence">
-        <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
+        <div className="detail-card-title"><LockKeyhole size={17} /><h2>{copyText(portalSettings.data, 'workflow-step-5', 'title', 'Private identity evidence')}</h2></div>
         <p className="field-help">Files are available only to authorized enrollment reviewers. Each download is served through a secure, non-cached link.</p>
         <ul className="guest-evidence-list" aria-label="Submitted application evidence">
           {evidence.map((item) => <li key={item.id} data-testid={`submitted-evidence-${item.id}`}>
@@ -2136,13 +2180,13 @@ function AdminApplicationReview() {
         </ul>
       </section>}
       <div className="admin-record-sections">
-        <AdminAnswerSection title="Section 2 · Personal information" data={readAnswerGroup(application.answers, 'personalInformation')} />
-        <AdminAnswerSection title="Section 3 · Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicant was asked to share these details with the contact’s permission." />
-        <AdminAnswerSection title="Section 4 · Education" data={readAnswerGroup(application.answers, 'education')} />
-        <AdminAnswerSection title="Section 5 · Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
-        <AdminAnswerSection title="Section 6 · Proof of identity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
-        <AdminAnswerSection title="Section 7 · Video recording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="No identity or liveness conclusion is made from this recording. The uploaded file is listed in the evidence panel above." />
-        <AdminAnswerSection title="Section 8 · Bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown to authorized reviewers only; the account number is encrypted in storage." />
+        <AdminAnswerSection title="Section 2 · Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} />
+        <AdminAnswerSection title="Section 3 · Next of kin" settings={portalSettings.data} workflowStep={2} group="nextOfKin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicant was asked to share these details with the contact’s permission." />
+        <AdminAnswerSection title="Section 4 · Education" settings={portalSettings.data} workflowStep={3} group="education" data={readAnswerGroup(application.answers, 'education')} />
+        <AdminAnswerSection title="Section 5 · Work information" settings={portalSettings.data} workflowStep={4} group="workInformation" data={readAnswerGroup(application.answers, 'workInformation')} />
+        <AdminAnswerSection title="Section 6 · Proof of identity" settings={portalSettings.data} workflowStep={5} group="proofOfIdentity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
+        <AdminAnswerSection title="Section 7 · Video recording" settings={portalSettings.data} workflowStep={6} group="liveVideoRecording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="No identity or liveness conclusion is made from this recording. The uploaded file is listed in the evidence panel above." />
+        <AdminAnswerSection title="Section 8 · Bank details" settings={portalSettings.data} workflowStep={7} group="bankDetails" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown to authorized reviewers only; the account number is encrypted in storage." />
       </div>
       <section className="detail-card admin-history-card">
         <div className="detail-card-title"><Activity size={17} /><h2>Section 9 · Submission metadata and review history</h2></div>
