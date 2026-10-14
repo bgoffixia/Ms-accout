@@ -330,7 +330,8 @@ function staffReviewReturnPath(value: string | null): string | null {
   if (
     path === '/admin/review' ||
     path === '/admin/pre-applications' ||
-    /^\/admin\/applications\/[0-9a-f-]{36}$/i.test(path)
+    /^\/admin\/applications\/[0-9a-f-]{36}$/i.test(path) ||
+    /^\/admin\/guest-applications\/[0-9a-f-]{36}$/i.test(path)
   ) {
     return path;
   }
@@ -3456,6 +3457,7 @@ function AdminGuestApplicationReview() {
       <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>Category details</h2></div>
         <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+        <div className="review-field"><span>Category PIN</span><b>{application.hasPin ? 'Set (value is protected)' : 'Not set'}</b></div>
         {getCategoryEntryFields(application.answers, application.categoryId).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
         <div className="review-field"><span>Applicant declaration</span><b>{application.answers.reviewDeclarationAccepted === true ? 'Accepted' : 'Not accepted'}</b></div>
@@ -3465,6 +3467,8 @@ function AdminGuestApplicationReview() {
         <AdminAnswerSection title="Next of kin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
         <AdminAnswerSection title="Education" data={readAnswerGroup(application.answers, 'education')} />
         <AdminAnswerSection title="Work information" data={readAnswerGroup(application.answers, 'workInformation')} />
+        <AdminAnswerSection title="Proof of identity details" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
+        <AdminAnswerSection title="Video verification details" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="The uploaded video is listed in the evidence panel above." />
         <AdminAnswerSection title="Optional bank details" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown only to authorized reviewers." />
       </div>
       <section className="detail-card admin-history-card" data-testid={`guest-preapplication-history-${application.id}`}>
@@ -3505,8 +3509,6 @@ function ApplicantsPage() {
     request: { cache: 'no-store' },
   });
   const update = useUpdateAdminGuestPreapplication();
-  const requestEvidenceUpload = useRequestGuestPreapplicationEvidenceUpload();
-  const completeEvidenceUpload = useCompleteGuestPreapplicationEvidenceUpload();
   const role = String(user?.publicMetadata?.role);
   const canReview = role === 'sub_admin' || role === 'admin';
   const searchTerm = search.trim().toLowerCase();
@@ -3530,7 +3532,6 @@ function ApplicantsPage() {
   const matchingEnrollmentApplications = guestStatusFilter ? [] : submittedApplications.data ?? [];
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
-  const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
   const guestStepLabel: Record<number, string> = {
     0: 'Personal information',
     1: 'Next of kin',
@@ -3553,60 +3554,6 @@ function ApplicantsPage() {
       ? 'Details complete'
       : `Saved through: ${guestStepLabel[application.currentStep] ?? 'Category details'}`;
     return `${detailStatus} · email not verified · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
-  };
-
-  const uploadEvidence = async (
-    application: AdminGuestPreapplication,
-    evidenceType: 'identity_document' | 'verification_video',
-    file: File,
-  ) => {
-    const busyKey = `${application.id}:${evidenceType}`;
-    setEvidenceBusy(busyKey);
-    setFeedback('');
-    try {
-      const { evidenceId, uploadUrl } = await requestEvidenceUpload.mutateAsync({
-        applicationId: application.id,
-        data: {
-          evidenceType,
-          evidenceSlot: evidenceType === 'verification_video' ? 'verification_video' : 'identity_front',
-          fileName: file.name,
-          contentType: file.type,
-          sizeBytes: file.size,
-        },
-      });
-      const uploadResult = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-      if (!uploadResult.ok) {
-        throw new Error('The file could not be stored securely.');
-      }
-      await completeEvidenceUpload.mutateAsync({
-        applicationId: application.id,
-        evidenceId,
-      });
-      await queryClient.invalidateQueries({ queryKey: getListAdminGuestPreapplicationsQueryKey() });
-      setFeedbackIsError(false);
-      setFeedback(`${file.name} was uploaded and verified.`);
-    } catch (error) {
-      setFeedbackIsError(true);
-      setFeedback(error instanceof Error
-        ? error.message
-        : `Could not upload ${file.name}. Please try again.`);
-    } finally {
-      setEvidenceBusy(null);
-    }
-  };
-
-  const handleEvidenceFile = (
-    application: AdminGuestPreapplication,
-    evidenceType: 'identity_document' | 'verification_video',
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
-    if (file) void uploadEvidence(application, evidenceType, file);
   };
 
   const setApplicationStatus = (application: AdminGuestPreapplication, nextStatus: 'contacted' | 'closed') => {
@@ -3744,6 +3691,7 @@ function RoutedPages() {
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
+    <Route path="/admin/guest-applications/:applicationId" component={() => <AdminGate><AdminGuestApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />
     <Route path="/admin/pre-applications" component={() => <AdminGate><ApplicantsPage /></AdminGate>} />
     <Route component={NotFound} />
