@@ -133,6 +133,10 @@ import {
   ObjectStorageService,
 } from "../lib/objectStorage";
 import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
+import {
+  sendReviewerNotification,
+  type ReviewerNotification,
+} from "../lib/reviewerNotifications";
 
 type ApplicationStatus =
   | "draft"
@@ -144,6 +148,24 @@ type ApplicationStatus =
 
 const router: IRouter = Router();
 const objectStorage = new ObjectStorageService();
+
+async function notifyEnrollmentReviewer(
+  req: Request,
+  notification: ReviewerNotification,
+): Promise<void> {
+  try {
+    await sendReviewerNotification(notification);
+  } catch (error) {
+    req.log.error(
+      {
+        err: error,
+        reference: notification.reference,
+        event: notification.kind,
+      },
+      "Failed to send enrollment reviewer notification",
+    );
+  }
+}
 
 const categories = [
   {
@@ -1268,6 +1290,13 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       return;
     }
 
+    await notifyEnrollmentReviewer(req, {
+      kind: "contact_received",
+      reference: created.reference,
+      categoryName: categoryName(created.categoryId),
+      currentStep: created.currentStep,
+      idempotencyKey: `guest-contact:${created.id}`,
+    });
     res.status(201).json(
       CreateGuestPreapplicationResponse.parse(
         serializeGuestPreapplicationStatus(created),
@@ -1376,6 +1405,15 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(404).json({ error: "Guest application not found." });
       return;
     }
+    if (changes.length > 0) {
+      await notifyEnrollmentReviewer(req, {
+        kind: "step_saved",
+        reference: updated.reference,
+        categoryName: categoryName(updated.categoryId),
+        currentStep: updated.currentStep,
+        idempotencyKey: `guest-step:${updated.id}:${updated.updatedAt.getTime()}`,
+      });
+    }
     res.json(
       UpdateGuestPreapplicationProgressResponse.parse(
         serializeGuestPreapplicationStatus(updated),
@@ -1479,6 +1517,15 @@ router.patch(
       if (!updated) {
         res.status(409).json({ error: "This guest application has already been submitted or closed." });
         return;
+      }
+      if (changes.length > 0) {
+        await notifyEnrollmentReviewer(req, {
+          kind: "contact_updated",
+          reference: updated.reference,
+          categoryName: categoryName(updated.categoryId),
+          currentStep: updated.currentStep,
+          idempotencyKey: `guest-contact-update:${updated.id}:${updated.updatedAt.getTime()}`,
+        });
       }
       res.json(
         UpdateGuestPreapplicationEmailResponse.parse(
@@ -1696,6 +1743,16 @@ router.post(
           });
         }
       });
+      if (changes.length > 0) {
+        await notifyEnrollmentReviewer(req, {
+          kind: "evidence_saved",
+          reference: application.reference,
+          categoryName: categoryName(application.categoryId),
+          currentStep: application.currentStep,
+          evidenceSlot: completed.evidenceSlot.replaceAll("_", " "),
+          idempotencyKey: `guest-evidence:${application.id}:${completed.id}:${completed.uploadedAt?.getTime() ?? "saved"}`,
+        });
+      }
       res.json(CompleteGuestApplicantEvidenceUploadResponse.parse({
         evidenceId: completed.id,
         evidenceType: completed.evidenceType,
@@ -1903,6 +1960,14 @@ router.post(
         res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
         return;
       }
+      await notifyEnrollmentReviewer(req, {
+        kind: "application_submitted",
+        reference: submitted.reference,
+        categoryName: categoryName(submitted.categoryId),
+        currentStep: submitted.currentStep,
+        applicationId: submitted.id,
+        idempotencyKey: `guest-submit:${submitted.id}`,
+      });
       res.json(SubmitGuestPreapplicationResponse.parse(serializeApplication(submitted)));
     } catch (error) {
       req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit verified guest application");
@@ -2345,6 +2410,13 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
         return `scrypt$${salt}$${scryptSync(parsed.data.pin, salt, 64).toString("hex")}`;
       })()
     : undefined;
+  const notificationStep = parsed.data.currentStep ?? application.currentStep;
+  const shouldNotifyReviewer =
+    categoryChanged ||
+    notificationStep !== application.currentStep ||
+    (submittedAnswers !== undefined &&
+      JSON.stringify(submittedAnswers) !== JSON.stringify(application.answers ?? {})) ||
+    (pinHash !== undefined && pinHash !== application.pinHash);
   const updated = await db.transaction(async (transaction) => {
     const [applicationRow] = await transaction
       .update(enrollmentApplicationsTable)
@@ -2394,6 +2466,16 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
   if (!updated) {
     res.status(500).json({ error: "The application could not be saved." });
     return;
+  }
+  if (shouldNotifyReviewer) {
+    await notifyEnrollmentReviewer(req, {
+      kind: "step_saved",
+      reference: updated.reference,
+      categoryName: categoryName(updated.categoryId),
+      currentStep: updated.currentStep,
+      applicationId: updated.id,
+      idempotencyKey: `application-step:${updated.id}:${updated.updatedAt.getTime()}`,
+    });
   }
   res.json(UpdateApplicationResponse.parse(serializeApplication(updated)));
 });
@@ -2546,6 +2628,14 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     });
     return;
   }
+  await notifyEnrollmentReviewer(req, {
+    kind: "application_submitted",
+    reference: submitted.reference,
+    categoryName: categoryName(submitted.categoryId),
+    currentStep: submitted.currentStep,
+    applicationId: submitted.id,
+    idempotencyKey: `application-submit:${submitted.id}`,
+  });
   res.json(SubmitApplicationResponse.parse(serializeApplication(submitted)));
 });
 

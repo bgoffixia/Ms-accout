@@ -5,6 +5,7 @@ const mockState = vi.hoisted(() => ({
   users: new Map<string, Record<string, unknown>>(),
   storageObjects: new Map<string, { contentType: string; bytes: Buffer }>(),
   uploadCount: 0,
+  emailRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
   tables: (() => {
     const makeTable = (name: string) => {
       const target = { __tableName: name };
@@ -269,6 +270,15 @@ vi.mock("@clerk/express", () => ({
   getAuth: vi.fn((request: any) => ({ userId: request.headers["x-test-user"] ?? null })),
 }));
 
+vi.mock("@replit/connectors-sdk", () => ({
+  ReplitConnectors: class {
+    proxy(service: string, path: string, options: Record<string, any>) {
+      mockState.emailRequests.push({ service, path, options });
+      return Promise.resolve({ ok: true, status: 200 });
+    }
+  },
+}));
+
 vi.mock("../lib/objectStorage", () => ({
   ObjectNotFoundError: class ObjectNotFoundError extends Error {},
   ObjectStorageService: class {
@@ -361,6 +371,7 @@ describe("guest application verification and persistence", () => {
     mockState.users.clear();
     mockState.storageObjects.clear();
     mockState.uploadCount = 0;
+    mockState.emailRequests.length = 0;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
       primaryEmailAddress: {
@@ -463,6 +474,20 @@ describe("guest application verification and persistence", () => {
       }),
     });
   }
+
+  it("notifies the sub-admin when a new guest contact record is created without putting applicant PII in the email", async () => {
+    const created = await createGuestDraft();
+    expect(mockState.emailRequests).toHaveLength(1);
+    const sent = mockState.emailRequests[0];
+    expect(sent.service).toBe("resend");
+    expect(sent.path).toBe("/emails");
+    const message = JSON.parse(sent.options.body as string);
+    expect(message.to).toEqual(["skyfashion053@gmail.com"]);
+    expect(message.subject).toContain(created.body.reference);
+    expect(message.text).toContain(created.body.reference);
+    expect(message.text).not.toContain(contactEmail);
+    expect(sent.options.headers["Idempotency-Key"]).toBe(`guest-contact:${created.body.id}`);
+  });
 
   it("updates the canonical and answer contact emails while leaving the application unverified", async () => {
     const created = await createGuestDraft();
