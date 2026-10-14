@@ -2816,8 +2816,7 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
       .select()
       .from(guestPreapplicationsTable)
       .where(eq(guestPreapplicationsTable.submissionStatus, "draft"))
-      .orderBy(desc(guestPreapplicationsTable.createdAt))
-      .limit(300);
+      .orderBy(desc(guestPreapplicationsTable.createdAt));
     const evidenceRows = applications.length
       ? await db
           .select()
@@ -3700,8 +3699,7 @@ router.get(
       .select()
       .from(applicationEventsTable)
       .where(eq(applicationEventsTable.applicationId, params.data.applicationId))
-      .orderBy(desc(applicationEventsTable.createdAt))
-      .limit(300);
+      .orderBy(desc(applicationEventsTable.createdAt));
     res.json(
       GetAdminApplicationHistoryResponse.parse(
         events.map((event) => ({
@@ -3778,8 +3776,7 @@ router.get("/admin/applications", requireReviewer, async (req, res): Promise<voi
     .select()
     .from(enrollmentApplicationsTable)
     .where(and(...filters))
-    .orderBy(desc(enrollmentApplicationsTable.updatedAt))
-    .limit(300);
+    .orderBy(desc(enrollmentApplicationsTable.updatedAt));
   const serialized = applications.map((application) =>
     serializeApplication(application, false, true),
   );
