@@ -1107,8 +1107,7 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
   const navLinks = [
     { href: '/admin', key: 'overview', label: canManage ? 'Admin home' : 'Overview', icon: Activity, testId: 'link-admin-overview' },
     ...(canReview ? [
-      { href: '/admin/review', key: 'review', label: 'Review queue', icon: FileCheck2, testId: 'link-admin-review' },
-      { href: '/admin/pre-applications', key: 'preapplications', label: 'Guest follow-up', icon: MessageCircle, testId: 'link-admin-preapplications' },
+      { href: '/admin/review', key: 'review', label: 'Applicants', icon: FileCheck2, testId: 'link-admin-review' },
     ] : []),
     ...(canManage ? [
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
@@ -1149,7 +1148,7 @@ function AdminGate({ children }: { children: ReactNode }) {
   const role = user?.publicMetadata?.role;
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
   if (role === 'moderator' && location !== '/admin/support') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><Headphones size={21} /></span><div className="eyebrow">SUPPORT STAFF</div><h1>Support workspace</h1><p>Moderator access is limited to support requests.</p><Link href="/admin/support" className="button button-primary" data-testid="link-moderator-support">Open support inbox <ArrowRight size={15} /></Link></div></main>;
-  if (role === 'sub_admin' && (location === '/admin/users' || location === '/admin/settings')) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>Your staff role does not include user or portal settings management.</p><Link href="/admin/review" className="button button-primary" data-testid="link-subadmin-review">Open review queue <ArrowRight size={15} /></Link></div></main>;
+  if (role === 'sub_admin' && (location === '/admin/users' || location === '/admin/settings')) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>Your staff role does not include user or portal settings management.</p><Link href="/admin/review" className="button button-primary" data-testid="link-subadmin-review">Open Applicants <ArrowRight size={15} /></Link></div></main>;
   return <>{children}</>;
 }
 
@@ -1159,10 +1158,7 @@ function AdminManagementHome() {
       <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Admin home" detail="Review applicant enrollments, manage portal configuration and staff access, and respond to applicant support." />
       <section className="admin-overview-actions" aria-label="Administration actions">
         <Link href="/admin/review" className="detail-card admin-overview-link" data-testid="link-admin-home-review">
-          <span className="admin-action-icon"><FileCheck2 size={18} /></span><b>Review applications</b><span>Open submitted enrollment records and review their details.</span><strong>Staff access</strong><ArrowRight size={16} />
-        </Link>
-        <Link href="/admin/pre-applications" className="detail-card admin-overview-link" data-testid="link-admin-home-guest-followup">
-          <span className="admin-action-icon"><MessageCircle size={18} /></span><b>Guest follow-up</b><span>Review saved applicant details and progress, including drafts.</span><strong>Staff access</strong><ArrowRight size={16} />
+          <span className="admin-action-icon"><FileCheck2 size={18} /></span><b>Applicants</b><span>Review submitted enrollments and saved guest drafts in one place.</span><strong>All applicant records</strong><ArrowRight size={16} />
         </Link>
         <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-admin-home-users">
           <span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} />
@@ -1240,36 +1236,6 @@ function draftProgressLabel(application: {
   return `Saved through step ${Math.min(application.currentStep, 8)} of 8`;
 }
 
-function AdminQueue() {
-  const [status, setStatus] = useState('');
-  const [search, setSearch] = useState('');
-  const filters = useMemo(() => ({ ...(status ? { status: status as 'draft' | 'submitted' | 'under_review' | 'needs_information' | 'approved' | 'rejected' } : {}), ...(search.trim() ? { search: search.trim() } : {}) }), [status, search]);
-  const review = useListApplicationsForReview(filters);
-  const records = review.data ?? [];
-  if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
-  return <AdminShell active="review">
-    <div className="admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Review queue" detail="See saved applicant progress and review applications when they are submitted." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
-      <div className="admin-toolbar">
-        <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reference or applicant" aria-label="Search applications" data-testid="input-review-search" /><span className="search-shortcut">⌘ K</span></label>
-        <label className="filter-select"><span className="sr-only">Filter by status</span><select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-review-status">
-          <option value="">All statuses</option><option value="draft">In progress</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="needs_information">Needs information</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
-        </select><ChevronDown size={15} /></label>
-      </div>
-      <section className="queue-card">
-        <div className="queue-card-head"><div><b>Applications</b><span>Authorized review records</span></div><span className="queue-count" data-testid="text-review-count">{review.isLoading ? '…' : records.length}</span></div>
-        {review.isLoading ? <LoadingPanel label="Loading review applications" /> : records.length === 0 ?
-          <EmptyPanel title={search || status ? 'No matching applications' : 'The review queue is clear'} message={search || status ? 'Try adjusting your search or status filter.' : 'New and in-progress applications will appear here.'} /> :
-          <div className="queue-list">{records.map((application) => <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-review-${application.id}`}>
-            <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.categoryName}</b><small>{application.applicantName || 'Applicant'} · {application.reference} · {application.status === 'draft' ? draftProgressLabel(application) : formatDate(application.submittedAt)}</small></span>
-            <StatusPill status={application.status} testId={`status-review-${application.id}`} /><ArrowRight size={16} className="row-arrow" />
-          </Link>)}</div>}
-      </section>
-      <p className="admin-disclaimer"><ShieldCheck size={15} /> Decisions are recorded by the service and reflected in the applicant’s portal.</p>
-    </div>
-  </AdminShell>;
-}
-
 function AccessError({ retry }: { retry: () => void }) {
   return <section className="admin-access-error" data-testid="state-admin-access-error"><div className="access-seal"><LockKeyhole size={23} /></div><div className="eyebrow">STAFF ACCESS CHECK</div><h1>This workspace isn’t available</h1><p>The service did not authorize this staff view, or the queue could not be reached. Access is verified securely by the server.</p><button className="button button-quiet" onClick={retry} data-testid="button-retry-admin">Check access again <ArrowRight size={15} /></button><Link href="/" className="text-action" data-testid="link-admin-home">Return to portal</Link></section>;
 }
@@ -1295,7 +1261,7 @@ function AdminOverview() {
   return <AdminShell active="overview"><div className="admin-page">
     <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Overview" detail="Live enrollment and support totals from the service." action={<div className="admin-overview-heading-actions">
       {canEditPortal && <Link href="/admin/settings" className="button button-primary" data-testid="link-overview-edit-modifications"><Settings size={16} /> Edit &amp; modifications</Link>}
-      {canReview && <Link href="/admin/review" className={`button ${canEditPortal ? 'button-quiet' : 'button-primary'}`} data-testid="link-overview-review">Open review queue <ArrowRight size={15} /></Link>}
+      {canReview && <Link href="/admin/review" className={`button ${canEditPortal ? 'button-quiet' : 'button-primary'}`} data-testid="link-overview-review">Open Applicants <ArrowRight size={15} /></Link>}
     </div>} />
     {overview.isLoading ? <LoadingPanel label="Loading administrator totals" /> : <section className="admin-metric-grid" aria-label="Enrollment overview totals">
       {metrics.map(([label, value, key]) => <article className="admin-metric-card" key={key} data-testid={`metric-${key}`}><span>{label}</span><strong>{value ?? '—'}</strong></article>)}
@@ -1303,14 +1269,14 @@ function AdminOverview() {
     <section className="admin-action-center" aria-label="Workspace actions">
       <div className="admin-section-heading"><div><span className="eyebrow">WORK QUEUE</span><h2>Next actions</h2></div><span className="admin-live-mark"><span className="server-dot" /> Live service data</span></div>
       <div className="admin-overview-actions">
-        {canReview && <Link href="/admin/review" className="detail-card admin-overview-link" data-testid="link-overview-review-action"><span className="admin-action-icon"><FileCheck2 size={18} /></span><b>Review applications</b><span>Open submitted records and continue decisions.</span><strong>{overview.data?.pendingApplications ?? '—'} pending</strong><ArrowRight size={16} /></Link>}
+        {canReview && <Link href="/admin/review" className="detail-card admin-overview-link" data-testid="link-overview-review-action"><span className="admin-action-icon"><FileCheck2 size={18} /></span><b>Applicants</b><span>Review submitted applications and saved guest drafts.</span><strong>{overview.data?.pendingApplications ?? '—'} pending</strong><ArrowRight size={16} /></Link>}
         <Link href="/admin/support" className="detail-card admin-overview-link" data-testid="link-overview-support-action"><span className="admin-action-icon"><Headphones size={18} /></span><b>Support inbox</b><span>Respond to applicant conversations and track resolution.</span><strong>{overview.data?.unresolvedSupportRequests ?? '—'} unresolved</strong><ArrowRight size={16} /></Link>
         {canEditPortal && <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-overview-users-action"><span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} /></Link>}
         {canEditPortal && <Link href="/admin/settings" className="detail-card admin-overview-link" data-testid="link-overview-settings-action"><span className="admin-action-icon"><Settings size={18} /></span><b>Portal settings</b><span>Update enrollment content and presentation.</span><strong>Admin only</strong><ArrowRight size={16} /></Link>}
       </div>
     </section>
     {canReview && <section className="admin-recent-section">
-      <div className="admin-section-heading"><div><span className="eyebrow">RECENT ACTIVITY</span><h2>Applications to review</h2></div><Link href="/admin/review" className="text-action" data-testid="link-overview-all-applications">View queue <ArrowRight size={14} /></Link></div>
+      <div className="admin-section-heading"><div><span className="eyebrow">RECENT ACTIVITY</span><h2>Applications to review</h2></div><Link href="/admin/review" className="text-action" data-testid="link-overview-all-applications">View Applicants <ArrowRight size={14} /></Link></div>
       <div className="admin-recent-card">
         {recentQuery.isError ? <div className="admin-recent-error" role="alert"><span>Recent applications could not be loaded.</span><button type="button" className="text-action" onClick={() => void recentQuery.refetch()}>Try again</button></div>
           : recentQuery.isLoading ? <div className="admin-recent-skeleton" aria-label="Loading recent applications">{[0, 1, 2].map((item) => <span className="skeleton" key={item} />)}</div>
@@ -2103,7 +2069,7 @@ function AdminApplicationReview() {
   };
   return <AdminShell active="review">
     <div className="admin-review-page">
-      <Link href="/admin/review" className="back-link" data-testid="link-review-back"><ArrowLeft size={16} /> Review queue</Link>
+      <Link href="/admin/review" className="back-link" data-testid="link-review-back"><ArrowLeft size={16} /> Applicants</Link>
       <div className="review-title-row"><div><div className="eyebrow">APPLICATION REVIEW</div><h1>{application.categoryName}</h1><p className="mono">{application.reference}</p></div><StatusPill status={application.status} testId={`status-review-detail-${application.id}`} /></div>
       <div className="review-detail-grid">
         <section className="detail-card applicant-record">
@@ -3301,9 +3267,15 @@ function GuestTrackingPage() {
   </main>;
 }
 
-function GuestFollowupPage() {
+function ApplicantsPage() {
   const { user } = useUser();
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const applicationFilters = useMemo(
+    () => (search.trim() ? { search: search.trim() } : {}),
+    [search],
+  );
+  const submittedApplications = useListApplicationsForReview(applicationFilters);
   const applications = useListAdminGuestPreapplications({
     query: {
       queryKey: getListAdminGuestPreapplicationsQueryKey(),
@@ -3317,6 +3289,18 @@ function GuestFollowupPage() {
   const completeEvidenceUpload = useCompleteGuestPreapplicationEvidenceUpload();
   const role = String(user?.publicMetadata?.role);
   const canReview = role === 'sub_admin' || role === 'admin';
+  const searchTerm = search.trim().toLowerCase();
+  const matchingGuestApplications = useMemo(() => {
+    const records = applications.data ?? [];
+    if (!searchTerm) return records;
+    return records.filter((application) => [
+      application.fullName,
+      application.email,
+      application.phone ?? '',
+      application.categoryName,
+      application.reference,
+    ].join(' ').toLowerCase().includes(searchTerm));
+  }, [applications.data, searchTerm]);
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
@@ -3419,9 +3403,24 @@ function GuestFollowupPage() {
     <Link href="/admin/support" className="button button-primary" data-testid="link-guest-followup-return">Return to staff workspace <ArrowRight size={15} /></Link>
   </div></main>;
 
-  return <AdminShell active="preapplications">
+  return <AdminShell active="review">
     <div className="admin-page guest-admin-page">
-      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Guest applications" detail="Review unsubmitted drafts, including details saved before email verification." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <PageHeading eyebrow="SECURE STAFF WORKSPACE" title="Applicants" detail="Review submitted enrollments and saved guest drafts in one place." action={<div className="server-access"><span className="server-dot" /> Service access</div>} />
+      <div className="admin-toolbar">
+        <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, category, or reference" aria-label="Search all applicants" data-testid="input-applicants-search" /><span className="search-shortcut">⌘ K</span></label>
+      </div>
+      <section className="queue-card" aria-label="Submitted and account-based applications" data-testid="applicants-enrollment-list">
+        <div className="queue-card-head"><div><b>Enrollment applications</b><span>Submitted applications and signed-in drafts</span></div><span className="queue-count" data-testid="text-applicants-enrollment-count">{submittedApplications.isLoading ? '…' : (submittedApplications.data ?? []).length}</span></div>
+        {submittedApplications.isLoading ? <LoadingPanel label="Loading enrollment applications" /> :
+          submittedApplications.isError ? <section className="state-card" role="alert"><h2>Enrollment applications unavailable</h2><p>Submitted applications could not be loaded.</p><button className="text-action" type="button" onClick={() => void submittedApplications.refetch()}>Try again <ArrowRight size={15} /></button></section> :
+            (submittedApplications.data ?? []).length === 0 ? <EmptyPanel title={searchTerm ? 'No matching applications' : 'No enrollment applications yet'} message={searchTerm ? 'Try a different applicant name, email, category, or reference.' : 'Submitted applications and signed-in drafts will appear here.'} /> :
+              <div className="queue-list">{(submittedApplications.data ?? []).map((application) => <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-applicant-enrollment-${application.id}`}>
+                <span className="queue-file"><FileCheck2 size={18} /></span><span className="queue-info"><b>{application.applicantName || 'Applicant'}</b><small>{application.applicantEmail || 'No email'} · {application.categoryName} · {application.reference} · {application.status === 'draft' ? draftProgressLabel(application) : formatDate(application.submittedAt)}</small></span>
+                <StatusPill status={application.status} testId={`status-applicant-enrollment-${application.id}`} /><ArrowRight size={16} className="row-arrow" />
+              </Link>)}</div>}
+      </section>
+      <section aria-labelledby="guest-drafts-heading" data-testid="applicants-guest-drafts">
+      <div className="admin-section-heading"><div><span className="eyebrow">ACCOUNT-FREE APPLICATIONS</span><h2 id="guest-drafts-heading">Saved guest drafts</h2></div><span className="queue-count" data-testid="text-applicants-guest-count">{applications.isLoading ? '…' : matchingGuestApplications.length}</span></div>
       <div className="guest-admin-notice"><ShieldCheck size={18} /><div><b>Unverified drafts remain reviewable</b><p>Applicants can save all details and private evidence before account verification. Files are available only through this reviewer workspace.</p></div></div>
       {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-admin-feedback">{feedback}</p>}
       {applications.isLoading ? <div className="guest-admin-loading" data-testid="guest-admin-loading"><div /><div /><div /></div> :
@@ -3429,10 +3428,10 @@ function GuestFollowupPage() {
           <span className="state-icon error-icon"><Activity size={19} /></span><h2>Follow-up list unavailable</h2>
           <p>Guest pre-applications could not be loaded. Your access has not changed.</p>
           <button className="text-action" type="button" onClick={() => void applications.refetch()} data-testid="button-retry-guest-admin">Try again <ArrowRight size={15} /></button>
-        </section> : (applications.data ?? []).length === 0 ? <EmptyPanel title="No guest applications yet" message="New account-free applications will appear here for staff review." /> :
+        </section> : matchingGuestApplications.length === 0 ? <EmptyPanel title={searchTerm ? 'No matching guest drafts' : 'No guest applications yet'} message={searchTerm ? 'Try a different applicant name, email, category, or reference.' : 'New account-free applications will appear here for staff review.'} /> :
           <section className="guest-admin-list" aria-label="Guest application follow-up list" data-testid="guest-admin-list">
             <div className="guest-admin-list-head"><span>APPLICANT</span><span>CONTACT</span><span>CATEGORY / REFERENCE</span><span>STATUS</span><span>FOLLOW-UP</span></div>
-            {(applications.data ?? []).map((application) => <article className="guest-admin-row" key={application.id} data-testid={`row-guest-preapplication-${application.id}`}>
+            {matchingGuestApplications.map((application) => <article className="guest-admin-row" key={application.id} data-testid={`row-guest-preapplication-${application.id}`}>
               <div className="guest-admin-name"><strong>{application.fullName}</strong><small>Received {formatDate(application.createdAt)}</small></div>
               <div className="guest-admin-contact"><a href={`mailto:${application.email}`} data-testid={`link-guest-email-${application.id}`}>{application.email}</a>{application.phone
                 ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
@@ -3515,6 +3514,7 @@ function GuestFollowupPage() {
               </details>
             </article>)}
           </section>}
+      </section>
     </div>
   </AdminShell>;
 }
@@ -3578,12 +3578,12 @@ function RoutedPages() {
     <Route path="/applications/:applicationId" component={RetiredApplicantRoute} />
     <Route path="/support" component={() => <AuthGate><SupportPage /></AuthGate>} />
     <Route path="/admin" component={() => <AdminGate><AdminLanding /></AdminGate>} />
-    <Route path="/admin/review" component={() => <AdminGate><AdminQueue /></AdminGate>} />
+    <Route path="/admin/review" component={() => <AdminGate><ApplicantsPage /></AdminGate>} />
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />
-    <Route path="/admin/pre-applications" component={() => <AdminGate><GuestFollowupPage /></AdminGate>} />
+    <Route path="/admin/pre-applications" component={() => <AdminGate><ApplicantsPage /></AdminGate>} />
     <Route component={NotFound} />
   </Switch>;
 }
