@@ -737,6 +737,18 @@ function formatDate(date?: string | null) {
   return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
 }
 
+function formatDateTime(date?: string | null) {
+  if (!date) return '—';
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed);
+}
+
 function getCategoryEntryFields(answers: Record<string, unknown>, categoryId: string, settings?: PortalSettings) {
   const screen = categoryEntryScreenId(categoryId);
   const copy = settings?.screenCopy?.[screen];
@@ -2793,7 +2805,11 @@ function AdminEmailCenter() {
             {messages.map((message) => (
               <article className="admin-email-outbox-row" key={message.id} data-testid={`email-outbox-row-${message.id}`}>
                 <div className="admin-email-outbox-main">
-                  <div className="admin-email-outbox-title"><b>{message.subject}</b><span className={`admin-email-status admin-email-status-${message.deliveryStatus ?? message.status}`}>{message.deliveryStatus === 'accepted' ? 'Accepted' : message.deliveryStatus === 'delivered' ? 'Delivered' : message.deliveryStatus === 'bounced' ? 'Bounced' : message.deliveryStatus === 'complained' ? 'Complained' : message.status}</span></div>
+                  <div className="admin-email-outbox-title">
+                    <b>{message.subject}</b>
+                    <span className={`admin-email-status admin-email-status-${message.deliveryStatus ?? message.status}`}>{message.deliveryStatus === 'accepted' ? 'Accepted' : message.deliveryStatus === 'delivered' ? 'Delivered' : message.deliveryStatus === 'bounced' ? 'Bounced' : message.deliveryStatus === 'complained' ? 'Complained' : message.status}</span>
+                    {message.providerEventAt && <time dateTime={message.providerEventAt} data-testid={`email-provider-event-at-${message.id}`}>· {formatDateTime(message.providerEventAt)}</time>}
+                  </div>
                   <p><strong>To:</strong> {message.recipientEmail} <span>·</span> {message.eventKind?.replaceAll('_', ' ') ?? 'manual email'}</p>
                   <small>{formatDate(message.createdAt)}{message.applicationReference ? ` · ${message.applicationReference}` : ''} · {message.attemptCount} attempt{message.attemptCount === 1 ? '' : 's'}</small>
                   {message.errorMessage && <p className="admin-email-error">{message.errorMessage}</p>}

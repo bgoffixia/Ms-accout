@@ -24,6 +24,8 @@ export interface AdminEmailMessage {
   /** @nullable */
   deliveryStatus: AdminEmailMessageDeliveryStatus;
   /** @nullable */
+  providerEventAt: Date | null;
+  /** @nullable */
   errorMessage: string | null;
   /** @nullable */
   createdByUserId: string | null;

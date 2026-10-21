@@ -58,6 +58,7 @@ export const staffEmailOutboxTable = pgTable(
     status: text("status").notNull().default("sending"),
     providerMessageId: text("provider_message_id"),
     deliveryStatus: text("delivery_status"),
+    providerEventAt: timestamp("provider_event_at", { withTimezone: true }),
     errorMessage: text("error_message"),
     createdByUserId: text("created_by_user_id"),
     attemptCount: integer("attempt_count").notNull().default(0),

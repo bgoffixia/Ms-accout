@@ -2125,7 +2125,7 @@ components:
         messageText: { type: string, minLength: 1, maxLength: 10000 }
     AdminEmailMessage:
       type: object
-      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, deliveryStatus, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
+      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, deliveryStatus, providerEventAt, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         recipientEmail: { type: string, format: email }
@@ -2140,6 +2140,9 @@ components:
         deliveryStatus:
           type: ["string", "null"]
           enum: [accepted, delivered, bounced, complained, null]
+        providerEventAt:
+          type: ["string", "null"]
+          format: date-time
         errorMessage: { type: ["string", "null"] }
         createdByUserId: { type: ["string", "null"] }
         attemptCount: { type: integer }

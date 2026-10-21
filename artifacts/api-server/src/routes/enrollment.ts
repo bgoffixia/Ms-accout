@@ -3702,6 +3702,7 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
     providerMessageId: record.providerMessageId ?? null,
     deliveryStatus:
       record.deliveryStatus ?? (record.status === "sent" ? "accepted" : null),
+    providerEventAt: record.providerEventAt ?? null,
     errorMessage: record.errorMessage ?? null,
     createdByUserId: record.createdByUserId ?? null,
     attemptCount: record.attemptCount,
@@ -3734,6 +3735,7 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
 
   const event = req.body as {
     type?: unknown;
+    created_at?: unknown;
     data?: { email_id?: unknown; id?: unknown };
   };
   const statusByEventType: Record<string, StaffEmailDeliveryStatus> = {
@@ -3753,6 +3755,12 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
     res.status(200).json({ received: true });
     return;
   }
+  const providerEventAt =
+    typeof event.created_at === "string" ? new Date(event.created_at) : null;
+  if (!providerEventAt || Number.isNaN(providerEventAt.getTime())) {
+    res.status(400).json({ error: "Email delivery event time is invalid." });
+    return;
+  }
 
   const earlierStatuses: Record<StaffEmailDeliveryStatus, StaffEmailDeliveryStatus[]> = {
     accepted: [],
@@ -3763,7 +3771,7 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
   try {
     await db
       .update(staffEmailOutboxTable)
-      .set({ deliveryStatus, updatedAt: new Date() })
+      .set({ deliveryStatus, providerEventAt, updatedAt: new Date() })
       .where(
         and(
           eq(staffEmailOutboxTable.providerMessageId, providerMessageId),
