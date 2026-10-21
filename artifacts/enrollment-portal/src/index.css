@@ -3915,3 +3915,56 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
     font-size: var(--category-description-size, 10px);
   }
 }
+
+.admin-email-page { padding-bottom: 30px; }
+.admin-email-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
+.admin-email-settings, .admin-email-compose { min-width: 0; padding: 19px; }
+.admin-email-settings .detail-card-title, .admin-email-compose .detail-card-title, .admin-email-outbox .detail-card-title { display: flex; align-items: center; gap: 9px; }
+.admin-email-settings .detail-card-title > svg, .admin-email-compose .detail-card-title > svg, .admin-email-outbox .detail-card-title > svg { color: #43826a; }
+.admin-email-settings .detail-card-title h2, .admin-email-compose .detail-card-title h2, .admin-email-outbox .detail-card-title h2 { margin: 0; color: #24465b; font-size: 13px; }
+.admin-email-form { display: grid; gap: 8px; margin-top: 14px; }
+.admin-email-form .field-label { margin-top: 4px; }
+.admin-email-recipient-input { min-height: 62px; }
+.admin-email-form .field-help { margin: -4px 0 3px; }
+.admin-email-alert-options { display: grid; gap: 0; margin: 4px 0 7px; border: 1px solid #e6edeb; border-radius: 10px; overflow: hidden; }
+.admin-email-alert-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 11px; color: #315066; cursor: pointer; }
+.admin-email-alert-option + .admin-email-alert-option { border-top: 1px solid #edf1ef; }
+.admin-email-alert-option input { width: 15px; height: 15px; flex: 0 0 15px; margin: 2px 0 0; accent-color: #287456; }
+.admin-email-alert-option span { display: grid; gap: 3px; }
+.admin-email-alert-option b { font-size: 10px; font-weight: 650; }
+.admin-email-alert-option small { color: #7d8f96; font-size: 9px; line-height: 1.45; }
+.admin-email-feedback { margin: 0; color: #39745b; font-size: 10px; line-height: 1.5; }
+.admin-email-sender { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 13px; padding-top: 11px; border-top: 1px solid #ebf0ee; color: #7a8d93; font-size: 9px; }
+.admin-email-sender b { color: #426253; font: 9px var(--app-font-mono); }
+.admin-email-outbox { margin-top: 15px; padding: 17px 19px; }
+.admin-email-outbox-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 12px; }
+.admin-email-outbox-heading > span { color: #8a989d; font-size: 9px; }
+.admin-email-outbox-list { display: grid; }
+.admin-email-outbox-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 13px 0; border-top: 1px solid #edf1ef; }
+.admin-email-outbox-main { min-width: 0; flex: 1; }
+.admin-email-outbox-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-email-outbox-title b { overflow-wrap: anywhere; color: #29495c; font-size: 11px; }
+.admin-email-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 7px; font-size: 8px; font-weight: 700; text-transform: capitalize; }
+.admin-email-status-sent { color: #2e7050; background: #eaf5ee; }
+.admin-email-status-failed { color: #984e4c; background: #fcf0ef; }
+.admin-email-status-sending { color: #8a672b; background: #fff7e8; }
+.admin-email-outbox-main > p { margin: 6px 0 3px; color: #637b88; font-size: 9px; overflow-wrap: anywhere; }
+.admin-email-outbox-main > p span { color: #a6b0b3; margin: 0 3px; }
+.admin-email-outbox-main > small { color: #8a999f; font: 8px var(--app-font-mono); }
+.admin-email-outbox-main .admin-email-error { color: #985a51; font-size: 9px; }
+.admin-email-outbox-main details { margin-top: 6px; }
+.admin-email-outbox-main summary { width: fit-content; color: #3c755e; font-size: 9px; cursor: pointer; }
+.admin-email-outbox-main pre { max-height: 180px; overflow: auto; margin: 7px 0 0; padding: 10px; border-radius: 8px; color: #5a727e; background: #f5f8f7; font: 9px/1.55 var(--app-font-sans); white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-email-retry { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+
+@media (max-width: 800px) {
+  .admin-email-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 540px) {
+  .admin-email-settings, .admin-email-compose { padding: 15px; }
+  .admin-email-outbox { padding: 14px; }
+  .admin-email-outbox-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .admin-email-outbox-row { gap: 8px; }
+  .admin-email-retry { padding-inline: 8px; font-size: 8px; }
+}

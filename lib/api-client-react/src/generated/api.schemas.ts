@@ -1053,6 +1053,93 @@ export interface SupportAssignmentInput {
   assigneeUserId: string | null;
 }
 
+export interface AdminEmailAlertEvents {
+  contact_received: boolean;
+  step_saved: boolean;
+  contact_updated: boolean;
+  evidence_saved: boolean;
+  application_submitted: boolean;
+}
+
+export interface AdminEmailSettings {
+  /** @maxItems 10 */
+  recipients: string[];
+  alerts: AdminEmailAlertEvents;
+  senderAddress: string;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export interface AdminEmailSettingsUpdate {
+  /** @maxItems 10 */
+  recipients: string[];
+  alerts: AdminEmailAlertEvents;
+}
+
+export interface AdminEmailSendInput {
+  requestId: string;
+  /**
+     * @minItems 1
+     * @maxItems 20
+     */
+  recipients: string[];
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  subject: string;
+  /**
+     * @minLength 1
+     * @maxLength 10000
+     */
+  messageText: string;
+}
+
+/**
+ * @nullable
+ */
+export type AdminEmailMessageEventKind = typeof AdminEmailMessageEventKind[keyof typeof AdminEmailMessageEventKind] | null;
+
+
+export const AdminEmailMessageEventKind = {
+  contact_received: 'contact_received',
+  step_saved: 'step_saved',
+  contact_updated: 'contact_updated',
+  evidence_saved: 'evidence_saved',
+  application_submitted: 'application_submitted',
+  manual: 'manual',
+} as const;
+
+export type AdminEmailMessageStatus = typeof AdminEmailMessageStatus[keyof typeof AdminEmailMessageStatus];
+
+
+export const AdminEmailMessageStatus = {
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+} as const;
+
+export interface AdminEmailMessage {
+  id: string;
+  recipientEmail: string;
+  subject: string;
+  messageText: string;
+  /** @nullable */
+  eventKind: AdminEmailMessageEventKind;
+  /** @nullable */
+  applicationReference: string | null;
+  status: AdminEmailMessageStatus;
+  /** @nullable */
+  providerMessageId: string | null;
+  /** @nullable */
+  errorMessage: string | null;
+  /** @nullable */
+  createdByUserId: string | null;
+  attemptCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ListApplicationsForReviewParams = {
 status?: ListApplicationsForReviewStatus;
 search?: string;

@@ -802,6 +802,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PortalSettings"
+  /admin/email/settings:
+    get:
+      operationId: getAdminEmailSettings
+      tags: [administration]
+      summary: Get staff email alert settings
+      responses:
+        "200":
+          description: Email recipients, event toggles, and sender address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailSettings"
+    put:
+      operationId: updateAdminEmailSettings
+      tags: [administration]
+      summary: Update staff email alert settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEmailSettingsUpdate"
+      responses:
+        "200":
+          description: Updated email settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailSettings"
+        "400":
+          description: Invalid recipients or alert configuration
+  /admin/email/outbox:
+    get:
+      operationId: listAdminEmailOutbox
+      tags: [administration]
+      summary: List recent staff and automated email messages
+      responses:
+        "200":
+          description: Recent email outbox records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEmailMessage"
+  /admin/email/send:
+    post:
+      operationId: sendAdminEmail
+      tags: [administration]
+      summary: Send a one-off email to external recipients
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEmailSendInput"
+      responses:
+        "201":
+          description: Email attempts recorded for each recipient
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEmailMessage"
+        "400":
+          description: Invalid recipients or message content
+  /admin/email/outbox/{messageId}/retry:
+    post:
+      operationId: retryAdminEmail
+      tags: [administration]
+      summary: Retry a failed staff or automated email
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Updated email attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailMessage"
+        "404":
+          description: Email attempt not found
+        "409":
+          description: Only failed emails can be retried
   /admin/applications/{applicationId}/history:
     get:
       operationId: getAdminApplicationHistory
@@ -1835,3 +1925,82 @@ components:
       properties:
         assigneeUserId:
           type: ["string", "null"]
+    AdminEmailAlertEvents:
+      type: object
+      required: [contact_received, step_saved, contact_updated, evidence_saved, application_submitted]
+      properties:
+        contact_received: { type: boolean }
+        step_saved: { type: boolean }
+        contact_updated: { type: boolean }
+        evidence_saved: { type: boolean }
+        application_submitted: { type: boolean }
+    AdminEmailSettings:
+      type: object
+      required: [recipients, alerts, senderAddress, updatedAt]
+      properties:
+        recipients:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            format: email
+        alerts:
+          $ref: "#/components/schemas/AdminEmailAlertEvents"
+        senderAddress:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+    AdminEmailSettingsUpdate:
+      type: object
+      required: [recipients, alerts]
+      properties:
+        recipients:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            format: email
+        alerts:
+          $ref: "#/components/schemas/AdminEmailAlertEvents"
+    AdminEmailSendInput:
+      type: object
+      required: [requestId, recipients, subject, messageText]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        recipients:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            format: email
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 200
+        messageText:
+          type: string
+          minLength: 1
+          maxLength: 10000
+    AdminEmailMessage:
+      type: object
+      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        recipientEmail: { type: string, format: email }
+        subject: { type: string }
+        messageText: { type: string }
+        eventKind:
+          type: ["string", "null"]
+          enum: [contact_received, step_saved, contact_updated, evidence_saved, application_submitted, manual, null]
+        applicationReference: { type: ["string", "null"] }
+        status: { type: string, enum: [sending, sent, failed] }
+        providerMessageId: { type: ["string", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        createdByUserId: { type: ["string", "null"] }
+        attemptCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }

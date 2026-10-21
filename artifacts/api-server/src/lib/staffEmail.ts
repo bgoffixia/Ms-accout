@@ -1,0 +1,239 @@
+import { and, eq, lt } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { ReplitConnectors } from "@replit/connectors-sdk";
+import {
+  db,
+  staffEmailOutboxTable,
+  staffEmailSettingsTable,
+  type StaffEmailAlertEvents,
+  type StaffEmailOutboxRecord,
+} from "@workspace/db";
+
+export type StaffEmailEventKind = keyof StaffEmailAlertEvents;
+export type StaffEmailMessageKind = StaffEmailEventKind | "manual";
+
+export const STAFF_EMAIL_SENDER =
+  "Enrollment Portal <notifications@vu-gov.cc>";
+
+const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
+const DEFAULT_ALERTS: StaffEmailAlertEvents = {
+  contact_received: true,
+  step_saved: true,
+  contact_updated: true,
+  evidence_saved: true,
+  application_submitted: true,
+};
+const STAFF_SETTINGS_KEY = "global";
+const STALE_SEND_AFTER_MS = 5 * 60 * 1000;
+
+export type StaffEmailConfiguration = {
+  recipients: string[];
+  alerts: StaffEmailAlertEvents;
+  senderAddress: string;
+  updatedAt: string | null;
+};
+
+export async function getStaffEmailConfiguration(): Promise<StaffEmailConfiguration> {
+  const [saved] = await db
+    .select()
+    .from(staffEmailSettingsTable)
+    .where(eq(staffEmailSettingsTable.key, STAFF_SETTINGS_KEY))
+    .limit(1);
+  return {
+    recipients: saved?.recipients ?? DEFAULT_RECIPIENTS,
+    alerts: { ...DEFAULT_ALERTS, ...(saved?.alerts ?? {}) },
+    senderAddress: STAFF_EMAIL_SENDER,
+    updatedAt: saved?.updatedAt?.toISOString() ?? null,
+  };
+}
+
+export async function saveStaffEmailConfiguration(
+  recipients: string[],
+  alerts: StaffEmailAlertEvents,
+  updatedByUserId: string,
+): Promise<StaffEmailConfiguration> {
+  await db
+    .insert(staffEmailSettingsTable)
+    .values({
+      key: STAFF_SETTINGS_KEY,
+      recipients,
+      alerts,
+      updatedByUserId,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: staffEmailSettingsTable.key,
+      set: { recipients, alerts, updatedByUserId, updatedAt: new Date() },
+    });
+  return getStaffEmailConfiguration();
+}
+
+export function emailRecipientIdempotencyKey(
+  baseKey: string,
+  recipientEmail: string,
+): string {
+  const recipientHash = createHash("sha256")
+    .update(recipientEmail.trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 32);
+  return `${baseKey}:${recipientHash}`;
+}
+
+function providerFailureMessage(status: number): string {
+  if (status === 401 || status === 403) {
+    return "The email provider rejected the sender or its sending permission.";
+  }
+  if (status === 429) {
+    return "The email provider rate limit was reached. Retry this message later.";
+  }
+  if (status === 400 || status === 422) {
+    return "The provider rejected the message. Check the sender address and message details.";
+  }
+  return "The email provider is temporarily unavailable. Retry this message later.";
+}
+
+export async function dispatchStaffEmail(input: {
+  idempotencyKey: string;
+  recipientEmail: string;
+  subject: string;
+  messageText: string;
+  html?: string;
+  eventKind: StaffEmailMessageKind;
+  applicationReference?: string | null;
+  createdByUserId?: string | null;
+}): Promise<StaffEmailOutboxRecord> {
+  const recipientEmail = input.recipientEmail.trim().toLowerCase();
+  const idempotencyKey = input.idempotencyKey.slice(0, 256);
+  const [inserted] = await db
+    .insert(staffEmailOutboxTable)
+    .values({
+      idempotencyKey,
+      recipientEmail,
+      subject: input.subject,
+      messageText: input.messageText,
+      eventKind: input.eventKind,
+      applicationReference: input.applicationReference ?? null,
+      createdByUserId: input.createdByUserId ?? null,
+      status: "sending",
+      attemptCount: 1,
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let record = inserted;
+  if (!record) {
+    const [existing] = await db
+      .select()
+      .from(staffEmailOutboxTable)
+      .where(eq(staffEmailOutboxTable.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (!existing) throw new Error("Email attempt could not be recorded.");
+    if (existing.status === "sent") return existing;
+
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - STALE_SEND_AFTER_MS);
+    const canClaim = existing.status === "failed"
+      ? and(
+          eq(staffEmailOutboxTable.id, existing.id),
+          eq(staffEmailOutboxTable.status, "failed"),
+        )
+      : existing.status === "sending"
+        ? and(
+            eq(staffEmailOutboxTable.id, existing.id),
+            eq(staffEmailOutboxTable.status, "sending"),
+            lt(staffEmailOutboxTable.updatedAt, staleBefore),
+          )
+        : undefined;
+    if (!canClaim) return existing;
+
+    const [claimed] = await db
+      .update(staffEmailOutboxTable)
+      .set({
+        status: "sending",
+        errorMessage: null,
+        attemptCount: existing.attemptCount + 1,
+        updatedAt: now,
+      })
+      .where(canClaim)
+      .returning();
+    if (!claimed) {
+      const [current] = await db
+        .select()
+        .from(staffEmailOutboxTable)
+        .where(eq(staffEmailOutboxTable.id, existing.id))
+        .limit(1);
+      if (!current) throw new Error("Email attempt could not be loaded.");
+      return current;
+    }
+    record = claimed;
+  }
+
+  const connectors = new ReplitConnectors();
+  let lastError = "The email provider is temporarily unavailable. Retry this message later.";
+  let attemptsMade = 0;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    attemptsMade += 1;
+    try {
+      const response = await connectors.proxy("resend", "/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify({
+          from: STAFF_EMAIL_SENDER,
+          to: [recipientEmail],
+          subject: input.subject,
+          text: input.messageText,
+          ...(input.html ? { html: input.html } : {}),
+        }),
+      });
+
+      if (response.ok) {
+        let providerMessageId: string | null = null;
+        try {
+          const responseBody = await response.json() as { id?: unknown };
+          providerMessageId = typeof responseBody?.id === "string"
+            ? responseBody.id
+            : null;
+        } catch {
+          // Some connector responses do not include a readable body.
+        }
+        const [sent] = await db
+          .update(staffEmailOutboxTable)
+          .set({
+            status: "sent",
+            providerMessageId,
+            errorMessage: null,
+            attemptCount: record.attemptCount + attemptsMade - 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(staffEmailOutboxTable.id, record.id))
+          .returning();
+        return sent ?? record;
+      }
+
+      lastError = providerFailureMessage(response.status);
+      if (response.status < 500 && response.status !== 429) break;
+    } catch {
+      lastError = "Could not reach the email provider. Retry this message later.";
+    }
+
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    }
+  }
+
+  const [failed] = await db
+    .update(staffEmailOutboxTable)
+    .set({
+      status: "failed",
+      errorMessage: lastError,
+      attemptCount: record.attemptCount + attemptsMade - 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(staffEmailOutboxTable.id, record.id))
+    .returning();
+  return failed ?? record;
+}

@@ -20,6 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminEmailMessage,
+  AdminEmailSendInput,
+  AdminEmailSettings,
+  AdminEmailSettingsUpdate,
   AdminGuestPreapplication,
   AdminGuestPreapplicationEvidence,
   AdminGuestPreapplicationStatusUpdate,
@@ -3250,6 +3254,410 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getUpdatePortalSettingsMutationOptions(options));
+    }
+
+export const getGetAdminEmailSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/email/settings`
+}
+
+/**
+ * @summary Get staff email alert settings
+ */
+export const getAdminEmailSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailSettings> => {
+
+  return customFetch<AdminEmailSettings>(getGetAdminEmailSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminEmailSettingsQueryKey = () => {
+    return [
+    `/api/admin/email/settings`
+    ] as const;
+    }
+
+
+export const getGetAdminEmailSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminEmailSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminEmailSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminEmailSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminEmailSettings>>> = ({ signal }) => getAdminEmailSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminEmailSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminEmailSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminEmailSettings>>>
+export type GetAdminEmailSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get staff email alert settings
+ */
+
+export function useGetAdminEmailSettings<TData = Awaited<ReturnType<typeof getAdminEmailSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminEmailSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminEmailSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminEmailSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/email/settings`
+}
+
+/**
+ * @summary Update staff email alert settings
+ */
+export const updateAdminEmailSettings = async (adminEmailSettingsUpdate: AdminEmailSettingsUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailSettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailSettings>(getUpdateAdminEmailSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailSettingsUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminEmailSettingsMutationKey = () => ['updateAdminEmailSettings'] as const;
+
+export const getUpdateAdminEmailSettingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailSettings>>, TError,UpdateAdminEmailSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailSettings>>, TError,UpdateAdminEmailSettingsMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminEmailSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminEmailSettings>>, UpdateAdminEmailSettingsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAdminEmailSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminEmailSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminEmailSettings>>>
+    export type UpdateAdminEmailSettingsMutationBody = BodyType<AdminEmailSettingsUpdate>
+    export type UpdateAdminEmailSettingsMutationError = ErrorType<void>
+    export type UpdateAdminEmailSettingsMutationVariables = {data: BodyType<AdminEmailSettingsUpdate>}
+
+    /**
+ * @summary Update staff email alert settings
+ */
+export const useUpdateAdminEmailSettings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailSettings>>, TError,UpdateAdminEmailSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminEmailSettings>>,
+        TError,
+        UpdateAdminEmailSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminEmailSettingsMutationOptions(options));
+    }
+
+export const getListAdminEmailOutboxUrl = () => {
+
+
+
+
+  return `/api/admin/email/outbox`
+}
+
+/**
+ * @summary List recent staff and automated email messages
+ */
+export const listAdminEmailOutbox = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailMessage[]> => {
+
+  return customFetch<AdminEmailMessage[]>(getListAdminEmailOutboxUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminEmailOutboxQueryKey = () => {
+    return [
+    `/api/admin/email/outbox`
+    ] as const;
+    }
+
+
+export const getListAdminEmailOutboxQueryOptions = <TData = Awaited<ReturnType<typeof listAdminEmailOutbox>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminEmailOutbox>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminEmailOutboxQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminEmailOutbox>>> = ({ signal }) => listAdminEmailOutbox({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminEmailOutbox>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminEmailOutboxQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminEmailOutbox>>>
+export type ListAdminEmailOutboxQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent staff and automated email messages
+ */
+
+export function useListAdminEmailOutbox<TData = Awaited<ReturnType<typeof listAdminEmailOutbox>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminEmailOutbox>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminEmailOutboxQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendAdminEmailUrl = () => {
+
+
+
+
+  return `/api/admin/email/send`
+}
+
+/**
+ * @summary Send a one-off email to external recipients
+ */
+export const sendAdminEmail = async (adminEmailSendInput: AdminEmailSendInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailMessage[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailMessage[]>(getSendAdminEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailSendInput)
+  }
+);}
+
+
+
+
+
+export const getSendAdminEmailMutationKey = () => ['sendAdminEmail'] as const;
+
+export const getSendAdminEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendAdminEmail>>, TError,SendAdminEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendAdminEmail>>, TError,SendAdminEmailMutationVariables, TContext> => {
+
+const mutationKey = getSendAdminEmailMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendAdminEmail>>, SendAdminEmailMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendAdminEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendAdminEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendAdminEmail>>>
+    export type SendAdminEmailMutationBody = BodyType<AdminEmailSendInput>
+    export type SendAdminEmailMutationError = ErrorType<void>
+    export type SendAdminEmailMutationVariables = {data: BodyType<AdminEmailSendInput>}
+
+    /**
+ * @summary Send a one-off email to external recipients
+ */
+export const useSendAdminEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendAdminEmail>>, TError,SendAdminEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendAdminEmail>>,
+        TError,
+        SendAdminEmailMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendAdminEmailMutationOptions(options));
+    }
+
+export const getRetryAdminEmailUrl = (messageId: string,) => {
+
+
+
+
+  return `/api/admin/email/outbox/${messageId}/retry`
+}
+
+/**
+ * @summary Retry a failed staff or automated email
+ */
+export const retryAdminEmail = async (messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailMessage> => {
+
+  return customFetch<AdminEmailMessage>(getRetryAdminEmailUrl(messageId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryAdminEmailMutationKey = () => ['retryAdminEmail'] as const;
+
+export const getRetryAdminEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryAdminEmail>>, TError,RetryAdminEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryAdminEmail>>, TError,RetryAdminEmailMutationVariables, TContext> => {
+
+const mutationKey = getRetryAdminEmailMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryAdminEmail>>, RetryAdminEmailMutationVariables> = (props) => {
+          const {messageId} = props ?? {};
+
+          return  retryAdminEmail(messageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryAdminEmailMutationResult = NonNullable<Awaited<ReturnType<typeof retryAdminEmail>>>
+
+    export type RetryAdminEmailMutationError = ErrorType<void>
+    export type RetryAdminEmailMutationVariables = {messageId: string}
+
+    /**
+ * @summary Retry a failed staff or automated email
+ */
+export const useRetryAdminEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryAdminEmail>>, TError,RetryAdminEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryAdminEmail>>,
+        TError,
+        RetryAdminEmailMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRetryAdminEmailMutationOptions(options));
     }
 
 export const getGetAdminApplicationHistoryUrl = (applicationId: string,) => {

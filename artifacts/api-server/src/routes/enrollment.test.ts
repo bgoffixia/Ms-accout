@@ -6,6 +6,7 @@ const mockState = vi.hoisted(() => ({
   storageObjects: new Map<string, { contentType: string; bytes: Buffer }>(),
   uploadCount: 0,
   emailRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
+  emailResponses: [] as Array<{ ok: boolean; status: number; body?: { id?: string } }>,
   tables: (() => {
     const makeTable = (name: string) => {
       const target = { __tableName: name };
@@ -25,6 +26,8 @@ const mockState = vi.hoisted(() => ({
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
       supportTicketsTable: makeTable("enrollment_support_tickets"),
+      staffEmailSettingsTable: makeTable("staff_email_settings"),
+      staffEmailOutboxTable: makeTable("staff_email_outbox"),
     };
   })(),
 }));
@@ -151,18 +154,34 @@ function makeDatabase() {
       const tableName = source.__tableName;
       let values: Record<string, unknown> = {};
       let ignoreConflict = false;
+      let upsert: any;
       const run = () => {
         const rows = tableRows(tableName);
         const uniqueFields: Record<string, string[]> = {
           guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
           enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
           guest_preapplication_evidence: ["objectPath"],
+          staff_email_settings: ["key"],
+          staff_email_outbox: ["idempotencyKey"],
         };
         const conflict = (uniqueFields[tableName] ?? []).some((field) =>
           values[field] != null && rows.some((row) => row[field] === values[field]),
         );
         if (conflict) {
           if (ignoreConflict) return [];
+          if (upsert) {
+            const targetName = upsert.target?.name;
+            const field = targetName ?? uniqueFields[tableName]?.find((name) =>
+              values[name] != null && rows.some((row) => row[name] === values[name]),
+            );
+            const existing = field
+              ? rows.find((row) => row[field] === values[field])
+              : undefined;
+            if (existing) {
+              Object.assign(existing, upsert.set);
+              return [existing];
+            }
+          }
           throw new Error("unique constraint");
         }
         const row = newRow(tableName, values);
@@ -176,6 +195,10 @@ function makeDatabase() {
         },
         onConflictDoNothing() {
           ignoreConflict = true;
+          return builder;
+        },
+        onConflictDoUpdate(options: any) {
+          upsert = options;
           return builder;
         },
         returning() {
@@ -274,7 +297,16 @@ vi.mock("@replit/connectors-sdk", () => ({
   ReplitConnectors: class {
     proxy(service: string, path: string, options: Record<string, any>) {
       mockState.emailRequests.push({ service, path, options });
-      return Promise.resolve({ ok: true, status: 200 });
+      const next = mockState.emailResponses.shift() ?? {
+        ok: true,
+        status: 200,
+        body: { id: "resend-test-id" },
+      };
+      return Promise.resolve({
+        ok: next.ok,
+        status: next.status,
+        json: async () => next.body ?? {},
+      });
     }
   },
 }));
@@ -367,11 +399,14 @@ describe("guest application verification and persistence", () => {
       "application_events",
       "portal_settings",
       "enrollment_support_tickets",
+      "staff_email_settings",
+      "staff_email_outbox",
     ]) mockState.rows.set(name, []);
     mockState.users.clear();
     mockState.storageObjects.clear();
     mockState.uploadCount = 0;
     mockState.emailRequests.length = 0;
+    mockState.emailResponses.length = 0;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
       primaryEmailAddress: {
@@ -411,6 +446,14 @@ describe("guest application verification and persistence", () => {
         verification: { status: "verified" },
       },
       publicMetadata: { role: "admin" },
+    });
+    mockState.users.set("moderator", {
+      id: "moderator",
+      primaryEmailAddress: {
+        emailAddress: "moderator@example.test",
+        verification: { status: "verified" },
+      },
+      publicMetadata: { role: "moderator" },
     });
   });
 
@@ -486,7 +529,90 @@ describe("guest application verification and persistence", () => {
     expect(message.subject).toContain(created.body.reference);
     expect(message.text).toContain(created.body.reference);
     expect(message.text).not.toContain(contactEmail);
-    expect(sent.options.headers["Idempotency-Key"]).toBe(`guest-contact:${created.body.id}`);
+    expect(sent.options.headers["Idempotency-Key"]).toMatch(
+      new RegExp(`^reviewer:guest-contact:${created.body.id}:[a-f0-9]{32}$`),
+    );
+  });
+
+  it("limits email center access to admins and sub-admin reviewers", async () => {
+    const signedOut = await request("/admin/email/settings");
+    const applicant = await request("/admin/email/settings", {}, "applicant-verified");
+    const moderator = await request("/admin/email/settings", {}, "moderator");
+    const reviewer = await request("/admin/email/settings", {}, "reviewer");
+
+    expect(signedOut.response.status).toBe(401);
+    expect(applicant.response.status).toBe(403);
+    expect(moderator.response.status).toBe(403);
+    expect(reviewer.response.status).toBe(200);
+    expect(reviewer.body.recipients).toEqual(["skyfashion053@gmail.com"]);
+    expect(reviewer.body.alerts.application_submitted).toBe(true);
+  });
+
+  it("saves alert recipients and sends one-off email separately to each recipient", async () => {
+    const saved = await request("/admin/email/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        recipients: ["reviewer@example.test", "other@example.test"],
+        alerts: {
+          contact_received: true,
+          step_saved: false,
+          contact_updated: true,
+          evidence_saved: false,
+          application_submitted: true,
+        },
+      }),
+    }, "reviewer");
+    expect(saved.response.status).toBe(200);
+    expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
+    expect(saved.body.alerts.step_saved).toBe(false);
+
+    const sent = await request("/admin/email/send", {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        recipients: ["one@example.test", "two@example.test"],
+        subject: "Portal update",
+        messageText: "A short staff update.",
+      }),
+    }, "reviewer");
+    console.log("email retry debug", sent.body, mockState.rows.get("staff_email_outbox"), mockState.emailRequests.length);
+    expect(sent.response.status, JSON.stringify(sent.body)).toBe(201);
+    expect(sent.body).toHaveLength(2);
+    expect(sent.body.every((message: any) => message.status === "sent")).toBe(true);
+    expect(mockState.emailRequests).toHaveLength(2);
+    expect(mockState.emailRequests.map((item) => JSON.parse(item.options.body).to))
+      .toEqual([["one@example.test"], ["two@example.test"]]);
+
+    const outbox = await request("/admin/email/outbox", {}, "administrator");
+    expect(outbox.response.status).toBe(200);
+    expect(outbox.body).toHaveLength(2);
+    expect(outbox.body[0].subject).toBe("Portal update");
+  });
+
+  it("records provider failures and allows an authorized reviewer to retry them", async () => {
+    mockState.emailResponses.push(
+      { ok: false, status: 500 },
+      { ok: false, status: 500 },
+      { ok: false, status: 500 },
+    );
+    const sent = await request("/admin/email/send", {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        recipients: ["retry@example.test"],
+        subject: "Retry test",
+        messageText: "This will be retried.",
+      }),
+    }, "reviewer");
+    expect(sent.response.status, JSON.stringify(sent.body)).toBe(201);
+    expect(sent.body[0].status).toBe("failed");
+    const retried = await request(`/admin/email/outbox/${sent.body[0].id}/retry`, {
+      method: "POST",
+    }, "reviewer");
+    expect(retried.response.status).toBe(200);
+    expect(retried.body.status).toBe("sent");
+    expect(retried.body.attemptCount).toBe(4);
+    expect(mockState.emailRequests).toHaveLength(4);
   });
 
   it("notifies the sub-admin for meaningful saved-step changes but not no-op retries", async () => {

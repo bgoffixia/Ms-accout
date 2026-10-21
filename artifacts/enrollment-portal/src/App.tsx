@@ -7,8 +7,8 @@ import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import {
   Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
-  ChevronDown, CircleHelp, Copy, FileCheck2, FileText, Headphones, Home, LifeBuoy,
-  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, Search, Settings, ShieldCheck, Trash2, Upload, X,
+  ChevronDown, CircleHelp, Copy, FileCheck2, FileText, Headphones, Home, LifeBuoy, Mail,
+  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, RefreshCw, Search, Send, Settings, ShieldCheck, Trash2, Upload, X,
 } from 'lucide-react';
 import {
   getGetApplicationQueryKey, getGetApplicantSummaryQueryKey,
@@ -16,6 +16,8 @@ import {
   getGetAdminApplicationPinQueryKey, getGetAdminGuestPreapplicationPinQueryKey,
   getGetAdminGuestApplicationHistoryQueryKey,
   getGetAdminOverviewQueryKey,
+  getGetAdminEmailSettingsQueryKey,
+  getListAdminEmailOutboxQueryKey,
   getGetPortalSettingsQueryKey,
   getListApplicationsForReviewQueryKey, getListMyApplicationsQueryKey,
   getListAdminGuestPreapplicationsQueryKey,
@@ -30,6 +32,8 @@ import {
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminGuestApplicationHistory, useGetAdminOverview,
   useGetAdminApplicationPin, useGetAdminGuestPreapplicationPin,
+  useGetAdminEmailSettings, useListAdminEmailOutbox, useUpdateAdminEmailSettings,
+  useSendAdminEmail, useRetryAdminEmail,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
   useListAdminUsers, useListEnrollmentCategories, useListMyApplications, useListMySupportTickets,
@@ -45,7 +49,7 @@ import {
 } from '@workspace/api-client-react';
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
-  GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
+  AdminEmailAlertEvents, AdminEmailMessage, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -354,6 +358,7 @@ function staffReviewReturnPath(value: string | null): string | null {
   if (
     path === '/admin/review' ||
     path === '/admin/pre-applications' ||
+    path === '/admin/email' ||
     /^\/admin\/applications\/[0-9a-f-]{36}$/i.test(path) ||
     /^\/admin\/guest-applications\/[0-9a-f-]{36}$/i.test(path)
   ) {
@@ -1135,6 +1140,7 @@ function AdminShell({ children, active = 'overview' }: { children: ReactNode; ac
     { href: '/admin', key: 'overview', label: canManage ? 'Admin home' : 'Overview', icon: Activity, testId: 'link-admin-overview' },
     ...(canReview ? [
       { href: '/admin/review', key: 'review', label: 'Applicants', icon: FileCheck2, testId: 'link-admin-review' },
+      { href: '/admin/email', key: 'email', label: 'Email center', icon: Mail, testId: 'link-admin-email' },
     ] : []),
     ...(canManage ? [
       { href: '/admin/users', key: 'users', label: 'Users and roles', icon: CheckCircle2, testId: 'link-admin-users' },
@@ -1192,6 +1198,9 @@ function AdminManagementHome() {
         </Link>
         <Link href="/admin/settings" className="detail-card admin-overview-link" data-testid="link-admin-home-settings">
           <span className="admin-action-icon"><Settings size={18} /></span><b>Portal settings</b><span>Update enrollment content and presentation.</span><strong>Admin only</strong><ArrowRight size={16} />
+        </Link>
+        <Link href="/admin/email" className="detail-card admin-overview-link" data-testid="link-admin-home-email">
+          <span className="admin-action-icon"><Mail size={18} /></span><b>Email center</b><span>Manage reviewer alerts, send messages, and retry failed emails.</span><strong>Reviewer access</strong><ArrowRight size={16} />
         </Link>
         <Link href="/admin/support" className="detail-card admin-overview-link" data-testid="link-admin-home-support">
           <span className="admin-action-icon"><Headphones size={18} /></span><b>Support inbox</b><span>Respond to applicant conversations and track resolution.</span><strong>Staff access</strong><ArrowRight size={16} />
@@ -1297,6 +1306,7 @@ function AdminOverview() {
       <div className="admin-section-heading"><div><span className="eyebrow">WORK QUEUE</span><h2>Next actions</h2></div><span className="admin-live-mark"><span className="server-dot" /> Live service data</span></div>
       <div className="admin-overview-actions">
         {canReview && <Link href="/admin/review" className="detail-card admin-overview-link" data-testid="link-overview-review-action"><span className="admin-action-icon"><FileCheck2 size={18} /></span><b>Applicants</b><span>Review submitted applications and saved guest drafts.</span><strong>{overview.data?.pendingApplications ?? '—'} pending</strong><ArrowRight size={16} /></Link>}
+        {canReview && <Link href="/admin/email" className="detail-card admin-overview-link" data-testid="link-overview-email-action"><span className="admin-action-icon"><Mail size={18} /></span><b>Email center</b><span>Manage reviewer alerts, send external messages, and retry failures.</span><strong>Reviewer access</strong><ArrowRight size={16} /></Link>}
         <Link href="/admin/support" className="detail-card admin-overview-link" data-testid="link-overview-support-action"><span className="admin-action-icon"><Headphones size={18} /></span><b>Support inbox</b><span>Respond to applicant conversations and track resolution.</span><strong>{overview.data?.unresolvedSupportRequests ?? '—'} unresolved</strong><ArrowRight size={16} /></Link>
         {canEditPortal && <Link href="/admin/users" className="detail-card admin-overview-link" data-testid="link-overview-users-action"><span className="admin-action-icon"><CheckCircle2 size={18} /></span><b>Users and roles</b><span>Manage staff access and account status.</span><strong>Admin only</strong><ArrowRight size={16} /></Link>}
         {canEditPortal && <Link href="/admin/settings" className="detail-card admin-overview-link" data-testid="link-overview-settings-action"><span className="admin-action-icon"><Settings size={18} /></span><b>Portal settings</b><span>Update enrollment content and presentation.</span><strong>Admin only</strong><ArrowRight size={16} /></Link>}
@@ -2318,6 +2328,212 @@ function AdminSupport() {
               <button className="button button-primary" onClick={() => respond(activeTicket, 'in_progress')} disabled={reply.isPending} data-testid="button-send-reply">{reply.isPending ? 'Saving…' : 'Send reply'} <ArrowRight size={15} /></button></div>
           </section>}
         </div>}
+    </div>
+  </AdminShell>;
+}
+
+const emailAlertOptions: Array<{
+  key: keyof AdminEmailAlertEvents;
+  label: string;
+  detail: string;
+}> = [
+  { key: 'contact_received', label: 'New applicant', detail: 'After contact details and category are saved.' },
+  { key: 'step_saved', label: 'Enrollment step saved', detail: 'When an applicant saves meaningful progress.' },
+  { key: 'contact_updated', label: 'Applicant contact changed', detail: 'When the applicant changes their contact details.' },
+  { key: 'evidence_saved', label: 'Evidence uploaded', detail: 'When an applicant adds identity evidence.' },
+  { key: 'application_submitted', label: 'Application submitted', detail: 'When an applicant submits an enrollment.' },
+];
+
+function AdminEmailCenter() {
+  const queryClient = useQueryClient();
+  const settings = useGetAdminEmailSettings();
+  const outbox = useListAdminEmailOutbox();
+  const saveSettings = useUpdateAdminEmailSettings();
+  const sendEmail = useSendAdminEmail();
+  const retryEmail = useRetryAdminEmail();
+  const [recipientDraft, setRecipientDraft] = useState('');
+  const [alertsDraft, setAlertsDraft] = useState<AdminEmailAlertEvents>({
+    contact_received: true,
+    step_saved: true,
+    contact_updated: true,
+    evidence_saved: true,
+    application_submitted: true,
+  });
+  const [settingsFeedback, setSettingsFeedback] = useState('');
+  const [composeRecipients, setComposeRecipients] = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeBody, setComposeBody] = useState('');
+  const [composeFeedback, setComposeFeedback] = useState('');
+
+  useEffect(() => {
+    if (!settings.data) return;
+    setRecipientDraft(settings.data.recipients.join('\n'));
+    setAlertsDraft(settings.data.alerts);
+  }, [settings.data]);
+
+  const invalidateEmailData = () => {
+    void queryClient.invalidateQueries({ queryKey: getListAdminEmailOutboxQueryKey() });
+  };
+
+  const recipientList = (value: string) => [...new Set(
+    value.split(/[\n,;]+/).map((email) => email.trim().toLowerCase()).filter(Boolean),
+  )];
+
+  const saveEmailSettings = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const recipients = recipientList(recipientDraft);
+    if (recipients.length > 10) {
+      setSettingsFeedback('Add no more than 10 alert recipients.');
+      return;
+    }
+    setSettingsFeedback('');
+    saveSettings.mutate({ data: { recipients, alerts: alertsDraft } }, {
+      onSuccess: (saved) => {
+        setRecipientDraft(saved.recipients.join('\n'));
+        setAlertsDraft(saved.alerts);
+        setSettingsFeedback('Email settings saved.');
+        void queryClient.invalidateQueries({ queryKey: getGetAdminEmailSettingsQueryKey() });
+      },
+      onError: () => setSettingsFeedback('Email settings could not be saved. Check each address and try again.'),
+    });
+  };
+
+  const sendOneOffEmail = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const recipients = recipientList(composeRecipients);
+    if (!recipients.length || recipients.length > 20) {
+      setComposeFeedback('Enter between 1 and 20 valid recipient addresses.');
+      return;
+    }
+    setComposeFeedback('');
+    sendEmail.mutate({
+      data: {
+        requestId: crypto.randomUUID(),
+        recipients,
+        subject: composeSubject.trim(),
+        messageText: composeBody.trim(),
+      },
+    }, {
+      onSuccess: (messages: AdminEmailMessage[]) => {
+        const allAccepted = messages.every((message) => message.status === 'sent');
+        setComposeFeedback(allAccepted
+          ? 'Accepted by the email provider. This confirms handoff, not inbox delivery.'
+          : 'Email attempts were saved. Review failed messages below and retry them.');
+        setComposeRecipients('');
+        setComposeSubject('');
+        setComposeBody('');
+        invalidateEmailData();
+      },
+      onError: () => setComposeFeedback('The email request could not be recorded. Try again.'),
+    });
+  };
+
+  const retry = (message: AdminEmailMessage) => {
+    retryEmail.mutate({ messageId: message.id }, {
+      onSuccess: () => invalidateEmailData(),
+      onError: () => setComposeFeedback('The message could not be retried. Refresh the outbox and try again.'),
+    });
+  };
+
+  if (settings.isError || outbox.isError) {
+    return <AdminShell active="email"><AccessError retry={() => {
+      void settings.refetch();
+      void outbox.refetch();
+    }} /></AdminShell>;
+  }
+
+  const messages = outbox.data ?? [];
+  return <AdminShell active="email">
+    <div className="admin-page admin-email-page">
+      <PageHeading
+        eyebrow="SECURE STAFF WORKSPACE"
+        title="Email center"
+        detail="Manage enrollment alerts, send one-off messages, and retry failed email attempts."
+      />
+      <div className="admin-email-grid">
+        <section className="detail-card admin-email-settings">
+          <div className="detail-card-title"><Mail size={17} /><h2>Automated reviewer alerts</h2></div>
+          <p className="field-help">Alerts contain an application reference and a secure reviewer link, not applicant answers, PINs, or evidence files.</p>
+          <form onSubmit={saveEmailSettings} className="admin-email-form">
+            <label className="field-label" htmlFor="email-alert-recipients">External recipient addresses</label>
+            <textarea
+              id="email-alert-recipients"
+              className="text-input form-textarea admin-email-recipient-input"
+              rows={3}
+              maxLength={4000}
+              value={recipientDraft}
+              onChange={(event) => setRecipientDraft(event.target.value)}
+              placeholder="reviewer@example.com"
+              data-testid="input-email-alert-recipients"
+            />
+            <small className="field-help">Separate addresses with a comma or a new line. Maximum 10 recipients.</small>
+            <div className="admin-email-alert-options">
+              {emailAlertOptions.map(({ key, label, detail }) => (
+                <label className="admin-email-alert-option" key={key}>
+                  <input
+                    type="checkbox"
+                    checked={alertsDraft[key]}
+                    onChange={(event) => setAlertsDraft((current) => ({
+                      ...current,
+                      [key]: event.target.checked,
+                    }))}
+                    data-testid={`toggle-email-alert-${key}`}
+                  />
+                  <span><b>{label}</b><small>{detail}</small></span>
+                </label>
+              ))}
+            </div>
+            {settingsFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-settings-feedback">{settingsFeedback}</p>}
+            <button className="button button-primary" type="submit" disabled={settings.isLoading || saveSettings.isPending} data-testid="button-save-email-settings">
+              {saveSettings.isPending ? 'Saving…' : 'Save alert settings'}
+            </button>
+          </form>
+          <div className="admin-email-sender"><span>Sender</span><b>{settings.data?.senderAddress ?? 'Loading sender…'}</b></div>
+        </section>
+
+        <section className="detail-card admin-email-compose">
+          <div className="detail-card-title"><Send size={17} /><h2>Send a one-off email</h2></div>
+          <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
+          <form onSubmit={sendOneOffEmail} className="admin-email-form">
+            <label className="field-label" htmlFor="email-compose-recipients">To</label>
+            <textarea id="email-compose-recipients" className="text-input form-textarea admin-email-recipient-input" rows={2} maxLength={4000} value={composeRecipients} onChange={(event) => setComposeRecipients(event.target.value)} placeholder="person@example.com" data-testid="input-email-compose-recipients" />
+            <small className="field-help">Separate addresses with a comma or a new line. Maximum 20 recipients.</small>
+            <label className="field-label" htmlFor="email-compose-subject">Subject</label>
+            <input id="email-compose-subject" className="text-input" maxLength={200} value={composeSubject} onChange={(event) => setComposeSubject(event.target.value)} required data-testid="input-email-compose-subject" />
+            <label className="field-label" htmlFor="email-compose-body">Message</label>
+            <textarea id="email-compose-body" className="text-input form-textarea" rows={7} maxLength={10000} value={composeBody} onChange={(event) => setComposeBody(event.target.value)} required data-testid="input-email-compose-body" />
+            {composeFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-compose-feedback">{composeFeedback}</p>}
+            <button className="button button-primary" type="submit" disabled={sendEmail.isPending || !composeSubject.trim() || !composeBody.trim()} data-testid="button-send-email">
+              {sendEmail.isPending ? 'Sending…' : 'Send email'} <ArrowRight size={15} />
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section className="admin-email-outbox detail-card" aria-labelledby="admin-email-outbox-title">
+        <div className="admin-email-outbox-heading">
+          <div className="detail-card-title"><Activity size={17} /><h2 id="admin-email-outbox-title">Recent email activity</h2></div>
+          <span>Provider acceptance is not a delivery receipt.</span>
+        </div>
+        {outbox.isLoading ? <LoadingPanel label="Loading email activity" />
+          : messages.length === 0 ? <EmptyPanel title="No email activity yet" message="Automated alerts and one-off emails will appear here." />
+          : <div className="admin-email-outbox-list" data-testid="admin-email-outbox-list">
+            {messages.map((message) => (
+              <article className="admin-email-outbox-row" key={message.id} data-testid={`email-outbox-row-${message.id}`}>
+                <div className="admin-email-outbox-main">
+                  <div className="admin-email-outbox-title"><b>{message.subject}</b><span className={`admin-email-status admin-email-status-${message.status}`}>{message.status === 'sent' ? 'Accepted by provider' : message.status}</span></div>
+                  <p><strong>To:</strong> {message.recipientEmail} <span>·</span> {message.eventKind?.replaceAll('_', ' ') ?? 'manual email'}</p>
+                  <small>{formatDate(message.createdAt)}{message.applicationReference ? ` · ${message.applicationReference}` : ''} · {message.attemptCount} attempt{message.attemptCount === 1 ? '' : 's'}</small>
+                  {message.errorMessage && <p className="admin-email-error">{message.errorMessage}</p>}
+                  <details><summary>View message</summary><pre>{message.messageText}</pre></details>
+                </div>
+                {message.status === 'failed' && <button type="button" className="button button-quiet admin-email-retry" onClick={() => retry(message)} disabled={retryEmail.isPending} data-testid={`button-retry-email-${message.id}`}>
+                  <RefreshCw size={14} /> {retryEmail.isPending ? 'Retrying…' : 'Retry'}
+                </button>}
+              </article>
+            ))}
+          </div>}
+      </section>
     </div>
   </AdminShell>;
 }
@@ -4024,6 +4240,7 @@ function RoutedPages() {
     <Route path="/admin/review" component={() => <AdminGate><ApplicantsPage /></AdminGate>} />
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
+    <Route path="/admin/email" component={() => <AdminGate><AdminEmailCenter /></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
     <Route path="/admin/guest-applications/:applicationId" component={() => <AdminGate><AdminGuestApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />

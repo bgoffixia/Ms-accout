@@ -53,6 +53,14 @@ import {
   GetAdminGuestPreapplicationPinParams,
   GetAdminGuestPreapplicationPinResponse,
   GetAdminOverviewResponse,
+  GetAdminEmailSettingsResponse,
+  ListAdminEmailOutboxResponse,
+  RetryAdminEmailParams,
+  RetryAdminEmailResponse,
+  SendAdminEmailBody,
+  SendAdminEmailResponse,
+  UpdateAdminEmailSettingsBody,
+  UpdateAdminEmailSettingsResponse,
   GetApplicationParams,
   GetApplicationResponse,
   GetApplicantSummaryResponse,
@@ -136,6 +144,8 @@ import {
   guestPreapplicationRevisionsTable,
   portalSettingsTable,
   supportTicketsTable,
+  staffEmailOutboxTable,
+  type StaffEmailOutboxRecord,
 } from "@workspace/db";
 import {
   ObjectNotFoundError,
@@ -146,6 +156,13 @@ import {
   sendReviewerNotification,
   type ReviewerNotification,
 } from "../lib/reviewerNotifications";
+import {
+  dispatchStaffEmail,
+  emailRecipientIdempotencyKey,
+  getStaffEmailConfiguration,
+  saveStaffEmailConfiguration,
+  type StaffEmailMessageKind,
+} from "../lib/staffEmail";
 
 type ApplicationStatus =
   | "draft"
@@ -3644,6 +3661,168 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
     res.status(503).json({ error: "Portal settings could not be saved." });
   }
 });
+
+function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
+  return {
+    id: record.id,
+    recipientEmail: record.recipientEmail,
+    subject: record.subject,
+    messageText: record.messageText,
+    eventKind: record.eventKind,
+    applicationReference: record.applicationReference,
+    status: record.status,
+    providerMessageId: record.providerMessageId,
+    errorMessage: record.errorMessage,
+    createdByUserId: record.createdByUserId,
+    attemptCount: record.attemptCount,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
+router.get("/admin/email/settings", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const configuration = await getStaffEmailConfiguration();
+    res.json(
+      GetAdminEmailSettingsResponse.parse({
+        ...configuration,
+        updatedAt: configuration.updatedAt
+          ? new Date(configuration.updatedAt)
+          : null,
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load staff email settings");
+    res.status(503).json({ error: "Email settings could not be loaded." });
+  }
+});
+
+router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const parsed = UpdateAdminEmailSettingsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Check the recipient addresses and alert settings." });
+    return;
+  }
+  const recipients = [...new Set(
+    parsed.data.recipients.map((email) => email.trim().toLowerCase()),
+  )];
+  try {
+    const configuration = await saveStaffEmailConfiguration(
+      recipients,
+      parsed.data.alerts,
+      res.locals.userId as string,
+    );
+    res.json(
+      UpdateAdminEmailSettingsResponse.parse({
+        ...configuration,
+        updatedAt: configuration.updatedAt
+          ? new Date(configuration.updatedAt)
+          : null,
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to save staff email settings");
+    res.status(503).json({ error: "Email settings could not be saved." });
+  }
+});
+
+router.get("/admin/email/outbox", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const records = await db
+      .select()
+      .from(staffEmailOutboxTable)
+      .orderBy(desc(staffEmailOutboxTable.createdAt))
+      .limit(100);
+    res.json(ListAdminEmailOutboxResponse.parse(records.map(serializeStaffEmailRecord)));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load staff email outbox");
+    res.status(503).json({ error: "Email history could not be loaded." });
+  }
+});
+
+router.post("/admin/email/send", requireReviewer, async (req, res): Promise<void> => {
+  const parsed = SendAdminEmailBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Check the recipients, subject, and message before sending." });
+    return;
+  }
+  const subject = parsed.data.subject.trim();
+  const messageText = parsed.data.messageText.trim();
+  if (!subject || !messageText) {
+    res.status(400).json({ error: "Subject and message cannot be blank." });
+    return;
+  }
+  const recipients = [...new Set(
+    parsed.data.recipients.map((email) => email.trim().toLowerCase()),
+  )];
+  try {
+    const messages: StaffEmailOutboxRecord[] = [];
+    for (const recipientEmail of recipients) {
+      messages.push(
+        await dispatchStaffEmail({
+          idempotencyKey: emailRecipientIdempotencyKey(
+            `manual:${parsed.data.requestId}`,
+            recipientEmail,
+          ),
+          recipientEmail,
+          subject,
+          messageText,
+          eventKind: "manual",
+          createdByUserId: res.locals.userId as string,
+        }),
+      );
+    }
+    res.status(201).json(
+      SendAdminEmailResponse.parse(messages.map(serializeStaffEmailRecord)),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to process staff email send request");
+    res.status(503).json({ error: "The email request could not be recorded." });
+  }
+});
+
+router.post(
+  "/admin/email/outbox/:messageId/retry",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsed = RetryAdminEmailParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: "The email record is invalid." });
+      return;
+    }
+    try {
+      const [record] = await db
+        .select()
+        .from(staffEmailOutboxTable)
+        .where(eq(staffEmailOutboxTable.id, parsed.data.messageId))
+        .limit(1);
+      if (!record) {
+        res.status(404).json({ error: "Email record not found." });
+        return;
+      }
+      if (record.status !== "failed") {
+        res.status(409).json({ error: "Only failed email attempts can be retried." });
+        return;
+      }
+      const retried = await dispatchStaffEmail({
+        idempotencyKey: record.idempotencyKey,
+        recipientEmail: record.recipientEmail,
+        subject: record.subject,
+        messageText: record.messageText,
+        eventKind: (record.eventKind ?? "manual") as StaffEmailMessageKind,
+        applicationReference: record.applicationReference,
+        createdByUserId: record.createdByUserId,
+      });
+      res.json(RetryAdminEmailResponse.parse(serializeStaffEmailRecord(retried)));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to retry staff email");
+      res.status(503).json({ error: "Email retry could not be processed." });
+    }
+  },
+);
 
 router.get("/admin/overview", requireReviewer, async (req, res): Promise<void> => {
   try {

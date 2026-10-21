@@ -1442,6 +1442,144 @@ export const UpdatePortalSettingsResponse = zod.object({
 })
 
 
+/**
+ * @summary Get staff email alert settings
+ */
+export const getAdminEmailSettingsResponseRecipientsMax = 10;
+
+
+
+export const GetAdminEmailSettingsResponse = zod.object({
+  "recipients": zod.array(zod.string().email()).max(getAdminEmailSettingsResponseRecipientsMax),
+  "alerts": zod.object({
+  "contact_received": zod.boolean(),
+  "step_saved": zod.boolean(),
+  "contact_updated": zod.boolean(),
+  "evidence_saved": zod.boolean(),
+  "application_submitted": zod.boolean()
+}),
+  "senderAddress": zod.string(),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Update staff email alert settings
+ */
+export const updateAdminEmailSettingsBodyRecipientsMax = 10;
+
+
+
+export const UpdateAdminEmailSettingsBody = zod.object({
+  "recipients": zod.array(zod.string().email()).max(updateAdminEmailSettingsBodyRecipientsMax),
+  "alerts": zod.object({
+  "contact_received": zod.boolean(),
+  "step_saved": zod.boolean(),
+  "contact_updated": zod.boolean(),
+  "evidence_saved": zod.boolean(),
+  "application_submitted": zod.boolean()
+})
+})
+
+export const updateAdminEmailSettingsResponseRecipientsMax = 10;
+
+
+
+export const UpdateAdminEmailSettingsResponse = zod.object({
+  "recipients": zod.array(zod.string().email()).max(updateAdminEmailSettingsResponseRecipientsMax),
+  "alerts": zod.object({
+  "contact_received": zod.boolean(),
+  "step_saved": zod.boolean(),
+  "contact_updated": zod.boolean(),
+  "evidence_saved": zod.boolean(),
+  "application_submitted": zod.boolean()
+}),
+  "senderAddress": zod.string(),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary List recent staff and automated email messages
+ */
+export const ListAdminEmailOutboxResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "recipientEmail": zod.string().email(),
+  "subject": zod.string(),
+  "messageText": zod.string(),
+  "eventKind": zod.union([zod.literal('contact_received'),zod.literal('step_saved'),zod.literal('contact_updated'),zod.literal('evidence_saved'),zod.literal('application_submitted'),zod.literal('manual'),zod.literal(null)]).nullable(),
+  "applicationReference": zod.string().nullable(),
+  "status": zod.enum(['sending', 'sent', 'failed']),
+  "providerMessageId": zod.string().nullable(),
+  "errorMessage": zod.string().nullable(),
+  "createdByUserId": zod.string().nullable(),
+  "attemptCount": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAdminEmailOutboxResponse = zod.array(ListAdminEmailOutboxResponseItem)
+
+
+/**
+ * @summary Send a one-off email to external recipients
+ */
+export const sendAdminEmailBodyRecipientsMax = 20;
+
+export const sendAdminEmailBodySubjectMax = 200;
+
+export const sendAdminEmailBodyMessageTextMax = 10000;
+
+
+
+export const SendAdminEmailBody = zod.object({
+  "requestId": zod.string().uuid(),
+  "recipients": zod.array(zod.string().email()).min(1).max(sendAdminEmailBodyRecipientsMax),
+  "subject": zod.string().min(1).max(sendAdminEmailBodySubjectMax),
+  "messageText": zod.string().min(1).max(sendAdminEmailBodyMessageTextMax)
+})
+
+export const SendAdminEmailResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "recipientEmail": zod.string().email(),
+  "subject": zod.string(),
+  "messageText": zod.string(),
+  "eventKind": zod.union([zod.literal('contact_received'),zod.literal('step_saved'),zod.literal('contact_updated'),zod.literal('evidence_saved'),zod.literal('application_submitted'),zod.literal('manual'),zod.literal(null)]).nullable(),
+  "applicationReference": zod.string().nullable(),
+  "status": zod.enum(['sending', 'sent', 'failed']),
+  "providerMessageId": zod.string().nullable(),
+  "errorMessage": zod.string().nullable(),
+  "createdByUserId": zod.string().nullable(),
+  "attemptCount": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const SendAdminEmailResponse = zod.array(SendAdminEmailResponseItem)
+
+
+/**
+ * @summary Retry a failed staff or automated email
+ */
+export const RetryAdminEmailParams = zod.object({
+  "messageId": zod.coerce.string().uuid()
+})
+
+export const RetryAdminEmailResponse = zod.object({
+  "id": zod.string().uuid(),
+  "recipientEmail": zod.string().email(),
+  "subject": zod.string(),
+  "messageText": zod.string(),
+  "eventKind": zod.union([zod.literal('contact_received'),zod.literal('step_saved'),zod.literal('contact_updated'),zod.literal('evidence_saved'),zod.literal('application_submitted'),zod.literal('manual'),zod.literal(null)]).nullable(),
+  "applicationReference": zod.string().nullable(),
+  "status": zod.enum(['sending', 'sent', 'failed']),
+  "providerMessageId": zod.string().nullable(),
+  "errorMessage": zod.string().nullable(),
+  "createdByUserId": zod.string().nullable(),
+  "attemptCount": zod.number().int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
 export const GetAdminApplicationHistoryParams = zod.object({
   "applicationId": zod.coerce.string()
 })
