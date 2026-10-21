@@ -3974,6 +3974,9 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .admin-email-outbox-main { min-width: 0; flex: 1; }
 .admin-email-outbox-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .admin-email-outbox-title b { overflow-wrap: anywhere; color: #29495c; font-size: 11px; }
+.admin-email-provider-timeline { display: flex; flex-wrap: wrap; gap: 7px 12px; margin: 8px 0 4px; padding: 0; list-style: none; }
+.admin-email-provider-timeline li { display: inline-flex; align-items: center; gap: 6px; }
+.admin-email-provider-timeline time { color: #7d9097; font-size: 8px; }
 .admin-email-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 7px; font-size: 8px; font-weight: 700; text-transform: capitalize; }
 .admin-email-status-sent { color: #2e7050; background: #eaf5ee; }
 .admin-email-status-accepted { color: #2e7050; background: #eaf5ee; }

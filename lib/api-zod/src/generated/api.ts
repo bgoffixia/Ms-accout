@@ -1558,6 +1558,10 @@ export const ListAdminEmailOutboxResponseItem = zod.object({
   "providerMessageId": zod.string().nullable(),
   "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
   "providerEventAt": zod.coerce.date().nullable(),
+  "providerEvents": zod.array(zod.object({
+  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
+  "providerEventAt": zod.coerce.date()
+})),
   "errorMessage": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "attemptCount": zod.number().int(),
@@ -1702,6 +1706,10 @@ export const SendAdminEmailResponseItem = zod.object({
   "providerMessageId": zod.string().nullable(),
   "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
   "providerEventAt": zod.coerce.date().nullable(),
+  "providerEvents": zod.array(zod.object({
+  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
+  "providerEventAt": zod.coerce.date()
+})),
   "errorMessage": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "attemptCount": zod.number().int(),
@@ -1729,6 +1737,10 @@ export const RetryAdminEmailResponse = zod.object({
   "providerMessageId": zod.string().nullable(),
   "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
   "providerEventAt": zod.coerce.date().nullable(),
+  "providerEvents": zod.array(zod.object({
+  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
+  "providerEventAt": zod.coerce.date()
+})),
   "errorMessage": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "attemptCount": zod.number().int(),

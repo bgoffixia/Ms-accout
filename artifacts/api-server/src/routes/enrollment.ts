@@ -154,6 +154,7 @@ import {
   portalSettingsTable,
   supportTicketsTable,
   staffEmailOutboxTable,
+  staffEmailProviderEventsTable,
   staffEmailTemplatesTable,
   type StaffEmailOutboxRecord,
 } from "@workspace/db";
@@ -3703,6 +3704,7 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
     deliveryStatus:
       record.deliveryStatus ?? (record.status === "sent" ? "accepted" : null),
     providerEventAt: record.providerEventAt ?? null,
+    providerEvents: [],
     errorMessage: record.errorMessage ?? null,
     createdByUserId: record.createdByUserId ?? null,
     attemptCount: record.attemptCount,
@@ -3714,6 +3716,7 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
 router.post("/webhooks/resend", async (req, res): Promise<void> => {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
   const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const providerEventId = req.header("svix-id") ?? undefined;
   if (!secret) {
     req.log.error("Resend webhook secret is not configured");
     res.status(503).json({ error: "Webhook verification is not configured." });
@@ -3723,7 +3726,7 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
     !rawBody ||
     !verifyResendWebhookSignature({
       rawBody,
-      webhookId: req.header("svix-id"),
+      webhookId: providerEventId,
       timestamp: req.header("svix-timestamp"),
       signature: req.header("svix-signature"),
       secret,
@@ -3769,18 +3772,48 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
     complained: ["accepted", "delivered", "bounced"],
   };
   try {
-    await db
-      .update(staffEmailOutboxTable)
-      .set({ deliveryStatus, providerEventAt, updatedAt: new Date() })
-      .where(
-        and(
-          eq(staffEmailOutboxTable.providerMessageId, providerMessageId),
-          or(
-            isNull(staffEmailOutboxTable.deliveryStatus),
-            inArray(staffEmailOutboxTable.deliveryStatus, earlierStatuses[deliveryStatus]),
+    const [message] = await db
+      .select({ id: staffEmailOutboxTable.id })
+      .from(staffEmailOutboxTable)
+      .where(eq(staffEmailOutboxTable.providerMessageId, providerMessageId))
+      .limit(1);
+    if (!message || !providerEventId) {
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      const [savedEvent] = await tx
+        .insert(staffEmailProviderEventsTable)
+        .values({
+          outboxId: message.id,
+          providerEventId,
+          deliveryStatus,
+          providerEventAt,
+        })
+        .onConflictDoNothing({
+          target: staffEmailProviderEventsTable.providerEventId,
+        })
+        .returning({ id: staffEmailProviderEventsTable.id });
+
+      if (!savedEvent) return;
+
+      await tx
+        .update(staffEmailOutboxTable)
+        .set({ deliveryStatus, providerEventAt, updatedAt: new Date() })
+        .where(
+          and(
+            eq(staffEmailOutboxTable.id, message.id),
+            or(
+              isNull(staffEmailOutboxTable.providerEventAt),
+              inArray(
+                staffEmailOutboxTable.deliveryStatus,
+                earlierStatuses[deliveryStatus],
+              ),
+            ),
           ),
-        ),
-      );
+        );
+    });
     res.status(200).json({ received: true });
   } catch (error) {
     req.log.error({ err: error }, "Failed to update email delivery outcome");
@@ -3864,7 +3897,41 @@ router.get("/admin/email/outbox", requireReviewer, async (req, res): Promise<voi
       .from(staffEmailOutboxTable)
       .orderBy(desc(staffEmailOutboxTable.createdAt))
       .limit(100);
-    res.json(ListAdminEmailOutboxResponse.parse(records.map(serializeStaffEmailRecord)));
+    const messageIds = records.map((record) => record.id);
+    const providerEvents = messageIds.length
+      ? await db
+          .select({
+            outboxId: staffEmailProviderEventsTable.outboxId,
+            deliveryStatus: staffEmailProviderEventsTable.deliveryStatus,
+            providerEventAt: staffEmailProviderEventsTable.providerEventAt,
+          })
+          .from(staffEmailProviderEventsTable)
+          .where(inArray(staffEmailProviderEventsTable.outboxId, messageIds))
+          .orderBy(
+            asc(staffEmailProviderEventsTable.providerEventAt),
+            asc(staffEmailProviderEventsTable.id),
+          )
+      : [];
+    const eventsByMessageId = new Map<
+      string,
+      { deliveryStatus: string; providerEventAt: Date }[]
+    >();
+    for (const event of providerEvents) {
+      const events = eventsByMessageId.get(event.outboxId) ?? [];
+      events.push({
+        deliveryStatus: event.deliveryStatus,
+        providerEventAt: event.providerEventAt,
+      });
+      eventsByMessageId.set(event.outboxId, events);
+    }
+    res.json(
+      ListAdminEmailOutboxResponse.parse(
+        records.map((record) => ({
+          ...serializeStaffEmailRecord(record),
+          providerEvents: eventsByMessageId.get(record.id) ?? [],
+        })),
+      ),
+    );
   } catch (error) {
     req.log.error({ err: error }, "Failed to load staff email outbox");
     res.status(503).json({ error: "Email history could not be loaded." });

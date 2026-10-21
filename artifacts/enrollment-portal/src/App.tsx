@@ -2810,6 +2810,16 @@ function AdminEmailCenter() {
                     <span className={`admin-email-status admin-email-status-${message.deliveryStatus ?? message.status}`}>{message.deliveryStatus === 'accepted' ? 'Accepted' : message.deliveryStatus === 'delivered' ? 'Delivered' : message.deliveryStatus === 'bounced' ? 'Bounced' : message.deliveryStatus === 'complained' ? 'Complained' : message.status}</span>
                     {message.providerEventAt && <time dateTime={message.providerEventAt} data-testid={`email-provider-event-at-${message.id}`}>· {formatDateTime(message.providerEventAt)}</time>}
                   </div>
+                  {message.providerEvents.length > 0 && <ol className="admin-email-provider-timeline" aria-label="Provider delivery history" data-testid={`email-provider-timeline-${message.id}`}>
+                    {message.providerEvents.map((event, index) => (
+                      <li key={`${event.providerEventAt}-${event.deliveryStatus}-${index}`}>
+                        <span className={`admin-email-status admin-email-status-${event.deliveryStatus}`}>
+                          {event.deliveryStatus === 'delivered' ? 'Delivered' : event.deliveryStatus === 'bounced' ? 'Bounced' : 'Complained'}
+                        </span>
+                        <time dateTime={event.providerEventAt}>{formatDateTime(event.providerEventAt)}</time>
+                      </li>
+                    ))}
+                  </ol>}
                   <p><strong>To:</strong> {message.recipientEmail} <span>·</span> {message.eventKind?.replaceAll('_', ' ') ?? 'manual email'}</p>
                   <small>{formatDate(message.createdAt)}{message.applicationReference ? ` · ${message.applicationReference}` : ''} · {message.attemptCount} attempt{message.attemptCount === 1 ? '' : 's'}</small>
                   {message.errorMessage && <p className="admin-email-error">{message.errorMessage}</p>}

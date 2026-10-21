@@ -12,6 +12,8 @@ export * from './adminEmailMessage';
 export * from './adminEmailMessageDeliveryStatus';
 export * from './adminEmailMessageEventKind';
 export * from './adminEmailMessageStatus';
+export * from './adminEmailProviderEvent';
+export * from './adminEmailProviderEventDeliveryStatus';
 export * from './adminEmailSendInput';
 export * from './adminEmailSettings';
 export * from './adminEmailSettingsUpdate';

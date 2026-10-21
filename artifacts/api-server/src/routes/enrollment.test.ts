@@ -30,6 +30,7 @@ const mockState = vi.hoisted(() => ({
       supportTicketsTable: makeTable("enrollment_support_tickets"),
       staffEmailSettingsTable: makeTable("staff_email_settings"),
       staffEmailOutboxTable: makeTable("staff_email_outbox"),
+      staffEmailProviderEventsTable: makeTable("staff_email_provider_events"),
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
     };
   })(),
@@ -124,10 +125,26 @@ function makeDatabase() {
       let tableName = "";
       let condition: any;
       let limit = Number.POSITIVE_INFINITY;
-      const run = () => tableRows(tableName)
-        .filter((row) => matches(row, condition))
-        .slice(0, limit)
-        .map((row) => selected(row, shape));
+      let orderColumns: any[] = [];
+      const run = () => {
+        const rows = tableRows(tableName).filter((row) => matches(row, condition));
+        if (orderColumns.length) {
+          rows.sort((left, right) => {
+            for (const order of orderColumns) {
+              const column = order.column ?? order;
+              const leftValue = left[column.name];
+              const rightValue = right[column.name];
+              const leftComparable: any = leftValue instanceof Date ? leftValue.getTime() : leftValue;
+              const rightComparable: any = rightValue instanceof Date ? rightValue.getTime() : rightValue;
+              if (leftComparable === rightComparable) continue;
+              const comparison = leftComparable < rightComparable ? -1 : 1;
+              return order.direction === "desc" ? -comparison : comparison;
+            }
+            return 0;
+          });
+        }
+        return rows.slice(0, limit).map((row) => selected(row, shape));
+      };
       const query: any = {
         from(source: any) {
           tableName = source.__tableName;
@@ -140,7 +157,8 @@ function makeDatabase() {
         for() {
           return query;
         },
-        orderBy() {
+        orderBy(...columns: any[]) {
+          orderColumns = columns;
           return query;
         },
         limit(value: number) {
@@ -166,6 +184,7 @@ function makeDatabase() {
           guest_preapplication_evidence: ["objectPath"],
           staff_email_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
+          staff_email_provider_events: ["providerEventId"],
         };
         const conflict = (uniqueFields[tableName] ?? []).some((field) =>
           values[field] != null && rows.some((row) => row[field] === values[field]),
@@ -268,16 +287,28 @@ function makeDatabase() {
       return builder;
     },
     async transaction(callback: (transaction: any) => Promise<unknown>) {
-      return callback(this);
+      const snapshot = new Map(
+        [...mockState.rows].map(([name, rows]) => [
+          name,
+          rows.map((row) => structuredClone(row)),
+        ]),
+      );
+      try {
+        return await callback(this);
+      } catch (error) {
+        mockState.rows.clear();
+        for (const [name, rows] of snapshot) mockState.rows.set(name, rows);
+        throw error;
+      }
     },
   };
 }
 
 vi.mock("drizzle-orm", () => ({
   and: (...expressions: any[]) => ({ type: "and", expressions }),
-  asc: (column: unknown) => column,
+  asc: (column: unknown) => ({ column, direction: "asc" }),
   count: () => ({ type: "count" }),
-  desc: (column: unknown) => column,
+  desc: (column: unknown) => ({ column, direction: "desc" }),
   eq: (left: unknown, right: unknown) => ({ type: "eq", left, right }),
   inArray: (left: unknown, right: unknown[]) => ({ type: "inArray", left, right }),
   isNotNull: (left: unknown) => ({ type: "isNotNull", left }),
@@ -431,6 +462,7 @@ describe("guest application verification and persistence", () => {
       "enrollment_support_tickets",
       "staff_email_settings",
       "staff_email_outbox",
+      "staff_email_provider_events",
       "staff_email_templates",
     ]) mockState.rows.set(name, []);
     mockState.users.clear();
@@ -855,15 +887,20 @@ describe("guest application verification and persistence", () => {
     expect(missingEventTime.response.status).toBe(400);
     expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
 
-    const delivered = await request("/webhooks/resend", signedResendEvent({
+    const deliveredWebhook = signedResendEvent({
       type: "email.delivered",
       created_at: "2026-09-12T10:11:12.000Z",
       data: { email_id: deliveredId },
-    }));
+    });
+    const delivered = await request("/webhooks/resend", deliveredWebhook);
     expect(delivered.response.status).toBe(200);
     expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("delivered");
     expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
       .toEqual(new Date("2026-09-12T10:11:12.000Z"));
+
+    const repeatedDelivery = await request("/webhooks/resend", deliveredWebhook);
+    expect(repeatedDelivery.response.status).toBe(200);
+    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(1);
 
     const complained = await request("/webhooks/resend", signedResendEvent({
       type: "email.complained",
@@ -874,6 +911,14 @@ describe("guest application verification and persistence", () => {
     expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("complained");
     expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
       .toEqual(new Date("2026-09-13T11:12:13.000Z"));
+
+    const outOfOrderBounce = await request("/webhooks/resend", signedResendEvent({
+      type: "email.bounced",
+      created_at: "2026-09-11T09:10:11.000Z",
+      data: { email_id: deliveredId },
+    }));
+    expect(outOfOrderBounce.response.status).toBe(200);
+    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("complained");
 
     const bounced = await request("/webhooks/resend", signedResendEvent({
       type: "email.bounced",
@@ -887,6 +932,14 @@ describe("guest application verification and persistence", () => {
 
     const outbox = await request("/admin/email/outbox", {}, "administrator");
     expect(outbox.body[0].providerEventAt).toBe("2026-09-13T11:12:13.000Z");
+    expect(outbox.body[0].providerEvents.map((event: any) => [
+      event.deliveryStatus,
+      event.providerEventAt,
+    ])).toEqual([
+      ["bounced", "2026-09-11T09:10:11.000Z"],
+      ["delivered", "2026-09-12T10:11:12.000Z"],
+      ["complained", "2026-09-13T11:12:13.000Z"],
+    ]);
     expect(outbox.body[1].providerEventAt).toBe("2026-09-14T12:13:14.000Z");
 
     const lateDelivered = await request("/webhooks/resend", signedResendEvent({
@@ -898,6 +951,7 @@ describe("guest application verification and persistence", () => {
     expect(mockState.rows.get("staff_email_outbox")?.[1].deliveryStatus).toBe("bounced");
     expect(mockState.rows.get("staff_email_outbox")?.[1].providerEventAt)
       .toEqual(new Date("2026-09-14T12:13:14.000Z"));
+    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(5);
   });
 
   it("returns a retryable error when saving a delivery outcome fails and applies it on resend", async () => {
@@ -926,6 +980,7 @@ describe("guest application verification and persistence", () => {
     expect(failedAttempt.body.error).toBe("Email delivery outcome could not be recorded.");
     expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
     expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt).toBeNull();
+    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(0);
 
     const resent = await request("/webhooks/resend", signedResendEvent(event));
     expect(resent.response.status).toBe(200);
@@ -933,6 +988,7 @@ describe("guest application verification and persistence", () => {
     expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("delivered");
     expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
       .toEqual(new Date("2026-09-15T13:14:15.000Z"));
+    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(1);
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {

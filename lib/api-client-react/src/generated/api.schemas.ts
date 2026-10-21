@@ -1181,6 +1181,20 @@ export const AdminEmailMessageDeliveryStatus = {
   complained: 'complained',
 } as const;
 
+export type AdminEmailProviderEventDeliveryStatus = typeof AdminEmailProviderEventDeliveryStatus[keyof typeof AdminEmailProviderEventDeliveryStatus];
+
+
+export const AdminEmailProviderEventDeliveryStatus = {
+  delivered: 'delivered',
+  bounced: 'bounced',
+  complained: 'complained',
+} as const;
+
+export interface AdminEmailProviderEvent {
+  deliveryStatus: AdminEmailProviderEventDeliveryStatus;
+  providerEventAt: string;
+}
+
 export interface AdminEmailMessage {
   id: string;
   recipientEmail: string;
@@ -1197,6 +1211,7 @@ export interface AdminEmailMessage {
   deliveryStatus: AdminEmailMessageDeliveryStatus;
   /** @nullable */
   providerEventAt: string | null;
+  providerEvents: AdminEmailProviderEvent[];
   /** @nullable */
   errorMessage: string | null;
   /** @nullable */

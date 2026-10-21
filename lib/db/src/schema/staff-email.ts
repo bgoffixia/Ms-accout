@@ -76,6 +76,33 @@ export const staffEmailOutboxTable = pgTable(
   ],
 );
 
+export const staffEmailProviderEventsTable = pgTable(
+  "staff_email_provider_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    outboxId: uuid("outbox_id")
+      .notNull()
+      .references(() => staffEmailOutboxTable.id, { onDelete: "cascade" }),
+    providerEventId: text("provider_event_id").notNull(),
+    deliveryStatus: text("delivery_status").notNull(),
+    providerEventAt: timestamp("provider_event_at", {
+      withTimezone: true,
+    }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("staff_email_provider_events_provider_id_idx").on(
+      table.providerEventId,
+    ),
+    index("staff_email_provider_events_outbox_time_idx").on(
+      table.outboxId,
+      table.providerEventAt,
+    ),
+  ],
+);
+
 export const staffEmailTemplatesTable = pgTable(
   "staff_email_templates",
   {
