@@ -32,16 +32,6 @@ export interface ReviewerNotification {
   idempotencyKey: string;
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
-}
-
 function stepLabel(currentStep: number | undefined): string {
   if (currentStep === undefined) return "Enrollment";
   return stepLabels[Math.max(0, Math.min(stepLabels.length - 1, currentStep))] ?? "Enrollment";
@@ -88,21 +78,12 @@ export async function sendReviewerNotification(
   const link = reviewerUrl(notification);
   const subject = `${title} · ${notification.reference}`;
   const text = [
-    title,
     `Application reference: ${notification.reference}`,
     `Category: ${notification.categoryName}`,
     `Saved section: ${stepLabel(notification.currentStep)}`,
     "The complete application record is available in the authenticated reviewer workspace.",
     link,
   ].join("\n\n");
-  const html = [
-    `<h2>${escapeHtml(title)}</h2>`,
-    `<p><strong>Application reference:</strong> ${escapeHtml(notification.reference)}</p>`,
-    `<p><strong>Category:</strong> ${escapeHtml(notification.categoryName)}</p>`,
-    `<p><strong>Saved section:</strong> ${escapeHtml(stepLabel(notification.currentStep))}</p>`,
-    "<p>The complete application record is available in the authenticated reviewer workspace.</p>",
-    `<p><a href="${escapeHtml(link)}">Open reviewer workspace</a></p>`,
-  ].join("");
 
   const failures: string[] = [];
   for (const recipientEmail of configuration.recipients) {
@@ -114,7 +95,6 @@ export async function sendReviewerNotification(
       recipientEmail,
       subject,
       messageText: text,
-      html,
       eventKind: notification.kind,
       applicationReference: notification.reference,
     });

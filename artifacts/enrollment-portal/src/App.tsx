@@ -2504,6 +2504,24 @@ function AdminEmailCenter() {
             <input id="email-compose-subject" className="text-input" maxLength={200} value={composeSubject} disabled={sendEmail.isPending} onChange={(event) => { setComposeSubject(event.target.value); setComposeRequestId(crypto.randomUUID()); }} required data-testid="input-email-compose-subject" />
             <label className="field-label" htmlFor="email-compose-body">Message</label>
             <textarea id="email-compose-body" className="text-input form-textarea" rows={7} maxLength={10000} value={composeBody} disabled={sendEmail.isPending} onChange={(event) => { setComposeBody(event.target.value); setComposeRequestId(crypto.randomUUID()); }} required data-testid="input-email-compose-body" />
+            <div className="admin-email-preview-wrap">
+              <div className="admin-email-preview-label">Live email preview</div>
+              <div className="admin-email-template-preview" role="region" aria-label="Preview of outgoing email" data-testid="email-template-preview">
+                <div className="admin-email-template-preview-banner">
+                  <span className="admin-email-template-preview-mark">SV</span>
+                  <span className="admin-email-template-preview-brand">
+                    <b>Security Verification</b>
+                    <small>ENROLLMENT PORTAL</small>
+                  </span>
+                </div>
+                <div className="admin-email-template-preview-content">
+                  <small>STAFF MESSAGE</small>
+                  <h3>{composeSubject.trim() || 'Your email subject'}</h3>
+                  <p>{composeBody.trim() || 'Your message will appear here.'}</p>
+                </div>
+                <div className="admin-email-template-preview-footer">Security Verification Enrollment Portal · Staff communications</div>
+              </div>
+            </div>
             {composeFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-compose-feedback">{composeFeedback}</p>}
             <button className="button button-primary" type="submit" disabled={sendEmail.isPending || !composeSubject.trim() || !composeBody.trim()} data-testid="button-send-email">
               {sendEmail.isPending ? 'Sending…' : 'Send email'} <ArrowRight size={15} />

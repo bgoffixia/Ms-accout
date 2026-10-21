@@ -537,6 +537,10 @@ describe("guest application verification and persistence", () => {
     expect(message.subject).toContain(created.body.reference);
     expect(message.text).toContain(created.body.reference);
     expect(message.text).not.toContain(contactEmail);
+    expect(message.html).toContain("Security Verification");
+    expect(message.html).toContain("ENROLLMENT PORTAL");
+    expect(message.html).toContain(created.body.reference);
+    expect(message.html).not.toContain(contactEmail);
     expect(sent.options.headers["Idempotency-Key"]).toMatch(
       new RegExp(`^reviewer:guest-contact:${created.body.id}:[a-f0-9]{32}$`),
     );
@@ -579,8 +583,8 @@ describe("guest application verification and persistence", () => {
       body: JSON.stringify({
         requestId: crypto.randomUUID(),
         recipients: ["one@example.test", "two@example.test"],
-        subject: "Portal update",
-        messageText: "A short staff update.",
+        subject: "Portal <update>",
+        messageText: "A short staff update & <details>.",
       }),
     }, "reviewer");
     expect(sent.response.status).toBe(201);
@@ -589,11 +593,15 @@ describe("guest application verification and persistence", () => {
     expect(mockState.emailRequests).toHaveLength(2);
     expect(mockState.emailRequests.map((item) => JSON.parse(item.options.body).to))
       .toEqual([["one@example.test"], ["two@example.test"]]);
+    const emailHtml = JSON.parse(mockState.emailRequests[0].options.body).html;
+    expect(emailHtml).toContain("Portal &lt;update&gt;");
+    expect(emailHtml).toContain("A short staff update &amp; &lt;details&gt;.");
+    expect(emailHtml).not.toContain("A short staff update & <details>.");
 
     const outbox = await request("/admin/email/outbox", {}, "administrator");
     expect(outbox.response.status).toBe(200);
     expect(outbox.body).toHaveLength(2);
-    expect(outbox.body[0].subject).toBe("Portal update");
+    expect(outbox.body[0].subject).toBe("Portal <update>");
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {
@@ -620,6 +628,8 @@ describe("guest application verification and persistence", () => {
     expect(retried.body.status).toBe("sent");
     expect(retried.body.attemptCount).toBe(4);
     expect(mockState.emailRequests).toHaveLength(4);
+    expect(JSON.parse(mockState.emailRequests[0].options.body).html)
+      .toBe(JSON.parse(mockState.emailRequests[3].options.body).html);
   });
 
   it("does not send a duplicate one-off email when the same request is retried", async () => {

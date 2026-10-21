@@ -3926,6 +3926,19 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .admin-email-form .field-label { margin-top: 4px; }
 .admin-email-recipient-input { min-height: 62px; }
 .admin-email-form .field-help { margin: -4px 0 3px; }
+.admin-email-preview-wrap { display: grid; gap: 7px; margin: 6px 0 4px; }
+.admin-email-preview-label { color: #718691; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.admin-email-template-preview { overflow: hidden; border: 1px solid #dce5eb; border-radius: 10px; background: #f1f5f8; }
+.admin-email-template-preview-banner { display: flex; align-items: center; gap: 11px; padding: 15px 17px; border-top: 3px solid #49b8aa; background: #102b46; }
+.admin-email-template-preview-mark { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 8px; background: #eaf5f5; color: #16445e; font-size: 12px; font-weight: 750; letter-spacing: .08em; }
+.admin-email-template-preview-brand { display: grid; gap: 3px; }
+.admin-email-template-preview-brand b { color: #fff; font-size: 12px; }
+.admin-email-template-preview-brand small { color: #c5d6e2; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.admin-email-template-preview-content { padding: 20px 18px 22px; background: #fff; }
+.admin-email-template-preview-content > small { color: #287d8b; font-size: 8px; font-weight: 700; letter-spacing: .15em; }
+.admin-email-template-preview-content h3 { margin: 8px 0 12px; color: #152f48; font: 600 20px/1.25 Georgia, 'Times New Roman', serif; overflow-wrap: anywhere; }
+.admin-email-template-preview-content p { margin: 0; color: #45596a; font-size: 11px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-email-template-preview-footer { padding: 11px 14px; color: #738392; font-size: 8px; line-height: 1.5; text-align: center; }
 .admin-email-alert-options { display: grid; gap: 0; margin: 4px 0 7px; border: 1px solid #e6edeb; border-radius: 10px; overflow: hidden; }
 .admin-email-alert-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 11px; color: #315066; cursor: pointer; }
 .admin-email-alert-option + .admin-email-alert-option { border-top: 1px solid #edf1ef; }

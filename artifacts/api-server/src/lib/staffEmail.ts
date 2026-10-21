@@ -8,6 +8,7 @@ import {
   type StaffEmailAlertEvents,
   type StaffEmailOutboxRecord,
 } from "@workspace/db";
+import { renderStaffEmailHtml } from "./staffEmailTemplate";
 
 export type StaffEmailEventKind = keyof StaffEmailAlertEvents;
 export type StaffEmailMessageKind = StaffEmailEventKind | "manual";
@@ -97,7 +98,6 @@ export async function dispatchStaffEmail(input: {
   recipientEmail: string;
   subject: string;
   messageText: string;
-  html?: string;
   eventKind: StaffEmailMessageKind;
   applicationReference?: string | null;
   createdByUserId?: string | null;
@@ -186,7 +186,10 @@ export async function dispatchStaffEmail(input: {
           to: [recipientEmail],
           subject: input.subject,
           text: input.messageText,
-          ...(input.html ? { html: input.html } : {}),
+          html: renderStaffEmailHtml({
+            subject: input.subject,
+            messageText: input.messageText,
+          }),
         }),
       });
 
