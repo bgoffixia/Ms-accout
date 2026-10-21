@@ -1114,6 +1114,36 @@ export interface AdminEmailSendInput {
   messageText: string;
 }
 
+export interface AdminEmailTemplate {
+  id: string;
+  /** @maxLength 80 */
+  name: string;
+  /** @maxLength 200 */
+  subject: string;
+  /** @maxLength 10000 */
+  messageText: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminEmailTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  subject: string;
+  /**
+     * @minLength 1
+     * @maxLength 10000
+     */
+  messageText: string;
+}
+
 /**
  * @nullable
  */

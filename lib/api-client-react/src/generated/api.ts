@@ -24,6 +24,8 @@ import type {
   AdminEmailSendInput,
   AdminEmailSettings,
   AdminEmailSettingsUpdate,
+  AdminEmailTemplate,
+  AdminEmailTemplateInput,
   AdminGuestPreapplication,
   AdminGuestPreapplicationEvidence,
   AdminGuestPreapplicationStatusUpdate,
@@ -3587,6 +3589,334 @@ export function useListAdminEmailOutbox<TData = Awaited<ReturnType<typeof listAd
 
 
 
+
+export const getListAdminEmailTemplatesUrl = () => {
+
+
+
+
+  return `/api/admin/email/templates`
+}
+
+/**
+ * @summary List reusable staff email templates
+ */
+export const listAdminEmailTemplates = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailTemplate[]> => {
+
+  return customFetch<AdminEmailTemplate[]>(getListAdminEmailTemplatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminEmailTemplatesQueryKey = () => {
+    return [
+    `/api/admin/email/templates`
+    ] as const;
+    }
+
+
+export const getListAdminEmailTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminEmailTemplates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminEmailTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminEmailTemplatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminEmailTemplates>>> = ({ signal }) => listAdminEmailTemplates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminEmailTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminEmailTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminEmailTemplates>>>
+export type ListAdminEmailTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List reusable staff email templates
+ */
+
+export function useListAdminEmailTemplates<TData = Awaited<ReturnType<typeof listAdminEmailTemplates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminEmailTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminEmailTemplatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminEmailTemplateUrl = () => {
+
+
+
+
+  return `/api/admin/email/templates`
+}
+
+/**
+ * @summary Create a reusable staff email template
+ */
+export const createAdminEmailTemplate = async (adminEmailTemplateInput: AdminEmailTemplateInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailTemplate> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailTemplate>(getCreateAdminEmailTemplateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminEmailTemplateMutationKey = () => ['createAdminEmailTemplate'] as const;
+
+export const getCreateAdminEmailTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminEmailTemplate>>, TError,CreateAdminEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminEmailTemplate>>, TError,CreateAdminEmailTemplateMutationVariables, TContext> => {
+
+const mutationKey = getCreateAdminEmailTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminEmailTemplate>>, CreateAdminEmailTemplateMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminEmailTemplate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminEmailTemplate>>>
+    export type CreateAdminEmailTemplateMutationBody = BodyType<AdminEmailTemplateInput>
+    export type CreateAdminEmailTemplateMutationError = ErrorType<void>
+    export type CreateAdminEmailTemplateMutationVariables = {data: BodyType<AdminEmailTemplateInput>}
+
+    /**
+ * @summary Create a reusable staff email template
+ */
+export const useCreateAdminEmailTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminEmailTemplate>>, TError,CreateAdminEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminEmailTemplate>>,
+        TError,
+        CreateAdminEmailTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateAdminEmailTemplateMutationOptions(options));
+    }
+
+export const getUpdateAdminEmailTemplateUrl = (templateId: string,) => {
+
+
+
+
+  return `/api/admin/email/templates/${templateId}`
+}
+
+/**
+ * @summary Update a reusable staff email template
+ */
+export const updateAdminEmailTemplate = async (templateId: string,
+    adminEmailTemplateInput: AdminEmailTemplateInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailTemplate> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailTemplate>(getUpdateAdminEmailTemplateUrl(templateId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminEmailTemplateMutationKey = () => ['updateAdminEmailTemplate'] as const;
+
+export const getUpdateAdminEmailTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailTemplate>>, TError,UpdateAdminEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailTemplate>>, TError,UpdateAdminEmailTemplateMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminEmailTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminEmailTemplate>>, UpdateAdminEmailTemplateMutationVariables> = (props) => {
+          const {templateId,data} = props ?? {};
+
+          return  updateAdminEmailTemplate(templateId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminEmailTemplate>>>
+    export type UpdateAdminEmailTemplateMutationBody = BodyType<AdminEmailTemplateInput>
+    export type UpdateAdminEmailTemplateMutationError = ErrorType<void>
+    export type UpdateAdminEmailTemplateMutationVariables = {templateId: string;data: BodyType<AdminEmailTemplateInput>}
+
+    /**
+ * @summary Update a reusable staff email template
+ */
+export const useUpdateAdminEmailTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailTemplate>>, TError,UpdateAdminEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminEmailTemplate>>,
+        TError,
+        UpdateAdminEmailTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminEmailTemplateMutationOptions(options));
+    }
+
+export const getDeleteAdminEmailTemplateUrl = (templateId: string,) => {
+
+
+
+
+  return `/api/admin/email/templates/${templateId}`
+}
+
+/**
+ * @summary Remove a reusable staff email template
+ */
+export const deleteAdminEmailTemplate = async (templateId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteAdminEmailTemplateUrl(templateId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminEmailTemplateMutationKey = () => ['deleteAdminEmailTemplate'] as const;
+
+export const getDeleteAdminEmailTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminEmailTemplate>>, TError,DeleteAdminEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminEmailTemplate>>, TError,DeleteAdminEmailTemplateMutationVariables, TContext> => {
+
+const mutationKey = getDeleteAdminEmailTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminEmailTemplate>>, DeleteAdminEmailTemplateMutationVariables> = (props) => {
+          const {templateId} = props ?? {};
+
+          return  deleteAdminEmailTemplate(templateId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminEmailTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminEmailTemplate>>>
+
+    export type DeleteAdminEmailTemplateMutationError = ErrorType<void>
+    export type DeleteAdminEmailTemplateMutationVariables = {templateId: string}
+
+    /**
+ * @summary Remove a reusable staff email template
+ */
+export const useDeleteAdminEmailTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminEmailTemplate>>, TError,DeleteAdminEmailTemplateMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminEmailTemplate>>,
+        TError,
+        DeleteAdminEmailTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteAdminEmailTemplateMutationOptions(options));
+    }
 
 export const getSendAdminEmailUrl = () => {
 

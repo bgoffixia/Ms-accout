@@ -866,6 +866,86 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AdminEmailMessage"
+  /admin/email/templates:
+    get:
+      operationId: listAdminEmailTemplates
+      tags: [administration]
+      summary: List reusable staff email templates
+      responses:
+        "200":
+          description: Reusable staff email templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEmailTemplate"
+    post:
+      operationId: createAdminEmailTemplate
+      tags: [administration]
+      summary: Create a reusable staff email template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEmailTemplateInput"
+      responses:
+        "201":
+          description: Created email template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailTemplate"
+        "400":
+          description: Invalid template content
+  /admin/email/templates/{templateId}:
+    patch:
+      operationId: updateAdminEmailTemplate
+      tags: [administration]
+      summary: Update a reusable staff email template
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEmailTemplateInput"
+      responses:
+        "200":
+          description: Updated email template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailTemplate"
+        "400":
+          description: Invalid template content or identifier
+        "404":
+          description: Template not found
+    delete:
+      operationId: deleteAdminEmailTemplate
+      tags: [administration]
+      summary: Remove a reusable staff email template
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Template removed
+        "400":
+          description: Invalid template identifier
+        "404":
+          description: Template not found
   /admin/email/send:
     post:
       operationId: sendAdminEmail
@@ -2026,6 +2106,23 @@ components:
           type: string
           minLength: 1
           maxLength: 10000
+    AdminEmailTemplate:
+      type: object
+      required: [id, name, subject, messageText, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 80 }
+        subject: { type: string, maxLength: 200 }
+        messageText: { type: string, maxLength: 10000 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminEmailTemplateInput:
+      type: object
+      required: [name, subject, messageText]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        messageText: { type: string, minLength: 1, maxLength: 10000 }
     AdminEmailMessage:
       type: object
       required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, deliveryStatus, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]

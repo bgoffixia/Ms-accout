@@ -17,6 +17,7 @@ import {
   getGetAdminGuestApplicationHistoryQueryKey,
   getGetAdminOverviewQueryKey,
   getGetAdminEmailSettingsQueryKey,
+  getListAdminEmailTemplatesQueryKey,
   getListAdminEmailOutboxQueryKey,
   getGetPortalSettingsQueryKey,
   getListApplicationsForReviewQueryKey, getListMyApplicationsQueryKey,
@@ -33,6 +34,7 @@ import {
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminGuestApplicationHistory, useGetAdminOverview,
   useGetAdminApplicationPin, useGetAdminGuestPreapplicationPin,
   useGetAdminEmailSettings, useListAdminEmailOutbox, useUpdateAdminEmailSettings,
+  useListAdminEmailTemplates, useCreateAdminEmailTemplate, useUpdateAdminEmailTemplate, useDeleteAdminEmailTemplate,
   useSendAdminEmail, useRetryAdminEmail,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
@@ -49,7 +51,7 @@ import {
 } from '@workspace/api-client-react';
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
-  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
+  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, AdminEmailTemplate, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -2370,9 +2372,13 @@ function AdminEmailCenter() {
       refetchInterval: 15_000,
     },
   });
+  const templates = useListAdminEmailTemplates();
   const saveSettings = useUpdateAdminEmailSettings();
   const sendEmail = useSendAdminEmail();
   const retryEmail = useRetryAdminEmail();
+  const createTemplate = useCreateAdminEmailTemplate();
+  const updateTemplate = useUpdateAdminEmailTemplate();
+  const deleteTemplate = useDeleteAdminEmailTemplate();
   const [recipientDraft, setRecipientDraft] = useState('');
   const [alertsDraft, setAlertsDraft] = useState<AdminEmailAlertEvents>({
     contact_received: true,
@@ -2388,6 +2394,12 @@ function AdminEmailCenter() {
   const [composeBody, setComposeBody] = useState('');
   const [composeRequestId, setComposeRequestId] = useState(() => crypto.randomUUID());
   const [composeFeedback, setComposeFeedback] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateDraftId, setTemplateDraftId] = useState<string | null>(null);
+  const [templateNameDraft, setTemplateNameDraft] = useState('');
+  const [templateSubjectDraft, setTemplateSubjectDraft] = useState('');
+  const [templateBodyDraft, setTemplateBodyDraft] = useState('');
+  const [templateFeedback, setTemplateFeedback] = useState('');
 
   useEffect(() => {
     if (!settings.data) return;
@@ -2398,6 +2410,88 @@ function AdminEmailCenter() {
 
   const invalidateEmailData = () => {
     void queryClient.invalidateQueries({ queryKey: getListAdminEmailOutboxQueryKey() });
+  };
+  const invalidateTemplates = () => {
+    void queryClient.invalidateQueries({ queryKey: getListAdminEmailTemplatesQueryKey() });
+  };
+
+  const selectEmailTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.data?.find((item) => item.id === templateId);
+    if (!template) return;
+    setComposeSubject(template.subject);
+    setComposeBody(template.messageText);
+    setComposeRequestId(crypto.randomUUID());
+    setComposeFeedback(`“${template.name}” is ready to review. Sending is still a separate step.`);
+  };
+
+  const startTemplateEdit = () => {
+    const template = templates.data?.find((item) => item.id === selectedTemplateId);
+    if (!template) return;
+    setTemplateDraftId(template.id);
+    setTemplateNameDraft(template.name);
+    setTemplateSubjectDraft(template.subject);
+    setTemplateBodyDraft(template.messageText);
+    setTemplateFeedback(`Editing “${template.name}”.`);
+  };
+
+  const startNewTemplate = () => {
+    setTemplateDraftId(null);
+    setTemplateNameDraft('');
+    setTemplateSubjectDraft('');
+    setTemplateBodyDraft('');
+    setTemplateFeedback('Enter a name, subject, and message for the new template.');
+  };
+
+  const saveEmailTemplate = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = {
+      name: templateNameDraft.trim(),
+      subject: templateSubjectDraft.trim(),
+      messageText: templateBodyDraft.trim(),
+    };
+    if (!data.name || !data.subject || !data.messageText) {
+      setTemplateFeedback('Add a name, subject, and message before saving.');
+      return;
+    }
+    const onSuccess = (saved: AdminEmailTemplate) => {
+      setTemplateDraftId(saved.id);
+      setSelectedTemplateId(saved.id);
+      setTemplateNameDraft(saved.name);
+      setTemplateSubjectDraft(saved.subject);
+      setTemplateBodyDraft(saved.messageText);
+      setTemplateFeedback('Template saved.');
+      invalidateTemplates();
+    };
+    if (templateDraftId) {
+      updateTemplate.mutate({ templateId: templateDraftId, data }, {
+        onSuccess,
+        onError: () => setTemplateFeedback('Template could not be updated. Try again.'),
+      });
+    } else {
+      createTemplate.mutate({ data }, {
+        onSuccess,
+        onError: () => setTemplateFeedback('Template could not be saved. Try again.'),
+      });
+    }
+  };
+
+  const removeEmailTemplate = () => {
+    if (!templateDraftId) return;
+    const templateId = templateDraftId;
+    if (!window.confirm('Remove this saved email template? This cannot be undone.')) return;
+    deleteTemplate.mutate({ templateId }, {
+      onSuccess: () => {
+        setSelectedTemplateId((current) => current === templateId ? '' : current);
+        setTemplateDraftId(null);
+        setTemplateNameDraft('');
+        setTemplateSubjectDraft('');
+        setTemplateBodyDraft('');
+        setTemplateFeedback('Template removed.');
+        invalidateTemplates();
+      },
+      onError: () => setTemplateFeedback('Template could not be removed. Refresh and try again.'),
+    });
   };
 
   const recipientList = (value: string) => [...new Set(
@@ -2593,6 +2687,53 @@ function AdminEmailCenter() {
         <section className="detail-card admin-email-compose">
           <div className="detail-card-title"><Send size={17} /><h2>Send a one-off email</h2></div>
           <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
+          <div className="admin-email-template-manager" aria-label="Reusable email templates">
+            <label className="field-label" htmlFor="email-template-select">Use a saved template</label>
+            <div className="admin-email-template-select-row">
+              <select
+                id="email-template-select"
+                className="text-input"
+                value={selectedTemplateId}
+                onChange={(event) => selectEmailTemplate(event.target.value)}
+                disabled={templates.isLoading}
+                data-testid="select-email-template"
+              >
+                <option value="">{templates.isLoading ? 'Loading templates…' : 'Choose a template'}</option>
+                {(templates.data ?? []).map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+              <button type="button" className="button button-quiet" onClick={startTemplateEdit} disabled={!selectedTemplateId} data-testid="button-edit-email-template">
+                Edit selected
+              </button>
+              <button type="button" className="button button-quiet" onClick={startNewTemplate} data-testid="button-new-email-template">
+                New template
+              </button>
+            </div>
+            {templates.isError && <p className="admin-email-feedback admin-email-error" role="alert">Saved templates could not be loaded. Refresh the page and try again.</p>}
+            {templates.data?.length === 0 && <small className="field-help">No saved templates yet. Create one below.</small>}
+            <form onSubmit={saveEmailTemplate} className="admin-email-template-editor">
+              <div className="admin-email-template-editor-heading">
+                <b>{templateDraftId ? 'Edit saved template' : 'Create reusable template'}</b>
+                <small>Saving a template does not send an email.</small>
+              </div>
+              <label className="field-label" htmlFor="email-template-name">Template name</label>
+              <input id="email-template-name" className="text-input" maxLength={80} value={templateNameDraft} onChange={(event) => setTemplateNameDraft(event.target.value)} required data-testid="input-email-template-name" />
+              <label className="field-label" htmlFor="email-template-subject">Template subject</label>
+              <input id="email-template-subject" className="text-input" maxLength={200} value={templateSubjectDraft} onChange={(event) => setTemplateSubjectDraft(event.target.value)} required data-testid="input-email-template-subject" />
+              <label className="field-label" htmlFor="email-template-body">Template message</label>
+              <textarea id="email-template-body" className="text-input form-textarea" rows={4} maxLength={10000} value={templateBodyDraft} onChange={(event) => setTemplateBodyDraft(event.target.value)} required data-testid="input-email-template-body" />
+              {templateFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-template-feedback">{templateFeedback}</p>}
+              <div className="admin-email-template-actions">
+                <button className="button button-primary" type="submit" disabled={createTemplate.isPending || updateTemplate.isPending || !templateNameDraft.trim() || !templateSubjectDraft.trim() || !templateBodyDraft.trim()} data-testid="button-save-email-template">
+                  {createTemplate.isPending || updateTemplate.isPending ? 'Saving…' : templateDraftId ? 'Save changes' : 'Save template'}
+                </button>
+                {templateDraftId && <button className="button button-quiet admin-email-template-delete" type="button" onClick={removeEmailTemplate} disabled={deleteTemplate.isPending} data-testid="button-delete-email-template">
+                  <Trash2 size={14} /> {deleteTemplate.isPending ? 'Removing…' : 'Remove template'}
+                </button>}
+              </div>
+            </form>
+          </div>
           <form onSubmit={sendOneOffEmail} className="admin-email-form">
             <label className="field-label" htmlFor="email-compose-recipients">To</label>
             <textarea id="email-compose-recipients" className="text-input form-textarea admin-email-recipient-input" rows={2} maxLength={4000} value={composeRecipients} disabled={sendEmail.isPending} onChange={(event) => { setComposeRecipients(event.target.value); setComposeRequestId(crypto.randomUUID()); }} placeholder="person@example.com" data-testid="input-email-compose-recipients" />

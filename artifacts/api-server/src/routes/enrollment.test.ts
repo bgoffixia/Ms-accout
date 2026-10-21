@@ -29,6 +29,7 @@ const mockState = vi.hoisted(() => ({
       supportTicketsTable: makeTable("enrollment_support_tickets"),
       staffEmailSettingsTable: makeTable("staff_email_settings"),
       staffEmailOutboxTable: makeTable("staff_email_outbox"),
+      staffEmailTemplatesTable: makeTable("staff_email_templates"),
     };
   })(),
 }));
@@ -269,6 +270,7 @@ function makeDatabase() {
 
 vi.mock("drizzle-orm", () => ({
   and: (...expressions: any[]) => ({ type: "and", expressions }),
+  asc: (column: unknown) => column,
   count: () => ({ type: "count" }),
   desc: (column: unknown) => column,
   eq: (left: unknown, right: unknown) => ({ type: "eq", left, right }),
@@ -424,6 +426,7 @@ describe("guest application verification and persistence", () => {
       "enrollment_support_tickets",
       "staff_email_settings",
       "staff_email_outbox",
+      "staff_email_templates",
     ]) mockState.rows.set(name, []);
     mockState.users.clear();
     mockState.storageObjects.clear();
@@ -669,6 +672,72 @@ describe("guest application verification and persistence", () => {
     expect(reviewer.response.status).toBe(200);
     expect(reviewer.body.recipients).toEqual(["skyfashion053@gmail.com"]);
     expect(reviewer.body.alerts.application_submitted).toBe(true);
+  });
+
+  it("keeps reusable templates staff-only and supports create, edit, reuse, and remove", async () => {
+    const applicant = await request("/admin/email/templates", {}, "applicant-verified");
+    const moderator = await request("/admin/email/templates", {}, "moderator");
+    expect(applicant.response.status).toBe(403);
+    expect(moderator.response.status).toBe(403);
+
+    const created = await request("/admin/email/templates", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Missing details",
+        subject: "Please review <your> application",
+        messageText: "Hello,\nPlease update your details & evidence.",
+      }),
+    }, "reviewer");
+    expect(created.response.status, JSON.stringify(created.body)).toBe(201);
+    expect(created.body.name).toBe("Missing details");
+    expect(created.body.createdByUserId).toBeUndefined();
+
+    const listed = await request("/admin/email/templates", {}, "administrator");
+    expect(listed.response.status).toBe(200);
+    expect(listed.body).toHaveLength(1);
+    expect(listed.body[0].id).toBe(created.body.id);
+
+    const updated = await request(`/admin/email/templates/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "Updated details",
+        subject: "A revised <subject>",
+        messageText: "A revised message with <details> & updates.",
+      }),
+    }, "reviewer");
+    expect(updated.response.status).toBe(200);
+    expect(updated.body.name).toBe("Updated details");
+
+    const sent = await request("/admin/email/send", {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        recipients: ["applicant@example.test"],
+        subject: updated.body.subject,
+        messageText: updated.body.messageText,
+      }),
+    }, "reviewer");
+    expect(sent.response.status).toBe(201);
+    const outgoingHtml = JSON.parse(mockState.emailRequests[0].options.body).html;
+    expect(outgoingHtml).toContain("A revised &lt;subject&gt;");
+    expect(outgoingHtml).toContain("A revised message with &lt;details&gt; &amp; updates.");
+    expect(outgoingHtml).not.toContain("A revised message with <details> & updates.");
+
+    const invalidContent = await request(`/admin/email/templates/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: " ", subject: "Subject", messageText: "Body" }),
+    }, "reviewer");
+    expect(invalidContent.response.status).toBe(400);
+
+    const removed = await request(`/admin/email/templates/${created.body.id}`, {
+      method: "DELETE",
+    }, "reviewer");
+    expect(removed.response.status).toBe(204);
+    expect((await request("/admin/email/templates", {}, "reviewer")).body).toEqual([]);
+    const missing = await request(`/admin/email/templates/${created.body.id}`, {
+      method: "DELETE",
+    }, "reviewer");
+    expect(missing.response.status).toBe(404);
   });
 
   it("saves alert recipients and sends one-off email separately to each recipient", async () => {

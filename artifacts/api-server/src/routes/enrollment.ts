@@ -1,6 +1,7 @@
 import { clerkClient, getAuth } from "@clerk/express";
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -56,6 +57,13 @@ import {
   GetAdminOverviewResponse,
   GetAdminEmailSettingsResponse,
   ListAdminEmailOutboxResponse,
+  ListAdminEmailTemplatesResponse,
+  CreateAdminEmailTemplateBody,
+  CreateAdminEmailTemplateResponse,
+  UpdateAdminEmailTemplateBody,
+  UpdateAdminEmailTemplateParams,
+  UpdateAdminEmailTemplateResponse,
+  DeleteAdminEmailTemplateParams,
   RetryAdminEmailParams,
   RetryAdminEmailResponse,
   SendAdminEmailBody,
@@ -146,6 +154,7 @@ import {
   portalSettingsTable,
   supportTicketsTable,
   staffEmailOutboxTable,
+  staffEmailTemplatesTable,
   type StaffEmailOutboxRecord,
 } from "@workspace/db";
 import {
@@ -3853,6 +3862,114 @@ router.get("/admin/email/outbox", requireReviewer, async (req, res): Promise<voi
     res.status(503).json({ error: "Email history could not be loaded." });
   }
 });
+
+router.get("/admin/email/templates", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const templates = await db
+      .select()
+      .from(staffEmailTemplatesTable)
+      .orderBy(asc(staffEmailTemplatesTable.name), asc(staffEmailTemplatesTable.createdAt));
+    res.json(ListAdminEmailTemplatesResponse.parse(templates));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load staff email templates");
+    res.status(503).json({ error: "Email templates could not be loaded." });
+  }
+});
+
+router.post("/admin/email/templates", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const parsed = CreateAdminEmailTemplateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Check the template name, subject, and message." });
+    return;
+  }
+  const name = parsed.data.name.trim();
+  const subject = parsed.data.subject.trim();
+  const messageText = parsed.data.messageText.trim();
+  if (!name || !subject || !messageText) {
+    res.status(400).json({ error: "Template name, subject, and message cannot be blank." });
+    return;
+  }
+  try {
+    const [template] = await db
+      .insert(staffEmailTemplatesTable)
+      .values({
+        name,
+        subject,
+        messageText,
+        createdByUserId: res.locals.userId as string,
+      })
+      .returning();
+    res.status(201).json(CreateAdminEmailTemplateResponse.parse(template));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to create staff email template");
+    res.status(503).json({ error: "Email template could not be saved." });
+  }
+});
+
+router.patch(
+  "/admin/email/templates/:templateId",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const params = UpdateAdminEmailTemplateParams.safeParse(req.params);
+    const parsed = UpdateAdminEmailTemplateBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({ error: "Check the template identifier, name, subject, and message." });
+      return;
+    }
+    const name = parsed.data.name.trim();
+    const subject = parsed.data.subject.trim();
+    const messageText = parsed.data.messageText.trim();
+    if (!name || !subject || !messageText) {
+      res.status(400).json({ error: "Template name, subject, and message cannot be blank." });
+      return;
+    }
+    try {
+      const [template] = await db
+        .update(staffEmailTemplatesTable)
+        .set({ name, subject, messageText, updatedAt: new Date() })
+        .where(eq(staffEmailTemplatesTable.id, params.data.templateId))
+        .returning();
+      if (!template) {
+        res.status(404).json({ error: "Email template not found." });
+        return;
+      }
+      res.json(UpdateAdminEmailTemplateResponse.parse(template));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to update staff email template");
+      res.status(503).json({ error: "Email template could not be updated." });
+    }
+  },
+);
+
+router.delete(
+  "/admin/email/templates/:templateId",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const params = DeleteAdminEmailTemplateParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "The email template identifier is invalid." });
+      return;
+    }
+    try {
+      const [template] = await db
+        .delete(staffEmailTemplatesTable)
+        .where(eq(staffEmailTemplatesTable.id, params.data.templateId))
+        .returning();
+      if (!template) {
+        res.status(404).json({ error: "Email template not found." });
+        return;
+      }
+      res.sendStatus(204);
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to delete staff email template");
+      res.status(503).json({ error: "Email template could not be removed." });
+    }
+  },
+);
 
 router.post("/admin/email/send", requireReviewer, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");

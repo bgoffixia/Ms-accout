@@ -1567,6 +1567,112 @@ export const ListAdminEmailOutboxResponse = zod.array(ListAdminEmailOutboxRespon
 
 
 /**
+ * @summary List reusable staff email templates
+ */
+export const listAdminEmailTemplatesResponseNameMax = 80;
+
+export const listAdminEmailTemplatesResponseSubjectMax = 200;
+
+export const listAdminEmailTemplatesResponseMessageTextMax = 10000;
+
+
+
+export const ListAdminEmailTemplatesResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().max(listAdminEmailTemplatesResponseNameMax),
+  "subject": zod.string().max(listAdminEmailTemplatesResponseSubjectMax),
+  "messageText": zod.string().max(listAdminEmailTemplatesResponseMessageTextMax),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAdminEmailTemplatesResponse = zod.array(ListAdminEmailTemplatesResponseItem)
+
+
+/**
+ * @summary Create a reusable staff email template
+ */
+export const createAdminEmailTemplateBodyNameMax = 80;
+
+export const createAdminEmailTemplateBodySubjectMax = 200;
+
+export const createAdminEmailTemplateBodyMessageTextMax = 10000;
+
+
+
+export const CreateAdminEmailTemplateBody = zod.object({
+  "name": zod.string().min(1).max(createAdminEmailTemplateBodyNameMax),
+  "subject": zod.string().min(1).max(createAdminEmailTemplateBodySubjectMax),
+  "messageText": zod.string().min(1).max(createAdminEmailTemplateBodyMessageTextMax)
+})
+
+export const createAdminEmailTemplateResponseNameMax = 80;
+
+export const createAdminEmailTemplateResponseSubjectMax = 200;
+
+export const createAdminEmailTemplateResponseMessageTextMax = 10000;
+
+
+
+export const CreateAdminEmailTemplateResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().max(createAdminEmailTemplateResponseNameMax),
+  "subject": zod.string().max(createAdminEmailTemplateResponseSubjectMax),
+  "messageText": zod.string().max(createAdminEmailTemplateResponseMessageTextMax),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a reusable staff email template
+ */
+export const UpdateAdminEmailTemplateParams = zod.object({
+  "templateId": zod.coerce.string().uuid()
+})
+
+export const updateAdminEmailTemplateBodyNameMax = 80;
+
+export const updateAdminEmailTemplateBodySubjectMax = 200;
+
+export const updateAdminEmailTemplateBodyMessageTextMax = 10000;
+
+
+
+export const UpdateAdminEmailTemplateBody = zod.object({
+  "name": zod.string().min(1).max(updateAdminEmailTemplateBodyNameMax),
+  "subject": zod.string().min(1).max(updateAdminEmailTemplateBodySubjectMax),
+  "messageText": zod.string().min(1).max(updateAdminEmailTemplateBodyMessageTextMax)
+})
+
+export const updateAdminEmailTemplateResponseNameMax = 80;
+
+export const updateAdminEmailTemplateResponseSubjectMax = 200;
+
+export const updateAdminEmailTemplateResponseMessageTextMax = 10000;
+
+
+
+export const UpdateAdminEmailTemplateResponse = zod.object({
+  "id": zod.string().uuid(),
+  "name": zod.string().max(updateAdminEmailTemplateResponseNameMax),
+  "subject": zod.string().max(updateAdminEmailTemplateResponseSubjectMax),
+  "messageText": zod.string().max(updateAdminEmailTemplateResponseMessageTextMax),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a reusable staff email template
+ */
+export const DeleteAdminEmailTemplateParams = zod.object({
+  "templateId": zod.coerce.string().uuid()
+})
+
+export const DeleteAdminEmailTemplateResponse = zod.void()
+
+
+/**
  * @summary Send a one-off email to external recipients
  */
 export const sendAdminEmailBodyRecipientsMax = 20;

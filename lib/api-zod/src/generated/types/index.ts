@@ -15,6 +15,8 @@ export * from './adminEmailMessageStatus';
 export * from './adminEmailSendInput';
 export * from './adminEmailSettings';
 export * from './adminEmailSettingsUpdate';
+export * from './adminEmailTemplate';
+export * from './adminEmailTemplateInput';
 export * from './adminGuestPreapplication';
 export * from './adminGuestPreapplicationEvidence';
 export * from './adminGuestPreapplicationEvidenceEvidenceSlot';
