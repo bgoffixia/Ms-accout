@@ -2363,6 +2363,7 @@ function AdminEmailCenter() {
   const [composeRecipients, setComposeRecipients] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
+  const [composeRequestId, setComposeRequestId] = useState(() => crypto.randomUUID());
   const [composeFeedback, setComposeFeedback] = useState('');
 
   useEffect(() => {
@@ -2408,7 +2409,7 @@ function AdminEmailCenter() {
     setComposeFeedback('');
     sendEmail.mutate({
       data: {
-        requestId: crypto.randomUUID(),
+        requestId: composeRequestId,
         recipients,
         subject: composeSubject.trim(),
         messageText: composeBody.trim(),
@@ -2422,6 +2423,7 @@ function AdminEmailCenter() {
         setComposeRecipients('');
         setComposeSubject('');
         setComposeBody('');
+        setComposeRequestId(crypto.randomUUID());
         invalidateEmailData();
       },
       onError: () => setComposeFeedback('The email request could not be recorded. Try again.'),
@@ -2496,12 +2498,12 @@ function AdminEmailCenter() {
           <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
           <form onSubmit={sendOneOffEmail} className="admin-email-form">
             <label className="field-label" htmlFor="email-compose-recipients">To</label>
-            <textarea id="email-compose-recipients" className="text-input form-textarea admin-email-recipient-input" rows={2} maxLength={4000} value={composeRecipients} onChange={(event) => setComposeRecipients(event.target.value)} placeholder="person@example.com" data-testid="input-email-compose-recipients" />
+            <textarea id="email-compose-recipients" className="text-input form-textarea admin-email-recipient-input" rows={2} maxLength={4000} value={composeRecipients} disabled={sendEmail.isPending} onChange={(event) => { setComposeRecipients(event.target.value); setComposeRequestId(crypto.randomUUID()); }} placeholder="person@example.com" data-testid="input-email-compose-recipients" />
             <small className="field-help">Separate addresses with a comma or a new line. Maximum 20 recipients.</small>
             <label className="field-label" htmlFor="email-compose-subject">Subject</label>
-            <input id="email-compose-subject" className="text-input" maxLength={200} value={composeSubject} onChange={(event) => setComposeSubject(event.target.value)} required data-testid="input-email-compose-subject" />
+            <input id="email-compose-subject" className="text-input" maxLength={200} value={composeSubject} disabled={sendEmail.isPending} onChange={(event) => { setComposeSubject(event.target.value); setComposeRequestId(crypto.randomUUID()); }} required data-testid="input-email-compose-subject" />
             <label className="field-label" htmlFor="email-compose-body">Message</label>
-            <textarea id="email-compose-body" className="text-input form-textarea" rows={7} maxLength={10000} value={composeBody} onChange={(event) => setComposeBody(event.target.value)} required data-testid="input-email-compose-body" />
+            <textarea id="email-compose-body" className="text-input form-textarea" rows={7} maxLength={10000} value={composeBody} disabled={sendEmail.isPending} onChange={(event) => { setComposeBody(event.target.value); setComposeRequestId(crypto.randomUUID()); }} required data-testid="input-email-compose-body" />
             {composeFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-compose-feedback">{composeFeedback}</p>}
             <button className="button button-primary" type="submit" disabled={sendEmail.isPending || !composeSubject.trim() || !composeBody.trim()} data-testid="button-send-email">
               {sendEmail.isPending ? 'Sending…' : 'Send email'} <ArrowRight size={15} />

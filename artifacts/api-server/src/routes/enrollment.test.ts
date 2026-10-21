@@ -462,7 +462,15 @@ describe("guest application verification and persistence", () => {
     if (init.body) headers.set("Content-Type", "application/json");
     if (userId) headers.set("x-test-user", userId);
     const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
-    const body = response.status === 204 ? null : await response.json();
+    const text = response.status === 204 ? "" : await response.text();
+    let body: any = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+    }
     return { response, body };
   }
 
@@ -575,8 +583,7 @@ describe("guest application verification and persistence", () => {
         messageText: "A short staff update.",
       }),
     }, "reviewer");
-    console.log("email retry debug", sent.body, mockState.rows.get("staff_email_outbox"), mockState.emailRequests.length);
-    expect(sent.response.status, JSON.stringify(sent.body)).toBe(201);
+    expect(sent.response.status).toBe(201);
     expect(sent.body).toHaveLength(2);
     expect(sent.body.every((message: any) => message.status === "sent")).toBe(true);
     expect(mockState.emailRequests).toHaveLength(2);
@@ -613,6 +620,29 @@ describe("guest application verification and persistence", () => {
     expect(retried.body.status).toBe("sent");
     expect(retried.body.attemptCount).toBe(4);
     expect(mockState.emailRequests).toHaveLength(4);
+  });
+
+  it("does not send a duplicate one-off email when the same request is retried", async () => {
+    const requestId = crypto.randomUUID();
+    const body = {
+      requestId,
+      recipients: ["duplicate@example.test"],
+      subject: "Idempotency check",
+      messageText: "This message should only be handed to the provider once.",
+    };
+    const first = await request("/admin/email/send", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, "reviewer");
+    const duplicate = await request("/admin/email/send", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, "reviewer");
+
+    expect(first.response.status).toBe(201);
+    expect(duplicate.response.status).toBe(201);
+    expect(duplicate.body[0].id).toBe(first.body[0].id);
+    expect(mockState.emailRequests).toHaveLength(1);
   });
 
   it("notifies the sub-admin for meaningful saved-step changes but not no-op retries", async () => {

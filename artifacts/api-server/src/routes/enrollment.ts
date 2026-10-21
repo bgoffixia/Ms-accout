@@ -3669,11 +3669,11 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
     subject: record.subject,
     messageText: record.messageText,
     eventKind: record.eventKind,
-    applicationReference: record.applicationReference,
+    applicationReference: record.applicationReference ?? null,
     status: record.status,
-    providerMessageId: record.providerMessageId,
-    errorMessage: record.errorMessage,
-    createdByUserId: record.createdByUserId,
+    providerMessageId: record.providerMessageId ?? null,
+    errorMessage: record.errorMessage ?? null,
+    createdByUserId: record.createdByUserId ?? null,
     attemptCount: record.attemptCount,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -3744,6 +3744,7 @@ router.get("/admin/email/outbox", requireReviewer, async (req, res): Promise<voi
 });
 
 router.post("/admin/email/send", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const parsed = SendAdminEmailBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Check the recipients, subject, and message before sending." });
@@ -3788,6 +3789,7 @@ router.post(
   "/admin/email/outbox/:messageId/retry",
   requireReviewer,
   async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
     const parsed = RetryAdminEmailParams.safeParse(req.params);
     if (!parsed.success) {
       res.status(400).json({ error: "The email record is invalid." });
