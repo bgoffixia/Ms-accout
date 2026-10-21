@@ -2851,7 +2851,7 @@ function AdminEmailCenter() {
               <input id="email-brand-sender-name" className="text-input" maxLength={80} value={brandingDraft.senderName} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderName: event.target.value }))} required data-testid="input-email-brand-sender-name" />
               <label className="field-label" htmlFor="email-brand-sender-email">Sender email address</label>
               <input id="email-brand-sender-email" className="text-input" type="email" maxLength={254} value={brandingDraft.senderEmail} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderEmail: event.target.value }))} required data-testid="input-email-brand-sender-email" />
-              <small className="field-help">Use an address from a sender domain verified with Resend. Unverified senders may be rejected by the provider.</small>
+              <small className="field-help">Use an address ending in @vu-gov.cc, the domain configured for this portal. Other sender domains are blocked. Confirm the domain shows as Verified in Resend; inbox placement also depends on recipient filters and sender reputation.</small>
               <label className="field-label" htmlFor="email-brand-banner-title">Banner title</label>
               <input id="email-brand-banner-title" className="text-input" maxLength={100} value={brandingDraft.bannerTitle} onChange={(event) => setBrandingDraft((current) => ({ ...current, bannerTitle: event.target.value }))} required data-testid="input-email-brand-banner-title" />
               <label className="field-label" htmlFor="email-brand-banner-mark">Fallback logo mark</label>

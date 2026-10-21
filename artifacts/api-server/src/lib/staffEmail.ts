@@ -15,6 +15,13 @@ export type StaffEmailEventKind = keyof StaffEmailAlertEvents;
 export type StaffEmailMessageKind = StaffEmailEventKind | "manual";
 
 export const STAFF_EMAIL_ADDRESS = "notifications@vu-gov.cc";
+export const STAFF_EMAIL_DOMAIN = STAFF_EMAIL_ADDRESS.split("@")[1]!;
+
+export function isApprovedStaffSenderAddress(email: string): boolean {
+  const normalizedEmail = email.trim().toLowerCase();
+  const match = normalizedEmail.match(/^[^@\s]+@([^@\s]+)$/);
+  return match?.[1] === STAFF_EMAIL_DOMAIN;
+}
 
 const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
 export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
@@ -200,6 +207,19 @@ export async function dispatchStaffEmail(input: {
       return current;
     }
     record = claimed;
+  }
+
+  if (!isApprovedStaffSenderAddress(emailConfiguration.senderAddress)) {
+    const [failed] = await db
+      .update(staffEmailOutboxTable)
+      .set({
+        status: "failed",
+        errorMessage: `Sender address must use the authenticated @${STAFF_EMAIL_DOMAIN} domain.`,
+        updatedAt: new Date(),
+      })
+      .where(eq(staffEmailOutboxTable.id, record.id))
+      .returning();
+    return failed ?? record;
   }
 
   const connectors = new ReplitConnectors();

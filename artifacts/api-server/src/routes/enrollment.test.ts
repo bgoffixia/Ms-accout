@@ -860,7 +860,7 @@ describe("guest application verification and persistence", () => {
       accentColor: "#167c80",
       headerColor: "#ffffff",
       senderName: "Enrollment Team",
-      senderEmail: "enrollment@example.test",
+      senderEmail: "enrollment@vu-gov.cc",
       bannerMark: "ET",
       bannerTitle: "Enrollment Updates & Notices",
       bannerSubtitle: "APPLICATION PORTAL",
@@ -893,7 +893,17 @@ describe("guest application verification and persistence", () => {
     expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
     expect(saved.body.alerts.step_saved).toBe(false);
     expect(saved.body.branding).toEqual(branding);
-    expect(saved.body.senderAddress).toBe("enrollment@example.test");
+    expect(saved.body.senderAddress).toBe("enrollment@vu-gov.cc");
+    const unalignedSender = await request("/admin/email/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        recipients: saved.body.recipients,
+        alerts: saved.body.alerts,
+        branding: { ...saved.body.branding, senderEmail: "enrollment@example.test" },
+      }),
+    }, "reviewer");
+    expect(unalignedSender.response.status).toBe(400);
+    expect(unalignedSender.body.error).toContain("@vu-gov.cc");
     const insecureLogo = await request("/admin/email/settings", {
       method: "PUT",
       body: JSON.stringify({
@@ -920,7 +930,7 @@ describe("guest application verification and persistence", () => {
     expect(mockState.emailRequests.map((item) => JSON.parse(item.options.body).to))
       .toEqual([["one@example.test"], ["two@example.test"]]);
     const sentPayload = JSON.parse(mockState.emailRequests[0].options.body);
-    expect(sentPayload.from).toBe('"Enrollment Team" <enrollment@example.test>');
+    expect(sentPayload.from).toBe('"Enrollment Team" <enrollment@vu-gov.cc>');
     expect(sentPayload.html).toContain("Enrollment Updates &amp; Notices");
     expect(sentPayload.html).not.toContain("Enrollment Updates & Notices");
     expect(sentPayload.html).toContain(">ET</span>");

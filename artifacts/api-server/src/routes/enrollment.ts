@@ -175,6 +175,7 @@ import {
   dispatchStaffEmail,
   emailRecipientIdempotencyKey,
   getStaffEmailConfiguration,
+  isApprovedStaffSenderAddress,
   saveStaffEmailConfiguration,
   verifyResendWebhookSignature,
   type StaffEmailMessageKind,
@@ -3981,6 +3982,12 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     return;
   }
   const { branding } = parsed.data;
+  if (!isApprovedStaffSenderAddress(branding.senderEmail)) {
+    res.status(400).json({
+      error: "Use a sender address on the configured @vu-gov.cc domain.",
+    });
+    return;
+  }
   if (
     (branding.logoUrl !== null && (
       branding.logoUrl.length > 2048 ||
@@ -4002,7 +4009,6 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     !branding.senderName.trim() ||
     branding.senderName.trim().length > 80 ||
     /[<>\r\n]/.test(branding.senderName) ||
-    !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(branding.senderEmail) ||
     branding.senderEmail.trim().length > 254 ||
     !branding.bannerTitle.trim() ||
     branding.bannerTitle.length > 100 ||
