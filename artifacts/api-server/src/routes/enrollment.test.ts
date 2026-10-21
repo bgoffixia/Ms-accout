@@ -8,6 +8,7 @@ const mockState = vi.hoisted(() => ({
   uploadCount: 0,
   emailRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
   emailResponses: [] as Array<{ ok: boolean; status: number; body?: { id?: string } }>,
+  failNextUpdateTable: null as string | null,
   tables: (() => {
     const makeTable = (name: string) => {
       const target = { __tableName: name };
@@ -217,6 +218,10 @@ function makeDatabase() {
       let values: Record<string, unknown> = {};
       let condition: any;
       const run = () => {
+        if (mockState.failNextUpdateTable === tableName) {
+          mockState.failNextUpdateTable = null;
+          throw new Error(`Simulated temporary update failure for ${tableName}`);
+        }
         const updated = tableRows(tableName).filter((row) => matches(row, condition));
         for (const row of updated) Object.assign(row, values);
         return updated;
@@ -433,6 +438,7 @@ describe("guest application verification and persistence", () => {
     mockState.uploadCount = 0;
     mockState.emailRequests.length = 0;
     mockState.emailResponses.length = 0;
+    mockState.failNextUpdateTable = null;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
       primaryEmailAddress: {
@@ -892,6 +898,41 @@ describe("guest application verification and persistence", () => {
     expect(mockState.rows.get("staff_email_outbox")?.[1].deliveryStatus).toBe("bounced");
     expect(mockState.rows.get("staff_email_outbox")?.[1].providerEventAt)
       .toEqual(new Date("2026-09-14T12:13:14.000Z"));
+  });
+
+  it("returns a retryable error when saving a delivery outcome fails and applies it on resend", async () => {
+    const providerMessageId = "resend-retry-after-database-outage";
+    mockState.rows.set("staff_email_outbox", [newRow("staff_email_outbox", {
+      idempotencyKey: `webhook:${providerMessageId}`,
+      recipientEmail: "person@example.test",
+      subject: "Delivery retry test",
+      messageText: "Test",
+      eventKind: "manual",
+      status: "sent",
+      providerMessageId,
+      deliveryStatus: "accepted",
+      providerEventAt: null,
+      attemptCount: 1,
+    })]);
+    const event = {
+      type: "email.delivered",
+      created_at: "2026-09-15T13:14:15.000Z",
+      data: { email_id: providerMessageId },
+    };
+
+    mockState.failNextUpdateTable = "staff_email_outbox";
+    const failedAttempt = await request("/webhooks/resend", signedResendEvent(event));
+    expect(failedAttempt.response.status).toBe(503);
+    expect(failedAttempt.body.error).toBe("Email delivery outcome could not be recorded.");
+    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
+    expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt).toBeNull();
+
+    const resent = await request("/webhooks/resend", signedResendEvent(event));
+    expect(resent.response.status).toBe(200);
+    expect(resent.body.received).toBe(true);
+    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("delivered");
+    expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
+      .toEqual(new Date("2026-09-15T13:14:15.000Z"));
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {
