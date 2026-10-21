@@ -1,5 +1,5 @@
 import { and, eq, lt } from "drizzle-orm";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import {
   db,
@@ -27,6 +27,7 @@ const DEFAULT_ALERTS: StaffEmailAlertEvents = {
 const STAFF_SETTINGS_KEY = "global";
 const STALE_SEND_AFTER_MS = 5 * 60 * 1000;
 
+const RESEND_WEBHOOK_MAX_AGE_SECONDS = 5 * 60;
 export type StaffEmailConfiguration = {
   recipients: string[];
   alerts: StaffEmailAlertEvents;
@@ -208,6 +209,7 @@ export async function dispatchStaffEmail(input: {
           .set({
             status: "sent",
             providerMessageId,
+            deliveryStatus: "accepted",
             errorMessage: null,
             attemptCount: record.attemptCount + attemptsMade - 1,
             updatedAt: new Date(),
@@ -239,4 +241,56 @@ export async function dispatchStaffEmail(input: {
     .where(eq(staffEmailOutboxTable.id, record.id))
     .returning();
   return failed ?? record;
+}
+
+export type StaffEmailDeliveryStatus =
+  | "accepted"
+  | "delivered"
+  | "bounced"
+  | "complained";
+
+export function verifyResendWebhookSignature(input: {
+  rawBody: Buffer;
+  webhookId: string | undefined;
+  timestamp: string | undefined;
+  signature: string | undefined;
+  secret: string;
+  now?: number;
+}): boolean {
+  const { rawBody, webhookId, timestamp, signature, secret } = input;
+  if (!rawBody.length || !webhookId || !timestamp || !signature) return false;
+  if (!secret.startsWith("whsec_")) return false;
+
+  const timestampSeconds = Number(timestamp);
+  const nowSeconds = Math.floor((input.now ?? Date.now()) / 1000);
+  if (
+    !Number.isInteger(timestampSeconds) ||
+    Math.abs(nowSeconds - timestampSeconds) > RESEND_WEBHOOK_MAX_AGE_SECONDS
+  ) {
+    return false;
+  }
+
+  let signingKey: Buffer;
+  try {
+    signingKey = Buffer.from(secret.slice("whsec_".length), "base64");
+  } catch {
+    return false;
+  }
+  if (!signingKey.length) return false;
+
+  const expected = createHmac("sha256", signingKey)
+    .update(`${webhookId}.${timestamp}.`)
+    .update(rawBody)
+    .digest();
+  return signature.split(" ").some((part) => {
+    const [version, encoded] = part.split(",", 2);
+    if (version !== "v1" || !encoded) return false;
+    let candidate: Buffer;
+    try {
+      candidate = Buffer.from(encoded, "base64");
+    } catch {
+      return false;
+    }
+    return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+  });
 }

@@ -8,6 +8,7 @@
 
 export * from './adminEmailAlertEvents';
 export * from './adminEmailMessage';
+export * from './adminEmailMessageDeliveryStatus';
 export * from './adminEmailMessageEventKind';
 export * from './adminEmailMessageStatus';
 export * from './adminEmailSendInput';
@@ -109,6 +110,7 @@ export * from './portalSettingsScreenCopy';
 export * from './portalSettingsTheme';
 export * from './portalSettingsThemeButtonPlacement';
 export * from './portalSettingsThemeButtonSize';
+export * from './resendWebhookEvent';
 export * from './reviewerPin';
 export * from './staffAccessClaimResponse';
 export * from './staffAccessClaimResponseRole';

@@ -833,6 +833,25 @@ paths:
                 $ref: "#/components/schemas/AdminEmailSettings"
         "400":
           description: Invalid recipients or alert configuration
+  /webhooks/resend:
+    post:
+      operationId: receiveResendEmailEvent
+      tags: [webhooks]
+      summary: Receive a verified Resend email delivery event
+      description: Validates the Svix signature using the configured webhook secret.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendWebhookEvent"
+      responses:
+        "200":
+          description: Event received
+        "400":
+          description: Invalid or expired webhook signature
+        "503":
+          description: Webhook verification or storage is unavailable
   /admin/email/outbox:
     get:
       operationId: listAdminEmailOutbox
@@ -1987,7 +2006,7 @@ components:
           maxLength: 10000
     AdminEmailMessage:
       type: object
-      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
+      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, deliveryStatus, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         recipientEmail: { type: string, format: email }
@@ -1999,8 +2018,14 @@ components:
         applicationReference: { type: ["string", "null"] }
         status: { type: string, enum: [sending, sent, failed] }
         providerMessageId: { type: ["string", "null"] }
+        deliveryStatus:
+          type: ["string", "null"]
+          enum: [accepted, delivered, bounced, complained, null]
         errorMessage: { type: ["string", "null"] }
         createdByUserId: { type: ["string", "null"] }
         attemptCount: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    ResendWebhookEvent:
+      type: object
+      additionalProperties: true

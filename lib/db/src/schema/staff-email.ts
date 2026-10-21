@@ -39,6 +39,7 @@ export const staffEmailOutboxTable = pgTable(
     applicationReference: text("application_reference"),
     status: text("status").notNull().default("sending"),
     providerMessageId: text("provider_message_id"),
+    deliveryStatus: text("delivery_status"),
     errorMessage: text("error_message"),
     createdByUserId: text("created_by_user_id"),
     attemptCount: integer("attempt_count").notNull().default(0),

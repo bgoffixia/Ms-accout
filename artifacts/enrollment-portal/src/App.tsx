@@ -2347,7 +2347,12 @@ const emailAlertOptions: Array<{
 function AdminEmailCenter() {
   const queryClient = useQueryClient();
   const settings = useGetAdminEmailSettings();
-  const outbox = useListAdminEmailOutbox();
+  const outbox = useListAdminEmailOutbox({
+    query: {
+      queryKey: getListAdminEmailOutboxQueryKey(),
+      refetchInterval: 15_000,
+    },
+  });
   const saveSettings = useUpdateAdminEmailSettings();
   const sendEmail = useSendAdminEmail();
   const retryEmail = useRetryAdminEmail();
@@ -2418,7 +2423,7 @@ function AdminEmailCenter() {
       onSuccess: (messages: AdminEmailMessage[]) => {
         const allAccepted = messages.every((message) => message.status === 'sent');
         setComposeFeedback(allAccepted
-          ? 'Accepted by the email provider. This confirms handoff, not inbox delivery.'
+          ? 'Accepted by the email provider. The delivery outcome will appear in recent email activity.'
           : 'Email attempts were saved. Review failed messages below and retry them.');
         setComposeRecipients('');
         setComposeSubject('');
@@ -2533,7 +2538,7 @@ function AdminEmailCenter() {
       <section className="admin-email-outbox detail-card" aria-labelledby="admin-email-outbox-title">
         <div className="admin-email-outbox-heading">
           <div className="detail-card-title"><Activity size={17} /><h2 id="admin-email-outbox-title">Recent email activity</h2></div>
-          <span>Provider acceptance is not a delivery receipt.</span>
+          <span>Delivery outcomes update here after the provider reports them.</span>
         </div>
         {outbox.isLoading ? <LoadingPanel label="Loading email activity" />
           : messages.length === 0 ? <EmptyPanel title="No email activity yet" message="Automated alerts and one-off emails will appear here." />
@@ -2541,7 +2546,7 @@ function AdminEmailCenter() {
             {messages.map((message) => (
               <article className="admin-email-outbox-row" key={message.id} data-testid={`email-outbox-row-${message.id}`}>
                 <div className="admin-email-outbox-main">
-                  <div className="admin-email-outbox-title"><b>{message.subject}</b><span className={`admin-email-status admin-email-status-${message.status}`}>{message.status === 'sent' ? 'Accepted by provider' : message.status}</span></div>
+                  <div className="admin-email-outbox-title"><b>{message.subject}</b><span className={`admin-email-status admin-email-status-${message.deliveryStatus ?? message.status}`}>{message.deliveryStatus === 'accepted' ? 'Accepted' : message.deliveryStatus === 'delivered' ? 'Delivered' : message.deliveryStatus === 'bounced' ? 'Bounced' : message.deliveryStatus === 'complained' ? 'Complained' : message.status}</span></div>
                   <p><strong>To:</strong> {message.recipientEmail} <span>·</span> {message.eventKind?.replaceAll('_', ' ') ?? 'manual email'}</p>
                   <small>{formatDate(message.createdAt)}{message.applicationReference ? ` · ${message.applicationReference}` : ''} · {message.attemptCount} attempt{message.attemptCount === 1 ? '' : 's'}</small>
                   {message.errorMessage && <p className="admin-email-error">{message.errorMessage}</p>}

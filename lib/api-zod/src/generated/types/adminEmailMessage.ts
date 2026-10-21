@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminEmailMessageDeliveryStatus } from './adminEmailMessageDeliveryStatus';
 import type { AdminEmailMessageEventKind } from './adminEmailMessageEventKind';
 import type { AdminEmailMessageStatus } from './adminEmailMessageStatus';
 
@@ -20,6 +21,8 @@ export interface AdminEmailMessage {
   status: AdminEmailMessageStatus;
   /** @nullable */
   providerMessageId: string | null;
+  /** @nullable */
+  deliveryStatus: AdminEmailMessageDeliveryStatus;
   /** @nullable */
   errorMessage: string | null;
   /** @nullable */

@@ -7,6 +7,7 @@ import {
   inArray,
   isNull,
   ne,
+  or,
 } from "drizzle-orm";
 import {
   createCipheriv,
@@ -161,7 +162,9 @@ import {
   emailRecipientIdempotencyKey,
   getStaffEmailConfiguration,
   saveStaffEmailConfiguration,
+  verifyResendWebhookSignature,
   type StaffEmailMessageKind,
+  type StaffEmailDeliveryStatus,
 } from "../lib/staffEmail";
 
 type ApplicationStatus =
@@ -320,6 +323,10 @@ async function authenticate(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (req.path === "/webhooks/resend") {
+    next();
+    return;
+  }
   const { userId } = getAuth(req);
   if (!userId) {
     res.status(401).json({ error: "Sign in to continue." });
@@ -3672,6 +3679,8 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
     applicationReference: record.applicationReference ?? null,
     status: record.status,
     providerMessageId: record.providerMessageId ?? null,
+    deliveryStatus:
+      record.deliveryStatus ?? (record.status === "sent" ? "accepted" : null),
     errorMessage: record.errorMessage ?? null,
     createdByUserId: record.createdByUserId ?? null,
     attemptCount: record.attemptCount,
@@ -3679,6 +3688,76 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
     updatedAt: record.updatedAt,
   };
 }
+
+router.post("/webhooks/resend", async (req, res): Promise<void> => {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  if (!secret) {
+    req.log.error("Resend webhook secret is not configured");
+    res.status(503).json({ error: "Webhook verification is not configured." });
+    return;
+  }
+  if (
+    !rawBody ||
+    !verifyResendWebhookSignature({
+      rawBody,
+      webhookId: req.header("svix-id"),
+      timestamp: req.header("svix-timestamp"),
+      signature: req.header("svix-signature"),
+      secret,
+    })
+  ) {
+    res.status(400).json({ error: "Webhook signature is invalid or expired." });
+    return;
+  }
+
+  const event = req.body as {
+    type?: unknown;
+    data?: { email_id?: unknown; id?: unknown };
+  };
+  const statusByEventType: Record<string, StaffEmailDeliveryStatus> = {
+    "email.delivered": "delivered",
+    "email.bounced": "bounced",
+    "email.complained": "complained",
+  };
+  const deliveryStatus =
+    typeof event?.type === "string" ? statusByEventType[event.type] : undefined;
+  const providerMessageId =
+    typeof event?.data?.email_id === "string"
+      ? event.data.email_id
+      : typeof event?.data?.id === "string"
+        ? event.data.id
+        : null;
+  if (!deliveryStatus || !providerMessageId) {
+    res.status(200).json({ received: true });
+    return;
+  }
+
+  const earlierStatuses: Record<StaffEmailDeliveryStatus, StaffEmailDeliveryStatus[]> = {
+    accepted: [],
+    delivered: ["accepted"],
+    bounced: ["accepted", "delivered"],
+    complained: ["accepted", "delivered", "bounced"],
+  };
+  try {
+    await db
+      .update(staffEmailOutboxTable)
+      .set({ deliveryStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(staffEmailOutboxTable.providerMessageId, providerMessageId),
+          or(
+            isNull(staffEmailOutboxTable.deliveryStatus),
+            inArray(staffEmailOutboxTable.deliveryStatus, earlierStatuses[deliveryStatus]),
+          ),
+        ),
+      );
+    res.status(200).json({ received: true });
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to update email delivery outcome");
+    res.status(503).json({ error: "Email delivery outcome could not be recorded." });
+  }
+});
 
 router.get("/admin/email/settings", requireReviewer, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");

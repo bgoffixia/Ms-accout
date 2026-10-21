@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHmac } from "node:crypto";
 
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
@@ -370,7 +371,15 @@ describe("guest application verification and persistence", () => {
     process.env.PRIVATE_OBJECT_DIR = "test-private";
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "test-bucket";
     process.env.SESSION_SECRET = "test-session-secret";
-    app.use(express.json());
+    process.env.RESEND_WEBHOOK_SECRET =
+      `whsec_${Buffer.from("test-resend-signing-key").toString("base64")}`;
+    app.use(express.json({
+      verify(request, _response, body) {
+        if (request.url?.startsWith("/api/webhooks/resend")) {
+          (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
+        }
+      },
+    }));
     app.use((request: any, _response: any, next: () => void) => {
       request.log = { error: () => undefined, warn: () => undefined, info: () => undefined };
       next();
@@ -472,6 +481,30 @@ describe("guest application verification and persistence", () => {
       }
     }
     return { response, body };
+  }
+
+  function signedResendEvent(
+    event: Record<string, unknown>,
+    signatureOverride?: string,
+    timestampSeconds = Math.floor(Date.now() / 1000),
+  ) {
+    const body = JSON.stringify(event);
+    const webhookId = crypto.randomUUID();
+    const timestamp = timestampSeconds.toString();
+    const signingKey = Buffer.from("test-resend-signing-key");
+    const signature = createHmac("sha256", signingKey)
+      .update(`${webhookId}.${timestamp}.`)
+      .update(body)
+      .digest("base64");
+    return {
+      method: "POST",
+      body,
+      headers: {
+        "svix-id": webhookId,
+        "svix-timestamp": timestamp,
+        "svix-signature": signatureOverride ?? `v1,${signature}`,
+      },
+    };
   }
 
   async function uploadEvidence(
@@ -602,6 +635,65 @@ describe("guest application verification and persistence", () => {
     expect(outbox.response.status).toBe(200);
     expect(outbox.body).toHaveLength(2);
     expect(outbox.body[0].subject).toBe("Portal <update>");
+    expect(outbox.body[0].deliveryStatus).toBe("accepted");
+  });
+
+  it("updates accepted email outcomes only from verified, non-stale Resend events", async () => {
+    const deliveredId = "resend-delivery-lifecycle";
+    const bouncedId = "resend-bounced-message";
+    const accepted = (providerMessageId: string) => newRow("staff_email_outbox", {
+      idempotencyKey: `webhook:${providerMessageId}`,
+      recipientEmail: "person@example.test",
+      subject: "Delivery status test",
+      messageText: "Test",
+      eventKind: "manual",
+      status: "sent",
+      providerMessageId,
+      deliveryStatus: "accepted",
+      attemptCount: 1,
+    });
+    mockState.rows.set("staff_email_outbox", [accepted(deliveredId), accepted(bouncedId)]);
+
+    const invalid = await request("/webhooks/resend", signedResendEvent({
+      type: "email.delivered",
+      data: { email_id: deliveredId },
+    }, "v1,invalid"));
+    expect(invalid.response.status).toBe(400);
+    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
+
+    const stale = await request("/webhooks/resend", signedResendEvent({
+      type: "email.delivered",
+      data: { email_id: deliveredId },
+    }, undefined, Math.floor(Date.now() / 1000) - 360));
+    expect(stale.response.status).toBe(400);
+
+    const delivered = await request("/webhooks/resend", signedResendEvent({
+      type: "email.delivered",
+      data: { email_id: deliveredId },
+    }));
+    expect(delivered.response.status).toBe(200);
+    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("delivered");
+
+    const complained = await request("/webhooks/resend", signedResendEvent({
+      type: "email.complained",
+      data: { email_id: deliveredId },
+    }));
+    expect(complained.response.status).toBe(200);
+    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("complained");
+
+    const bounced = await request("/webhooks/resend", signedResendEvent({
+      type: "email.bounced",
+      data: { email_id: bouncedId },
+    }));
+    expect(bounced.response.status).toBe(200);
+    expect(mockState.rows.get("staff_email_outbox")?.[1].deliveryStatus).toBe("bounced");
+
+    const lateDelivered = await request("/webhooks/resend", signedResendEvent({
+      type: "email.delivered",
+      data: { email_id: bouncedId },
+    }));
+    expect(lateDelivered.response.status).toBe(200);
+    expect(mockState.rows.get("staff_email_outbox")?.[1].deliveryStatus).toBe("bounced");
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {

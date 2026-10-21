@@ -1119,6 +1119,19 @@ export const AdminEmailMessageStatus = {
   failed: 'failed',
 } as const;
 
+/**
+ * @nullable
+ */
+export type AdminEmailMessageDeliveryStatus = typeof AdminEmailMessageDeliveryStatus[keyof typeof AdminEmailMessageDeliveryStatus] | null;
+
+
+export const AdminEmailMessageDeliveryStatus = {
+  accepted: 'accepted',
+  delivered: 'delivered',
+  bounced: 'bounced',
+  complained: 'complained',
+} as const;
+
 export interface AdminEmailMessage {
   id: string;
   recipientEmail: string;
@@ -1132,6 +1145,8 @@ export interface AdminEmailMessage {
   /** @nullable */
   providerMessageId: string | null;
   /** @nullable */
+  deliveryStatus: AdminEmailMessageDeliveryStatus;
+  /** @nullable */
   errorMessage: string | null;
   /** @nullable */
   createdByUserId: string | null;
@@ -1139,6 +1154,8 @@ export interface AdminEmailMessage {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ResendWebhookEvent { [key: string]: unknown }
 
 export type ListApplicationsForReviewParams = {
 status?: ListApplicationsForReviewStatus;

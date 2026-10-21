@@ -3959,6 +3959,10 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .admin-email-outbox-title b { overflow-wrap: anywhere; color: #29495c; font-size: 11px; }
 .admin-email-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 7px; font-size: 8px; font-weight: 700; text-transform: capitalize; }
 .admin-email-status-sent { color: #2e7050; background: #eaf5ee; }
+.admin-email-status-accepted { color: #2e7050; background: #eaf5ee; }
+.admin-email-status-delivered { color: #216c46; background: #e4f5e9; }
+.admin-email-status-bounced,
+.admin-email-status-complained { color: #984e4c; background: #fcf0ef; }
 .admin-email-status-failed { color: #984e4c; background: #fcf0ef; }
 .admin-email-status-sending { color: #8a672b; background: #fff7e8; }
 .admin-email-outbox-main > p { margin: 6px 0 3px; color: #637b88; font-size: 9px; overflow-wrap: anywhere; }
