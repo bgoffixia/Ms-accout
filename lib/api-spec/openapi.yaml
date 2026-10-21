@@ -1955,7 +1955,7 @@ components:
         application_submitted: { type: boolean }
     AdminEmailSettings:
       type: object
-      required: [recipients, alerts, senderAddress, updatedAt]
+      required: [recipients, alerts, branding, senderAddress, updatedAt]
       properties:
         recipients:
           type: array
@@ -1965,6 +1965,8 @@ components:
             format: email
         alerts:
           $ref: "#/components/schemas/AdminEmailAlertEvents"
+        branding:
+          $ref: "#/components/schemas/AdminEmailBranding"
         senderAddress:
           type: string
         updatedAt:
@@ -1972,7 +1974,7 @@ components:
           format: date-time
     AdminEmailSettingsUpdate:
       type: object
-      required: [recipients, alerts]
+      required: [recipients, alerts, branding]
       properties:
         recipients:
           type: array
@@ -1982,6 +1984,26 @@ components:
             format: email
         alerts:
           $ref: "#/components/schemas/AdminEmailAlertEvents"
+        branding:
+          $ref: "#/components/schemas/AdminEmailBranding"
+    AdminEmailBranding:
+      type: object
+      required: [logoUrl, accentColor, headerColor, senderName]
+      properties:
+        logoUrl:
+          type: ["string", "null"]
+          format: uri
+          maxLength: 2048
+        accentColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        headerColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        senderName:
+          type: string
+          minLength: 1
+          maxLength: 80
     AdminEmailSendInput:
       type: object
       required: [requestId, recipients, subject, messageText]

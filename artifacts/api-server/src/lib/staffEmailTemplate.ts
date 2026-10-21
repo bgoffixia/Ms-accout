@@ -1,3 +1,5 @@
+import type { StaffEmailBranding } from "@workspace/db";
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -23,12 +25,38 @@ function renderMessageText(messageText: string): string {
   return linkedText.replace(/\r\n|\r|\n/g, "<br />");
 }
 
+function readableTextColor(hex: string): string {
+  const channels = hex.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+  if (!channels) return "#ffffff";
+  const luminance = channels.slice(1).map((channel) => {
+    const value = parseInt(channel!, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index]!, 0);
+  return luminance > 0.225 ? "#102b46" : "#ffffff";
+}
+
 export function renderStaffEmailHtml(input: {
   subject: string;
   messageText: string;
+  branding: StaffEmailBranding;
 }): string {
   const subject = escapeHtml(input.subject);
   const message = renderMessageText(input.messageText);
+  const branding = input.branding;
+  const senderName = escapeHtml(branding.senderName);
+  const accentColor = /^#[\da-f]{6}$/i.test(branding.accentColor)
+    ? branding.accentColor
+    : "#49b8aa";
+  const headerColor = /^#[\da-f]{6}$/i.test(branding.headerColor)
+    ? branding.headerColor
+    : "#102b46";
+  const headerTextColor = readableTextColor(headerColor);
+  const safeLogoUrl = branding.logoUrl?.startsWith("https://")
+    ? escapeHtml(branding.logoUrl)
+    : null;
+  const logo = safeLogoUrl
+    ? `<img src="${safeLogoUrl}" width="140" height="44" alt="${senderName}" style="display:block;width:auto;max-width:140px;height:auto;max-height:44px;border:0;object-fit:contain" />`
+    : `<span style="display:inline-block;width:42px;height:42px;line-height:42px;border-radius:9px;background:#eaf5f5;color:#16445e;text-align:center;font-size:15px;font-weight:700;letter-spacing:1px">SV</span>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -47,16 +75,16 @@ export function renderStaffEmailHtml(input: {
         <td align="center" style="padding:32px 14px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px">
             <tr>
-              <td style="padding:0 0 4px;background:#49b8aa;font-size:0;line-height:0">&nbsp;</td>
+              <td style="padding:0 0 4px;background:${accentColor};font-size:0;line-height:0">&nbsp;</td>
             </tr>
             <tr>
-              <td style="padding:22px 28px;background:#102b46">
+              <td style="padding:22px 28px;background:${headerColor}">
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td width="42" height="42" align="center" valign="middle" style="width:42px;height:42px;border-radius:9px;background:#eaf5f5;color:#16445e;font-size:15px;font-weight:700;letter-spacing:1px">SV</td>
+                    <td align="left" valign="middle" style="max-width:140px;vertical-align:middle">${logo}</td>
                     <td style="padding-left:13px">
-                      <div style="color:#ffffff;font-size:17px;font-weight:700;line-height:1.3">Security Verification</div>
-                      <div style="padding-top:4px;color:#c5d6e2;font-size:10px;font-weight:700;letter-spacing:1.7px;line-height:1.4">ENROLLMENT PORTAL</div>
+                      <div style="color:${headerTextColor};font-size:17px;font-weight:700;line-height:1.3;overflow-wrap:anywhere">${senderName}</div>
+                      <div style="padding-top:4px;color:${headerTextColor};font-size:10px;font-weight:700;letter-spacing:1.7px;line-height:1.4">ENROLLMENT PORTAL</div>
                     </td>
                   </tr>
                 </table>
@@ -71,7 +99,7 @@ export function renderStaffEmailHtml(input: {
             </tr>
             <tr>
               <td style="padding:18px 20px 0;color:#738392;font-size:11px;line-height:1.6;text-align:center">
-                Security Verification Enrollment Portal · Staff communications
+                ${senderName} · Enrollment Portal staff communications
               </td>
             </tr>
           </table>

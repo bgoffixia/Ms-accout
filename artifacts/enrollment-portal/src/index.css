@@ -3931,9 +3931,17 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .admin-email-template-preview { overflow: hidden; border: 1px solid #dce5eb; border-radius: 10px; background: #f1f5f8; }
 .admin-email-template-preview-banner { display: flex; align-items: center; gap: 11px; padding: 15px 17px; border-top: 3px solid #49b8aa; background: #102b46; }
 .admin-email-template-preview-mark { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 8px; background: #eaf5f5; color: #16445e; font-size: 12px; font-weight: 750; letter-spacing: .08em; }
+.admin-email-template-preview-logo { display: block; max-width: 140px; max-height: 44px; object-fit: contain; }
 .admin-email-template-preview-brand { display: grid; gap: 3px; }
 .admin-email-template-preview-brand b { color: #fff; font-size: 12px; }
 .admin-email-template-preview-brand small { color: #c5d6e2; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.admin-email-branding-fields { display: grid; gap: 8px; margin: 9px 0 5px; padding-top: 13px; border-top: 1px solid #ebf0ee; }
+.admin-email-branding-heading { display: grid; gap: 4px; }
+.admin-email-branding-heading b { color: #315066; font-size: 11px; }
+.admin-email-branding-heading small { color: #7d8f96; font-size: 9px; line-height: 1.45; }
+.admin-email-color-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-email-color-fields label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #526d79; font-size: 10px; }
+.admin-email-color-fields input { width: 38px; height: 28px; padding: 2px; border: 1px solid #dce5eb; border-radius: 6px; background: #fff; cursor: pointer; }
 .admin-email-template-preview-content { padding: 20px 18px 22px; background: #fff; }
 .admin-email-template-preview-content > small { color: #287d8b; font-size: 8px; font-weight: 700; letter-spacing: .15em; }
 .admin-email-template-preview-content h3 { margin: 8px 0 12px; color: #152f48; font: 600 20px/1.25 Georgia, 'Times New Roman', serif; overflow-wrap: anywhere; }
@@ -3984,4 +3992,7 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .admin-email-outbox-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
   .admin-email-outbox-row { gap: 8px; }
   .admin-email-retry { padding-inline: 8px; font-size: 8px; }
+  .admin-email-template-preview-banner { gap: 8px; padding: 13px 12px; }
+  .admin-email-template-preview-logo { max-width: 100px; max-height: 40px; }
+  .admin-email-template-preview-brand b { overflow-wrap: anywhere; }
 }

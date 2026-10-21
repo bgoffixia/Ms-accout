@@ -17,10 +17,26 @@ export type StaffEmailAlertEvents = {
   application_submitted: boolean;
 };
 
+export type StaffEmailBranding = {
+  logoUrl: string | null;
+  accentColor: string;
+  headerColor: string;
+  senderName: string;
+};
+
 export const staffEmailSettingsTable = pgTable("staff_email_settings", {
   key: text("key").primaryKey(),
   recipients: jsonb("recipients").$type<string[]>().notNull().default([]),
   alerts: jsonb("alerts").$type<StaffEmailAlertEvents>().notNull(),
+  branding: jsonb("branding")
+    .$type<StaffEmailBranding>()
+    .notNull()
+    .default({
+      logoUrl: null,
+      accentColor: "#49b8aa",
+      headerColor: "#102b46",
+      senderName: "Security Verification",
+    }),
   updatedByUserId: text("updated_by_user_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

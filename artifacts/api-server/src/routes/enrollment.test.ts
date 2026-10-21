@@ -605,11 +605,32 @@ describe("guest application verification and persistence", () => {
           evidence_saved: false,
           application_submitted: true,
         },
+        branding: {
+          logoUrl: "https://images.example.test/portal-logo.png",
+          accentColor: "#167c80",
+          headerColor: "#ffffff",
+          senderName: "Enrollment Team",
+        },
       }),
     }, "reviewer");
     expect(saved.response.status).toBe(200);
     expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
     expect(saved.body.alerts.step_saved).toBe(false);
+    expect(saved.body.branding).toEqual({
+      logoUrl: "https://images.example.test/portal-logo.png",
+      accentColor: "#167c80",
+      headerColor: "#ffffff",
+      senderName: "Enrollment Team",
+    });
+    const insecureLogo = await request("/admin/email/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        recipients: saved.body.recipients,
+        alerts: saved.body.alerts,
+        branding: { ...saved.body.branding, logoUrl: "http://images.example.test/logo.png" },
+      }),
+    }, "reviewer");
+    expect(insecureLogo.response.status).toBe(400);
 
     const sent = await request("/admin/email/send", {
       method: "POST",
@@ -626,6 +647,12 @@ describe("guest application verification and persistence", () => {
     expect(mockState.emailRequests).toHaveLength(2);
     expect(mockState.emailRequests.map((item) => JSON.parse(item.options.body).to))
       .toEqual([["one@example.test"], ["two@example.test"]]);
+    const sentPayload = JSON.parse(mockState.emailRequests[0].options.body);
+    expect(sentPayload.from).toBe('"Enrollment Team" <notifications@vu-gov.cc>');
+    expect(sentPayload.html).toContain("https://images.example.test/portal-logo.png");
+    expect(sentPayload.html).toContain("background:#ffffff");
+    expect(sentPayload.html).toContain("color:#102b46");
+    expect(sentPayload.html).toContain("Enrollment Team · Enrollment Portal staff communications");
     const emailHtml = JSON.parse(mockState.emailRequests[0].options.body).html;
     expect(emailHtml).toContain("Portal &lt;update&gt;");
     expect(emailHtml).toContain("A short staff update &amp; &lt;details&gt;.");

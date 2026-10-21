@@ -1061,10 +1061,28 @@ export interface AdminEmailAlertEvents {
   application_submitted: boolean;
 }
 
+export interface AdminEmailBranding {
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  logoUrl: string | null;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  accentColor: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  headerColor: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  senderName: string;
+}
+
 export interface AdminEmailSettings {
   /** @maxItems 10 */
   recipients: string[];
   alerts: AdminEmailAlertEvents;
+  branding: AdminEmailBranding;
   senderAddress: string;
   /** @nullable */
   updatedAt: string | null;
@@ -1074,6 +1092,7 @@ export interface AdminEmailSettingsUpdate {
   /** @maxItems 10 */
   recipients: string[];
   alerts: AdminEmailAlertEvents;
+  branding: AdminEmailBranding;
 }
 
 export interface AdminEmailSendInput {

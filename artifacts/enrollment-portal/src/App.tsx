@@ -49,7 +49,7 @@ import {
 } from '@workspace/api-client-react';
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
-  AdminEmailAlertEvents, AdminEmailMessage, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
+  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -2344,6 +2344,23 @@ const emailAlertOptions: Array<{
   { key: 'application_submitted', label: 'Application submitted', detail: 'When an applicant submits an enrollment.' },
 ];
 
+const defaultEmailBranding: AdminEmailBranding = {
+  logoUrl: null,
+  accentColor: '#49b8aa',
+  headerColor: '#102b46',
+  senderName: 'Security Verification',
+};
+
+function readableEmailHeaderText(hex: string) {
+  const channels = hex.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+  if (!channels) return '#ffffff';
+  const luminance = channels.slice(1).map((channel) => {
+    const value = parseInt(channel!, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index]!, 0);
+  return luminance > 0.225 ? '#102b46' : '#ffffff';
+}
+
 function AdminEmailCenter() {
   const queryClient = useQueryClient();
   const settings = useGetAdminEmailSettings();
@@ -2364,6 +2381,7 @@ function AdminEmailCenter() {
     evidence_saved: true,
     application_submitted: true,
   });
+  const [brandingDraft, setBrandingDraft] = useState<AdminEmailBranding>(defaultEmailBranding);
   const [settingsFeedback, setSettingsFeedback] = useState('');
   const [composeRecipients, setComposeRecipients] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
@@ -2375,6 +2393,7 @@ function AdminEmailCenter() {
     if (!settings.data) return;
     setRecipientDraft(settings.data.recipients.join('\n'));
     setAlertsDraft(settings.data.alerts);
+    setBrandingDraft({ ...defaultEmailBranding, ...settings.data.branding });
   }, [settings.data]);
 
   const invalidateEmailData = () => {
@@ -2393,14 +2412,25 @@ function AdminEmailCenter() {
       return;
     }
     setSettingsFeedback('');
-    saveSettings.mutate({ data: { recipients, alerts: alertsDraft } }, {
+    saveSettings.mutate({
+      data: {
+        recipients,
+        alerts: alertsDraft,
+        branding: {
+          ...brandingDraft,
+          logoUrl: brandingDraft.logoUrl?.trim() || null,
+          senderName: brandingDraft.senderName.trim(),
+        },
+      },
+    }, {
       onSuccess: (saved) => {
         setRecipientDraft(saved.recipients.join('\n'));
         setAlertsDraft(saved.alerts);
+        setBrandingDraft(saved.branding);
         setSettingsFeedback('Email settings saved.');
         void queryClient.invalidateQueries({ queryKey: getGetAdminEmailSettingsQueryKey() });
       },
-      onError: () => setSettingsFeedback('Email settings could not be saved. Check each address and try again.'),
+      onError: () => setSettingsFeedback('Email settings could not be saved. Check each address and branding value, then try again.'),
     });
   };
 
@@ -2490,9 +2520,71 @@ function AdminEmailCenter() {
                 </label>
               ))}
             </div>
+            <div className="admin-email-branding-fields">
+              <div className="admin-email-branding-heading">
+                <b>Email banner branding</b>
+                <small>The preview updates as you edit. Save settings to apply these values to future emails.</small>
+              </div>
+              <label className="field-label" htmlFor="email-brand-logo">Public logo image URL</label>
+              <input
+                id="email-brand-logo"
+                className="text-input"
+                type="url"
+                maxLength={2048}
+                value={brandingDraft.logoUrl ?? ''}
+                onChange={(event) => setBrandingDraft((current) => ({
+                  ...current,
+                  logoUrl: event.target.value || null,
+                }))}
+                placeholder="https://example.com/logo.png"
+                data-testid="input-email-brand-logo"
+              />
+              <small className="field-help">Use a public HTTPS image URL. Leave blank to use the default mark.</small>
+              <label className="field-label" htmlFor="email-brand-sender-name">Sender display name</label>
+              <input
+                id="email-brand-sender-name"
+                className="text-input"
+                maxLength={80}
+                value={brandingDraft.senderName}
+                onChange={(event) => setBrandingDraft((current) => ({
+                  ...current,
+                  senderName: event.target.value,
+                }))}
+                required
+                data-testid="input-email-brand-sender-name"
+              />
+              <div className="admin-email-color-fields">
+                <label>
+                  <span>Accent color</span>
+                  <input
+                    type="color"
+                    value={brandingDraft.accentColor}
+                    onChange={(event) => setBrandingDraft((current) => ({
+                      ...current,
+                      accentColor: event.target.value,
+                    }))}
+                    aria-label="Email banner accent color"
+                    data-testid="input-email-brand-accent-color"
+                  />
+                </label>
+                <label>
+                  <span>Header color</span>
+                  <input
+                    type="color"
+                    value={brandingDraft.headerColor}
+                    onChange={(event) => setBrandingDraft((current) => ({
+                      ...current,
+                      headerColor: event.target.value,
+                    }))}
+                    aria-label="Email banner header color"
+                    data-testid="input-email-brand-header-color"
+                  />
+                </label>
+              </div>
+            </div>
             {settingsFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-settings-feedback">{settingsFeedback}</p>}
             <button className="button button-primary" type="submit" disabled={settings.isLoading || saveSettings.isPending} data-testid="button-save-email-settings">
-              {saveSettings.isPending ? 'Saving…' : 'Save alert settings'}
+              {saveSettings.isPending ? 'Saving…' : 'Save email settings'}
             </button>
           </form>
           <div className="admin-email-sender"><span>Sender</span><b>{settings.data?.senderAddress ?? 'Loading sender…'}</b></div>
@@ -2512,11 +2604,25 @@ function AdminEmailCenter() {
             <div className="admin-email-preview-wrap">
               <div className="admin-email-preview-label">Live email preview</div>
               <div className="admin-email-template-preview" role="region" aria-label="Preview of outgoing email" data-testid="email-template-preview">
-                <div className="admin-email-template-preview-banner">
-                  <span className="admin-email-template-preview-mark">SV</span>
+                <div
+                  className="admin-email-template-preview-banner"
+                  style={{
+                    borderTopColor: brandingDraft.accentColor,
+                    backgroundColor: brandingDraft.headerColor,
+                    color: readableEmailHeaderText(brandingDraft.headerColor),
+                  }}
+                >
+                  {brandingDraft.logoUrl
+                    ? <img
+                        className="admin-email-template-preview-logo"
+                        src={brandingDraft.logoUrl}
+                        alt={brandingDraft.senderName || 'Email logo'}
+                        onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                      />
+                    : <span className="admin-email-template-preview-mark">SV</span>}
                   <span className="admin-email-template-preview-brand">
-                    <b>Security Verification</b>
-                    <small>ENROLLMENT PORTAL</small>
+                    <b style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.senderName || 'Sender name'}</b>
+                    <small style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>ENROLLMENT PORTAL</small>
                   </span>
                 </div>
                 <div className="admin-email-template-preview-content">
@@ -2524,7 +2630,7 @@ function AdminEmailCenter() {
                   <h3>{composeSubject.trim() || 'Your email subject'}</h3>
                   <p>{composeBody.trim() || 'Your message will appear here.'}</p>
                 </div>
-                <div className="admin-email-template-preview-footer">Security Verification Enrollment Portal · Staff communications</div>
+                <div className="admin-email-template-preview-footer">{brandingDraft.senderName || 'Sender name'} · Enrollment Portal staff communications</div>
               </div>
             </div>
             {composeFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-compose-feedback">{composeFeedback}</p>}

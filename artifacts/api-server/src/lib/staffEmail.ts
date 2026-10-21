@@ -5,6 +5,7 @@ import {
   db,
   staffEmailOutboxTable,
   staffEmailSettingsTable,
+  type StaffEmailBranding,
   type StaffEmailAlertEvents,
   type StaffEmailOutboxRecord,
 } from "@workspace/db";
@@ -13,10 +14,15 @@ import { renderStaffEmailHtml } from "./staffEmailTemplate";
 export type StaffEmailEventKind = keyof StaffEmailAlertEvents;
 export type StaffEmailMessageKind = StaffEmailEventKind | "manual";
 
-export const STAFF_EMAIL_SENDER =
-  "Enrollment Portal <notifications@vu-gov.cc>";
+export const STAFF_EMAIL_ADDRESS = "notifications@vu-gov.cc";
 
 const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
+export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
+  logoUrl: null,
+  accentColor: "#49b8aa",
+  headerColor: "#102b46",
+  senderName: "Security Verification",
+};
 const DEFAULT_ALERTS: StaffEmailAlertEvents = {
   contact_received: true,
   step_saved: true,
@@ -31,6 +37,7 @@ const RESEND_WEBHOOK_MAX_AGE_SECONDS = 5 * 60;
 export type StaffEmailConfiguration = {
   recipients: string[];
   alerts: StaffEmailAlertEvents;
+  branding: StaffEmailBranding;
   senderAddress: string;
   updatedAt: string | null;
 };
@@ -44,7 +51,8 @@ export async function getStaffEmailConfiguration(): Promise<StaffEmailConfigurat
   return {
     recipients: saved?.recipients ?? DEFAULT_RECIPIENTS,
     alerts: { ...DEFAULT_ALERTS, ...(saved?.alerts ?? {}) },
-    senderAddress: STAFF_EMAIL_SENDER,
+    branding: { ...DEFAULT_STAFF_EMAIL_BRANDING, ...(saved?.branding ?? {}) },
+    senderAddress: STAFF_EMAIL_ADDRESS,
     updatedAt: saved?.updatedAt?.toISOString() ?? null,
   };
 }
@@ -52,6 +60,7 @@ export async function getStaffEmailConfiguration(): Promise<StaffEmailConfigurat
 export async function saveStaffEmailConfiguration(
   recipients: string[],
   alerts: StaffEmailAlertEvents,
+  branding: StaffEmailBranding,
   updatedByUserId: string,
 ): Promise<StaffEmailConfiguration> {
   await db
@@ -60,12 +69,13 @@ export async function saveStaffEmailConfiguration(
       key: STAFF_SETTINGS_KEY,
       recipients,
       alerts,
+      branding,
       updatedByUserId,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: staffEmailSettingsTable.key,
-      set: { recipients, alerts, updatedByUserId, updatedAt: new Date() },
+      set: { recipients, alerts, branding, updatedByUserId, updatedAt: new Date() },
     });
   return getStaffEmailConfiguration();
 }
@@ -105,6 +115,9 @@ export async function dispatchStaffEmail(input: {
 }): Promise<StaffEmailOutboxRecord> {
   const recipientEmail = input.recipientEmail.trim().toLowerCase();
   const idempotencyKey = input.idempotencyKey.slice(0, 256);
+  const emailConfiguration = await getStaffEmailConfiguration();
+  const senderDisplayName = emailConfiguration.branding.senderName
+    .replace(/(["\\])/g, "\\$1");
   const [inserted] = await db
     .insert(staffEmailOutboxTable)
     .values({
@@ -183,13 +196,14 @@ export async function dispatchStaffEmail(input: {
           "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({
-          from: STAFF_EMAIL_SENDER,
+          from: `"${senderDisplayName}" <${STAFF_EMAIL_ADDRESS}>`,
           to: [recipientEmail],
           subject: input.subject,
           text: input.messageText,
           html: renderStaffEmailHtml({
             subject: input.subject,
             messageText: input.messageText,
+            branding: emailConfiguration.branding,
           }),
         }),
       });

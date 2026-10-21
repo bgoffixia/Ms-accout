@@ -3784,6 +3784,21 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     res.status(400).json({ error: "Check the recipient addresses and alert settings." });
     return;
   }
+  const { branding } = parsed.data;
+  if (
+    (branding.logoUrl !== null && (
+      branding.logoUrl.length > 2048 ||
+      !/^https:\/\/[^\s]+$/i.test(branding.logoUrl)
+    )) ||
+    !/^#[\da-f]{6}$/i.test(branding.accentColor) ||
+    !/^#[\da-f]{6}$/i.test(branding.headerColor) ||
+    !branding.senderName.trim() ||
+    branding.senderName.trim().length > 80 ||
+    /[<>\r\n]/.test(branding.senderName)
+  ) {
+    res.status(400).json({ error: "Check the email logo URL, colors, and sender name." });
+    return;
+  }
   const recipients = [...new Set(
     parsed.data.recipients.map((email) => email.trim().toLowerCase()),
   )];
@@ -3791,6 +3806,11 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     const configuration = await saveStaffEmailConfiguration(
       recipients,
       parsed.data.alerts,
+      {
+        ...branding,
+        logoUrl: branding.logoUrl?.trim() || null,
+        senderName: branding.senderName.trim(),
+      },
       res.locals.userId as string,
     );
     res.json(

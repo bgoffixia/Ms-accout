@@ -7,6 +7,7 @@
  */
 
 export * from './adminEmailAlertEvents';
+export * from './adminEmailBranding';
 export * from './adminEmailMessage';
 export * from './adminEmailMessageDeliveryStatus';
 export * from './adminEmailMessageEventKind';

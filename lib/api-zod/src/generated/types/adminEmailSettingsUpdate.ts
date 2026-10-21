@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminEmailAlertEvents } from './adminEmailAlertEvents';
+import type { AdminEmailBranding } from './adminEmailBranding';
 
 export interface AdminEmailSettingsUpdate {
   /** @maxItems 10 */
   recipients: string[];
   alerts: AdminEmailAlertEvents;
+  branding: AdminEmailBranding;
 }
