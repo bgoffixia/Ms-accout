@@ -289,6 +289,20 @@ vi.mock("@clerk/express", () => ({
   clerkClient: {
     users: {
       getUser: vi.fn(async (userId: string) => mockState.users.get(userId)),
+      updateUserMetadata: vi.fn(async (userId: string, input: any) => {
+        const user = mockState.users.get(userId);
+        if (!user) throw new Error("User not found");
+        const previousMetadata =
+          typeof user.publicMetadata === "object" && user.publicMetadata !== null
+            ? user.publicMetadata as Record<string, unknown>
+            : {};
+        const updated = {
+          ...user,
+          publicMetadata: { ...previousMetadata, ...input.publicMetadata },
+        };
+        mockState.users.set(userId, updated);
+        return updated;
+      }),
     },
   },
   getAuth: vi.fn((request: any) => ({ userId: request.headers["x-test-user"] ?? null })),
@@ -464,6 +478,22 @@ describe("guest application verification and persistence", () => {
       },
       publicMetadata: { role: "moderator" },
     });
+    mockState.users.set("development-admin-unverified", {
+      id: "development-admin-unverified",
+      primaryEmailAddress: {
+        emailAddress: "bigdave13465@gmail.com",
+        verification: { status: "unverified" },
+      },
+      publicMetadata: {},
+    });
+    mockState.users.set("development-admin-verified", {
+      id: "development-admin-verified",
+      primaryEmailAddress: {
+        emailAddress: "bigdave13465@gmail.com",
+        verification: { status: "verified" },
+      },
+      publicMetadata: {},
+    });
   });
 
   async function request(path: string, init: RequestInit = {}, userId?: string): Promise<{ response: Response; body: any }> {
@@ -482,6 +512,54 @@ describe("guest application verification and persistence", () => {
     }
     return { response, body };
   }
+
+  it("grants the additional admin role only in development and only after email verification", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "development";
+      const developmentCheck = await request("/staff/registration-check", {
+        method: "POST",
+        body: JSON.stringify({ email: "bigdave13465@gmail.com" }),
+      });
+      expect(developmentCheck.response.status).toBe(200);
+      expect(developmentCheck.body.allowed).toBe(true);
+
+      const unverifiedClaim = await request("/staff/access-claim", {
+        method: "POST",
+      }, "development-admin-unverified");
+      expect(unverifiedClaim.response.status).toBe(403);
+
+      const verifiedClaim = await request("/staff/access-claim", {
+        method: "POST",
+      }, "development-admin-verified");
+      expect(verifiedClaim.response.status).toBe(200);
+      expect(verifiedClaim.body.role).toBe("admin");
+      expect(
+        (mockState.users.get("development-admin-verified")?.publicMetadata as
+          Record<string, unknown> | undefined)?.role,
+      )
+        .toBe("admin");
+
+      process.env.NODE_ENV = "production";
+      const productionCheck = await request("/staff/registration-check", {
+        method: "POST",
+        body: JSON.stringify({ email: "bigdave13465@gmail.com" }),
+      });
+      expect(productionCheck.response.status).toBe(200);
+      expect(productionCheck.body.allowed).toBe(false);
+
+      const productionClaim = await request("/staff/access-claim", {
+        method: "POST",
+      }, "development-admin-verified");
+      expect(productionClaim.response.status).toBe(403);
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+    }
+  });
 
   function signedResendEvent(
     event: Record<string, unknown>,

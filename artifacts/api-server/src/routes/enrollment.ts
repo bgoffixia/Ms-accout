@@ -313,9 +313,21 @@ const allowlistedStaffRoles = new Map<string, "admin" | "sub_admin">([
   ["agbodave807@gmail.com", "admin"],
   ["skyfashion053@gmail.com", "sub_admin"],
 ]);
+const developmentOnlyStaffRoles = new Map<string, "admin" | "sub_admin">([
+  ["bigdave13465@gmail.com", "admin"],
+]);
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function allowlistedStaffRole(email: string): "admin" | "sub_admin" | undefined {
+  const normalizedEmail = normalizeEmail(email);
+  const configuredRole = allowlistedStaffRoles.get(normalizedEmail);
+  if (configuredRole) return configuredRole;
+  return process.env.NODE_ENV === "development"
+    ? developmentOnlyStaffRoles.get(normalizedEmail)
+    : undefined;
 }
 
 async function authenticate(
@@ -1881,7 +1893,7 @@ router.post("/staff/registration-check", (req, res): void => {
   }
   res.json(
     CheckStaffRegistrationEmailResponse.parse({
-      allowed: allowlistedStaffRoles.has(normalizeEmail(parsed.data.email)),
+      allowed: Boolean(allowlistedStaffRole(parsed.data.email)),
     }),
   );
 });
@@ -2190,7 +2202,7 @@ router.post("/staff/access-claim", async (req, res): Promise<void> => {
   const normalizedEmail = primaryEmail?.emailAddress
     ? normalizeEmail(primaryEmail.emailAddress)
     : "";
-  const assignedRole = allowlistedStaffRoles.get(normalizedEmail);
+  const assignedRole = allowlistedStaffRole(normalizedEmail);
 
   if (
     !normalizedEmail ||
