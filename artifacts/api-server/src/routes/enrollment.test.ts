@@ -367,12 +367,16 @@ vi.mock("@replit/connectors-sdk", () => ({
 vi.mock("../lib/objectStorage", () => ({
   ObjectNotFoundError: class ObjectNotFoundError extends Error {},
   ObjectStorageService: class {
-    async getObjectEntityUploadURL() {
+    async getObjectEntityUploadURL(directory = "uploads") {
       mockState.uploadCount += 1;
-      return `https://storage.test/upload/${mockState.uploadCount}`;
+      return `https://storage.test/upload/${directory}/${mockState.uploadCount}`;
     }
 
     normalizeObjectEntityPath(uploadUrl: string) {
+      if (uploadUrl.includes("/email-logos/")) {
+        const uploadId = Number(uploadUrl.split("/").at(-1));
+        return `/objects/email-logos/00000000-0000-4000-8000-${String(uploadId).padStart(12, "0")}`;
+      }
       return `/objects/test/${uploadUrl.split("/").at(-1)}`;
     }
 
@@ -712,6 +716,55 @@ describe("guest application verification and persistence", () => {
     expect(reviewer.body.alerts.application_submitted).toBe(true);
   });
 
+  it("allows reviewers to upload a verified public email logo and serves only the configured image", async () => {
+    const applicant = await request("/admin/email/logo/upload-url", {
+      method: "POST",
+      body: JSON.stringify({ contentType: "image/png", sizeBytes: privatePng.length }),
+    }, "applicant-verified");
+    expect(applicant.response.status).toBe(403);
+
+    const unsupported = await request("/admin/email/logo/upload-url", {
+      method: "POST",
+      body: JSON.stringify({ contentType: "image/svg+xml", sizeBytes: 20 }),
+    }, "reviewer");
+    expect(unsupported.response.status).toBe(400);
+
+    const prepared = await request("/admin/email/logo/upload-url", {
+      method: "POST",
+      body: JSON.stringify({ contentType: "image/png", sizeBytes: privatePng.length }),
+    }, "reviewer");
+    expect(prepared.response.status).toBe(200);
+    expect(prepared.body.objectPath).toMatch(/^\/objects\/email-logos\/[0-9a-f-]{36}$/);
+    mockState.storageObjects.set(prepared.body.objectPath, {
+      contentType: "image/png",
+      bytes: privatePng,
+    });
+
+    const complete = await request("/admin/email/logo/complete", {
+      method: "POST",
+      body: JSON.stringify({ objectPath: prepared.body.objectPath }),
+    }, "reviewer");
+    expect(complete.response.status).toBe(200);
+
+    const defaults = await request("/admin/email/settings", {}, "reviewer");
+    const saved = await request("/admin/email/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        ...defaults.body,
+        branding: {
+          ...defaults.body.branding,
+          logoUrl: "https://portal.example.test/api/public/email/logo",
+          logoObjectPath: prepared.body.objectPath,
+        },
+      }),
+    }, "reviewer");
+    expect(saved.response.status).toBe(200);
+    const publicLogo = await request("/public/email/logo");
+    expect(publicLogo.response.status).toBe(200);
+    expect(publicLogo.response.headers.get("content-type")).toBe("image/png");
+    expect(publicLogo.response.headers.get("cache-control")).toContain("public");
+  });
+
   it("keeps reusable templates staff-only and supports create, edit, reuse, and remove", async () => {
     const applicant = await request("/admin/email/templates", {}, "applicant-verified");
     const moderator = await request("/admin/email/templates", {}, "moderator");
@@ -792,9 +845,13 @@ describe("guest application verification and persistence", () => {
         },
         branding: {
           logoUrl: "https://images.example.test/portal-logo.png",
+          logoObjectPath: null,
           accentColor: "#167c80",
           headerColor: "#ffffff",
           senderName: "Enrollment Team",
+          footerText: "Application updates",
+          footerLinkText: "Open the portal",
+          footerLinkUrl: "https://portal.example.test",
         },
       }),
     }, "reviewer");
@@ -803,9 +860,13 @@ describe("guest application verification and persistence", () => {
     expect(saved.body.alerts.step_saved).toBe(false);
     expect(saved.body.branding).toEqual({
       logoUrl: "https://images.example.test/portal-logo.png",
+      logoObjectPath: null,
       accentColor: "#167c80",
       headerColor: "#ffffff",
       senderName: "Enrollment Team",
+      footerText: "Application updates",
+      footerLinkText: "Open the portal",
+      footerLinkUrl: "https://portal.example.test",
     });
     const insecureLogo = await request("/admin/email/settings", {
       method: "PUT",
@@ -837,7 +898,11 @@ describe("guest application verification and persistence", () => {
     expect(sentPayload.html).toContain("https://images.example.test/portal-logo.png");
     expect(sentPayload.html).toContain("background:#ffffff");
     expect(sentPayload.html).toContain("color:#102b46");
-    expect(sentPayload.html).toContain("Enrollment Team · Enrollment Portal staff communications");
+    expect(sentPayload.html).toContain("Enrollment Team · Application updates");
+    expect(sentPayload.html).toContain('href="https://portal.example.test"');
+    expect(sentPayload.html).toContain(">Open the portal</a>");
+    expect(sentPayload.text).toContain("Application updates");
+    expect(sentPayload.text).toContain("Open the portal: https://portal.example.test");
     const emailHtml = JSON.parse(mockState.emailRequests[0].options.body).html;
     expect(emailHtml).toContain("Portal &lt;update&gt;");
     expect(emailHtml).toContain("A short staff update &amp; &lt;details&gt;.");

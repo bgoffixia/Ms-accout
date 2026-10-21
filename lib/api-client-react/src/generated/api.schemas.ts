@@ -1067,6 +1067,12 @@ export interface AdminEmailBranding {
      * @nullable
      */
   logoUrl: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+     */
+  logoObjectPath: string | null;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   accentColor: string;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
@@ -1076,6 +1082,15 @@ export interface AdminEmailBranding {
      * @maxLength 80
      */
   senderName: string;
+  /** @maxLength 300 */
+  footerText: string;
+  /** @maxLength 80 */
+  footerLinkText: string;
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  footerLinkUrl: string | null;
 }
 
 export interface AdminEmailSettings {
@@ -1093,6 +1108,50 @@ export interface AdminEmailSettingsUpdate {
   recipients: string[];
   alerts: AdminEmailAlertEvents;
   branding: AdminEmailBranding;
+}
+
+export type AdminEmailLogoUploadInputContentType = typeof AdminEmailLogoUploadInputContentType[keyof typeof AdminEmailLogoUploadInputContentType];
+
+
+export const AdminEmailLogoUploadInputContentType = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+  'image/gif': 'image/gif',
+} as const;
+
+export interface AdminEmailLogoUploadInput {
+  contentType: AdminEmailLogoUploadInputContentType;
+  /**
+     * @minimum 1
+     * @maximum 2097152
+     */
+  sizeBytes: number;
+}
+
+export interface AdminEmailLogoUploadResponse {
+  uploadUrl: string;
+  /**
+     * @maxLength 200
+     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+     */
+  objectPath: string;
+}
+
+export interface AdminEmailLogoUploadCompleteInput {
+  /**
+     * @maxLength 200
+     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+     */
+  objectPath: string;
+}
+
+export interface AdminEmailLogoUploadCompleteResponse {
+  /**
+     * @maxLength 200
+     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+     */
+  objectPath: string;
 }
 
 export interface AdminEmailSendInput {

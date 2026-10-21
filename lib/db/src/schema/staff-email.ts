@@ -21,9 +21,13 @@ export type StaffEmailAlertEvents = {
 
 export type StaffEmailBranding = {
   logoUrl: string | null;
+  logoObjectPath: string | null;
   accentColor: string;
   headerColor: string;
   senderName: string;
+  footerText: string;
+  footerLinkText: string;
+  footerLinkUrl: string | null;
 };
 
 export const staffEmailSettingsTable = pgTable("staff_email_settings", {
@@ -35,9 +39,13 @@ export const staffEmailSettingsTable = pgTable("staff_email_settings", {
     .notNull()
     .default({
       logoUrl: null,
+      logoObjectPath: null,
       accentColor: "#49b8aa",
       headerColor: "#102b46",
       senderName: "Security Verification",
+      footerText: "Enrollment Portal staff communications",
+      footerLinkText: "Visit the enrollment portal",
+      footerLinkUrl: null,
     }),
   updatedByUserId: text("updated_by_user_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true })

@@ -20,6 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminEmailLogoUploadCompleteInput,
+  AdminEmailLogoUploadCompleteResponse,
+  AdminEmailLogoUploadInput,
+  AdminEmailLogoUploadResponse,
   AdminEmailMessage,
   AdminEmailSendInput,
   AdminEmailSettings,
@@ -3423,6 +3427,259 @@ export const useUpdateAdminEmailSettings = <TError = ErrorType<void>,
       > => {
       return useMutation(getUpdateAdminEmailSettingsMutationOptions(options));
     }
+
+export const getRequestAdminEmailLogoUploadUrl = () => {
+
+
+
+
+  return `/api/admin/email/logo/upload-url`
+}
+
+/**
+ * @summary Request an upload URL for the public email header logo
+ */
+export const requestAdminEmailLogoUpload = async (adminEmailLogoUploadInput: AdminEmailLogoUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailLogoUploadResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailLogoUploadResponse>(getRequestAdminEmailLogoUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailLogoUploadInput)
+  }
+);}
+
+
+
+
+
+export const getRequestAdminEmailLogoUploadMutationKey = () => ['requestAdminEmailLogoUpload'] as const;
+
+export const getRequestAdminEmailLogoUploadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestAdminEmailLogoUpload>>, TError,RequestAdminEmailLogoUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestAdminEmailLogoUpload>>, TError,RequestAdminEmailLogoUploadMutationVariables, TContext> => {
+
+const mutationKey = getRequestAdminEmailLogoUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestAdminEmailLogoUpload>>, RequestAdminEmailLogoUploadMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestAdminEmailLogoUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestAdminEmailLogoUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestAdminEmailLogoUpload>>>
+    export type RequestAdminEmailLogoUploadMutationBody = BodyType<AdminEmailLogoUploadInput>
+    export type RequestAdminEmailLogoUploadMutationError = ErrorType<void>
+    export type RequestAdminEmailLogoUploadMutationVariables = {data: BodyType<AdminEmailLogoUploadInput>}
+
+    /**
+ * @summary Request an upload URL for the public email header logo
+ */
+export const useRequestAdminEmailLogoUpload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestAdminEmailLogoUpload>>, TError,RequestAdminEmailLogoUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestAdminEmailLogoUpload>>,
+        TError,
+        RequestAdminEmailLogoUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestAdminEmailLogoUploadMutationOptions(options));
+    }
+
+export const getCompleteAdminEmailLogoUploadUrl = () => {
+
+
+
+
+  return `/api/admin/email/logo/complete`
+}
+
+/**
+ * @summary Verify an uploaded email header logo
+ */
+export const completeAdminEmailLogoUpload = async (adminEmailLogoUploadCompleteInput: AdminEmailLogoUploadCompleteInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailLogoUploadCompleteResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailLogoUploadCompleteResponse>(getCompleteAdminEmailLogoUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailLogoUploadCompleteInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteAdminEmailLogoUploadMutationKey = () => ['completeAdminEmailLogoUpload'] as const;
+
+export const getCompleteAdminEmailLogoUploadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeAdminEmailLogoUpload>>, TError,CompleteAdminEmailLogoUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeAdminEmailLogoUpload>>, TError,CompleteAdminEmailLogoUploadMutationVariables, TContext> => {
+
+const mutationKey = getCompleteAdminEmailLogoUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeAdminEmailLogoUpload>>, CompleteAdminEmailLogoUploadMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  completeAdminEmailLogoUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteAdminEmailLogoUploadMutationResult = NonNullable<Awaited<ReturnType<typeof completeAdminEmailLogoUpload>>>
+    export type CompleteAdminEmailLogoUploadMutationBody = BodyType<AdminEmailLogoUploadCompleteInput>
+    export type CompleteAdminEmailLogoUploadMutationError = ErrorType<void>
+    export type CompleteAdminEmailLogoUploadMutationVariables = {data: BodyType<AdminEmailLogoUploadCompleteInput>}
+
+    /**
+ * @summary Verify an uploaded email header logo
+ */
+export const useCompleteAdminEmailLogoUpload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeAdminEmailLogoUpload>>, TError,CompleteAdminEmailLogoUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeAdminEmailLogoUpload>>,
+        TError,
+        CompleteAdminEmailLogoUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCompleteAdminEmailLogoUploadMutationOptions(options));
+    }
+
+export const getGetPublicStaffEmailLogoUrl = () => {
+
+
+
+
+  return `/api/public/email/logo`
+}
+
+/**
+ * @summary Serve the configured public staff email logo
+ */
+export const getPublicStaffEmailLogo = async ( options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPublicStaffEmailLogoUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicStaffEmailLogoQueryKey = () => {
+    return [
+    `/api/public/email/logo`
+    ] as const;
+    }
+
+
+export const getGetPublicStaffEmailLogoQueryOptions = <TData = Awaited<ReturnType<typeof getPublicStaffEmailLogo>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStaffEmailLogo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicStaffEmailLogoQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicStaffEmailLogo>>> = ({ signal }) => getPublicStaffEmailLogo({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicStaffEmailLogo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicStaffEmailLogoQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicStaffEmailLogo>>>
+export type GetPublicStaffEmailLogoQueryError = ErrorType<void>
+
+
+/**
+ * @summary Serve the configured public staff email logo
+ */
+
+export function useGetPublicStaffEmailLogo<TData = Awaited<ReturnType<typeof getPublicStaffEmailLogo>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStaffEmailLogo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicStaffEmailLogoQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getReceiveResendEmailEventUrl = () => {
 

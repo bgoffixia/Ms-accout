@@ -9,7 +9,7 @@ import {
   type StaffEmailAlertEvents,
   type StaffEmailOutboxRecord,
 } from "@workspace/db";
-import { renderStaffEmailHtml } from "./staffEmailTemplate";
+import { renderStaffEmailHtml, renderStaffEmailText } from "./staffEmailTemplate";
 
 export type StaffEmailEventKind = keyof StaffEmailAlertEvents;
 export type StaffEmailMessageKind = StaffEmailEventKind | "manual";
@@ -19,9 +19,13 @@ export const STAFF_EMAIL_ADDRESS = "notifications@vu-gov.cc";
 const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
 export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
   logoUrl: null,
+  logoObjectPath: null,
   accentColor: "#49b8aa",
   headerColor: "#102b46",
   senderName: "Security Verification",
+  footerText: "Enrollment Portal staff communications",
+  footerLinkText: "Visit the enrollment portal",
+  footerLinkUrl: null,
 };
 const DEFAULT_ALERTS: StaffEmailAlertEvents = {
   contact_received: true,
@@ -199,7 +203,10 @@ export async function dispatchStaffEmail(input: {
           from: `"${senderDisplayName}" <${STAFF_EMAIL_ADDRESS}>`,
           to: [recipientEmail],
           subject: input.subject,
-          text: input.messageText,
+          text: renderStaffEmailText({
+            messageText: input.messageText,
+            branding: emailConfiguration.branding,
+          }),
           html: renderStaffEmailHtml({
             subject: input.subject,
             messageText: input.messageText,

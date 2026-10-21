@@ -56,6 +56,10 @@ import {
   GetAdminGuestPreapplicationPinResponse,
   GetAdminOverviewResponse,
   GetAdminEmailSettingsResponse,
+  RequestAdminEmailLogoUploadBody,
+  RequestAdminEmailLogoUploadResponse,
+  CompleteAdminEmailLogoUploadBody,
+  CompleteAdminEmailLogoUploadResponse,
   ListAdminEmailOutboxResponse,
   ListAdminEmailTemplatesResponse,
   CreateAdminEmailTemplateBody,
@@ -345,7 +349,7 @@ async function authenticate(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  if (req.path === "/webhooks/resend") {
+  if (req.path === "/webhooks/resend" || req.path === "/public/email/logo") {
     next();
     return;
   }
@@ -701,6 +705,21 @@ function evidenceSignatureMatches(contentType: string, bytes: Buffer): boolean {
       return bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp";
     case "video/webm":
       return bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    default:
+      return false;
+  }
+}
+
+function emailLogoSignatureMatches(contentType: string, bytes: Buffer): boolean {
+  switch (contentType) {
+    case "image/png":
+      return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    case "image/jpeg":
+      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    case "image/webp":
+      return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+    case "image/gif":
+      return bytes.length >= 6 && ["GIF87a", "GIF89a"].includes(bytes.toString("ascii", 0, 6));
     default:
       return false;
   }
@@ -3821,6 +3840,95 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/public/email/logo", async (req, res): Promise<void> => {
+  try {
+    const { branding } = await getStaffEmailConfiguration();
+    if (!branding.logoObjectPath) {
+      res.status(404).end();
+      return;
+    }
+    const objectFile = await objectStorage.getObjectEntityFile(branding.logoObjectPath);
+    const [metadata] = await objectFile.getMetadata();
+    const contentType = String(metadata.contentType ?? "");
+    if (
+      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType) ||
+      Number(metadata.size) > 2 * 1024 * 1024
+    ) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Length", String(metadata.size));
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const stream = objectFile.createReadStream();
+    stream.on("error", (error) => {
+      req.log.error({ err: error }, "Failed to stream public email branding logo");
+      if (res.headersSent) res.destroy(error);
+      else res.status(503).end();
+    });
+    stream.pipe(res);
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load public email branding logo");
+    res.status(404).end();
+  }
+});
+
+router.post("/admin/email/logo/upload-url", requireReviewer, async (req, res): Promise<void> => {
+  const parsed = RequestAdminEmailLogoUploadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Choose a PNG, JPEG, WebP, or GIF logo no larger than 2 MB." });
+    return;
+  }
+  if (!isPrivateStorageConfigured()) {
+    res.status(503).json({ error: "Email logo storage is unavailable." });
+    return;
+  }
+  try {
+    const uploadUrl = await objectStorage.getObjectEntityUploadURL("email-logos");
+    const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
+    res.json(RequestAdminEmailLogoUploadResponse.parse({ uploadUrl, objectPath }));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to prepare email logo upload");
+    res.status(503).json({ error: "An email logo upload could not be prepared." });
+  }
+});
+
+router.post("/admin/email/logo/complete", requireReviewer, async (req, res): Promise<void> => {
+  const parsed = CompleteAdminEmailLogoUploadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "The uploaded email logo path is invalid." });
+    return;
+  }
+  try {
+    const objectFile = await objectStorage.getObjectEntityFile(parsed.data.objectPath);
+    const [metadata] = await objectFile.getMetadata();
+    const contentType = String(metadata.contentType ?? "");
+    const sizeBytes = Number(metadata.size);
+    if (
+      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType) ||
+      !Number.isInteger(sizeBytes) ||
+      sizeBytes < 1 ||
+      sizeBytes > 2 * 1024 * 1024
+    ) {
+      await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+      res.status(400).json({ error: "The uploaded logo must be a supported image no larger than 2 MB." });
+      return;
+    }
+    const [signatureBytes] = await objectFile.download({ start: 0, end: Math.min(sizeBytes - 1, 11) });
+    if (!emailLogoSignatureMatches(contentType, signatureBytes)) {
+      await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+      res.status(400).json({ error: "The uploaded file content is not a supported image format." });
+      return;
+    }
+    res.json(CompleteAdminEmailLogoUploadResponse.parse({ objectPath: parsed.data.objectPath }));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to verify email logo upload");
+    res.status(400).json({ error: "Upload the selected logo before confirming it." });
+  }
+});
+
 router.get("/admin/email/settings", requireReviewer, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   try {
@@ -3852,13 +3960,22 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
       branding.logoUrl.length > 2048 ||
       !/^https:\/\/[^\s]+$/i.test(branding.logoUrl)
     )) ||
+    (branding.logoObjectPath !== null &&
+      !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(branding.logoObjectPath)) ||
     !/^#[\da-f]{6}$/i.test(branding.accentColor) ||
     !/^#[\da-f]{6}$/i.test(branding.headerColor) ||
     !branding.senderName.trim() ||
     branding.senderName.trim().length > 80 ||
-    /[<>\r\n]/.test(branding.senderName)
+    /[<>\r\n]/.test(branding.senderName) ||
+    branding.footerText.length > 300 ||
+    branding.footerLinkText.length > 80 ||
+    (branding.footerLinkUrl !== null && (
+      branding.footerLinkUrl.length > 2048 ||
+      !/^https:\/\/[^\s]+$/i.test(branding.footerLinkUrl)
+    )) ||
+    (branding.footerLinkUrl !== null && !branding.footerLinkText.trim())
   ) {
-    res.status(400).json({ error: "Check the email logo URL, colors, and sender name." });
+    res.status(400).json({ error: "Check the email logo, colors, footer, link, and sender name." });
     return;
   }
   const recipients = [...new Set(

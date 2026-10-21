@@ -12,6 +12,12 @@ export interface AdminEmailBranding {
      * @nullable
      */
   logoUrl: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+     */
+  logoObjectPath: string | null;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   accentColor: string;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
@@ -21,4 +27,13 @@ export interface AdminEmailBranding {
      * @maxLength 80
      */
   senderName: string;
+  /** @maxLength 300 */
+  footerText: string;
+  /** @maxLength 80 */
+  footerLinkText: string;
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  footerLinkUrl: string | null;
 }

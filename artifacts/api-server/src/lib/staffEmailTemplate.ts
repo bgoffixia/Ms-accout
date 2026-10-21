@@ -35,6 +35,21 @@ function readableTextColor(hex: string): string {
   return luminance > 0.225 ? "#102b46" : "#ffffff";
 }
 
+export function renderStaffEmailText(input: {
+  messageText: string;
+  branding: StaffEmailBranding;
+}): string {
+  const footerLink = input.branding.footerLinkUrl?.startsWith("https://")
+    ? `${input.branding.footerLinkText.trim() || input.branding.footerLinkUrl}: ${input.branding.footerLinkUrl}`
+    : "";
+  const footer = [
+    input.branding.senderName,
+    input.branding.footerText,
+    footerLink,
+  ].filter((part) => part.trim());
+  return `${input.messageText}${footer.length ? `\n\n${footer.join("\n")}` : ""}`;
+}
+
 export function renderStaffEmailHtml(input: {
   subject: string;
   messageText: string;
@@ -54,6 +69,13 @@ export function renderStaffEmailHtml(input: {
   const safeLogoUrl = branding.logoUrl?.startsWith("https://")
     ? escapeHtml(branding.logoUrl)
     : null;
+  const footerText = escapeHtml(branding.footerText);
+  const safeFooterLinkUrl = branding.footerLinkUrl?.startsWith("https://")
+    ? escapeHtml(branding.footerLinkUrl)
+    : null;
+  const footerLink = safeFooterLinkUrl && branding.footerLinkText.trim()
+    ? `<a href="${safeFooterLinkUrl}" style="display:inline-block;margin-top:8px;padding:7px 13px;border-radius:999px;background:${accentColor};color:${readableTextColor(accentColor)};font-size:11px;font-weight:700;text-decoration:none">${escapeHtml(branding.footerLinkText.trim())}</a>`
+    : "";
   const logo = safeLogoUrl
     ? `<img src="${safeLogoUrl}" width="140" height="44" alt="${senderName}" style="display:block;width:auto;max-width:140px;height:auto;max-height:44px;border:0;object-fit:contain" />`
     : `<span style="display:inline-block;width:42px;height:42px;line-height:42px;border-radius:9px;background:#eaf5f5;color:#16445e;text-align:center;font-size:15px;font-weight:700;letter-spacing:1px">SV</span>`;
@@ -99,7 +121,8 @@ export function renderStaffEmailHtml(input: {
             </tr>
             <tr>
               <td style="padding:18px 20px 0;color:#738392;font-size:11px;line-height:1.6;text-align:center">
-                ${senderName} · Enrollment Portal staff communications
+                ${senderName}${footerText ? ` · ${footerText}` : ""}<br />
+                ${footerLink}
               </td>
             </tr>
           </table>

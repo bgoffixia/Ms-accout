@@ -8,6 +8,11 @@
 
 export * from './adminEmailAlertEvents';
 export * from './adminEmailBranding';
+export * from './adminEmailLogoUploadCompleteInput';
+export * from './adminEmailLogoUploadCompleteResponse';
+export * from './adminEmailLogoUploadInput';
+export * from './adminEmailLogoUploadInputContentType';
+export * from './adminEmailLogoUploadResponse';
 export * from './adminEmailMessage';
 export * from './adminEmailMessageDeliveryStatus';
 export * from './adminEmailMessageEventKind';

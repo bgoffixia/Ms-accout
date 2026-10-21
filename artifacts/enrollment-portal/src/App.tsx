@@ -35,7 +35,7 @@ import {
   useGetAdminApplicationPin, useGetAdminGuestPreapplicationPin,
   useGetAdminEmailSettings, useListAdminEmailOutbox, useUpdateAdminEmailSettings,
   useListAdminEmailTemplates, useCreateAdminEmailTemplate, useUpdateAdminEmailTemplate, useDeleteAdminEmailTemplate,
-  useSendAdminEmail, useRetryAdminEmail,
+  useSendAdminEmail, useRetryAdminEmail, useRequestAdminEmailLogoUpload, useCompleteAdminEmailLogoUpload,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
   useListAdminUsers, useListEnrollmentCategories, useListMyApplications, useListMySupportTickets,
@@ -2360,9 +2360,13 @@ const emailAlertOptions: Array<{
 
 const defaultEmailBranding: AdminEmailBranding = {
   logoUrl: null,
+  logoObjectPath: null,
   accentColor: '#49b8aa',
   headerColor: '#102b46',
   senderName: 'Security Verification',
+  footerText: 'Enrollment Portal staff communications',
+  footerLinkText: 'Visit the enrollment portal',
+  footerLinkUrl: null,
 };
 
 function readableEmailHeaderText(hex: string) {
@@ -2377,17 +2381,26 @@ function readableEmailHeaderText(hex: string) {
 
 function AdminEmailCenter() {
   const queryClient = useQueryClient();
+  const [location] = useLocation();
+  const requestedEmailSection = location.split('/').filter(Boolean).at(-1);
+  const emailSection = ['alerts', 'templates', 'send', 'activity'].includes(requestedEmailSection ?? '')
+    ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity'
+    : 'alerts';
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const settings = useGetAdminEmailSettings();
   const outbox = useListAdminEmailOutbox({
     query: {
       queryKey: getListAdminEmailOutboxQueryKey(),
       refetchInterval: 15_000,
+      enabled: emailSection === 'activity',
     },
   });
   const templates = useListAdminEmailTemplates();
   const saveSettings = useUpdateAdminEmailSettings();
   const sendEmail = useSendAdminEmail();
   const retryEmail = useRetryAdminEmail();
+  const requestLogoUpload = useRequestAdminEmailLogoUpload();
+  const completeLogoUpload = useCompleteAdminEmailLogoUpload();
   const createTemplate = useCreateAdminEmailTemplate();
   const updateTemplate = useUpdateAdminEmailTemplate();
   const deleteTemplate = useDeleteAdminEmailTemplate();
@@ -2412,6 +2425,13 @@ function AdminEmailCenter() {
   const [templateSubjectDraft, setTemplateSubjectDraft] = useState('');
   const [templateBodyDraft, setTemplateBodyDraft] = useState('');
   const [templateFeedback, setTemplateFeedback] = useState('');
+  const [logoUploadFeedback, setLogoUploadFeedback] = useState('');
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!logoPreviewUrl) return;
+    return () => URL.revokeObjectURL(logoPreviewUrl);
+  }, [logoPreviewUrl]);
 
   useEffect(() => {
     if (!settings.data) return;
@@ -2429,12 +2449,49 @@ function AdminEmailCenter() {
 
   const selectEmailTemplate = (templateId: string) => {
     setSelectedTemplateId(templateId);
-    const template = templates.data?.find((item) => item.id === templateId);
+    setComposeFeedback('');
+  };
+
+  const useSelectedEmailTemplate = () => {
+    const template = templates.data?.find((item) => item.id === selectedTemplateId);
     if (!template) return;
     setComposeSubject(template.subject);
     setComposeBody(template.messageText);
     setComposeRequestId(crypto.randomUUID());
-    setComposeFeedback(`“${template.name}” is ready to review. Sending is still a separate step.`);
+    setComposeFeedback(`“${template.name}” is filled in. Add recipients, review it, then send.`);
+  };
+
+  const uploadEmailLogo = async (file: File | undefined) => {
+    if (!file) return;
+    const supportedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    if (!supportedTypes.includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024) {
+      setLogoUploadFeedback('Choose a PNG, JPEG, WebP, or GIF image no larger than 2 MB.');
+      return;
+    }
+    setLogoUploadFeedback('Uploading and checking the image…');
+    try {
+      const prepared = await requestLogoUpload.mutateAsync({
+        data: { contentType: file.type as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif', sizeBytes: file.size },
+      });
+      const upload = await fetch(prepared.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!upload.ok) throw new Error('The image upload did not finish.');
+      const verified = await completeLogoUpload.mutateAsync({ data: { objectPath: prepared.objectPath } });
+      setLogoPreviewUrl(URL.createObjectURL(file));
+      setBrandingDraft((current) => ({
+        ...current,
+        logoUrl: `${window.location.origin}/api/public/email/logo`,
+        logoObjectPath: verified.objectPath,
+      }));
+      setLogoUploadFeedback('Header logo uploaded. Save email branding to apply it to new messages.');
+    } catch {
+      setLogoUploadFeedback('The logo could not be uploaded. Try another image or retry.');
+    } finally {
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
   };
 
   const startTemplateEdit = () => {
@@ -2526,6 +2583,9 @@ function AdminEmailCenter() {
           ...brandingDraft,
           logoUrl: brandingDraft.logoUrl?.trim() || null,
           senderName: brandingDraft.senderName.trim(),
+          footerText: brandingDraft.footerText.trim(),
+          footerLinkText: brandingDraft.footerLinkText.trim(),
+          footerLinkUrl: brandingDraft.footerLinkUrl?.trim() || null,
         },
       },
     }, {
@@ -2533,6 +2593,7 @@ function AdminEmailCenter() {
         setRecipientDraft(saved.recipients.join('\n'));
         setAlertsDraft(saved.alerts);
         setBrandingDraft(saved.branding);
+        setLogoPreviewUrl(null);
         setSettingsFeedback('Email settings saved.');
         void queryClient.invalidateQueries({ queryKey: getGetAdminEmailSettingsQueryKey() });
       },
@@ -2578,10 +2639,9 @@ function AdminEmailCenter() {
     });
   };
 
-  if (settings.isError || outbox.isError) {
+  if (settings.isError) {
     return <AdminShell active="email"><AccessError retry={() => {
       void settings.refetch();
-      void outbox.refetch();
     }} /></AdminShell>;
   }
 
@@ -2593,7 +2653,26 @@ function AdminEmailCenter() {
         title="Email center"
         detail="Manage enrollment alerts, send one-off messages, and retry failed email attempts."
       />
-      <div className="admin-email-grid">
+      <nav className="admin-email-navigation" aria-label="Email center pages">
+        {[
+          { href: '/admin/email/alerts', key: 'alerts', label: 'Automated alerts', icon: Mail },
+          { href: '/admin/email/templates', key: 'templates', label: 'Template settings', icon: FileText },
+          { href: '/admin/email/send', key: 'send', label: 'One-off email', icon: Send },
+          { href: '/admin/email/activity', key: 'activity', label: 'Email activity', icon: Activity },
+        ].map(({ href, key, label, icon: Icon }) => (
+          <Link
+            key={key}
+            href={href}
+            className={`admin-email-navigation-link ${emailSection === key ? 'active' : ''}`}
+            aria-current={emailSection === key ? 'page' : undefined}
+            data-testid={`link-email-section-${key}`}
+          >
+            <Icon size={15} /> {label}
+          </Link>
+        ))}
+      </nav>
+      <div className="admin-email-grid admin-email-section">
+        {emailSection === 'alerts' && <>
         <section className="detail-card admin-email-settings">
           <div className="detail-card-title"><Mail size={17} /><h2>Automated reviewer alerts</h2></div>
           <p className="field-help">Alerts contain an application reference and a secure reviewer link, not applicant answers, PINs, or evidence files.</p>
@@ -2626,81 +2705,21 @@ function AdminEmailCenter() {
                 </label>
               ))}
             </div>
-            <div className="admin-email-branding-fields">
-              <div className="admin-email-branding-heading">
-                <b>Email banner branding</b>
-                <small>The preview updates as you edit. Save settings to apply these values to future emails.</small>
-              </div>
-              <label className="field-label" htmlFor="email-brand-logo">Public logo image URL</label>
-              <input
-                id="email-brand-logo"
-                className="text-input"
-                type="url"
-                maxLength={2048}
-                value={brandingDraft.logoUrl ?? ''}
-                onChange={(event) => setBrandingDraft((current) => ({
-                  ...current,
-                  logoUrl: event.target.value || null,
-                }))}
-                placeholder="https://example.com/logo.png"
-                data-testid="input-email-brand-logo"
-              />
-              <small className="field-help">Use a public HTTPS image URL. Leave blank to use the default mark.</small>
-              <label className="field-label" htmlFor="email-brand-sender-name">Sender display name</label>
-              <input
-                id="email-brand-sender-name"
-                className="text-input"
-                maxLength={80}
-                value={brandingDraft.senderName}
-                onChange={(event) => setBrandingDraft((current) => ({
-                  ...current,
-                  senderName: event.target.value,
-                }))}
-                required
-                data-testid="input-email-brand-sender-name"
-              />
-              <div className="admin-email-color-fields">
-                <label>
-                  <span>Accent color</span>
-                  <input
-                    type="color"
-                    value={brandingDraft.accentColor}
-                    onChange={(event) => setBrandingDraft((current) => ({
-                      ...current,
-                      accentColor: event.target.value,
-                    }))}
-                    aria-label="Email banner accent color"
-                    data-testid="input-email-brand-accent-color"
-                  />
-                </label>
-                <label>
-                  <span>Header color</span>
-                  <input
-                    type="color"
-                    value={brandingDraft.headerColor}
-                    onChange={(event) => setBrandingDraft((current) => ({
-                      ...current,
-                      headerColor: event.target.value,
-                    }))}
-                    aria-label="Email banner header color"
-                    data-testid="input-email-brand-header-color"
-                  />
-                </label>
-              </div>
-            </div>
             {settingsFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-settings-feedback">{settingsFeedback}</p>}
             <button className="button button-primary" type="submit" disabled={settings.isLoading || saveSettings.isPending} data-testid="button-save-email-settings">
-              {saveSettings.isPending ? 'Saving…' : 'Save email settings'}
+              {saveSettings.isPending ? 'Saving…' : 'Save alert settings'}
             </button>
           </form>
           <div className="admin-email-sender"><span>Sender</span><b>{settings.data?.senderAddress ?? 'Loading sender…'}</b></div>
         </section>
+        </>}
 
+        {emailSection === 'templates' && <>
         <section className="detail-card admin-email-compose">
-          <div className="detail-card-title"><Send size={17} /><h2>Send a one-off email</h2></div>
-          <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
+          <div className="detail-card-title"><FileText size={17} /><h2>Reusable message templates</h2></div>
+          <p className="field-help">Save common subject and message text here. Choosing “Use template” on the One-off email page fills those fields for review before sending.</p>
           <div className="admin-email-template-manager" aria-label="Reusable email templates">
-            <label className="field-label" htmlFor="email-template-select">Use a saved template</label>
+            <label className="field-label" htmlFor="email-template-select">Saved templates</label>
             <div className="admin-email-template-select-row">
               <select
                 id="email-template-select"
@@ -2710,7 +2729,7 @@ function AdminEmailCenter() {
                 disabled={templates.isLoading}
                 data-testid="select-email-template"
               >
-                <option value="">{templates.isLoading ? 'Loading templates…' : 'Choose a template'}</option>
+                <option value="">{templates.isLoading ? 'Loading templates…' : 'Choose a template to edit'}</option>
                 {(templates.data ?? []).map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
@@ -2746,6 +2765,114 @@ function AdminEmailCenter() {
               </div>
             </form>
           </div>
+        </section>
+        <section className="detail-card admin-email-settings">
+          <div className="detail-card-title"><Settings size={17} /><h2>Email banner and footer branding</h2></div>
+          <p className="field-help">Branding applies to automated alerts and staff emails. Changes apply to future messages after saving.</p>
+          <form onSubmit={saveEmailSettings} className="admin-email-form">
+            <div className="admin-email-branding-fields">
+              <div className="admin-email-branding-heading">
+                <b>Header logo</b>
+                <small>Upload a PNG, JPEG, WebP, or GIF logo. Maximum size is 2 MB.</small>
+              </div>
+              <div className="admin-email-logo-controls">
+                <input
+                  ref={logoInputRef}
+                  className="admin-email-logo-file"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(event) => void uploadEmailLogo(event.target.files?.[0])}
+                  data-testid="input-email-logo-upload"
+                />
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={requestLogoUpload.isPending || completeLogoUpload.isPending}
+                  data-testid="button-upload-email-logo"
+                >
+                  <Upload size={14} /> {requestLogoUpload.isPending || completeLogoUpload.isPending ? 'Uploading…' : 'Upload or replace logo'}
+                </button>
+                {(brandingDraft.logoUrl || logoPreviewUrl) && <button type="button" className="text-action" onClick={() => { setLogoPreviewUrl(null); setBrandingDraft((current) => ({ ...current, logoUrl: null, logoObjectPath: null })); }} data-testid="button-remove-email-logo">Remove logo</button>}
+                {logoUploadFeedback && <small className="admin-email-feedback" role="status" data-testid="text-email-logo-feedback">{logoUploadFeedback}</small>}
+              </div>
+              <label className="field-label" htmlFor="email-brand-logo">Or use a public HTTPS image URL</label>
+              <input
+                id="email-brand-logo"
+                className="text-input"
+                type="url"
+                maxLength={2048}
+                value={brandingDraft.logoObjectPath ? '' : brandingDraft.logoUrl ?? ''}
+                onChange={(event) => setBrandingDraft((current) => ({
+                  ...current,
+                  logoUrl: event.target.value || null,
+                  logoObjectPath: null,
+                }))}
+                onInput={() => setLogoPreviewUrl(null)}
+                placeholder="https://example.com/logo.png"
+                data-testid="input-email-brand-logo"
+              />
+              {(logoPreviewUrl || brandingDraft.logoUrl) && <img className="admin-email-logo-current" src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''} alt="Current email header logo preview" />}
+              <label className="field-label" htmlFor="email-brand-sender-name">Sender display name</label>
+              <input id="email-brand-sender-name" className="text-input" maxLength={80} value={brandingDraft.senderName} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderName: event.target.value }))} required data-testid="input-email-brand-sender-name" />
+              <div className="admin-email-color-fields">
+                <label><span>Accent color</span><input type="color" value={brandingDraft.accentColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, accentColor: event.target.value }))} aria-label="Email banner accent color" data-testid="input-email-brand-accent-color" /></label>
+                <label><span>Header color</span><input type="color" value={brandingDraft.headerColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, headerColor: event.target.value }))} aria-label="Email banner header color" data-testid="input-email-brand-header-color" /></label>
+              </div>
+              <label className="field-label" htmlFor="email-brand-footer-text">Footer text</label>
+              <input id="email-brand-footer-text" className="text-input" maxLength={300} value={brandingDraft.footerText} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerText: event.target.value }))} data-testid="input-email-brand-footer-text" />
+              <label className="field-label" htmlFor="email-brand-footer-link-text">Highlighted link label</label>
+              <input id="email-brand-footer-link-text" className="text-input" maxLength={80} value={brandingDraft.footerLinkText} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerLinkText: event.target.value }))} data-testid="input-email-brand-footer-link-text" />
+              <label className="field-label" htmlFor="email-brand-footer-link-url">Highlighted link URL</label>
+              <input id="email-brand-footer-link-url" className="text-input" type="url" maxLength={2048} value={brandingDraft.footerLinkUrl ?? ''} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerLinkUrl: event.target.value || null }))} placeholder="https://example.com" data-testid="input-email-brand-footer-link-url" />
+              <small className="field-help">The footer link is rendered as a highlighted, clickable button. Use an HTTPS destination.</small>
+            </div>
+            <div className="admin-email-preview-wrap">
+              <div className="admin-email-preview-label">Branding preview</div>
+              <div className="admin-email-template-preview">
+                <div className="admin-email-template-preview-banner" style={{ borderTopColor: brandingDraft.accentColor, backgroundColor: brandingDraft.headerColor }}>
+                  {logoPreviewUrl || brandingDraft.logoUrl ? <img className="admin-email-template-preview-logo" src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''} alt="" /> : <span className="admin-email-template-preview-mark">SV</span>}
+                  <span className="admin-email-template-preview-brand"><b style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.senderName || 'Sender name'}</b><small style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>ENROLLMENT PORTAL</small></span>
+                </div>
+                <div className="admin-email-template-preview-footer">
+                  {brandingDraft.footerText && <span>{brandingDraft.senderName || 'Sender name'} · {brandingDraft.footerText}</span>}
+                  {brandingDraft.footerLinkUrl && <a href={brandingDraft.footerLinkUrl} target="_blank" rel="noreferrer">{brandingDraft.footerLinkText || brandingDraft.footerLinkUrl}</a>}
+                </div>
+              </div>
+            </div>
+            {settingsFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-settings-feedback">{settingsFeedback}</p>}
+            <button className="button button-primary" type="submit" disabled={settings.isLoading || saveSettings.isPending} data-testid="button-save-email-settings">{saveSettings.isPending ? 'Saving…' : 'Save email branding'}</button>
+          </form>
+          <div className="admin-email-sender"><span>Sender</span><b>{settings.data?.senderAddress ?? 'Loading sender…'}</b></div>
+        </section>
+        </>}
+
+        {emailSection === 'send' && <section className="detail-card admin-email-compose">
+          <div className="detail-card-title"><Send size={17} /><h2>Send a one-off email</h2></div>
+          <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
+          <div className="admin-email-template-manager" aria-label="Reusable email templates">
+            <label className="field-label" htmlFor="email-template-select">Saved message template</label>
+            <div className="admin-email-template-select-row">
+              <select
+                id="email-template-select"
+                className="text-input"
+                value={selectedTemplateId}
+                onChange={(event) => selectEmailTemplate(event.target.value)}
+                disabled={templates.isLoading}
+                data-testid="select-email-template"
+              >
+                <option value="">{templates.isLoading ? 'Loading templates…' : 'Choose a saved template'}</option>
+                {(templates.data ?? []).map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+              <button type="button" className="button button-primary" onClick={useSelectedEmailTemplate} disabled={!selectedTemplateId || templates.isLoading} data-testid="button-use-email-template">
+                Use template
+              </button>
+            </div>
+            {templates.isError && <p className="admin-email-feedback admin-email-error" role="alert">Saved templates could not be loaded. Try again later.</p>}
+            {templates.data?.length === 0 && <small className="field-help">No saved templates yet. Add one in Template settings.</small>}
+          </div>
           <form onSubmit={sendOneOffEmail} className="admin-email-form">
             <label className="field-label" htmlFor="email-compose-recipients">To</label>
             <textarea id="email-compose-recipients" className="text-input form-textarea admin-email-recipient-input" rows={2} maxLength={4000} value={composeRecipients} disabled={sendEmail.isPending} onChange={(event) => { setComposeRecipients(event.target.value); setComposeRequestId(crypto.randomUUID()); }} placeholder="person@example.com" data-testid="input-email-compose-recipients" />
@@ -2765,10 +2892,10 @@ function AdminEmailCenter() {
                     color: readableEmailHeaderText(brandingDraft.headerColor),
                   }}
                 >
-                  {brandingDraft.logoUrl
+                  {logoPreviewUrl || brandingDraft.logoUrl
                     ? <img
                         className="admin-email-template-preview-logo"
-                        src={brandingDraft.logoUrl}
+                        src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''}
                         alt={brandingDraft.senderName || 'Email logo'}
                         onError={(event) => { event.currentTarget.style.display = 'none'; }}
                       />
@@ -2783,7 +2910,10 @@ function AdminEmailCenter() {
                   <h3>{composeSubject.trim() || 'Your email subject'}</h3>
                   <p>{composeBody.trim() || 'Your message will appear here.'}</p>
                 </div>
-                <div className="admin-email-template-preview-footer">{brandingDraft.senderName || 'Sender name'} · Enrollment Portal staff communications</div>
+                <div className="admin-email-template-preview-footer">
+                  {brandingDraft.footerText && <span>{brandingDraft.senderName || 'Sender name'} · {brandingDraft.footerText}</span>}
+                  {brandingDraft.footerLinkUrl && <a href={brandingDraft.footerLinkUrl} target="_blank" rel="noreferrer">{brandingDraft.footerLinkText || brandingDraft.footerLinkUrl}</a>}
+                </div>
               </div>
             </div>
             {composeFeedback && <p className="admin-email-feedback" role="status" data-testid="text-email-compose-feedback">{composeFeedback}</p>}
@@ -2792,9 +2922,10 @@ function AdminEmailCenter() {
             </button>
           </form>
         </section>
+        }
       </div>
 
-      <section className="admin-email-outbox detail-card" aria-labelledby="admin-email-outbox-title">
+      {emailSection === 'activity' && <section className="admin-email-outbox detail-card" aria-labelledby="admin-email-outbox-title">
         <div className="admin-email-outbox-heading">
           <div className="detail-card-title"><Activity size={17} /><h2 id="admin-email-outbox-title">Recent email activity</h2></div>
           <span>Delivery outcomes update here after the provider reports them.</span>
@@ -2831,7 +2962,7 @@ function AdminEmailCenter() {
               </article>
             ))}
           </div>}
-      </section>
+      </section>}
     </div>
   </AdminShell>;
 }
@@ -4538,7 +4669,7 @@ function RoutedPages() {
     <Route path="/admin/review" component={() => <AdminGate><ApplicantsPage /></AdminGate>} />
     <Route path="/admin/users" component={() => <AdminGate><AdminUsers /></AdminGate>} />
     <Route path="/admin/settings" component={() => <AdminGate><AdminSettings /></AdminGate>} />
-    <Route path="/admin/email" component={() => <AdminGate><AdminEmailCenter /></AdminGate>} />
+    <Route path="/admin/email/:section?" component={() => <AdminGate><AdminEmailCenter /></AdminGate>} />
     <Route path="/admin/applications/:applicationId" component={() => <AdminGate><AdminApplicationReview /></AdminGate>} />
     <Route path="/admin/guest-applications/:applicationId" component={() => <AdminGate><AdminGuestApplicationReview /></AdminGate>} />
     <Route path="/admin/support" component={() => <AdminGate><AdminSupport /></AdminGate>} />

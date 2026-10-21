@@ -833,6 +833,61 @@ paths:
                 $ref: "#/components/schemas/AdminEmailSettings"
         "400":
           description: Invalid recipients or alert configuration
+  /admin/email/logo/upload-url:
+    post:
+      operationId: requestAdminEmailLogoUpload
+      tags: [administration]
+      summary: Request an upload URL for the public email header logo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEmailLogoUploadInput"
+      responses:
+        "200":
+          description: Direct upload URL and private object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailLogoUploadResponse"
+        "400":
+          description: Unsupported image type or size
+  /admin/email/logo/complete:
+    post:
+      operationId: completeAdminEmailLogoUpload
+      tags: [administration]
+      summary: Verify an uploaded email header logo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEmailLogoUploadCompleteInput"
+      responses:
+        "200":
+          description: Verified uploaded image object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEmailLogoUploadCompleteResponse"
+        "400":
+          description: Uploaded file did not match the image requirements
+  /public/email/logo:
+    get:
+      operationId: getPublicStaffEmailLogo
+      tags: [administration]
+      summary: Serve the configured public staff email logo
+      responses:
+        "200":
+          description: Current email logo image
+          content:
+            image/png: {}
+            image/jpeg: {}
+            image/webp: {}
+            image/gif: {}
+        "404":
+          description: No uploaded email logo is configured
   /webhooks/resend:
     post:
       operationId: receiveResendEmailEvent
@@ -2068,12 +2123,16 @@ components:
           $ref: "#/components/schemas/AdminEmailBranding"
     AdminEmailBranding:
       type: object
-      required: [logoUrl, accentColor, headerColor, senderName]
+      required: [logoUrl, logoObjectPath, accentColor, headerColor, senderName, footerText, footerLinkText, footerLinkUrl]
       properties:
         logoUrl:
           type: ["string", "null"]
           format: uri
           maxLength: 2048
+        logoObjectPath:
+          type: ["string", "null"]
+          maxLength: 200
+          pattern: "^/objects/email-logos/[0-9a-fA-F-]{36}$"
         accentColor:
           type: string
           pattern: "^#[0-9A-Fa-f]{6}$"
@@ -2084,6 +2143,54 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        footerText:
+          type: string
+          maxLength: 300
+        footerLinkText:
+          type: string
+          maxLength: 80
+        footerLinkUrl:
+          type: ["string", "null"]
+          format: uri
+          maxLength: 2048
+    AdminEmailLogoUploadInput:
+      type: object
+      required: [contentType, sizeBytes]
+      properties:
+        contentType:
+          type: string
+          enum: [image/png, image/jpeg, image/webp, image/gif]
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 2097152
+    AdminEmailLogoUploadResponse:
+      type: object
+      required: [uploadUrl, objectPath]
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        objectPath:
+          type: string
+          maxLength: 200
+          pattern: "^/objects/email-logos/[0-9a-fA-F-]{36}$"
+    AdminEmailLogoUploadCompleteInput:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          maxLength: 200
+          pattern: "^/objects/email-logos/[0-9a-fA-F-]{36}$"
+    AdminEmailLogoUploadCompleteResponse:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          maxLength: 200
+          pattern: "^/objects/email-logos/[0-9a-fA-F-]{36}$"
     AdminEmailSendInput:
       type: object
       required: [requestId, recipients, subject, messageText]
