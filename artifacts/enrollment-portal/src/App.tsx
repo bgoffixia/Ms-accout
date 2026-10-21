@@ -2364,9 +2364,20 @@ const defaultEmailBranding: AdminEmailBranding = {
   accentColor: '#49b8aa',
   headerColor: '#102b46',
   senderName: 'Security Verification',
+  senderEmail: 'notifications@vu-gov.cc',
+  bannerMark: 'SV',
+  bannerTitle: 'Security Verification',
+  bannerSubtitle: 'ENROLLMENT PORTAL',
+  preheaderText: 'A message from the Security Verification Enrollment Portal team.',
+  messageEyebrow: 'STAFF MESSAGE',
   footerText: 'Enrollment Portal staff communications',
   footerLinkText: 'Visit the enrollment portal',
   footerLinkUrl: null,
+  footerLinkColor: '#287d8b',
+  footerBackgroundColor: '#f1f5f8',
+  footerTextColor: '#738392',
+  footerBackgroundUrl: null,
+  footerBackgroundObjectPath: null,
 };
 
 function readableEmailHeaderText(hex: string) {
@@ -2387,6 +2398,7 @@ function AdminEmailCenter() {
     ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity'
     : 'alerts';
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const footerImageInputRef = useRef<HTMLInputElement>(null);
   const settings = useGetAdminEmailSettings();
   const outbox = useListAdminEmailOutbox({
     query: {
@@ -2426,12 +2438,14 @@ function AdminEmailCenter() {
   const [templateBodyDraft, setTemplateBodyDraft] = useState('');
   const [templateFeedback, setTemplateFeedback] = useState('');
   const [logoUploadFeedback, setLogoUploadFeedback] = useState('');
+  const [footerImageUploadFeedback, setFooterImageUploadFeedback] = useState('');
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [footerImagePreviewUrl, setFooterImagePreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!logoPreviewUrl) return;
-    return () => URL.revokeObjectURL(logoPreviewUrl);
-  }, [logoPreviewUrl]);
+    const previewUrls = [logoPreviewUrl, footerImagePreviewUrl].filter((url): url is string => Boolean(url));
+    return () => previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  }, [footerImagePreviewUrl, logoPreviewUrl]);
 
   useEffect(() => {
     if (!settings.data) return;
@@ -2461,14 +2475,17 @@ function AdminEmailCenter() {
     setComposeFeedback(`“${template.name}” is filled in. Add recipients, review it, then send.`);
   };
 
-  const uploadEmailLogo = async (file: File | undefined) => {
+  const uploadEmailBrandImage = async (file: File | undefined, target: 'logo' | 'footer') => {
     if (!file) return;
     const supportedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
     if (!supportedTypes.includes(file.type) || file.size < 1 || file.size > 2 * 1024 * 1024) {
-      setLogoUploadFeedback('Choose a PNG, JPEG, WebP, or GIF image no larger than 2 MB.');
+      const message = 'Choose a PNG, JPEG, WebP, or GIF image no larger than 2 MB.';
+      if (target === 'logo') setLogoUploadFeedback(message);
+      else setFooterImageUploadFeedback(message);
       return;
     }
-    setLogoUploadFeedback('Uploading and checking the image…');
+    const setFeedback = target === 'logo' ? setLogoUploadFeedback : setFooterImageUploadFeedback;
+    setFeedback('Uploading and checking the image…');
     try {
       const prepared = await requestLogoUpload.mutateAsync({
         data: { contentType: file.type as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif', sizeBytes: file.size },
@@ -2480,17 +2497,27 @@ function AdminEmailCenter() {
       });
       if (!upload.ok) throw new Error('The image upload did not finish.');
       const verified = await completeLogoUpload.mutateAsync({ data: { objectPath: prepared.objectPath } });
-      setLogoPreviewUrl(URL.createObjectURL(file));
+      const previewUrl = URL.createObjectURL(file);
+      if (target === 'logo') setLogoPreviewUrl(previewUrl);
+      else setFooterImagePreviewUrl(previewUrl);
       setBrandingDraft((current) => ({
         ...current,
-        logoUrl: `${window.location.origin}/api/public/email/logo`,
-        logoObjectPath: verified.objectPath,
+        ...(target === 'logo'
+          ? {
+              logoUrl: `${window.location.origin}/api/public/email/logo`,
+              logoObjectPath: verified.objectPath,
+            }
+          : {
+              footerBackgroundUrl: `${window.location.origin}/api/public/email/footer-background`,
+              footerBackgroundObjectPath: verified.objectPath,
+            }),
       }));
-      setLogoUploadFeedback('Header logo uploaded. Save email branding to apply it to new messages.');
+      setFeedback(`${target === 'logo' ? 'Header logo' : 'Footer background'} uploaded. Save email branding to apply it to new messages.`);
     } catch {
-      setLogoUploadFeedback('The logo could not be uploaded. Try another image or retry.');
+      setFeedback(`The ${target === 'logo' ? 'logo' : 'footer image'} could not be uploaded. Try another image or retry.`);
     } finally {
-      if (logoInputRef.current) logoInputRef.current.value = '';
+      const inputRef = target === 'logo' ? logoInputRef : footerImageInputRef;
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
@@ -2583,9 +2610,15 @@ function AdminEmailCenter() {
           ...brandingDraft,
           logoUrl: brandingDraft.logoUrl?.trim() || null,
           senderName: brandingDraft.senderName.trim(),
+          senderEmail: brandingDraft.senderEmail.trim().toLowerCase(),
+          bannerTitle: brandingDraft.bannerTitle.trim(),
+          bannerSubtitle: brandingDraft.bannerSubtitle.trim(),
+          preheaderText: brandingDraft.preheaderText.trim(),
+          messageEyebrow: brandingDraft.messageEyebrow.trim(),
           footerText: brandingDraft.footerText.trim(),
           footerLinkText: brandingDraft.footerLinkText.trim(),
           footerLinkUrl: brandingDraft.footerLinkUrl?.trim() || null,
+          footerBackgroundUrl: brandingDraft.footerBackgroundUrl?.trim() || null,
         },
       },
     }, {
@@ -2594,6 +2627,7 @@ function AdminEmailCenter() {
         setAlertsDraft(saved.alerts);
         setBrandingDraft(saved.branding);
         setLogoPreviewUrl(null);
+        setFooterImagePreviewUrl(null);
         setSettingsFeedback('Email settings saved.');
         void queryClient.invalidateQueries({ queryKey: getGetAdminEmailSettingsQueryKey() });
       },
@@ -2781,7 +2815,7 @@ function AdminEmailCenter() {
                   className="admin-email-logo-file"
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(event) => void uploadEmailLogo(event.target.files?.[0])}
+                  onChange={(event) => void uploadEmailBrandImage(event.target.files?.[0], 'logo')}
                   data-testid="input-email-logo-upload"
                 />
                 <button
@@ -2815,6 +2849,19 @@ function AdminEmailCenter() {
               {(logoPreviewUrl || brandingDraft.logoUrl) && <img className="admin-email-logo-current" src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''} alt="Current email header logo preview" />}
               <label className="field-label" htmlFor="email-brand-sender-name">Sender display name</label>
               <input id="email-brand-sender-name" className="text-input" maxLength={80} value={brandingDraft.senderName} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderName: event.target.value }))} required data-testid="input-email-brand-sender-name" />
+              <label className="field-label" htmlFor="email-brand-sender-email">Sender email address</label>
+              <input id="email-brand-sender-email" className="text-input" type="email" maxLength={254} value={brandingDraft.senderEmail} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderEmail: event.target.value }))} required data-testid="input-email-brand-sender-email" />
+              <small className="field-help">Use an address from a sender domain verified with Resend. Unverified senders may be rejected by the provider.</small>
+              <label className="field-label" htmlFor="email-brand-banner-title">Banner title</label>
+              <input id="email-brand-banner-title" className="text-input" maxLength={100} value={brandingDraft.bannerTitle} onChange={(event) => setBrandingDraft((current) => ({ ...current, bannerTitle: event.target.value }))} required data-testid="input-email-brand-banner-title" />
+              <label className="field-label" htmlFor="email-brand-banner-mark">Fallback logo mark</label>
+              <input id="email-brand-banner-mark" className="text-input" maxLength={12} value={brandingDraft.bannerMark} onChange={(event) => setBrandingDraft((current) => ({ ...current, bannerMark: event.target.value }))} data-testid="input-email-brand-banner-mark" />
+              <label className="field-label" htmlFor="email-brand-banner-subtitle">Banner subtitle</label>
+              <input id="email-brand-banner-subtitle" className="text-input" maxLength={120} value={brandingDraft.bannerSubtitle} onChange={(event) => setBrandingDraft((current) => ({ ...current, bannerSubtitle: event.target.value }))} data-testid="input-email-brand-banner-subtitle" />
+              <label className="field-label" htmlFor="email-brand-preheader">Inbox preview text</label>
+              <input id="email-brand-preheader" className="text-input" maxLength={200} value={brandingDraft.preheaderText} onChange={(event) => setBrandingDraft((current) => ({ ...current, preheaderText: event.target.value }))} data-testid="input-email-brand-preheader" />
+              <label className="field-label" htmlFor="email-brand-message-eyebrow">Message label</label>
+              <input id="email-brand-message-eyebrow" className="text-input" maxLength={80} value={brandingDraft.messageEyebrow} onChange={(event) => setBrandingDraft((current) => ({ ...current, messageEyebrow: event.target.value }))} data-testid="input-email-brand-message-eyebrow" />
               <div className="admin-email-color-fields">
                 <label><span>Accent color</span><input type="color" value={brandingDraft.accentColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, accentColor: event.target.value }))} aria-label="Email banner accent color" data-testid="input-email-brand-accent-color" /></label>
                 <label><span>Header color</span><input type="color" value={brandingDraft.headerColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, headerColor: event.target.value }))} aria-label="Email banner header color" data-testid="input-email-brand-header-color" /></label>
@@ -2826,17 +2873,68 @@ function AdminEmailCenter() {
               <label className="field-label" htmlFor="email-brand-footer-link-url">Highlighted link URL</label>
               <input id="email-brand-footer-link-url" className="text-input" type="url" maxLength={2048} value={brandingDraft.footerLinkUrl ?? ''} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerLinkUrl: event.target.value || null }))} placeholder="https://example.com" data-testid="input-email-brand-footer-link-url" />
               <small className="field-help">The footer link is rendered as a highlighted, clickable button. Use an HTTPS destination.</small>
+              <div className="admin-email-color-fields">
+                <label><span>Footer link color</span><input type="color" value={brandingDraft.footerLinkColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerLinkColor: event.target.value }))} aria-label="Footer highlighted link color" data-testid="input-email-brand-footer-link-color" /></label>
+                <label><span>Footer background</span><input type="color" value={brandingDraft.footerBackgroundColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerBackgroundColor: event.target.value }))} aria-label="Footer background color" data-testid="input-email-brand-footer-background-color" /></label>
+                <label><span>Footer text color</span><input type="color" value={brandingDraft.footerTextColor} onChange={(event) => setBrandingDraft((current) => ({ ...current, footerTextColor: event.target.value }))} aria-label="Footer text color" data-testid="input-email-brand-footer-text-color" /></label>
+              </div>
+              <div className="admin-email-branding-heading">
+                <b>Footer background image</b>
+                <small>Optional image behind the footer. Use a PNG, JPEG, WebP, or GIF up to 2 MB; the background color remains the fallback.</small>
+              </div>
+              <div className="admin-email-logo-controls">
+                <input
+                  ref={footerImageInputRef}
+                  className="admin-email-logo-file"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(event) => void uploadEmailBrandImage(event.target.files?.[0], 'footer')}
+                  data-testid="input-email-footer-image-upload"
+                />
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => footerImageInputRef.current?.click()}
+                  disabled={requestLogoUpload.isPending || completeLogoUpload.isPending}
+                  data-testid="button-upload-email-footer-image"
+                >
+                  <Upload size={14} /> {requestLogoUpload.isPending || completeLogoUpload.isPending ? 'Uploading…' : 'Upload or replace footer image'}
+                </button>
+                {(brandingDraft.footerBackgroundUrl || footerImagePreviewUrl) && <button type="button" className="text-action" onClick={() => { setFooterImagePreviewUrl(null); setBrandingDraft((current) => ({ ...current, footerBackgroundUrl: null, footerBackgroundObjectPath: null })); }} data-testid="button-remove-email-footer-image">Remove footer image</button>}
+                {footerImageUploadFeedback && <small className="admin-email-feedback" role="status" data-testid="text-email-footer-image-feedback">{footerImageUploadFeedback}</small>}
+              </div>
+              <label className="field-label" htmlFor="email-brand-footer-image-url">Or use a public HTTPS background image URL</label>
+              <input
+                id="email-brand-footer-image-url"
+                className="text-input"
+                type="url"
+                maxLength={2048}
+                value={brandingDraft.footerBackgroundObjectPath ? '' : brandingDraft.footerBackgroundUrl ?? ''}
+                onChange={(event) => {
+                  setFooterImagePreviewUrl(null);
+                  setBrandingDraft((current) => ({
+                    ...current,
+                    footerBackgroundUrl: event.target.value || null,
+                    footerBackgroundObjectPath: null,
+                  }));
+                }}
+                placeholder="https://example.com/footer-background.jpg"
+                data-testid="input-email-brand-footer-image-url"
+              />
             </div>
             <div className="admin-email-preview-wrap">
               <div className="admin-email-preview-label">Branding preview</div>
               <div className="admin-email-template-preview">
                 <div className="admin-email-template-preview-banner" style={{ borderTopColor: brandingDraft.accentColor, backgroundColor: brandingDraft.headerColor }}>
-                  {logoPreviewUrl || brandingDraft.logoUrl ? <img className="admin-email-template-preview-logo" src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''} alt="" /> : <span className="admin-email-template-preview-mark">SV</span>}
-                  <span className="admin-email-template-preview-brand"><b style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.senderName || 'Sender name'}</b><small style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>ENROLLMENT PORTAL</small></span>
+                  {logoPreviewUrl || brandingDraft.logoUrl ? <img className="admin-email-template-preview-logo" src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''} alt="" /> : <span className="admin-email-template-preview-mark">{brandingDraft.bannerMark || ' '}</span>}
+                  <span className="admin-email-template-preview-brand"><b style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.bannerTitle || 'Banner title'}</b>{brandingDraft.bannerSubtitle && <small style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.bannerSubtitle}</small>}</span>
                 </div>
-                <div className="admin-email-template-preview-footer">
-                  {brandingDraft.footerText && <span>{brandingDraft.senderName || 'Sender name'} · {brandingDraft.footerText}</span>}
-                  {brandingDraft.footerLinkUrl && <a href={brandingDraft.footerLinkUrl} target="_blank" rel="noreferrer">{brandingDraft.footerLinkText || brandingDraft.footerLinkUrl}</a>}
+                <div className="admin-email-template-preview-footer" style={{ backgroundColor: brandingDraft.footerBackgroundColor, color: brandingDraft.footerTextColor }}>
+                  {(footerImagePreviewUrl || brandingDraft.footerBackgroundUrl) && <img className="admin-email-template-preview-footer-image" src={footerImagePreviewUrl ?? brandingDraft.footerBackgroundUrl ?? ''} alt="" />}
+                  <div className="admin-email-template-preview-footer-content">
+                    {brandingDraft.footerText && <span>{brandingDraft.senderName || 'Sender name'} · {brandingDraft.footerText}</span>}
+                    {brandingDraft.footerLinkUrl && <a href={brandingDraft.footerLinkUrl} target="_blank" rel="noreferrer" style={{ backgroundColor: brandingDraft.footerLinkColor, color: readableEmailHeaderText(brandingDraft.footerLinkColor) }}>{brandingDraft.footerLinkText || brandingDraft.footerLinkUrl}</a>}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2850,6 +2948,7 @@ function AdminEmailCenter() {
         {emailSection === 'send' && <section className="detail-card admin-email-compose">
           <div className="detail-card-title"><Send size={17} /><h2>Send a one-off email</h2></div>
           <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
+          <div className="admin-email-sender"><span>From</span><b>{brandingDraft.senderName} &lt;{brandingDraft.senderEmail}&gt;</b></div>
           <div className="admin-email-template-manager" aria-label="Reusable email templates">
             <label className="field-label" htmlFor="email-template-select">Saved message template</label>
             <div className="admin-email-template-select-row">
@@ -2899,20 +2998,23 @@ function AdminEmailCenter() {
                         alt={brandingDraft.senderName || 'Email logo'}
                         onError={(event) => { event.currentTarget.style.display = 'none'; }}
                       />
-                    : <span className="admin-email-template-preview-mark">SV</span>}
+                    : <span className="admin-email-template-preview-mark">{brandingDraft.bannerMark || ' '}</span>}
                   <span className="admin-email-template-preview-brand">
-                    <b style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.senderName || 'Sender name'}</b>
-                    <small style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>ENROLLMENT PORTAL</small>
+                    <b style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.bannerTitle || 'Banner title'}</b>
+                    {brandingDraft.bannerSubtitle && <small style={{ color: readableEmailHeaderText(brandingDraft.headerColor) }}>{brandingDraft.bannerSubtitle}</small>}
                   </span>
                 </div>
                 <div className="admin-email-template-preview-content">
-                  <small>STAFF MESSAGE</small>
+                  {brandingDraft.messageEyebrow && <small style={{ color: brandingDraft.accentColor }}>{brandingDraft.messageEyebrow}</small>}
                   <h3>{composeSubject.trim() || 'Your email subject'}</h3>
                   <p>{composeBody.trim() || 'Your message will appear here.'}</p>
                 </div>
-                <div className="admin-email-template-preview-footer">
-                  {brandingDraft.footerText && <span>{brandingDraft.senderName || 'Sender name'} · {brandingDraft.footerText}</span>}
-                  {brandingDraft.footerLinkUrl && <a href={brandingDraft.footerLinkUrl} target="_blank" rel="noreferrer">{brandingDraft.footerLinkText || brandingDraft.footerLinkUrl}</a>}
+                <div className="admin-email-template-preview-footer" style={{ backgroundColor: brandingDraft.footerBackgroundColor, color: brandingDraft.footerTextColor }}>
+                  {(footerImagePreviewUrl || brandingDraft.footerBackgroundUrl) && <img className="admin-email-template-preview-footer-image" src={footerImagePreviewUrl ?? brandingDraft.footerBackgroundUrl ?? ''} alt="" />}
+                  <div className="admin-email-template-preview-footer-content">
+                    {brandingDraft.footerText && <span>{brandingDraft.senderName || 'Sender name'} · {brandingDraft.footerText}</span>}
+                    {brandingDraft.footerLinkUrl && <a href={brandingDraft.footerLinkUrl} target="_blank" rel="noreferrer" style={{ backgroundColor: brandingDraft.footerLinkColor, color: readableEmailHeaderText(brandingDraft.footerLinkColor) }}>{brandingDraft.footerLinkText || brandingDraft.footerLinkUrl}</a>}
+                  </div>
                 </div>
               </div>
             </div>

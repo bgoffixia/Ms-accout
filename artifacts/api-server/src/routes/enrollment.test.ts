@@ -746,6 +746,21 @@ describe("guest application verification and persistence", () => {
     }, "reviewer");
     expect(complete.response.status).toBe(200);
 
+    const footerPrepared = await request("/admin/email/logo/upload-url", {
+      method: "POST",
+      body: JSON.stringify({ contentType: "image/png", sizeBytes: privatePng.length }),
+    }, "reviewer");
+    expect(footerPrepared.response.status).toBe(200);
+    mockState.storageObjects.set(footerPrepared.body.objectPath, {
+      contentType: "image/png",
+      bytes: privatePng,
+    });
+    const footerComplete = await request("/admin/email/logo/complete", {
+      method: "POST",
+      body: JSON.stringify({ objectPath: footerPrepared.body.objectPath }),
+    }, "reviewer");
+    expect(footerComplete.response.status).toBe(200);
+
     const defaults = await request("/admin/email/settings", {}, "reviewer");
     const saved = await request("/admin/email/settings", {
       method: "PUT",
@@ -755,6 +770,8 @@ describe("guest application verification and persistence", () => {
           ...defaults.body.branding,
           logoUrl: "https://portal.example.test/api/public/email/logo",
           logoObjectPath: prepared.body.objectPath,
+          footerBackgroundUrl: "https://portal.example.test/api/public/email/footer-background",
+          footerBackgroundObjectPath: footerPrepared.body.objectPath,
         },
       }),
     }, "reviewer");
@@ -763,6 +780,9 @@ describe("guest application verification and persistence", () => {
     expect(publicLogo.response.status).toBe(200);
     expect(publicLogo.response.headers.get("content-type")).toBe("image/png");
     expect(publicLogo.response.headers.get("cache-control")).toContain("public");
+    const publicFooterImage = await request("/public/email/footer-background");
+    expect(publicFooterImage.response.status).toBe(200);
+    expect(publicFooterImage.response.headers.get("content-type")).toBe("image/png");
   });
 
   it("keeps reusable templates staff-only and supports create, edit, reuse, and remove", async () => {
@@ -832,6 +852,29 @@ describe("guest application verification and persistence", () => {
   });
 
   it("saves alert recipients and sends one-off email separately to each recipient", async () => {
+    const defaults = await request("/admin/email/settings", {}, "reviewer");
+    const branding = {
+      ...defaults.body.branding,
+      logoUrl: null,
+      logoObjectPath: null,
+      accentColor: "#167c80",
+      headerColor: "#ffffff",
+      senderName: "Enrollment Team",
+      senderEmail: "enrollment@example.test",
+      bannerMark: "ET",
+      bannerTitle: "Enrollment Updates & Notices",
+      bannerSubtitle: "APPLICATION PORTAL",
+      preheaderText: "Please read your latest update.",
+      messageEyebrow: "REVIEW NOTICE",
+      footerText: "Application updates",
+      footerLinkText: "Open the portal",
+      footerLinkUrl: "https://portal.example.test",
+      footerLinkColor: "#8800aa",
+      footerBackgroundColor: "#334455",
+      footerTextColor: "#eeeeee",
+      footerBackgroundUrl: "https://images.example.test/footer.jpg",
+      footerBackgroundObjectPath: null,
+    };
     const saved = await request("/admin/email/settings", {
       method: "PUT",
       body: JSON.stringify({
@@ -843,31 +886,14 @@ describe("guest application verification and persistence", () => {
           evidence_saved: false,
           application_submitted: true,
         },
-        branding: {
-          logoUrl: "https://images.example.test/portal-logo.png",
-          logoObjectPath: null,
-          accentColor: "#167c80",
-          headerColor: "#ffffff",
-          senderName: "Enrollment Team",
-          footerText: "Application updates",
-          footerLinkText: "Open the portal",
-          footerLinkUrl: "https://portal.example.test",
-        },
+        branding,
       }),
     }, "reviewer");
     expect(saved.response.status).toBe(200);
     expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
     expect(saved.body.alerts.step_saved).toBe(false);
-    expect(saved.body.branding).toEqual({
-      logoUrl: "https://images.example.test/portal-logo.png",
-      logoObjectPath: null,
-      accentColor: "#167c80",
-      headerColor: "#ffffff",
-      senderName: "Enrollment Team",
-      footerText: "Application updates",
-      footerLinkText: "Open the portal",
-      footerLinkUrl: "https://portal.example.test",
-    });
+    expect(saved.body.branding).toEqual(branding);
+    expect(saved.body.senderAddress).toBe("enrollment@example.test");
     const insecureLogo = await request("/admin/email/settings", {
       method: "PUT",
       body: JSON.stringify({
@@ -894,10 +920,19 @@ describe("guest application verification and persistence", () => {
     expect(mockState.emailRequests.map((item) => JSON.parse(item.options.body).to))
       .toEqual([["one@example.test"], ["two@example.test"]]);
     const sentPayload = JSON.parse(mockState.emailRequests[0].options.body);
-    expect(sentPayload.from).toBe('"Enrollment Team" <notifications@vu-gov.cc>');
-    expect(sentPayload.html).toContain("https://images.example.test/portal-logo.png");
+    expect(sentPayload.from).toBe('"Enrollment Team" <enrollment@example.test>');
+    expect(sentPayload.html).toContain("Enrollment Updates &amp; Notices");
+    expect(sentPayload.html).not.toContain("Enrollment Updates & Notices");
+    expect(sentPayload.html).toContain(">ET</span>");
+    expect(sentPayload.html).toContain("APPLICATION PORTAL");
+    expect(sentPayload.html).toContain("Please read your latest update.");
+    expect(sentPayload.html).toContain("REVIEW NOTICE");
     expect(sentPayload.html).toContain("background:#ffffff");
     expect(sentPayload.html).toContain("color:#102b46");
+    expect(sentPayload.html).toContain("background-color:#334455");
+    expect(sentPayload.html).toContain("background-image:url(\"https://images.example.test/footer.jpg\")");
+    expect(sentPayload.html).toContain("background:#8800aa");
+    expect(sentPayload.html).toContain("color:#eeeeee");
     expect(sentPayload.html).toContain("Enrollment Team · Application updates");
     expect(sentPayload.html).toContain('href="https://portal.example.test"');
     expect(sentPayload.html).toContain(">Open the portal</a>");

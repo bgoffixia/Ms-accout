@@ -27,6 +27,21 @@ export interface AdminEmailBranding {
      * @maxLength 80
      */
   senderName: string;
+  /** @maxLength 254 */
+  senderEmail: string;
+  /** @maxLength 12 */
+  bannerMark: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  bannerTitle: string;
+  /** @maxLength 120 */
+  bannerSubtitle: string;
+  /** @maxLength 200 */
+  preheaderText: string;
+  /** @maxLength 80 */
+  messageEyebrow: string;
   /** @maxLength 300 */
   footerText: string;
   /** @maxLength 80 */
@@ -36,4 +51,21 @@ export interface AdminEmailBranding {
      * @nullable
      */
   footerLinkUrl: string | null;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  footerLinkColor: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  footerBackgroundColor: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  footerTextColor: string;
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  footerBackgroundUrl: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+     */
+  footerBackgroundObjectPath: string | null;
 }

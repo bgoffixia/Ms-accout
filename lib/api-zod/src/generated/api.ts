@@ -1457,12 +1457,33 @@ export const getAdminEmailSettingsResponseBrandingAccentColorRegExp = new RegExp
 export const getAdminEmailSettingsResponseBrandingHeaderColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getAdminEmailSettingsResponseBrandingSenderNameMax = 80;
 
+export const getAdminEmailSettingsResponseBrandingSenderEmailMax = 254;
+
+export const getAdminEmailSettingsResponseBrandingBannerMarkMax = 12;
+
+export const getAdminEmailSettingsResponseBrandingBannerTitleMax = 100;
+
+export const getAdminEmailSettingsResponseBrandingBannerSubtitleMax = 120;
+
+export const getAdminEmailSettingsResponseBrandingPreheaderTextMax = 200;
+
+export const getAdminEmailSettingsResponseBrandingMessageEyebrowMax = 80;
+
 export const getAdminEmailSettingsResponseBrandingFooterTextMax = 300;
 
 export const getAdminEmailSettingsResponseBrandingFooterLinkTextMax = 80;
 
 export const getAdminEmailSettingsResponseBrandingFooterLinkUrlMax = 2048;
 
+export const getAdminEmailSettingsResponseBrandingFooterLinkColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getAdminEmailSettingsResponseBrandingFooterTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax = 2048;
+
+export const getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax = 200;
+
+
+export const getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
 
 
 export const GetAdminEmailSettingsResponse = zod.object({
@@ -1480,9 +1501,20 @@ export const GetAdminEmailSettingsResponse = zod.object({
   "accentColor": zod.string().regex(getAdminEmailSettingsResponseBrandingAccentColorRegExp),
   "headerColor": zod.string().regex(getAdminEmailSettingsResponseBrandingHeaderColorRegExp),
   "senderName": zod.string().min(1).max(getAdminEmailSettingsResponseBrandingSenderNameMax),
+  "senderEmail": zod.string().email().max(getAdminEmailSettingsResponseBrandingSenderEmailMax),
+  "bannerMark": zod.string().max(getAdminEmailSettingsResponseBrandingBannerMarkMax),
+  "bannerTitle": zod.string().min(1).max(getAdminEmailSettingsResponseBrandingBannerTitleMax),
+  "bannerSubtitle": zod.string().max(getAdminEmailSettingsResponseBrandingBannerSubtitleMax),
+  "preheaderText": zod.string().max(getAdminEmailSettingsResponseBrandingPreheaderTextMax),
+  "messageEyebrow": zod.string().max(getAdminEmailSettingsResponseBrandingMessageEyebrowMax),
   "footerText": zod.string().max(getAdminEmailSettingsResponseBrandingFooterTextMax),
   "footerLinkText": zod.string().max(getAdminEmailSettingsResponseBrandingFooterLinkTextMax),
-  "footerLinkUrl": zod.string().url().max(getAdminEmailSettingsResponseBrandingFooterLinkUrlMax).nullable()
+  "footerLinkUrl": zod.string().url().max(getAdminEmailSettingsResponseBrandingFooterLinkUrlMax).nullable(),
+  "footerLinkColor": zod.string().regex(getAdminEmailSettingsResponseBrandingFooterLinkColorRegExp),
+  "footerBackgroundColor": zod.string().regex(getAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp),
+  "footerTextColor": zod.string().regex(getAdminEmailSettingsResponseBrandingFooterTextColorRegExp),
+  "footerBackgroundUrl": zod.string().url().max(getAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax).nullable(),
+  "footerBackgroundObjectPath": zod.string().max(getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax).regex(getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp).nullable()
 }),
   "senderAddress": zod.string(),
   "updatedAt": zod.coerce.date().nullable()
@@ -1504,12 +1536,33 @@ export const updateAdminEmailSettingsBodyBrandingAccentColorRegExp = new RegExp(
 export const updateAdminEmailSettingsBodyBrandingHeaderColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updateAdminEmailSettingsBodyBrandingSenderNameMax = 80;
 
+export const updateAdminEmailSettingsBodyBrandingSenderEmailMax = 254;
+
+export const updateAdminEmailSettingsBodyBrandingBannerMarkMax = 12;
+
+export const updateAdminEmailSettingsBodyBrandingBannerTitleMax = 100;
+
+export const updateAdminEmailSettingsBodyBrandingBannerSubtitleMax = 120;
+
+export const updateAdminEmailSettingsBodyBrandingPreheaderTextMax = 200;
+
+export const updateAdminEmailSettingsBodyBrandingMessageEyebrowMax = 80;
+
 export const updateAdminEmailSettingsBodyBrandingFooterTextMax = 300;
 
 export const updateAdminEmailSettingsBodyBrandingFooterLinkTextMax = 80;
 
 export const updateAdminEmailSettingsBodyBrandingFooterLinkUrlMax = 2048;
 
+export const updateAdminEmailSettingsBodyBrandingFooterLinkColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsBodyBrandingFooterBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsBodyBrandingFooterTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsBodyBrandingFooterBackgroundUrlMax = 2048;
+
+export const updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathMax = 200;
+
+
+export const updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
 
 
 export const UpdateAdminEmailSettingsBody = zod.object({
@@ -1527,9 +1580,20 @@ export const UpdateAdminEmailSettingsBody = zod.object({
   "accentColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingAccentColorRegExp),
   "headerColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingHeaderColorRegExp),
   "senderName": zod.string().min(1).max(updateAdminEmailSettingsBodyBrandingSenderNameMax),
+  "senderEmail": zod.string().email().max(updateAdminEmailSettingsBodyBrandingSenderEmailMax),
+  "bannerMark": zod.string().max(updateAdminEmailSettingsBodyBrandingBannerMarkMax),
+  "bannerTitle": zod.string().min(1).max(updateAdminEmailSettingsBodyBrandingBannerTitleMax),
+  "bannerSubtitle": zod.string().max(updateAdminEmailSettingsBodyBrandingBannerSubtitleMax),
+  "preheaderText": zod.string().max(updateAdminEmailSettingsBodyBrandingPreheaderTextMax),
+  "messageEyebrow": zod.string().max(updateAdminEmailSettingsBodyBrandingMessageEyebrowMax),
   "footerText": zod.string().max(updateAdminEmailSettingsBodyBrandingFooterTextMax),
   "footerLinkText": zod.string().max(updateAdminEmailSettingsBodyBrandingFooterLinkTextMax),
-  "footerLinkUrl": zod.string().url().max(updateAdminEmailSettingsBodyBrandingFooterLinkUrlMax).nullable()
+  "footerLinkUrl": zod.string().url().max(updateAdminEmailSettingsBodyBrandingFooterLinkUrlMax).nullable(),
+  "footerLinkColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingFooterLinkColorRegExp),
+  "footerBackgroundColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingFooterBackgroundColorRegExp),
+  "footerTextColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingFooterTextColorRegExp),
+  "footerBackgroundUrl": zod.string().url().max(updateAdminEmailSettingsBodyBrandingFooterBackgroundUrlMax).nullable(),
+  "footerBackgroundObjectPath": zod.string().max(updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathMax).regex(updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathRegExp).nullable()
 })
 })
 
@@ -1545,12 +1609,33 @@ export const updateAdminEmailSettingsResponseBrandingAccentColorRegExp = new Reg
 export const updateAdminEmailSettingsResponseBrandingHeaderColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updateAdminEmailSettingsResponseBrandingSenderNameMax = 80;
 
+export const updateAdminEmailSettingsResponseBrandingSenderEmailMax = 254;
+
+export const updateAdminEmailSettingsResponseBrandingBannerMarkMax = 12;
+
+export const updateAdminEmailSettingsResponseBrandingBannerTitleMax = 100;
+
+export const updateAdminEmailSettingsResponseBrandingBannerSubtitleMax = 120;
+
+export const updateAdminEmailSettingsResponseBrandingPreheaderTextMax = 200;
+
+export const updateAdminEmailSettingsResponseBrandingMessageEyebrowMax = 80;
+
 export const updateAdminEmailSettingsResponseBrandingFooterTextMax = 300;
 
 export const updateAdminEmailSettingsResponseBrandingFooterLinkTextMax = 80;
 
 export const updateAdminEmailSettingsResponseBrandingFooterLinkUrlMax = 2048;
 
+export const updateAdminEmailSettingsResponseBrandingFooterLinkColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsResponseBrandingFooterTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax = 2048;
+
+export const updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax = 200;
+
+
+export const updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
 
 
 export const UpdateAdminEmailSettingsResponse = zod.object({
@@ -1568,9 +1653,20 @@ export const UpdateAdminEmailSettingsResponse = zod.object({
   "accentColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingAccentColorRegExp),
   "headerColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingHeaderColorRegExp),
   "senderName": zod.string().min(1).max(updateAdminEmailSettingsResponseBrandingSenderNameMax),
+  "senderEmail": zod.string().email().max(updateAdminEmailSettingsResponseBrandingSenderEmailMax),
+  "bannerMark": zod.string().max(updateAdminEmailSettingsResponseBrandingBannerMarkMax),
+  "bannerTitle": zod.string().min(1).max(updateAdminEmailSettingsResponseBrandingBannerTitleMax),
+  "bannerSubtitle": zod.string().max(updateAdminEmailSettingsResponseBrandingBannerSubtitleMax),
+  "preheaderText": zod.string().max(updateAdminEmailSettingsResponseBrandingPreheaderTextMax),
+  "messageEyebrow": zod.string().max(updateAdminEmailSettingsResponseBrandingMessageEyebrowMax),
   "footerText": zod.string().max(updateAdminEmailSettingsResponseBrandingFooterTextMax),
   "footerLinkText": zod.string().max(updateAdminEmailSettingsResponseBrandingFooterLinkTextMax),
-  "footerLinkUrl": zod.string().url().max(updateAdminEmailSettingsResponseBrandingFooterLinkUrlMax).nullable()
+  "footerLinkUrl": zod.string().url().max(updateAdminEmailSettingsResponseBrandingFooterLinkUrlMax).nullable(),
+  "footerLinkColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingFooterLinkColorRegExp),
+  "footerBackgroundColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp),
+  "footerTextColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingFooterTextColorRegExp),
+  "footerBackgroundUrl": zod.string().url().max(updateAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax).nullable(),
+  "footerBackgroundObjectPath": zod.string().max(updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax).regex(updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp).nullable()
 }),
   "senderAddress": zod.string(),
   "updatedAt": zod.coerce.date().nullable()
@@ -1629,6 +1725,12 @@ export const CompleteAdminEmailLogoUploadResponse = zod.object({
  * @summary Serve the configured public staff email logo
  */
 export const GetPublicStaffEmailLogoResponse = zod.unknown()
+
+
+/**
+ * @summary Serve the configured public staff email footer background
+ */
+export const GetPublicStaffEmailFooterBackgroundResponse = zod.unknown()
 
 
 /**

@@ -349,7 +349,11 @@ async function authenticate(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  if (req.path === "/webhooks/resend" || req.path === "/public/email/logo") {
+  if (
+    req.path === "/webhooks/resend" ||
+    req.path === "/public/email/logo" ||
+    req.path === "/public/email/footer-background"
+  ) {
     next();
     return;
   }
@@ -3840,39 +3844,61 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
   }
 });
 
-router.get("/public/email/logo", async (req, res): Promise<void> => {
+async function streamPublicEmailBrandImage(
+  req: Request,
+  res: Response,
+  objectPath: string | null,
+  label: string,
+): Promise<void> {
+  if (!objectPath) {
+    res.status(404).end();
+    return;
+  }
   try {
-    const { branding } = await getStaffEmailConfiguration();
-    if (!branding.logoObjectPath) {
-      res.status(404).end();
-      return;
-    }
-    const objectFile = await objectStorage.getObjectEntityFile(branding.logoObjectPath);
+    const objectFile = await objectStorage.getObjectEntityFile(objectPath);
     const [metadata] = await objectFile.getMetadata();
     const contentType = String(metadata.contentType ?? "");
+    const sizeBytes = Number(metadata.size);
     if (
       !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType) ||
-      Number(metadata.size) > 2 * 1024 * 1024
+      !Number.isInteger(sizeBytes) ||
+      sizeBytes < 1 ||
+      sizeBytes > 2 * 1024 * 1024
     ) {
       res.status(404).end();
       return;
     }
     res.setHeader("Content-Type", contentType);
-    res.setHeader("Content-Length", String(metadata.size));
+    res.setHeader("Content-Length", String(sizeBytes));
     res.setHeader("Content-Disposition", "inline");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.setHeader("X-Content-Type-Options", "nosniff");
     const stream = objectFile.createReadStream();
     stream.on("error", (error) => {
-      req.log.error({ err: error }, "Failed to stream public email branding logo");
+      req.log.error({ err: error, asset: label }, "Failed to stream public email branding image");
       if (res.headersSent) res.destroy(error);
       else res.status(503).end();
     });
     stream.pipe(res);
   } catch (error) {
-    req.log.error({ err: error }, "Failed to load public email branding logo");
+    req.log.error({ err: error, asset: label }, "Failed to load public email branding image");
     res.status(404).end();
   }
+}
+
+router.get("/public/email/logo", async (req, res): Promise<void> => {
+  const { branding } = await getStaffEmailConfiguration();
+  await streamPublicEmailBrandImage(req, res, branding.logoObjectPath, "logo");
+});
+
+router.get("/public/email/footer-background", async (req, res): Promise<void> => {
+  const { branding } = await getStaffEmailConfiguration();
+  await streamPublicEmailBrandImage(
+    req,
+    res,
+    branding.footerBackgroundObjectPath,
+    "footer-background",
+  );
 });
 
 router.post("/admin/email/logo/upload-url", requireReviewer, async (req, res): Promise<void> => {
@@ -3962,11 +3988,28 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     )) ||
     (branding.logoObjectPath !== null &&
       !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(branding.logoObjectPath)) ||
+    (branding.footerBackgroundUrl !== null && (
+      branding.footerBackgroundUrl.length > 2048 ||
+      !/^https:\/\/[^\s]+$/i.test(branding.footerBackgroundUrl)
+    )) ||
+    (branding.footerBackgroundObjectPath !== null &&
+      !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(branding.footerBackgroundObjectPath)) ||
     !/^#[\da-f]{6}$/i.test(branding.accentColor) ||
     !/^#[\da-f]{6}$/i.test(branding.headerColor) ||
+    !/^#[\da-f]{6}$/i.test(branding.footerLinkColor) ||
+    !/^#[\da-f]{6}$/i.test(branding.footerBackgroundColor) ||
+    !/^#[\da-f]{6}$/i.test(branding.footerTextColor) ||
     !branding.senderName.trim() ||
     branding.senderName.trim().length > 80 ||
     /[<>\r\n]/.test(branding.senderName) ||
+    !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(branding.senderEmail) ||
+    branding.senderEmail.trim().length > 254 ||
+    !branding.bannerTitle.trim() ||
+    branding.bannerTitle.length > 100 ||
+    branding.bannerMark.length > 12 ||
+    branding.bannerSubtitle.length > 120 ||
+    branding.preheaderText.length > 200 ||
+    branding.messageEyebrow.length > 80 ||
     branding.footerText.length > 300 ||
     branding.footerLinkText.length > 80 ||
     (branding.footerLinkUrl !== null && (
@@ -3975,7 +4018,7 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     )) ||
     (branding.footerLinkUrl !== null && !branding.footerLinkText.trim())
   ) {
-    res.status(400).json({ error: "Check the email logo, colors, footer, link, and sender name." });
+    res.status(400).json({ error: "Check the email sender, banner text, colors, footer, link, and images." });
     return;
   }
   const recipients = [...new Set(
@@ -3989,6 +4032,12 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
         ...branding,
         logoUrl: branding.logoUrl?.trim() || null,
         senderName: branding.senderName.trim(),
+        senderEmail: branding.senderEmail.trim().toLowerCase(),
+        bannerTitle: branding.bannerTitle.trim(),
+        bannerSubtitle: branding.bannerSubtitle.trim(),
+        preheaderText: branding.preheaderText.trim(),
+        messageEyebrow: branding.messageEyebrow.trim(),
+        footerBackgroundUrl: branding.footerBackgroundUrl?.trim() || null,
       },
       res.locals.userId as string,
     );

@@ -3681,6 +3681,83 @@ export function useGetPublicStaffEmailLogo<TData = Awaited<ReturnType<typeof get
 
 
 
+export const getGetPublicStaffEmailFooterBackgroundUrl = () => {
+
+
+
+
+  return `/api/public/email/footer-background`
+}
+
+/**
+ * @summary Serve the configured public staff email footer background
+ */
+export const getPublicStaffEmailFooterBackground = async ( options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPublicStaffEmailFooterBackgroundUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicStaffEmailFooterBackgroundQueryKey = () => {
+    return [
+    `/api/public/email/footer-background`
+    ] as const;
+    }
+
+
+export const getGetPublicStaffEmailFooterBackgroundQueryOptions = <TData = Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicStaffEmailFooterBackgroundQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>> = ({ signal }) => getPublicStaffEmailFooterBackground({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicStaffEmailFooterBackgroundQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>>
+export type GetPublicStaffEmailFooterBackgroundQueryError = ErrorType<void>
+
+
+/**
+ * @summary Serve the configured public staff email footer background
+ */
+
+export function useGetPublicStaffEmailFooterBackground<TData = Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStaffEmailFooterBackground>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicStaffEmailFooterBackgroundQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getReceiveResendEmailEventUrl = () => {
 
 

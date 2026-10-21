@@ -888,6 +888,21 @@ paths:
             image/gif: {}
         "404":
           description: No uploaded email logo is configured
+  /public/email/footer-background:
+    get:
+      operationId: getPublicStaffEmailFooterBackground
+      tags: [administration]
+      summary: Serve the configured public staff email footer background
+      responses:
+        "200":
+          description: Current footer background image
+          content:
+            image/png: {}
+            image/jpeg: {}
+            image/webp: {}
+            image/gif: {}
+        "404":
+          description: No uploaded footer background is configured
   /webhooks/resend:
     post:
       operationId: receiveResendEmailEvent
@@ -2123,7 +2138,7 @@ components:
           $ref: "#/components/schemas/AdminEmailBranding"
     AdminEmailBranding:
       type: object
-      required: [logoUrl, logoObjectPath, accentColor, headerColor, senderName, footerText, footerLinkText, footerLinkUrl]
+      required: [logoUrl, logoObjectPath, accentColor, headerColor, senderName, senderEmail, bannerMark, bannerTitle, bannerSubtitle, preheaderText, messageEyebrow, footerText, footerLinkText, footerLinkUrl, footerLinkColor, footerBackgroundColor, footerTextColor, footerBackgroundUrl, footerBackgroundObjectPath]
       properties:
         logoUrl:
           type: ["string", "null"]
@@ -2143,6 +2158,26 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        senderEmail:
+          type: string
+          format: email
+          maxLength: 254
+        bannerMark:
+          type: string
+          maxLength: 12
+        bannerTitle:
+          type: string
+          minLength: 1
+          maxLength: 100
+        bannerSubtitle:
+          type: string
+          maxLength: 120
+        preheaderText:
+          type: string
+          maxLength: 200
+        messageEyebrow:
+          type: string
+          maxLength: 80
         footerText:
           type: string
           maxLength: 300
@@ -2153,6 +2188,23 @@ components:
           type: ["string", "null"]
           format: uri
           maxLength: 2048
+        footerLinkColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        footerBackgroundColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        footerTextColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        footerBackgroundUrl:
+          type: ["string", "null"]
+          format: uri
+          maxLength: 2048
+        footerBackgroundObjectPath:
+          type: ["string", "null"]
+          maxLength: 200
+          pattern: "^/objects/email-logos/[0-9a-fA-F-]{36}$"
     AdminEmailLogoUploadInput:
       type: object
       required: [contentType, sizeBytes]

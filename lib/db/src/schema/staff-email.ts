@@ -25,9 +25,20 @@ export type StaffEmailBranding = {
   accentColor: string;
   headerColor: string;
   senderName: string;
+  senderEmail: string;
+  bannerMark: string;
+  bannerTitle: string;
+  bannerSubtitle: string;
+  preheaderText: string;
+  messageEyebrow: string;
   footerText: string;
   footerLinkText: string;
   footerLinkUrl: string | null;
+  footerLinkColor: string;
+  footerBackgroundColor: string;
+  footerTextColor: string;
+  footerBackgroundUrl: string | null;
+  footerBackgroundObjectPath: string | null;
 };
 
 export const staffEmailSettingsTable = pgTable("staff_email_settings", {
@@ -43,9 +54,20 @@ export const staffEmailSettingsTable = pgTable("staff_email_settings", {
       accentColor: "#49b8aa",
       headerColor: "#102b46",
       senderName: "Security Verification",
+      senderEmail: "notifications@vu-gov.cc",
+      bannerMark: "SV",
+      bannerTitle: "Security Verification",
+      bannerSubtitle: "ENROLLMENT PORTAL",
+      preheaderText: "A message from the Security Verification Enrollment Portal team.",
+      messageEyebrow: "STAFF MESSAGE",
       footerText: "Enrollment Portal staff communications",
       footerLinkText: "Visit the enrollment portal",
       footerLinkUrl: null,
+      footerLinkColor: "#287d8b",
+      footerBackgroundColor: "#f1f5f8",
+      footerTextColor: "#738392",
+      footerBackgroundUrl: null,
+      footerBackgroundObjectPath: null,
     }),
   updatedByUserId: text("updated_by_user_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true })

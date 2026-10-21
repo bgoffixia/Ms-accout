@@ -23,9 +23,20 @@ export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
   accentColor: "#49b8aa",
   headerColor: "#102b46",
   senderName: "Security Verification",
+  senderEmail: STAFF_EMAIL_ADDRESS,
+  bannerMark: "SV",
+  bannerTitle: "Security Verification",
+  bannerSubtitle: "ENROLLMENT PORTAL",
+  preheaderText: "A message from the Security Verification Enrollment Portal team.",
+  messageEyebrow: "STAFF MESSAGE",
   footerText: "Enrollment Portal staff communications",
   footerLinkText: "Visit the enrollment portal",
   footerLinkUrl: null,
+  footerLinkColor: "#287d8b",
+  footerBackgroundColor: "#f1f5f8",
+  footerTextColor: "#738392",
+  footerBackgroundUrl: null,
+  footerBackgroundObjectPath: null,
 };
 const DEFAULT_ALERTS: StaffEmailAlertEvents = {
   contact_received: true,
@@ -52,11 +63,15 @@ export async function getStaffEmailConfiguration(): Promise<StaffEmailConfigurat
     .from(staffEmailSettingsTable)
     .where(eq(staffEmailSettingsTable.key, STAFF_SETTINGS_KEY))
     .limit(1);
+  const branding = { ...DEFAULT_STAFF_EMAIL_BRANDING, ...(saved?.branding ?? {}) };
+  if (!branding.senderEmail.trim()) {
+    branding.senderEmail = DEFAULT_STAFF_EMAIL_BRANDING.senderEmail;
+  }
   return {
     recipients: saved?.recipients ?? DEFAULT_RECIPIENTS,
     alerts: { ...DEFAULT_ALERTS, ...(saved?.alerts ?? {}) },
-    branding: { ...DEFAULT_STAFF_EMAIL_BRANDING, ...(saved?.branding ?? {}) },
-    senderAddress: STAFF_EMAIL_ADDRESS,
+    branding,
+    senderAddress: branding.senderEmail,
     updatedAt: saved?.updatedAt?.toISOString() ?? null,
   };
 }
@@ -200,7 +215,7 @@ export async function dispatchStaffEmail(input: {
           "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({
-          from: `"${senderDisplayName}" <${STAFF_EMAIL_ADDRESS}>`,
+          from: `"${senderDisplayName}" <${emailConfiguration.senderAddress}>`,
           to: [recipientEmail],
           subject: input.subject,
           text: renderStaffEmailText({
