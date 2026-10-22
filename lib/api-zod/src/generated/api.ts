@@ -1918,6 +1918,80 @@ export const SendAdminEmailResponse = zod.array(SendAdminEmailResponseItem)
 
 
 /**
+ * @summary Get staff SMS sender settings
+ */
+export const getAdminSmsSettingsResponseBaseUrlMax = 255;
+
+export const getAdminSmsSettingsResponseSenderIdMax = 11;
+
+
+
+export const GetAdminSmsSettingsResponse = zod.object({
+  "baseUrl": zod.string().max(getAdminSmsSettingsResponseBaseUrlMax),
+  "senderId": zod.string().max(getAdminSmsSettingsResponseSenderIdMax),
+  "credentialConfigured": zod.boolean(),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Update staff SMS sender settings
+ */
+export const updateAdminSmsSettingsBodyBaseUrlMax = 255;
+
+export const updateAdminSmsSettingsBodySenderIdMin = 3;
+export const updateAdminSmsSettingsBodySenderIdMax = 11;
+
+
+export const updateAdminSmsSettingsBodySenderIdRegExp = new RegExp('^[A-Za-z0-9]+$');
+
+
+export const UpdateAdminSmsSettingsBody = zod.object({
+  "baseUrl": zod.string().url().min(1).max(updateAdminSmsSettingsBodyBaseUrlMax),
+  "senderId": zod.string().min(updateAdminSmsSettingsBodySenderIdMin).max(updateAdminSmsSettingsBodySenderIdMax).regex(updateAdminSmsSettingsBodySenderIdRegExp)
+})
+
+export const updateAdminSmsSettingsResponseBaseUrlMax = 255;
+
+export const updateAdminSmsSettingsResponseSenderIdMax = 11;
+
+
+
+export const UpdateAdminSmsSettingsResponse = zod.object({
+  "baseUrl": zod.string().max(updateAdminSmsSettingsResponseBaseUrlMax),
+  "senderId": zod.string().max(updateAdminSmsSettingsResponseSenderIdMax),
+  "credentialConfigured": zod.boolean(),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Send one SMS through Infobip
+ */
+export const sendAdminSmsBodyRecipientPhoneMin = 9;
+export const sendAdminSmsBodyRecipientPhoneMax = 16;
+
+
+export const sendAdminSmsBodyRecipientPhoneRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+export const sendAdminSmsBodyMessageTextMax = 1600;
+
+
+
+export const SendAdminSmsBody = zod.object({
+  "recipientPhone": zod.string().min(sendAdminSmsBodyRecipientPhoneMin).max(sendAdminSmsBodyRecipientPhoneMax).regex(sendAdminSmsBodyRecipientPhoneRegExp),
+  "messageText": zod.string().min(1).max(sendAdminSmsBodyMessageTextMax)
+})
+
+export const SendAdminSmsResponse = zod.object({
+  "recipientPhone": zod.string(),
+  "senderId": zod.string(),
+  "status": zod.enum(['accepted']),
+  "providerMessageId": zod.string().nullable(),
+  "acceptedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Retry a failed staff or automated email
  */
 export const RetryAdminEmailParams = zod.object({

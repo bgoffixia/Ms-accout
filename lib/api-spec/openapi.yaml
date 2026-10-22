@@ -1038,6 +1038,63 @@ paths:
                   $ref: "#/components/schemas/AdminEmailMessage"
         "400":
           description: Invalid recipients or message content
+  /admin/email/sms/settings:
+    get:
+      operationId: getAdminSmsSettings
+      tags: [administration]
+      summary: Get staff SMS sender settings
+      responses:
+        "200":
+          description: Infobip base URL, sender ID, and credential status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSmsSettings"
+    put:
+      operationId: updateAdminSmsSettings
+      tags: [administration]
+      summary: Update staff SMS sender settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSmsSettingsUpdate"
+      responses:
+        "200":
+          description: Updated SMS sender settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSmsSettings"
+        "400":
+          description: Invalid Infobip base URL or sender ID
+  /admin/email/sms/send:
+    post:
+      operationId: sendAdminSms
+      tags: [administration]
+      summary: Send one SMS through Infobip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSmsSendInput"
+      responses:
+        "201":
+          description: SMS accepted by Infobip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSmsSendResponse"
+        "400":
+          description: Invalid SMS recipient or message
+        "429":
+          description: SMS provider rate limit reached
+        "502":
+          description: SMS provider rejected the request
+        "503":
+          description: SMS provider is not configured or unavailable
   /admin/email/outbox/{messageId}/retry:
     post:
       operationId: retryAdminEmail
@@ -2316,6 +2373,50 @@ components:
       properties:
         deliveryStatus: { type: string, enum: [delivered, bounced, complained] }
         providerEventAt: { type: string, format: date-time }
+    AdminSmsSettings:
+      type: object
+      required: [baseUrl, senderId, credentialConfigured, updatedAt]
+      properties:
+        baseUrl: { type: string, maxLength: 255 }
+        senderId: { type: string, maxLength: 11 }
+        credentialConfigured: { type: boolean }
+        updatedAt: { type: ["string", "null"], format: date-time }
+    AdminSmsSettingsUpdate:
+      type: object
+      required: [baseUrl, senderId]
+      properties:
+        baseUrl:
+          type: string
+          minLength: 1
+          maxLength: 255
+          format: uri
+        senderId:
+          type: string
+          minLength: 3
+          maxLength: 11
+          pattern: "^[A-Za-z0-9]+$"
+    AdminSmsSendInput:
+      type: object
+      required: [recipientPhone, messageText]
+      properties:
+        recipientPhone:
+          type: string
+          minLength: 9
+          maxLength: 16
+          pattern: "^\\+[1-9][0-9]{7,14}$"
+        messageText:
+          type: string
+          minLength: 1
+          maxLength: 1600
+    AdminSmsSendResponse:
+      type: object
+      required: [recipientPhone, senderId, status, providerMessageId, acceptedAt]
+      properties:
+        recipientPhone: { type: string }
+        senderId: { type: string }
+        status: { type: string, enum: [accepted] }
+        providerMessageId: { type: ["string", "null"] }
+        acceptedAt: { type: string, format: date-time }
     ResendWebhookEvent:
       type: object
       additionalProperties: true

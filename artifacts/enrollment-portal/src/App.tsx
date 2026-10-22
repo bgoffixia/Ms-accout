@@ -8,7 +8,7 @@ import { shadcn } from '@clerk/themes';
 import {
   Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
   ChevronDown, CircleHelp, Copy, FileCheck2, FileText, Headphones, Home, LifeBuoy, Mail,
-  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, RefreshCw, Search, Send, Settings, ShieldCheck, Trash2, Upload, X,
+  GripVertical, LockKeyhole, LogOut, Menu, MessageCircle, RefreshCw, Search, Send, Settings, ShieldCheck, Smartphone, Trash2, Upload, X,
 } from 'lucide-react';
 import {
   getGetApplicationQueryKey, getGetApplicantSummaryQueryKey,
@@ -17,6 +17,7 @@ import {
   getGetAdminGuestApplicationHistoryQueryKey,
   getGetAdminOverviewQueryKey,
   getGetAdminEmailSettingsQueryKey,
+  getGetAdminSmsSettingsQueryKey,
   getListAdminEmailTemplatesQueryKey,
   getListAdminEmailOutboxQueryKey,
   getGetPortalSettingsQueryKey,
@@ -36,6 +37,7 @@ import {
   useGetAdminEmailSettings, useListAdminEmailOutbox, useUpdateAdminEmailSettings,
   useListAdminEmailTemplates, useCreateAdminEmailTemplate, useUpdateAdminEmailTemplate, useDeleteAdminEmailTemplate,
   useSendAdminEmail, useRetryAdminEmail, useRequestAdminEmailLogoUpload, useCompleteAdminEmailLogoUpload,
+  useGetAdminSmsSettings, useUpdateAdminSmsSettings, useSendAdminSms,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
   useListAdminUsers, useListEnrollmentCategories, useListMyApplications, useListMySupportTickets,
@@ -51,7 +53,7 @@ import {
 } from '@workspace/api-client-react';
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
-  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, AdminEmailTemplate, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
+  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, AdminEmailTemplate, AdminSmsSettings, AdminSmsSendResponse, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -2394,12 +2396,18 @@ function AdminEmailCenter() {
   const queryClient = useQueryClient();
   const [location] = useLocation();
   const requestedEmailSection = location.split('/').filter(Boolean).at(-1);
-  const emailSection = ['alerts', 'templates', 'send', 'activity'].includes(requestedEmailSection ?? '')
-    ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity'
+  const emailSection = ['alerts', 'templates', 'send', 'activity', 'sms'].includes(requestedEmailSection ?? '')
+    ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity' | 'sms'
     : 'alerts';
   const logoInputRef = useRef<HTMLInputElement>(null);
   const footerImageInputRef = useRef<HTMLInputElement>(null);
   const settings = useGetAdminEmailSettings();
+  const smsSettings = useGetAdminSmsSettings({
+    query: {
+      queryKey: getGetAdminSmsSettingsQueryKey(),
+      enabled: emailSection === 'sms',
+    },
+  });
   const outbox = useListAdminEmailOutbox({
     query: {
       queryKey: getListAdminEmailOutboxQueryKey(),
@@ -2410,6 +2418,8 @@ function AdminEmailCenter() {
   const templates = useListAdminEmailTemplates();
   const saveSettings = useUpdateAdminEmailSettings();
   const sendEmail = useSendAdminEmail();
+  const saveSmsSettings = useUpdateAdminSmsSettings();
+  const sendSms = useSendAdminSms();
   const retryEmail = useRetryAdminEmail();
   const requestLogoUpload = useRequestAdminEmailLogoUpload();
   const completeLogoUpload = useCompleteAdminEmailLogoUpload();
@@ -2431,6 +2441,13 @@ function AdminEmailCenter() {
   const [composeBody, setComposeBody] = useState('');
   const [composeRequestId, setComposeRequestId] = useState(() => crypto.randomUUID());
   const [composeFeedback, setComposeFeedback] = useState('');
+  const [smsBaseUrlDraft, setSmsBaseUrlDraft] = useState('');
+  const [smsSenderIdDraft, setSmsSenderIdDraft] = useState('');
+  const [smsSettingsFeedback, setSmsSettingsFeedback] = useState('');
+  const [smsRecipientDraft, setSmsRecipientDraft] = useState('');
+  const [smsMessageDraft, setSmsMessageDraft] = useState('');
+  const [smsFeedback, setSmsFeedback] = useState('');
+  const [lastSmsResult, setLastSmsResult] = useState<AdminSmsSendResponse | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [templateDraftId, setTemplateDraftId] = useState<string | null>(null);
   const [templateNameDraft, setTemplateNameDraft] = useState('');
@@ -2454,11 +2471,66 @@ function AdminEmailCenter() {
     setBrandingDraft({ ...defaultEmailBranding, ...settings.data.branding });
   }, [settings.data]);
 
+  useEffect(() => {
+    if (!smsSettings.data) return;
+    setSmsBaseUrlDraft(smsSettings.data.baseUrl);
+    setSmsSenderIdDraft(smsSettings.data.senderId);
+  }, [smsSettings.data]);
+
   const invalidateEmailData = () => {
     void queryClient.invalidateQueries({ queryKey: getListAdminEmailOutboxQueryKey() });
   };
   const invalidateTemplates = () => {
     void queryClient.invalidateQueries({ queryKey: getListAdminEmailTemplatesQueryKey() });
+  };
+
+  const saveSmsConfiguration = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSmsSettingsFeedback('');
+    saveSmsSettings.mutate({
+      data: {
+        baseUrl: smsBaseUrlDraft.trim(),
+        senderId: smsSenderIdDraft.trim(),
+      },
+    }, {
+      onSuccess: (saved: AdminSmsSettings) => {
+        setSmsBaseUrlDraft(saved.baseUrl);
+        setSmsSenderIdDraft(saved.senderId);
+        setSmsSettingsFeedback('Infobip sender settings saved.');
+        void queryClient.invalidateQueries({ queryKey: getGetAdminSmsSettingsQueryKey() });
+      },
+      onError: () => setSmsSettingsFeedback('Settings could not be saved. Check the Infobip base URL and sender ID.'),
+    });
+  };
+
+  const sendSmsMessage = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const recipientPhone = smsRecipientDraft.trim();
+    const messageText = smsMessageDraft.trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(recipientPhone)) {
+      setSmsFeedback('Enter one phone number in international format, for example +2348012345678.');
+      return;
+    }
+    if (!messageText || messageText.length > 1600) {
+      setSmsFeedback('Enter a message between 1 and 1,600 characters.');
+      return;
+    }
+    setSmsFeedback('');
+    setLastSmsResult(null);
+    sendSms.mutate({
+      data: { recipientPhone, messageText },
+    }, {
+      onSuccess: (result: AdminSmsSendResponse) => {
+        setLastSmsResult(result);
+        setSmsFeedback('Infobip accepted the SMS request. This does not confirm delivery.');
+        setSmsRecipientDraft('');
+        setSmsMessageDraft('');
+      },
+      onError: (error: unknown) => {
+        const apiError = error as { data?: { error?: string } };
+        setSmsFeedback(apiError.data?.error ?? 'The SMS could not be sent. Check provider activity before retrying.');
+      },
+    });
   };
 
   const selectEmailTemplate = (templateId: string) => {
@@ -2684,14 +2756,15 @@ function AdminEmailCenter() {
     <div className="admin-page admin-email-page">
       <PageHeading
         eyebrow="SECURE STAFF WORKSPACE"
-        title="Email center"
-        detail="Manage enrollment alerts, send one-off messages, and retry failed email attempts."
+        title="Mail center"
+        detail="Manage reviewer email alerts, reusable templates, one-off messages, and staff SMS."
       />
       <nav className="admin-email-navigation" aria-label="Email center pages">
         {[
           { href: '/admin/email/alerts', key: 'alerts', label: 'Automated alerts', icon: Mail },
           { href: '/admin/email/templates', key: 'templates', label: 'Template settings', icon: FileText },
           { href: '/admin/email/send', key: 'send', label: 'One-off email', icon: Send },
+          { href: '/admin/email/sms', key: 'sms', label: 'SMS sender', icon: Smartphone },
           { href: '/admin/email/activity', key: 'activity', label: 'Email activity', icon: Activity },
         ].map(({ href, key, label, icon: Icon }) => (
           <Link
@@ -3025,6 +3098,110 @@ function AdminEmailCenter() {
           </form>
         </section>
         }
+
+        {emailSection === 'sms' && <section className="detail-card admin-email-compose admin-sms-page">
+          <div className="detail-card-title"><Smartphone size={17} /><h2>Custom SMS sender</h2></div>
+          <p className="field-help">Send one text at a time through Infobip. The API key stays on the server and is never shown in this page.</p>
+          <section className="admin-sms-setup" aria-labelledby="admin-sms-setup-title">
+            <div>
+              <h3 id="admin-sms-setup-title">Provider and sender ID</h3>
+              <p className="field-help">Use the personalized HTTPS base URL shown in your Infobip account. The sender ID must be approved for the destination country before sending.</p>
+            </div>
+            <div className={`admin-sms-credential-status ${smsSettings.data?.credentialConfigured ? 'is-ready' : 'is-missing'}`} role="status" data-testid="text-sms-credential-status">
+              <span className="status-dot" />
+              {smsSettings.isLoading
+                ? 'Checking provider connection…'
+                : smsSettings.data?.credentialConfigured
+                  ? 'Infobip API key is configured'
+                  : 'Infobip API key is not configured'}
+            </div>
+            {!smsSettings.data?.credentialConfigured && !smsSettings.isLoading && (
+              <p className="field-help admin-sms-secret-note">Add <code>INFOBIP_API_KEY</code> in Replit Secrets to enable sending. Never paste the key into this form.</p>
+            )}
+            {smsSettings.isError && <p className="admin-email-feedback admin-email-error" role="alert">SMS settings could not be loaded. Refresh the page and try again.</p>}
+            <form className="admin-email-form" onSubmit={saveSmsConfiguration}>
+              <label className="field-label" htmlFor="sms-infobip-base-url">Infobip base URL</label>
+              <input
+                id="sms-infobip-base-url"
+                className="text-input"
+                type="url"
+                maxLength={255}
+                value={smsBaseUrlDraft}
+                onChange={(event) => setSmsBaseUrlDraft(event.target.value)}
+                placeholder="https://xxxxx.api.infobip.com"
+                required
+                data-testid="input-sms-infobip-base-url"
+              />
+              <label className="field-label" htmlFor="sms-sender-id">Custom sender ID</label>
+              <input
+                id="sms-sender-id"
+                className="text-input"
+                maxLength={11}
+                minLength={3}
+                pattern="[A-Za-z0-9]{3,11}"
+                value={smsSenderIdDraft}
+                onChange={(event) => setSmsSenderIdDraft(event.target.value)}
+                placeholder="SECVERIFY"
+                required
+                data-testid="input-sms-sender-id"
+              />
+              <small className="field-help">3–11 letters or numbers, no spaces or punctuation. Country-specific approval may be required.</small>
+              {smsSettingsFeedback && <p className="admin-email-feedback" role="status" data-testid="text-sms-settings-feedback">{smsSettingsFeedback}</p>}
+              <button className="button button-primary" type="submit" disabled={smsSettings.isLoading || saveSmsSettings.isPending} data-testid="button-save-sms-settings">
+                {saveSmsSettings.isPending ? 'Saving…' : 'Save SMS settings'}
+              </button>
+            </form>
+          </section>
+          <section className="admin-sms-compose" aria-labelledby="admin-sms-compose-title">
+            <h3 id="admin-sms-compose-title">Compose message</h3>
+            <div className="admin-email-sender"><span>From</span><b>{smsSettings.data?.senderId || smsSenderIdDraft || 'Sender ID not set'}</b></div>
+            <form className="admin-email-form" onSubmit={sendSmsMessage}>
+              <label className="field-label" htmlFor="sms-recipient-phone">Recipient phone number</label>
+              <input
+                id="sms-recipient-phone"
+                className="text-input"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                maxLength={16}
+                value={smsRecipientDraft}
+                onChange={(event) => setSmsRecipientDraft(event.target.value)}
+                placeholder="+2348012345678"
+                required
+                data-testid="input-sms-recipient"
+              />
+              <small className="field-help">Enter one number in international E.164 format, including the leading +.</small>
+              <label className="field-label" htmlFor="sms-message-body">Message</label>
+              <textarea
+                id="sms-message-body"
+                className="text-input form-textarea"
+                rows={5}
+                maxLength={1600}
+                value={smsMessageDraft}
+                onChange={(event) => setSmsMessageDraft(event.target.value)}
+                required
+                data-testid="input-sms-message"
+              />
+              <div className="admin-sms-message-count" aria-live="polite">{smsMessageDraft.length}/1,600 characters</div>
+              {smsFeedback && <p className={`admin-email-feedback ${lastSmsResult ? '' : 'admin-email-error'}`} role={lastSmsResult ? 'status' : 'alert'} data-testid="text-sms-send-feedback">{smsFeedback}</p>}
+              {lastSmsResult?.providerMessageId && <small className="field-help" data-testid="text-sms-provider-message-id">Infobip message ID: {lastSmsResult.providerMessageId}</small>}
+              <button
+                className="button button-primary"
+                type="submit"
+                disabled={
+                  sendSms.isPending ||
+                  !smsSettings.data?.credentialConfigured ||
+                  !smsSettings.data.baseUrl ||
+                  !smsSettings.data.senderId
+                }
+                data-testid="button-send-sms"
+              >
+                {sendSms.isPending ? 'Sending…' : 'Send SMS'} <ArrowRight size={15} />
+              </button>
+              <small className="field-help">Infobip acceptance does not confirm delivery. If the request times out, check Infobip message logs before sending again.</small>
+            </form>
+          </section>
+        </section>}
       </div>
 
       {emailSection === 'activity' && <section className="admin-email-outbox detail-card" aria-labelledby="admin-email-outbox-title">

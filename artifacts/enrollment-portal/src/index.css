@@ -4024,3 +4024,68 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .admin-email-template-preview-logo { max-width: 100px; max-height: 40px; }
   .admin-email-template-preview-brand b { overflow-wrap: anywhere; }
 }
+
+.admin-sms-page {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-sms-setup,
+.admin-sms-compose {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border, #d9e2ec);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.admin-sms-setup h3,
+.admin-sms-compose h3 {
+  margin: 0;
+  color: var(--foreground, #19324d);
+  font-size: 1rem;
+}
+
+.admin-sms-credential-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: #fff4e5;
+  color: #744916;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-sms-credential-status.is-ready {
+  background: #e8f7ef;
+  color: #1c6847;
+}
+
+.admin-sms-credential-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.admin-sms-secret-note code {
+  font-size: 0.9em;
+  font-weight: 700;
+}
+
+.admin-sms-message-count {
+  color: var(--muted-foreground, #68798b);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .admin-sms-setup,
+  .admin-sms-compose {
+    padding: 14px;
+  }
+}

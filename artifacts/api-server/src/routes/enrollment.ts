@@ -74,6 +74,11 @@ import {
   SendAdminEmailResponse,
   UpdateAdminEmailSettingsBody,
   UpdateAdminEmailSettingsResponse,
+  GetAdminSmsSettingsResponse,
+  UpdateAdminSmsSettingsBody,
+  UpdateAdminSmsSettingsResponse,
+  SendAdminSmsBody,
+  SendAdminSmsResponse,
   GetApplicationParams,
   GetApplicationResponse,
   GetApplicantSummaryResponse,
@@ -166,6 +171,13 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
+import {
+  getStaffSmsConfiguration,
+  isValidInfobipSenderId,
+  normalizeInfobipBaseUrl,
+  saveStaffSmsConfiguration,
+  sendInfobipSms,
+} from "../lib/staffSms";
 import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
 import {
   sendReviewerNotification,
@@ -4257,6 +4269,120 @@ router.post("/admin/email/send", requireReviewer, async (req, res): Promise<void
   } catch (error) {
     req.log.error({ err: error }, "Failed to process staff email send request");
     res.status(503).json({ error: "The email request could not be recorded." });
+  }
+});
+
+router.get("/admin/email/sms/settings", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const configuration = await getStaffSmsConfiguration();
+    res.json(
+      GetAdminSmsSettingsResponse.parse({
+        ...configuration,
+        updatedAt: configuration.updatedAt
+          ? new Date(configuration.updatedAt)
+          : null,
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load staff SMS settings");
+    res.status(503).json({ error: "SMS settings could not be loaded." });
+  }
+});
+
+router.put("/admin/email/sms/settings", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const parsed = UpdateAdminSmsSettingsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter the Infobip base URL and a valid sender ID." });
+    return;
+  }
+  const baseUrl = normalizeInfobipBaseUrl(parsed.data.baseUrl);
+  const senderId = parsed.data.senderId.trim();
+  if (!baseUrl || !isValidInfobipSenderId(senderId)) {
+    res.status(400).json({
+      error: "Use your HTTPS Infobip base URL and a 3–11 character sender ID containing only letters and numbers.",
+    });
+    return;
+  }
+  try {
+    const saved = await saveStaffSmsConfiguration(
+      baseUrl,
+      senderId,
+      res.locals.userId as string,
+    );
+    res.json(
+      UpdateAdminSmsSettingsResponse.parse({
+        ...saved,
+        updatedAt: saved.updatedAt ? new Date(saved.updatedAt) : null,
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to save staff SMS settings");
+    res.status(503).json({ error: "SMS settings could not be saved." });
+  }
+});
+
+router.post("/admin/email/sms/send", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const parsed = SendAdminSmsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "Enter one phone number in international format and a message of up to 1,600 characters.",
+    });
+    return;
+  }
+
+  const apiKey = process.env.INFOBIP_API_KEY?.trim();
+  if (!apiKey) {
+    res.status(503).json({ error: "Infobip is not connected yet. Add INFOBIP_API_KEY in Replit Secrets." });
+    return;
+  }
+
+  try {
+    const configuration = await getStaffSmsConfiguration();
+    if (!configuration.baseUrl || !configuration.senderId) {
+      res.status(400).json({ error: "Save the Infobip base URL and sender ID before sending." });
+      return;
+    }
+    const result = await sendInfobipSms({
+      baseUrl: configuration.baseUrl,
+      apiKey,
+      senderId: configuration.senderId,
+      recipientPhone: parsed.data.recipientPhone,
+      messageText: parsed.data.messageText,
+    });
+    if (!result.ok) {
+      req.log.warn({ providerStatus: result.status }, "Infobip rejected a staff SMS request");
+      if (result.status === 429) {
+        res.status(429).json({ error: "Infobip rate limit reached. Wait before sending another text." });
+        return;
+      }
+      if (result.status === 401 || result.status === 403) {
+        res.status(502).json({ error: "Infobip rejected the API credential or sender ID. Check the provider setup." });
+        return;
+      }
+      if (result.status === 400 || result.status === 422) {
+        res.status(400).json({ error: "Infobip rejected the number, sender ID, or message." });
+        return;
+      }
+      res.status(502).json({ error: "Infobip could not accept the message. Check provider activity before retrying." });
+      return;
+    }
+    res.status(201).json(
+      SendAdminSmsResponse.parse({
+        recipientPhone: parsed.data.recipientPhone,
+        senderId: configuration.senderId,
+        status: "accepted",
+        providerMessageId: result.providerMessageId,
+        acceptedAt: new Date(),
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to send a staff SMS through Infobip");
+    res.status(503).json({
+      error: "Could not reach Infobip. Check the connection and provider activity before retrying.",
+    });
   }
 });
 

@@ -1312,6 +1312,60 @@ export interface AdminEmailMessage {
   updatedAt: string;
 }
 
+export interface AdminSmsSettings {
+  /** @maxLength 255 */
+  baseUrl: string;
+  /** @maxLength 11 */
+  senderId: string;
+  credentialConfigured: boolean;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export interface AdminSmsSettingsUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  baseUrl: string;
+  /**
+     * @minLength 3
+     * @maxLength 11
+     * @pattern ^[A-Za-z0-9]+$
+     */
+  senderId: string;
+}
+
+export interface AdminSmsSendInput {
+  /**
+     * @minLength 9
+     * @maxLength 16
+     * @pattern ^\+[1-9][0-9]{7,14}$
+     */
+  recipientPhone: string;
+  /**
+     * @minLength 1
+     * @maxLength 1600
+     */
+  messageText: string;
+}
+
+export type AdminSmsSendResponseStatus = typeof AdminSmsSendResponseStatus[keyof typeof AdminSmsSendResponseStatus];
+
+
+export const AdminSmsSendResponseStatus = {
+  accepted: 'accepted',
+} as const;
+
+export interface AdminSmsSendResponse {
+  recipientPhone: string;
+  senderId: string;
+  status: AdminSmsSendResponseStatus;
+  /** @nullable */
+  providerMessageId: string | null;
+  acceptedAt: string;
+}
+
 export interface ResendWebhookEvent { [key: string]: unknown }
 
 export type ListApplicationsForReviewParams = {

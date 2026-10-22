@@ -8,6 +8,7 @@ const mockState = vi.hoisted(() => ({
   uploadCount: 0,
   emailRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
   emailResponses: [] as Array<{ ok: boolean; status: number; body?: { id?: string } }>,
+  smsRequests: [] as Array<{ url: string; init: RequestInit }>,
   failNextUpdateTable: null as string | null,
   tables: (() => {
     const makeTable = (name: string) => {
@@ -32,6 +33,7 @@ const mockState = vi.hoisted(() => ({
       staffEmailOutboxTable: makeTable("staff_email_outbox"),
       staffEmailProviderEventsTable: makeTable("staff_email_provider_events"),
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
+      staffSmsSettingsTable: makeTable("staff_sms_settings"),
     };
   })(),
 }));
@@ -183,6 +185,7 @@ function makeDatabase() {
           enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
           guest_preapplication_evidence: ["objectPath"],
           staff_email_settings: ["key"],
+          staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
           staff_email_provider_events: ["providerEventId"],
         };
@@ -468,12 +471,14 @@ describe("guest application verification and persistence", () => {
       "staff_email_outbox",
       "staff_email_provider_events",
       "staff_email_templates",
+      "staff_sms_settings",
     ]) mockState.rows.set(name, []);
     mockState.users.clear();
     mockState.storageObjects.clear();
     mockState.uploadCount = 0;
     mockState.emailRequests.length = 0;
     mockState.emailResponses.length = 0;
+    mockState.smsRequests.length = 0;
     mockState.failNextUpdateTable = null;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
@@ -714,6 +719,128 @@ describe("guest application verification and persistence", () => {
     expect(reviewer.response.status).toBe(200);
     expect(reviewer.body.recipients).toEqual(["skyfashion053@gmail.com"]);
     expect(reviewer.body.alerts.application_submitted).toBe(true);
+  });
+
+  it("limits SMS settings to reviewers and only saves valid Infobip sender settings", async () => {
+    delete process.env.INFOBIP_API_KEY;
+    const signedOut = await request("/admin/email/sms/settings");
+    const applicant = await request("/admin/email/sms/settings", {}, "applicant-verified");
+    const moderator = await request("/admin/email/sms/settings", {}, "moderator");
+    const reviewer = await request("/admin/email/sms/settings", {}, "reviewer");
+    expect(signedOut.response.status).toBe(401);
+    expect(applicant.response.status).toBe(403);
+    expect(moderator.response.status).toBe(403);
+    expect(reviewer.response.status).toBe(200);
+    expect(reviewer.body.credentialConfigured).toBe(false);
+
+    const unsafeUrl = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "http://127.0.0.1:8080",
+        senderId: "SECVERIFY",
+      }),
+    }, "reviewer");
+    expect(unsafeUrl.response.status).toBe(400);
+
+    const invalidSender = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com",
+        senderId: "SV-PORTAL",
+      }),
+    }, "reviewer");
+    expect(invalidSender.response.status).toBe(400);
+
+    const saved = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com/",
+        senderId: "SECVERIFY",
+      }),
+    }, "reviewer");
+    expect(saved.response.status).toBe(200);
+    expect(saved.body.baseUrl).toBe("https://tenant.api.infobip.com");
+    expect(saved.body.senderId).toBe("SECVERIFY");
+    expect(saved.body.credentialConfigured).toBe(false);
+  });
+
+  it("sends a single reviewer SMS through Infobip without exposing its API key", async () => {
+    const saved = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com",
+        senderId: "SECVERIFY",
+      }),
+    }, "reviewer");
+    expect(saved.response.status).toBe(200);
+
+    const originalFetch = globalThis.fetch;
+    const providerFetch = vi.fn(async (
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      const url = String(input);
+      if (url.startsWith("https://tenant.api.infobip.com/")) {
+        mockState.smsRequests.push({ url, init: init ?? {} });
+        return new Response(JSON.stringify({
+          messages: [{ messageId: "infobip-message-123" }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return originalFetch(input, init);
+    });
+    vi.stubGlobal("fetch", providerFetch);
+    process.env.INFOBIP_API_KEY = "test-infobip-api-key";
+    try {
+      const applicant = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "Your enrollment status has been updated.",
+        }),
+      }, "applicant-verified");
+      expect(applicant.response.status).toBe(403);
+
+      const invalidPhone = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "08012345678",
+          messageText: "Your enrollment status has been updated.",
+        }),
+      }, "reviewer");
+      expect(invalidPhone.response.status).toBe(400);
+      expect(mockState.smsRequests).toHaveLength(0);
+
+      const sent = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "Your enrollment status has been updated.",
+        }),
+      }, "reviewer");
+      expect(sent.response.status).toBe(201);
+      expect(sent.body).toMatchObject({
+        recipientPhone: "+2348012345678",
+        senderId: "SECVERIFY",
+        status: "accepted",
+        providerMessageId: "infobip-message-123",
+      });
+      expect(JSON.stringify(sent.body)).not.toContain("test-infobip-api-key");
+      expect(mockState.smsRequests).toHaveLength(1);
+      const providerRequest = mockState.smsRequests[0]!;
+      expect(providerRequest.url).toBe("https://tenant.api.infobip.com/sms/3/messages");
+      expect(new Headers(providerRequest.init.headers).get("authorization"))
+        .toBe("App test-infobip-api-key");
+      expect(JSON.parse(String(providerRequest.init.body))).toEqual({
+        messages: [{
+          sender: "SECVERIFY",
+          destinations: [{ to: "2348012345678" }],
+          content: { text: "Your enrollment status has been updated." },
+        }],
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.INFOBIP_API_KEY;
+    }
   });
 
   it("allows reviewers to upload a verified public email logo and serves only the configured image", async () => {
