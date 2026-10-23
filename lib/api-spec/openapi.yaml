@@ -1095,6 +1095,41 @@ paths:
           description: SMS provider rejected the request
         "503":
           description: SMS provider is not configured or unavailable
+  /admin/email/sms/activity:
+    get:
+      operationId: listAdminSmsActivity
+      tags: [administration]
+      summary: List recent staff SMS attempts
+      responses:
+        "200":
+          description: Recent SMS attempts and delivery results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSmsMessage"
+  /webhooks/infobip/sms:
+    post:
+      operationId: receiveInfobipSmsDeliveryReport
+      tags: [webhooks]
+      summary: Receive Infobip SMS delivery reports
+      description: Requires an Infobip HMAC-SHA256 signature in the X-Hub-Signature header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InfobipSmsDeliveryReport"
+      responses:
+        "200":
+          description: Delivery report received
+        "400":
+          description: Invalid delivery report
+        "401":
+          description: Invalid webhook signature
+        "503":
+          description: Delivery report could not be recorded
   /admin/email/outbox/{messageId}/retry:
     post:
       operationId: retryAdminEmail
@@ -2375,11 +2410,13 @@ components:
         providerEventAt: { type: string, format: date-time }
     AdminSmsSettings:
       type: object
-      required: [baseUrl, senderId, credentialConfigured, updatedAt]
+      required: [baseUrl, senderId, credentialConfigured, deliveryReportUrl, deliveryReportsConfigured, updatedAt]
       properties:
         baseUrl: { type: string, maxLength: 255 }
         senderId: { type: string, maxLength: 11 }
         credentialConfigured: { type: boolean }
+        deliveryReportUrl: { type: ["string", "null"], format: uri }
+        deliveryReportsConfigured: { type: boolean }
         updatedAt: { type: ["string", "null"], format: date-time }
     AdminSmsSettingsUpdate:
       type: object
@@ -2410,13 +2447,43 @@ components:
           maxLength: 1600
     AdminSmsSendResponse:
       type: object
-      required: [recipientPhone, senderId, status, providerMessageId, acceptedAt]
+      required: [id, recipientPhone, senderId, messageText, status, providerMessageId, providerStatus, providerStatusGroup, providerStatusAt, acceptedAt, errorMessage, createdByUserId, createdAt, updatedAt]
       properties:
+        id: { type: string, format: uuid }
         recipientPhone: { type: string }
         senderId: { type: string }
-        status: { type: string, enum: [accepted] }
+        messageText: { type: string }
+        status: { type: string, enum: [sending, accepted, delivered, failed] }
         providerMessageId: { type: ["string", "null"] }
-        acceptedAt: { type: string, format: date-time }
+        providerStatus: { type: ["string", "null"] }
+        providerStatusGroup: { type: ["string", "null"] }
+        providerStatusAt: { type: ["string", "null"], format: date-time }
+        acceptedAt: { type: ["string", "null"], format: date-time }
+        errorMessage: { type: ["string", "null"] }
+        createdByUserId: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminSmsMessage:
+      allOf:
+        - $ref: "#/components/schemas/AdminSmsSendResponse"
+    InfobipSmsDeliveryReport:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              messageId: { type: string }
+              callbackData: { type: string }
+              doneAt: { type: string, format: date-time }
+              status:
+                type: object
+                properties:
+                  groupName: { type: string }
+                  name: { type: string }
+                  description: { type: string }
     ResendWebhookEvent:
       type: object
       additionalProperties: true

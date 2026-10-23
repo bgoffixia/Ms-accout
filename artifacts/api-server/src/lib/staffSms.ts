@@ -1,5 +1,11 @@
-import { eq } from "drizzle-orm";
-import { db, staffSmsSettingsTable } from "@workspace/db";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import {
+  db,
+  staffSmsOutboxTable,
+  staffSmsSettingsTable,
+  type StaffSmsOutboxRecord,
+} from "@workspace/db";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 const STAFF_SMS_SETTINGS_KEY = "global";
 const SENDER_ID_PATTERN = /^[A-Za-z0-9]{3,11}$/;
@@ -8,8 +14,20 @@ export type StaffSmsConfiguration = {
   baseUrl: string;
   senderId: string;
   credentialConfigured: boolean;
+  deliveryReportUrl: string | null;
+  deliveryReportsConfigured: boolean;
   updatedAt: string | null;
 };
+
+export type StaffSmsStatus = "sending" | "accepted" | "delivered" | "failed";
+
+export function getInfobipDeliveryReportUrl(): string | null {
+  const domain = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
+  if (!domain || !/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(domain)) {
+    return null;
+  }
+  return `https://${domain}/api/webhooks/infobip/sms`;
+}
 
 export function normalizeInfobipBaseUrl(value: string): string | null {
   try {
@@ -42,10 +60,15 @@ export async function getStaffSmsConfiguration(): Promise<StaffSmsConfiguration>
     .from(staffSmsSettingsTable)
     .where(eq(staffSmsSettingsTable.key, STAFF_SMS_SETTINGS_KEY))
     .limit(1);
+  const deliveryReportUrl = getInfobipDeliveryReportUrl();
   return {
     baseUrl: saved?.baseUrl ?? "",
     senderId: saved?.senderId ?? "",
     credentialConfigured: Boolean(process.env.INFOBIP_API_KEY?.trim()),
+    deliveryReportUrl,
+    deliveryReportsConfigured: Boolean(
+      deliveryReportUrl && process.env.INFOBIP_DLR_WEBHOOK_SECRET?.trim(),
+    ),
     updatedAt: saved?.updatedAt?.toISOString() ?? null,
   };
 }
@@ -82,6 +105,8 @@ export async function sendInfobipSms(input: {
   senderId: string;
   recipientPhone: string;
   messageText: string;
+  deliveryReportUrl: string;
+  callbackData: string;
 }): Promise<{ ok: boolean; status: number; providerMessageId: string | null }> {
   const response = await fetch(`${input.baseUrl}/sms/3/messages`, {
     method: "POST",
@@ -95,6 +120,14 @@ export async function sendInfobipSms(input: {
         sender: input.senderId,
         destinations: [{ to: input.recipientPhone.replace(/^\+/, "") }],
         content: { text: input.messageText },
+        webhooks: {
+          delivery: {
+            url: input.deliveryReportUrl,
+            intermediateReport: false,
+          },
+          contentType: "application/json",
+          callbackData: input.callbackData,
+        },
       }],
     }),
     signal: AbortSignal.timeout(15_000),
@@ -111,4 +144,149 @@ export async function sendInfobipSms(input: {
     // Infobip may return an empty body for accepted requests.
   }
   return { ok: response.ok, status: response.status, providerMessageId };
+}
+
+export async function createStaffSmsAttempt(input: {
+  recipientPhone: string;
+  senderId: string;
+  messageText: string;
+  createdByUserId: string;
+}): Promise<StaffSmsOutboxRecord> {
+  const [record] = await db
+    .insert(staffSmsOutboxTable)
+    .values({
+      ...input,
+      status: "sending",
+    })
+    .returning();
+  if (!record) throw new Error("SMS attempt could not be recorded.");
+  return record;
+}
+
+export async function listStaffSmsAttempts(): Promise<StaffSmsOutboxRecord[]> {
+  return db
+    .select()
+    .from(staffSmsOutboxTable)
+    .orderBy(desc(staffSmsOutboxTable.createdAt))
+    .limit(100);
+}
+
+export async function getStaffSmsAttemptById(
+  id: string,
+): Promise<StaffSmsOutboxRecord | undefined> {
+  const [record] = await db
+    .select()
+    .from(staffSmsOutboxTable)
+    .where(eq(staffSmsOutboxTable.id, id))
+    .limit(1);
+  return record;
+}
+
+export async function markStaffSmsAccepted(input: {
+  id: string;
+  providerMessageId: string | null;
+  acceptedAt: Date;
+}): Promise<void> {
+  await db
+    .update(staffSmsOutboxTable)
+    .set({
+      status: "accepted",
+      providerMessageId: input.providerMessageId,
+      acceptedAt: input.acceptedAt,
+      updatedAt: input.acceptedAt,
+    })
+    .where(
+      and(
+        eq(staffSmsOutboxTable.id, input.id),
+        eq(staffSmsOutboxTable.status, "sending"),
+      ),
+    );
+}
+
+export async function markStaffSmsFailed(
+  id: string,
+  errorMessage: string,
+): Promise<void> {
+  await db
+    .update(staffSmsOutboxTable)
+    .set({
+      status: "failed",
+      errorMessage,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(staffSmsOutboxTable.id, id),
+        eq(staffSmsOutboxTable.status, "sending"),
+      ),
+    );
+}
+
+export function verifyInfobipDeliveryReportSignature(input: {
+  rawBody: Buffer;
+  signature: string | undefined;
+  secret: string;
+}): boolean {
+  if (!input.signature) return false;
+  const supplied = input.signature.trim().replace(/^sha256=/i, "");
+  if (!/^[a-f0-9]{64}$/i.test(supplied)) return false;
+  const expected = createHmac("sha256", input.secret)
+    .update(input.rawBody)
+    .digest();
+  const actual = Buffer.from(supplied, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export async function applyInfobipDeliveryReport(input: {
+  callbackData?: string;
+  providerMessageId?: string;
+  status: "delivered" | "failed";
+  providerStatus: string | null;
+  providerStatusGroup: string | null;
+  providerStatusAt: Date;
+}): Promise<boolean> {
+  let attemptId: string | null = null;
+  if (
+    input.callbackData &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      input.callbackData,
+    )
+  ) {
+    const [attempt] = await db
+      .select({ id: staffSmsOutboxTable.id })
+      .from(staffSmsOutboxTable)
+      .where(eq(staffSmsOutboxTable.id, input.callbackData))
+      .limit(1);
+    attemptId = attempt?.id ?? null;
+  }
+  if (!attemptId && input.providerMessageId) {
+    const [attempt] = await db
+      .select({ id: staffSmsOutboxTable.id })
+      .from(staffSmsOutboxTable)
+      .where(eq(staffSmsOutboxTable.providerMessageId, input.providerMessageId))
+      .limit(1);
+    attemptId = attempt?.id ?? null;
+  }
+  if (!attemptId) return false;
+
+  await db
+    .update(staffSmsOutboxTable)
+    .set({
+      status: input.status,
+      providerMessageId: input.providerMessageId,
+      providerStatus: input.providerStatus,
+      providerStatusGroup: input.providerStatusGroup,
+      providerStatusAt: input.providerStatusAt,
+      errorMessage: input.status === "failed"
+        ? input.providerStatus ?? "Infobip reported that the message was not delivered."
+        : null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(staffSmsOutboxTable.id, attemptId),
+        inArray(staffSmsOutboxTable.status, ["sending", "accepted"]),
+      ),
+    );
+  return true;
 }

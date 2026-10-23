@@ -10,5 +10,8 @@ export type AdminSmsSendResponseStatus = typeof AdminSmsSendResponseStatus[keyof
 
 
 export const AdminSmsSendResponseStatus = {
+  sending: 'sending',
   accepted: 'accepted',
+  delivered: 'delivered',
+  failed: 'failed',
 } as const;

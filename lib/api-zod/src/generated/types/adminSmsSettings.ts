@@ -13,5 +13,8 @@ export interface AdminSmsSettings {
   senderId: string;
   credentialConfigured: boolean;
   /** @nullable */
+  deliveryReportUrl: string | null;
+  deliveryReportsConfigured: boolean;
+  /** @nullable */
   updatedAt: Date | null;
 }

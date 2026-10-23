@@ -37,7 +37,10 @@ app.use(
   express.json({
     limit: "4mb",
     verify(request, _response, body) {
-      if (request.url?.split("?")[0] === "/api/webhooks/resend") {
+      if (
+        request.url?.split("?")[0] === "/api/webhooks/resend" ||
+        request.url?.split("?")[0] === "/api/webhooks/infobip/sms"
+      ) {
         (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
       }
     },

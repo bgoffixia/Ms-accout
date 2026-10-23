@@ -18,6 +18,7 @@ import {
   getGetAdminOverviewQueryKey,
   getGetAdminEmailSettingsQueryKey,
   getGetAdminSmsSettingsQueryKey,
+  getListAdminSmsActivityQueryKey,
   getListAdminEmailTemplatesQueryKey,
   getListAdminEmailOutboxQueryKey,
   getGetPortalSettingsQueryKey,
@@ -38,6 +39,7 @@ import {
   useListAdminEmailTemplates, useCreateAdminEmailTemplate, useUpdateAdminEmailTemplate, useDeleteAdminEmailTemplate,
   useSendAdminEmail, useRetryAdminEmail, useRequestAdminEmailLogoUpload, useCompleteAdminEmailLogoUpload,
   useGetAdminSmsSettings, useUpdateAdminSmsSettings, useSendAdminSms,
+  useListAdminSmsActivity,
   useCheckStaffRegistrationEmail, useClaimAllowlistedStaffAccess,
   useGetApplication, useGetApplicantSummary, useListApplicationsForReview,
   useListAdminUsers, useListEnrollmentCategories, useListMyApplications, useListMySupportTickets,
@@ -2396,8 +2398,8 @@ function AdminEmailCenter() {
   const queryClient = useQueryClient();
   const [location] = useLocation();
   const requestedEmailSection = location.split('/').filter(Boolean).at(-1);
-  const emailSection = ['alerts', 'templates', 'send', 'activity', 'sms'].includes(requestedEmailSection ?? '')
-    ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity' | 'sms'
+  const emailSection = ['alerts', 'templates', 'send', 'activity', 'sms', 'sms-activity'].includes(requestedEmailSection ?? '')
+    ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity' | 'sms' | 'sms-activity'
     : 'alerts';
   const logoInputRef = useRef<HTMLInputElement>(null);
   const footerImageInputRef = useRef<HTMLInputElement>(null);
@@ -2413,6 +2415,13 @@ function AdminEmailCenter() {
       queryKey: getListAdminEmailOutboxQueryKey(),
       refetchInterval: 15_000,
       enabled: emailSection === 'activity',
+    },
+  });
+  const smsActivity = useListAdminSmsActivity({
+    query: {
+      queryKey: getListAdminSmsActivityQueryKey(),
+      refetchInterval: 15_000,
+      enabled: emailSection === 'sms-activity',
     },
   });
   const templates = useListAdminEmailTemplates();
@@ -2522,13 +2531,17 @@ function AdminEmailCenter() {
     }, {
       onSuccess: (result: AdminSmsSendResponse) => {
         setLastSmsResult(result);
-        setSmsFeedback('Infobip accepted the SMS request. This does not confirm delivery.');
+        setSmsFeedback(result.status === 'delivered'
+          ? 'The SMS was delivered.'
+          : 'Infobip accepted the SMS request. Delivery results will appear in SMS activity.');
         setSmsRecipientDraft('');
         setSmsMessageDraft('');
+        void queryClient.invalidateQueries({ queryKey: getListAdminSmsActivityQueryKey() });
       },
       onError: (error: unknown) => {
         const apiError = error as { data?: { error?: string } };
         setSmsFeedback(apiError.data?.error ?? 'The SMS could not be sent. Check provider activity before retrying.');
+        void queryClient.invalidateQueries({ queryKey: getListAdminSmsActivityQueryKey() });
       },
     });
   };
@@ -2765,6 +2778,7 @@ function AdminEmailCenter() {
           { href: '/admin/email/templates', key: 'templates', label: 'Template settings', icon: FileText },
           { href: '/admin/email/send', key: 'send', label: 'One-off email', icon: Send },
           { href: '/admin/email/sms', key: 'sms', label: 'SMS sender', icon: Smartphone },
+          { href: '/admin/email/sms-activity', key: 'sms-activity', label: 'SMS activity', icon: Activity },
           { href: '/admin/email/activity', key: 'activity', label: 'Email activity', icon: Activity },
         ].map(({ href, key, label, icon: Icon }) => (
           <Link
@@ -3118,6 +3132,21 @@ function AdminEmailCenter() {
             {!smsSettings.data?.credentialConfigured && !smsSettings.isLoading && (
               <p className="field-help admin-sms-secret-note">Add <code>INFOBIP_API_KEY</code> in Replit Secrets to enable sending. Never paste the key into this form.</p>
             )}
+            <div className={`admin-sms-credential-status ${smsSettings.data?.deliveryReportsConfigured ? 'is-ready' : 'is-missing'}`} role="status" data-testid="text-sms-delivery-report-status">
+              <span className="status-dot" />
+              {smsSettings.data?.deliveryReportsConfigured
+                ? 'Delivery report signing secret is configured'
+                : 'Delivery report signing setup is required'}
+            </div>
+            <div className="admin-sms-webhook-help">
+              <b>Delivery report callback</b>
+              {smsSettings.data?.deliveryReportUrl
+                ? <code data-testid="text-sms-delivery-report-url">{smsSettings.data.deliveryReportUrl}</code>
+                : <p className="field-help">A public app domain is not available yet, so the callback URL cannot be generated.</p>}
+              <p className="field-help">
+                In Infobip, create a notification profile for this exact URL and enable HMAC-SHA256 signing. Save the same signing key in Replit Secrets as <code>INFOBIP_DLR_WEBHOOK_SECRET</code>. Never put it in this form.
+              </p>
+            </div>
             {smsSettings.isError && <p className="admin-email-feedback admin-email-error" role="alert">SMS settings could not be loaded. Refresh the page and try again.</p>}
             <form className="admin-email-form" onSubmit={saveSmsConfiguration}>
               <label className="field-label" htmlFor="sms-infobip-base-url">Infobip base URL</label>
@@ -3191,6 +3220,8 @@ function AdminEmailCenter() {
                 disabled={
                   sendSms.isPending ||
                   !smsSettings.data?.credentialConfigured ||
+                  !smsSettings.data?.deliveryReportsConfigured ||
+                  !smsSettings.data?.deliveryReportUrl ||
                   !smsSettings.data.baseUrl ||
                   !smsSettings.data.senderId
                 }
@@ -3203,6 +3234,38 @@ function AdminEmailCenter() {
           </section>
         </section>}
       </div>
+
+      {emailSection === 'sms-activity' && <section className="admin-email-outbox detail-card" aria-labelledby="admin-sms-activity-title">
+        <div className="admin-email-outbox-heading">
+          <div className="detail-card-title"><Activity size={17} /><h2 id="admin-sms-activity-title">Recent SMS activity</h2></div>
+          <span>Delivery reports refresh automatically. Messages are never resent automatically.</span>
+        </div>
+        {smsActivity.isLoading ? <LoadingPanel label="Loading SMS activity" />
+          : smsActivity.isError ? <p className="admin-email-feedback admin-email-error" role="alert">SMS activity could not be loaded. Refresh the page and try again.</p>
+          : !smsActivity.data?.length ? <EmptyPanel title="No SMS activity yet" message="Staff SMS attempts and delivery results will appear here." />
+          : <div className="admin-email-outbox-list" data-testid="admin-sms-activity-list">
+            {smsActivity.data.map((message) => (
+              <article className="admin-email-outbox-row" key={message.id} data-testid={`sms-activity-row-${message.id}`}>
+                <div className="admin-email-outbox-main">
+                  <div className="admin-email-outbox-title">
+                    <b>{message.recipientPhone}</b>
+                    <span className={`admin-email-status admin-email-status-${message.status}`}>
+                      {message.status === 'sending' ? 'In progress' : message.status[0]!.toUpperCase() + message.status.slice(1)}
+                    </span>
+                  </div>
+                  <p>{message.senderId}<span>·</span><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString()}</time></p>
+                  {message.providerMessageId && <small>Infobip message ID: {message.providerMessageId}</small>}
+                  {message.providerStatus && <small>{message.providerStatusGroup ? `${message.providerStatusGroup} · ` : ''}{message.providerStatus}</small>}
+                  {message.errorMessage && <p className="admin-email-error">{message.errorMessage}</p>}
+                  <details>
+                    <summary>View message text</summary>
+                    <pre>{message.messageText}</pre>
+                  </details>
+                </div>
+              </article>
+            ))}
+          </div>}
+      </section>}
 
       {emailSection === 'activity' && <section className="admin-email-outbox detail-card" aria-labelledby="admin-email-outbox-title">
         <div className="admin-email-outbox-heading">

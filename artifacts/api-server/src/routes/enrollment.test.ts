@@ -34,6 +34,7 @@ const mockState = vi.hoisted(() => ({
       staffEmailProviderEventsTable: makeTable("staff_email_provider_events"),
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
       staffSmsSettingsTable: makeTable("staff_sms_settings"),
+      staffSmsOutboxTable: makeTable("staff_sms_outbox"),
     };
   })(),
 }));
@@ -432,9 +433,13 @@ describe("guest application verification and persistence", () => {
     process.env.SESSION_SECRET = "test-session-secret";
     process.env.RESEND_WEBHOOK_SECRET =
       `whsec_${Buffer.from("test-resend-signing-key").toString("base64")}`;
+    process.env.REPLIT_DOMAINS = "portal.example.test";
     app.use(express.json({
       verify(request, _response, body) {
-        if (request.url?.startsWith("/api/webhooks/resend")) {
+        if (
+          request.url?.startsWith("/api/webhooks/resend") ||
+          request.url?.startsWith("/api/webhooks/infobip/sms")
+        ) {
           (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
         }
       },
@@ -472,6 +477,7 @@ describe("guest application verification and persistence", () => {
       "staff_email_provider_events",
       "staff_email_templates",
       "staff_sms_settings",
+      "staff_sms_outbox",
     ]) mockState.rows.set(name, []);
     mockState.users.clear();
     mockState.storageObjects.clear();
@@ -480,6 +486,8 @@ describe("guest application verification and persistence", () => {
     mockState.emailResponses.length = 0;
     mockState.smsRequests.length = 0;
     mockState.failNextUpdateTable = null;
+    delete process.env.INFOBIP_API_KEY;
+    delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
       primaryEmailAddress: {
@@ -732,6 +740,10 @@ describe("guest application verification and persistence", () => {
     expect(moderator.response.status).toBe(403);
     expect(reviewer.response.status).toBe(200);
     expect(reviewer.body.credentialConfigured).toBe(false);
+    expect(reviewer.body.deliveryReportUrl).toBe(
+      "https://portal.example.test/api/webhooks/infobip/sms",
+    );
+    expect(reviewer.body.deliveryReportsConfigured).toBe(false);
 
     const unsafeUrl = await request("/admin/email/sms/settings", {
       method: "PUT",
@@ -762,6 +774,7 @@ describe("guest application verification and persistence", () => {
     expect(saved.body.baseUrl).toBe("https://tenant.api.infobip.com");
     expect(saved.body.senderId).toBe("SECVERIFY");
     expect(saved.body.credentialConfigured).toBe(false);
+    expect(saved.body.deliveryReportsConfigured).toBe(false);
   });
 
   it("sends a single reviewer SMS through Infobip without exposing its API key", async () => {
@@ -790,6 +803,7 @@ describe("guest application verification and persistence", () => {
     });
     vi.stubGlobal("fetch", providerFetch);
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
+    process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
     try {
       const applicant = await request("/admin/email/sms/send", {
         method: "POST",
@@ -819,12 +833,22 @@ describe("guest application verification and persistence", () => {
       }, "reviewer");
       expect(sent.response.status).toBe(201);
       expect(sent.body).toMatchObject({
+        id: expect.any(String),
         recipientPhone: "+2348012345678",
         senderId: "SECVERIFY",
         status: "accepted",
         providerMessageId: "infobip-message-123",
       });
       expect(JSON.stringify(sent.body)).not.toContain("test-infobip-api-key");
+      expect(JSON.stringify(sent.body)).not.toContain("test-infobip-dlr-secret");
+      expect(mockState.rows.get("staff_sms_outbox")).toHaveLength(1);
+      expect(mockState.rows.get("staff_sms_outbox")?.[0]).toMatchObject({
+        recipientPhone: "+2348012345678",
+        messageText: "Your enrollment status has been updated.",
+        status: "accepted",
+        providerMessageId: "infobip-message-123",
+        createdByUserId: "reviewer",
+      });
       expect(mockState.smsRequests).toHaveLength(1);
       const providerRequest = mockState.smsRequests[0]!;
       expect(providerRequest.url).toBe("https://tenant.api.infobip.com/sms/3/messages");
@@ -835,11 +859,223 @@ describe("guest application verification and persistence", () => {
           sender: "SECVERIFY",
           destinations: [{ to: "2348012345678" }],
           content: { text: "Your enrollment status has been updated." },
+          webhooks: {
+            delivery: {
+              url: "https://portal.example.test/api/webhooks/infobip/sms",
+              intermediateReport: false,
+            },
+            contentType: "application/json",
+            callbackData: sent.body.id,
+          },
         }],
       });
     } finally {
       vi.unstubAllGlobals();
       delete process.env.INFOBIP_API_KEY;
+      delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
+    }
+  });
+
+  it("restricts SMS activity to reviewers and applies only signed terminal delivery reports", async () => {
+    process.env.INFOBIP_API_KEY = "test-infobip-api-key";
+    process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
+    const saved = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com",
+        senderId: "SECVERIFY",
+      }),
+    }, "reviewer");
+    expect(saved.response.status).toBe(200);
+
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      if (String(input).startsWith("https://tenant.api.infobip.com/")) {
+        return new Response(JSON.stringify({
+          messages: [{ messageId: "infobip-report-message-id" }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return originalFetch(input, init);
+    }));
+    let created: { response: Response; body: any };
+    try {
+      created = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "Delivery report test",
+        }),
+      }, "reviewer");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(created.response.status).toBe(201);
+
+    const signedReport = (results: Array<Record<string, unknown>>) => {
+      const body = JSON.stringify({ results });
+      const signature = createHmac("sha256", "test-infobip-dlr-secret")
+        .update(body)
+        .digest("hex");
+      return { body, headers: { "X-Hub-Signature": signature } };
+    };
+    const report = signedReport([{
+      messageId: "infobip-report-message-id",
+      callbackData: created.body.id,
+      doneAt: "2026-10-22T12:34:56.000Z",
+      status: { groupName: "DELIVERED", name: "DELIVERED_TO_HANDSET" },
+    }]);
+    const invalidSignature = await request("/webhooks/infobip/sms", {
+      method: "POST",
+      headers: { "X-Hub-Signature": "sha256=bad" },
+      body: report.body,
+    });
+    expect(invalidSignature.response.status).toBe(401);
+    expect(mockState.rows.get("staff_sms_outbox")?.[0].status).toBe("accepted");
+
+    const delivered = await request("/webhooks/infobip/sms", {
+      method: "POST",
+      headers: report.headers,
+      body: report.body,
+    });
+    expect(delivered.response.status).toBe(200);
+    expect(mockState.rows.get("staff_sms_outbox")?.[0]).toMatchObject({
+      status: "delivered",
+      providerStatus: "DELIVERED_TO_HANDSET",
+      providerStatusGroup: "DELIVERED",
+      providerMessageId: "infobip-report-message-id",
+      providerStatusAt: new Date("2026-10-22T12:34:56.000Z"),
+    });
+
+    const lateFailure = signedReport([{
+      messageId: "infobip-report-message-id",
+      callbackData: created.body.id,
+      doneAt: "2026-10-22T12:35:56.000Z",
+      status: { groupName: "UNDELIVERABLE", name: "UNDELIVERABLE" },
+    }]);
+    await request("/webhooks/infobip/sms", {
+      method: "POST",
+      headers: lateFailure.headers,
+      body: lateFailure.body,
+    });
+    expect(mockState.rows.get("staff_sms_outbox")?.[0].status).toBe("delivered");
+
+    const failedAttempt = newRow("staff_sms_outbox", {
+      recipientPhone: "+2348012345679",
+      senderId: "SECVERIFY",
+      messageText: "Carrier failure test",
+      status: "accepted",
+    });
+    mockState.rows.get("staff_sms_outbox")?.push(failedAttempt);
+    const failedReport = signedReport([{
+      callbackData: failedAttempt.id,
+      messageId: "infobip-carrier-failure",
+      doneAt: "2026-10-22T12:40:00.000Z",
+      status: {
+        groupName: "UNDELIVERABLE",
+        name: "UNDELIVERABLE",
+        description: "Destination unavailable",
+      },
+    }]);
+    const carrierFailed = await request("/webhooks/infobip/sms", {
+      method: "POST",
+      headers: failedReport.headers,
+      body: failedReport.body,
+    });
+    expect(carrierFailed.response.status).toBe(200);
+    expect(failedAttempt).toMatchObject({
+      status: "failed",
+      errorMessage: "Destination unavailable",
+    });
+
+    const retryableAttempt = newRow("staff_sms_outbox", {
+      recipientPhone: "+2348012345680",
+      senderId: "SECVERIFY",
+      messageText: "Webhook retry test",
+      status: "accepted",
+    });
+    mockState.rows.get("staff_sms_outbox")?.push(retryableAttempt);
+    const retryableReport = signedReport([{
+      callbackData: retryableAttempt.id,
+      messageId: "infobip-database-retry",
+      doneAt: "2026-10-22T12:45:00.000Z",
+      status: { groupName: "DELIVERED", name: "DELIVERED_TO_HANDSET" },
+    }]);
+    mockState.failNextUpdateTable = "staff_sms_outbox";
+    const temporaryDatabaseFailure = await request("/webhooks/infobip/sms", {
+      method: "POST",
+      headers: retryableReport.headers,
+      body: retryableReport.body,
+    });
+    expect(temporaryDatabaseFailure.response.status).toBe(503);
+    expect((retryableAttempt as Record<string, unknown>).status).toBe("accepted");
+    const retriedWebhook = await request("/webhooks/infobip/sms", {
+      method: "POST",
+      headers: retryableReport.headers,
+      body: retryableReport.body,
+    });
+    expect(retriedWebhook.response.status).toBe(200);
+    expect((retryableAttempt as Record<string, unknown>).status).toBe("delivered");
+
+    const signedOut = await request("/admin/email/sms/activity");
+    const applicant = await request("/admin/email/sms/activity", {}, "applicant-verified");
+    const reviewer = await request("/admin/email/sms/activity", {}, "reviewer");
+    expect(signedOut.response.status).toBe(401);
+    expect(applicant.response.status).toBe(403);
+    expect(reviewer.response.status).toBe(200);
+    expect(reviewer.body.find((record: any) => record.id === created.body.id)).toMatchObject({
+      id: created.body.id,
+      recipientPhone: "+2348012345678",
+      status: "delivered",
+    });
+    expect(JSON.stringify(reviewer.body)).not.toContain("test-infobip-api-key");
+    delete process.env.INFOBIP_API_KEY;
+    delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
+  });
+
+  it("records provider rejections as failed without retrying or losing the SMS activity", async () => {
+    await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com",
+        senderId: "SECVERIFY",
+      }),
+    }, "reviewer");
+    process.env.INFOBIP_API_KEY = "test-infobip-api-key";
+    process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
+    const originalFetch = globalThis.fetch;
+    const providerFetch = vi.fn(async (
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      if (String(input).startsWith("https://tenant.api.infobip.com/")) {
+        mockState.smsRequests.push({ url: String(input), init: {} });
+        return new Response(JSON.stringify({}), { status: 422 });
+      }
+      return originalFetch(input, init);
+    });
+    vi.stubGlobal("fetch", providerFetch);
+    try {
+      const failed = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "Rejected attempt",
+        }),
+      }, "reviewer");
+      expect(failed.response.status).toBe(400);
+      const activity = await request("/admin/email/sms/activity", {}, "reviewer");
+      expect(activity.body[0]).toMatchObject({
+        recipientPhone: "+2348012345678",
+        status: "failed",
+      });
+      expect(mockState.smsRequests).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.INFOBIP_API_KEY;
+      delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
     }
   });
 

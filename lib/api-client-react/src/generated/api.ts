@@ -34,6 +34,7 @@ import type {
   AdminGuestPreapplicationEvidence,
   AdminGuestPreapplicationStatusUpdate,
   AdminOverview,
+  AdminSmsMessage,
   AdminSmsSendInput,
   AdminSmsSendResponse,
   AdminSmsSettings,
@@ -69,6 +70,7 @@ import type {
   GuestPreapplicationRevision,
   GuestPreapplicationStatus,
   HealthStatus,
+  InfobipSmsDeliveryReport,
   ListAdminUsersParams,
   ListApplicationsForReviewParams,
   ListSupportTicketsForAdminParams,
@@ -4595,6 +4597,172 @@ export const useSendAdminSms = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendAdminSmsMutationOptions(options));
+    }
+
+export const getListAdminSmsActivityUrl = () => {
+
+
+
+
+  return `/api/admin/email/sms/activity`
+}
+
+/**
+ * @summary List recent staff SMS attempts
+ */
+export const listAdminSmsActivity = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminSmsMessage[]> => {
+
+  return customFetch<AdminSmsMessage[]>(getListAdminSmsActivityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminSmsActivityQueryKey = () => {
+    return [
+    `/api/admin/email/sms/activity`
+    ] as const;
+    }
+
+
+export const getListAdminSmsActivityQueryOptions = <TData = Awaited<ReturnType<typeof listAdminSmsActivity>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminSmsActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminSmsActivityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminSmsActivity>>> = ({ signal }) => listAdminSmsActivity({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminSmsActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminSmsActivityQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminSmsActivity>>>
+export type ListAdminSmsActivityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent staff SMS attempts
+ */
+
+export function useListAdminSmsActivity<TData = Awaited<ReturnType<typeof listAdminSmsActivity>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminSmsActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminSmsActivityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReceiveInfobipSmsDeliveryReportUrl = () => {
+
+
+
+
+  return `/api/webhooks/infobip/sms`
+}
+
+/**
+ * Requires an Infobip HMAC-SHA256 signature in the X-Hub-Signature header.
+ * @summary Receive Infobip SMS delivery reports
+ */
+export const receiveInfobipSmsDeliveryReport = async (infobipSmsDeliveryReport: InfobipSmsDeliveryReport, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getReceiveInfobipSmsDeliveryReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(infobipSmsDeliveryReport)
+  }
+);}
+
+
+
+
+
+export const getReceiveInfobipSmsDeliveryReportMutationKey = () => ['receiveInfobipSmsDeliveryReport'] as const;
+
+export const getReceiveInfobipSmsDeliveryReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveInfobipSmsDeliveryReport>>, TError,ReceiveInfobipSmsDeliveryReportMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveInfobipSmsDeliveryReport>>, TError,ReceiveInfobipSmsDeliveryReportMutationVariables, TContext> => {
+
+const mutationKey = getReceiveInfobipSmsDeliveryReportMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveInfobipSmsDeliveryReport>>, ReceiveInfobipSmsDeliveryReportMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveInfobipSmsDeliveryReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveInfobipSmsDeliveryReportMutationResult = NonNullable<Awaited<ReturnType<typeof receiveInfobipSmsDeliveryReport>>>
+    export type ReceiveInfobipSmsDeliveryReportMutationBody = BodyType<InfobipSmsDeliveryReport>
+    export type ReceiveInfobipSmsDeliveryReportMutationError = ErrorType<void>
+    export type ReceiveInfobipSmsDeliveryReportMutationVariables = {data: BodyType<InfobipSmsDeliveryReport>}
+
+    /**
+ * @summary Receive Infobip SMS delivery reports
+ */
+export const useReceiveInfobipSmsDeliveryReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveInfobipSmsDeliveryReport>>, TError,ReceiveInfobipSmsDeliveryReportMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveInfobipSmsDeliveryReport>>,
+        TError,
+        ReceiveInfobipSmsDeliveryReportMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReceiveInfobipSmsDeliveryReportMutationOptions(options));
     }
 
 export const getRetryAdminEmailUrl = (messageId: string,) => {

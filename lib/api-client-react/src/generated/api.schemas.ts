@@ -1319,6 +1319,9 @@ export interface AdminSmsSettings {
   senderId: string;
   credentialConfigured: boolean;
   /** @nullable */
+  deliveryReportUrl: string | null;
+  deliveryReportsConfigured: boolean;
+  /** @nullable */
   updatedAt: string | null;
 }
 
@@ -1354,16 +1357,53 @@ export type AdminSmsSendResponseStatus = typeof AdminSmsSendResponseStatus[keyof
 
 
 export const AdminSmsSendResponseStatus = {
+  sending: 'sending',
   accepted: 'accepted',
+  delivered: 'delivered',
+  failed: 'failed',
 } as const;
 
 export interface AdminSmsSendResponse {
+  id: string;
   recipientPhone: string;
   senderId: string;
+  messageText: string;
   status: AdminSmsSendResponseStatus;
   /** @nullable */
   providerMessageId: string | null;
-  acceptedAt: string;
+  /** @nullable */
+  providerStatus: string | null;
+  /** @nullable */
+  providerStatusGroup: string | null;
+  /** @nullable */
+  providerStatusAt: string | null;
+  /** @nullable */
+  acceptedAt: string | null;
+  /** @nullable */
+  errorMessage: string | null;
+  /** @nullable */
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AdminSmsMessage = AdminSmsSendResponse;
+
+export type InfobipSmsDeliveryReportResultsItemStatus = {
+  groupName?: string;
+  name?: string;
+  description?: string;
+};
+
+export type InfobipSmsDeliveryReportResultsItem = {
+  messageId?: string;
+  callbackData?: string;
+  doneAt?: string;
+  status?: InfobipSmsDeliveryReportResultsItemStatus;
+};
+
+export interface InfobipSmsDeliveryReport {
+  results: InfobipSmsDeliveryReportResultsItem[];
 }
 
 export interface ResendWebhookEvent { [key: string]: unknown }

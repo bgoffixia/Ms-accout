@@ -1930,6 +1930,8 @@ export const GetAdminSmsSettingsResponse = zod.object({
   "baseUrl": zod.string().max(getAdminSmsSettingsResponseBaseUrlMax),
   "senderId": zod.string().max(getAdminSmsSettingsResponseSenderIdMax),
   "credentialConfigured": zod.boolean(),
+  "deliveryReportUrl": zod.string().url().nullable(),
+  "deliveryReportsConfigured": zod.boolean(),
   "updatedAt": zod.coerce.date().nullable()
 })
 
@@ -1961,6 +1963,8 @@ export const UpdateAdminSmsSettingsResponse = zod.object({
   "baseUrl": zod.string().max(updateAdminSmsSettingsResponseBaseUrlMax),
   "senderId": zod.string().max(updateAdminSmsSettingsResponseSenderIdMax),
   "credentialConfigured": zod.boolean(),
+  "deliveryReportUrl": zod.string().url().nullable(),
+  "deliveryReportsConfigured": zod.boolean(),
   "updatedAt": zod.coerce.date().nullable()
 })
 
@@ -1983,12 +1987,63 @@ export const SendAdminSmsBody = zod.object({
 })
 
 export const SendAdminSmsResponse = zod.object({
+  "id": zod.string().uuid(),
   "recipientPhone": zod.string(),
   "senderId": zod.string(),
-  "status": zod.enum(['accepted']),
+  "messageText": zod.string(),
+  "status": zod.enum(['sending', 'accepted', 'delivered', 'failed']),
   "providerMessageId": zod.string().nullable(),
-  "acceptedAt": zod.coerce.date()
+  "providerStatus": zod.string().nullable(),
+  "providerStatusGroup": zod.string().nullable(),
+  "providerStatusAt": zod.coerce.date().nullable(),
+  "acceptedAt": zod.coerce.date().nullable(),
+  "errorMessage": zod.string().nullable(),
+  "createdByUserId": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary List recent staff SMS attempts
+ */
+export const ListAdminSmsActivityResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "recipientPhone": zod.string(),
+  "senderId": zod.string(),
+  "messageText": zod.string(),
+  "status": zod.enum(['sending', 'accepted', 'delivered', 'failed']),
+  "providerMessageId": zod.string().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "providerStatusGroup": zod.string().nullable(),
+  "providerStatusAt": zod.coerce.date().nullable(),
+  "acceptedAt": zod.coerce.date().nullable(),
+  "errorMessage": zod.string().nullable(),
+  "createdByUserId": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAdminSmsActivityResponse = zod.array(ListAdminSmsActivityResponseItem)
+
+
+/**
+ * Requires an Infobip HMAC-SHA256 signature in the X-Hub-Signature header.
+ * @summary Receive Infobip SMS delivery reports
+ */
+export const ReceiveInfobipSmsDeliveryReportBody = zod.object({
+  "results": zod.array(zod.object({
+  "messageId": zod.string().optional(),
+  "callbackData": zod.string().optional(),
+  "doneAt": zod.coerce.date().optional(),
+  "status": zod.object({
+  "groupName": zod.string().optional(),
+  "name": zod.string().optional(),
+  "description": zod.string().optional()
+}).optional()
+}))
+})
+
+export const ReceiveInfobipSmsDeliveryReportResponse = zod.unknown()
 
 
 /**

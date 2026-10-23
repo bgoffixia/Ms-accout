@@ -79,6 +79,7 @@ import {
   UpdateAdminSmsSettingsResponse,
   SendAdminSmsBody,
   SendAdminSmsResponse,
+  ListAdminSmsActivityResponse,
   GetApplicationParams,
   GetApplicationResponse,
   GetApplicantSummaryResponse,
@@ -162,6 +163,7 @@ import {
   guestPreapplicationRevisionsTable,
   portalSettingsTable,
   supportTicketsTable,
+  type StaffSmsOutboxRecord,
   staffEmailOutboxTable,
   staffEmailProviderEventsTable,
   staffEmailTemplatesTable,
@@ -172,11 +174,19 @@ import {
   ObjectStorageService,
 } from "../lib/objectStorage";
 import {
+  applyInfobipDeliveryReport,
+  createStaffSmsAttempt,
+  getInfobipDeliveryReportUrl,
+  getStaffSmsAttemptById,
   getStaffSmsConfiguration,
   isValidInfobipSenderId,
+  listStaffSmsAttempts,
+  markStaffSmsAccepted,
+  markStaffSmsFailed,
   normalizeInfobipBaseUrl,
   saveStaffSmsConfiguration,
   sendInfobipSms,
+  verifyInfobipDeliveryReportSignature,
 } from "../lib/staffSms";
 import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
 import {
@@ -364,6 +374,7 @@ async function authenticate(
 ): Promise<void> {
   if (
     req.path === "/webhooks/resend" ||
+    req.path === "/webhooks/infobip/sms" ||
     req.path === "/public/email/logo" ||
     req.path === "/public/email/footer-background"
   ) {
@@ -3857,6 +3868,86 @@ router.post("/webhooks/resend", async (req, res): Promise<void> => {
   }
 });
 
+router.post("/webhooks/infobip/sms", async (req, res): Promise<void> => {
+  const secret = process.env.INFOBIP_DLR_WEBHOOK_SECRET?.trim();
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  if (!secret) {
+    req.log.error("Infobip SMS delivery report secret is not configured");
+    res.status(503).json({ error: "Webhook verification is not configured." });
+    return;
+  }
+  if (!rawBody || !verifyInfobipDeliveryReportSignature({
+    rawBody,
+    signature: req.header("x-hub-signature"),
+    secret,
+  })) {
+    res.status(401).json({ error: "Webhook signature is invalid." });
+    return;
+  }
+  const body = req.body as {
+    results?: Array<{
+      messageId?: unknown;
+      callbackData?: unknown;
+      doneAt?: unknown;
+      status?: {
+        groupName?: unknown;
+        name?: unknown;
+        description?: unknown;
+      };
+    }>;
+  };
+  if (!body || !Array.isArray(body.results)) {
+    res.status(400).json({ error: "Delivery report results are invalid." });
+    return;
+  }
+
+  try {
+    for (const result of body.results) {
+      const groupName = typeof result.status?.groupName === "string"
+        ? result.status.groupName.toUpperCase()
+        : "";
+      const statusName = typeof result.status?.name === "string"
+        ? result.status.name.toUpperCase()
+        : "";
+      const outcome = groupName === "DELIVERED" || statusName.includes("DELIVERED")
+        ? "delivered"
+        : /UNDELIVERABLE|REJECTED|EXPIRED/.test(`${groupName} ${statusName}`)
+          ? "failed"
+          : null;
+      if (!outcome) continue;
+      const doneAt = typeof result.doneAt === "string"
+        ? new Date(result.doneAt)
+        : new Date();
+      if (Number.isNaN(doneAt.getTime())) {
+        res.status(400).json({ error: "Delivery report timestamp is invalid." });
+        return;
+      }
+      await applyInfobipDeliveryReport({
+        callbackData: typeof result.callbackData === "string"
+          ? result.callbackData
+          : undefined,
+        providerMessageId: typeof result.messageId === "string"
+          ? result.messageId
+          : undefined,
+        status: outcome,
+        providerStatus: typeof result.status?.description === "string"
+          ? result.status.description
+          : typeof result.status?.name === "string"
+            ? result.status.name
+            : null,
+        providerStatusGroup: typeof result.status?.groupName === "string"
+          ? result.status.groupName
+          : null,
+        providerStatusAt: doneAt,
+      });
+    }
+    res.status(200).json({ received: true });
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to record Infobip SMS delivery report");
+    res.status(503).json({ error: "SMS delivery outcome could not be recorded." });
+  }
+});
+
 async function streamPublicEmailBrandImage(
   req: Request,
   res: Response,
@@ -4339,50 +4430,137 @@ router.post("/admin/email/sms/send", requireReviewer, async (req, res): Promise<
     return;
   }
 
+  let configuration;
   try {
-    const configuration = await getStaffSmsConfiguration();
-    if (!configuration.baseUrl || !configuration.senderId) {
-      res.status(400).json({ error: "Save the Infobip base URL and sender ID before sending." });
-      return;
-    }
-    const result = await sendInfobipSms({
+    configuration = await getStaffSmsConfiguration();
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load staff SMS settings before sending");
+    res.status(503).json({ error: "SMS settings could not be loaded." });
+    return;
+  }
+  if (!configuration.deliveryReportUrl || !configuration.deliveryReportsConfigured) {
+    res.status(503).json({
+      error: "Configure a public callback URL and the Infobip HMAC-SHA256 signing secret before sending.",
+    });
+    return;
+  }
+  if (!configuration.baseUrl || !configuration.senderId) {
+    res.status(400).json({ error: "Save the Infobip base URL and sender ID before sending." });
+    return;
+  }
+
+  let attempt;
+  try {
+    attempt = await createStaffSmsAttempt({
+      recipientPhone: parsed.data.recipientPhone,
+      senderId: configuration.senderId,
+      messageText: parsed.data.messageText,
+      createdByUserId: res.locals.userId as string,
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to record a staff SMS attempt");
+    res.status(503).json({ error: "The SMS attempt could not be recorded, so it was not sent." });
+    return;
+  }
+
+  let result: Awaited<ReturnType<typeof sendInfobipSms>>;
+  try {
+    result = await sendInfobipSms({
       baseUrl: configuration.baseUrl,
       apiKey,
       senderId: configuration.senderId,
       recipientPhone: parsed.data.recipientPhone,
       messageText: parsed.data.messageText,
+      deliveryReportUrl: configuration.deliveryReportUrl,
+      callbackData: attempt.id,
     });
-    if (!result.ok) {
-      req.log.warn({ providerStatus: result.status }, "Infobip rejected a staff SMS request");
-      if (result.status === 429) {
-        res.status(429).json({ error: "Infobip rate limit reached. Wait before sending another text." });
-        return;
-      }
-      if (result.status === 401 || result.status === 403) {
-        res.status(502).json({ error: "Infobip rejected the API credential or sender ID. Check the provider setup." });
-        return;
-      }
-      if (result.status === 400 || result.status === 422) {
-        res.status(400).json({ error: "Infobip rejected the number, sender ID, or message." });
-        return;
-      }
-      res.status(502).json({ error: "Infobip could not accept the message. Check provider activity before retrying." });
-      return;
-    }
-    res.status(201).json(
-      SendAdminSmsResponse.parse({
-        recipientPhone: parsed.data.recipientPhone,
-        senderId: configuration.senderId,
-        status: "accepted",
-        providerMessageId: result.providerMessageId,
-        acceptedAt: new Date(),
-      }),
-    );
   } catch (error) {
     req.log.error({ err: error }, "Failed to send a staff SMS through Infobip");
+    try {
+      await markStaffSmsFailed(
+        attempt.id,
+        "The request did not return a confirmed acceptance. Check Infobip activity before manually retrying.",
+      );
+    } catch (recordError) {
+      req.log.error({ err: recordError }, "Failed to mark the SMS attempt as uncertain");
+    }
     res.status(503).json({
       error: "Could not reach Infobip. Check the connection and provider activity before retrying.",
     });
+    return;
+  }
+
+  if (!result.ok) {
+    req.log.warn({ providerStatus: result.status }, "Infobip rejected a staff SMS request");
+    const failureMessage = result.status === 429
+      ? "Infobip rate limit reached."
+      : result.status === 401 || result.status === 403
+        ? "Infobip rejected the API credential or sender ID."
+        : result.status === 400 || result.status === 422
+          ? "Infobip rejected the number, sender ID, or message."
+          : "Infobip did not accept the message. Check provider activity before manually retrying.";
+    try {
+      await markStaffSmsFailed(attempt.id, failureMessage);
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to record the rejected SMS attempt");
+    }
+    if (result.status === 429) {
+      res.status(429).json({ error: "Infobip rate limit reached. Wait before sending another text." });
+      return;
+    }
+    if (result.status === 401 || result.status === 403) {
+      res.status(502).json({ error: "Infobip rejected the API credential or sender ID. Check the provider setup." });
+      return;
+    }
+    if (result.status === 400 || result.status === 422) {
+      res.status(400).json({ error: "Infobip rejected the number, sender ID, or message." });
+      return;
+    }
+    res.status(502).json({ error: "Infobip could not accept the message. Check provider activity before retrying." });
+    return;
+  }
+
+  const acceptedAt = new Date();
+  try {
+    await markStaffSmsAccepted({
+      id: attempt.id,
+      providerMessageId: result.providerMessageId,
+      acceptedAt,
+    });
+    const savedAttempt = await getStaffSmsAttemptById(attempt.id);
+    if (!savedAttempt) throw new Error("Saved SMS attempt could not be loaded.");
+    res.status(201).json(
+      SendAdminSmsResponse.parse(serializeStaffSmsRecord(savedAttempt)),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Infobip accepted the SMS but its result could not be saved");
+    res.status(503).json({
+      error: "Infobip accepted the message, but the local result could not be saved. Check SMS activity before manually retrying.",
+    });
+  }
+});
+
+function serializeStaffSmsRecord(record: StaffSmsOutboxRecord) {
+  return {
+    ...record,
+    providerMessageId: record.providerMessageId ?? null,
+    providerStatus: record.providerStatus ?? null,
+    providerStatusGroup: record.providerStatusGroup ?? null,
+    providerStatusAt: record.providerStatusAt ?? null,
+    acceptedAt: record.acceptedAt ?? null,
+    errorMessage: record.errorMessage ?? null,
+    createdByUserId: record.createdByUserId ?? null,
+  };
+}
+
+router.get("/admin/email/sms/activity", requireReviewer, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const records = await listStaffSmsAttempts();
+    res.json(ListAdminSmsActivityResponse.parse(records.map(serializeStaffSmsRecord)));
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load staff SMS activity");
+    res.status(503).json({ error: "SMS activity could not be loaded." });
   }
 });
 

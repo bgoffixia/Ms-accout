@@ -4077,6 +4077,34 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   font-weight: 700;
 }
 
+.admin-sms-webhook-help {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border: 1px solid var(--border, #d9e2ec);
+  border-radius: 12px;
+  background: #f7fafb;
+}
+
+.admin-sms-webhook-help > b {
+  color: var(--foreground, #19324d);
+  font-size: 0.88rem;
+}
+
+.admin-sms-webhook-help > code {
+  overflow-wrap: anywhere;
+  color: #315c72;
+  font: 0.8rem/1.5 var(--app-font-mono);
+}
+
+.admin-sms-webhook-help .field-help {
+  margin: 0;
+}
+
+.admin-sms-webhook-help .field-help code {
+  font-weight: 700;
+}
+
 .admin-sms-message-count {
   color: var(--muted-foreground, #68798b);
   font-size: 0.78rem;

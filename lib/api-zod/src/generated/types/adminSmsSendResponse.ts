@@ -8,10 +8,25 @@
 import type { AdminSmsSendResponseStatus } from './adminSmsSendResponseStatus';
 
 export interface AdminSmsSendResponse {
+  id: string;
   recipientPhone: string;
   senderId: string;
+  messageText: string;
   status: AdminSmsSendResponseStatus;
   /** @nullable */
   providerMessageId: string | null;
-  acceptedAt: Date;
+  /** @nullable */
+  providerStatus: string | null;
+  /** @nullable */
+  providerStatusGroup: string | null;
+  /** @nullable */
+  providerStatusAt: Date | null;
+  /** @nullable */
+  acceptedAt: Date | null;
+  /** @nullable */
+  errorMessage: string | null;
+  /** @nullable */
+  createdByUserId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
