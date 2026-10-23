@@ -16,6 +16,8 @@ export type StaffSmsConfiguration = {
   credentialConfigured: boolean;
   deliveryReportUrl: string | null;
   deliveryReportsConfigured: boolean;
+  dailyLimit: number;
+  dailyUsageCount: number;
   updatedAt: string | null;
 };
 
@@ -61,6 +63,7 @@ export async function getStaffSmsConfiguration(): Promise<StaffSmsConfiguration>
     .where(eq(staffSmsSettingsTable.key, STAFF_SMS_SETTINGS_KEY))
     .limit(1);
   const deliveryReportUrl = getInfobipDeliveryReportUrl();
+  const currentUtcDate = new Date().toISOString().slice(0, 10);
   return {
     baseUrl: saved?.baseUrl ?? "",
     senderId: saved?.senderId ?? "",
@@ -69,34 +72,102 @@ export async function getStaffSmsConfiguration(): Promise<StaffSmsConfiguration>
     deliveryReportsConfigured: Boolean(
       deliveryReportUrl && process.env.INFOBIP_DLR_WEBHOOK_SECRET?.trim(),
     ),
+    dailyLimit: saved?.dailyLimit ?? 100,
+    dailyUsageCount: saved?.dailyUsageDate === currentUtcDate
+      ? saved.dailyUsageCount
+      : 0,
     updatedAt: saved?.updatedAt?.toISOString() ?? null,
   };
 }
 
 export async function saveStaffSmsConfiguration(
-  baseUrl: string,
-  senderId: string,
-  updatedByUserId: string,
+  input: {
+    baseUrl?: string;
+    senderId?: string;
+    dailyLimit?: number;
+    updatedByUserId: string;
+  },
 ): Promise<StaffSmsConfiguration> {
+  const [existing] = await db
+    .select()
+    .from(staffSmsSettingsTable)
+    .where(eq(staffSmsSettingsTable.key, STAFF_SMS_SETTINGS_KEY))
+    .limit(1);
+  const updates: {
+    updatedByUserId: string;
+    updatedAt: Date;
+    baseUrl?: string;
+    senderId?: string;
+    dailyLimit?: number;
+  } = {
+    updatedByUserId: input.updatedByUserId,
+    updatedAt: new Date(),
+  };
+  if (input.baseUrl !== undefined) updates.baseUrl = input.baseUrl;
+  if (input.senderId !== undefined) updates.senderId = input.senderId;
+  if (input.dailyLimit !== undefined) updates.dailyLimit = input.dailyLimit;
   await db
     .insert(staffSmsSettingsTable)
     .values({
       key: STAFF_SMS_SETTINGS_KEY,
-      baseUrl,
-      senderId,
-      updatedByUserId,
+      baseUrl: input.baseUrl ?? existing?.baseUrl ?? "",
+      senderId: input.senderId ?? existing?.senderId ?? "",
+      dailyLimit: input.dailyLimit ?? existing?.dailyLimit ?? 100,
+      dailyUsageDate: existing?.dailyUsageDate ?? null,
+      dailyUsageCount: existing?.dailyUsageCount ?? 0,
+      updatedByUserId: input.updatedByUserId,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: staffSmsSettingsTable.key,
-      set: {
-        baseUrl,
-        senderId,
-        updatedByUserId,
-        updatedAt: new Date(),
-      },
+      set: updates,
     });
   return getStaffSmsConfiguration();
+}
+
+export async function reserveStaffSmsDailyQuota(): Promise<{
+  allowed: boolean;
+  dailyLimit: number;
+  usedCount: number;
+  remainingCount: number;
+}> {
+  return db.transaction(async (transaction) => {
+    const [saved] = await transaction
+      .select()
+      .from(staffSmsSettingsTable)
+      .where(eq(staffSmsSettingsTable.key, STAFF_SMS_SETTINGS_KEY))
+      .for("update")
+      .limit(1);
+    if (!saved) throw new Error("SMS settings must be saved before sending.");
+
+    const currentUtcDate = new Date().toISOString().slice(0, 10);
+    const usedCount = saved.dailyUsageDate === currentUtcDate
+      ? saved.dailyUsageCount
+      : 0;
+    if (usedCount >= saved.dailyLimit) {
+      return {
+        allowed: false,
+        dailyLimit: saved.dailyLimit,
+        usedCount,
+        remainingCount: 0,
+      };
+    }
+
+    const nextCount = usedCount + 1;
+    await transaction
+      .update(staffSmsSettingsTable)
+      .set({
+        dailyUsageDate: currentUtcDate,
+        dailyUsageCount: nextCount,
+      })
+      .where(eq(staffSmsSettingsTable.key, STAFF_SMS_SETTINGS_KEY));
+    return {
+      allowed: true,
+      dailyLimit: saved.dailyLimit,
+      usedCount: nextCount,
+      remainingCount: Math.max(0, saved.dailyLimit - nextCount),
+    };
+  });
 }
 
 export async function sendInfobipSms(input: {

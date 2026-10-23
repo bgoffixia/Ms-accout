@@ -2396,7 +2396,9 @@ function readableEmailHeaderText(hex: string) {
 
 function AdminEmailCenter() {
   const queryClient = useQueryClient();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+  const { user, isLoaded: userLoaded } = useUser();
+  const isAdmin = user?.publicMetadata?.role === 'admin';
   const requestedEmailSection = location.split('/').filter(Boolean).at(-1);
   const emailSection = ['alerts', 'templates', 'send', 'activity', 'sms', 'sms-activity'].includes(requestedEmailSection ?? '')
     ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity' | 'sms' | 'sms-activity'
@@ -2452,6 +2454,7 @@ function AdminEmailCenter() {
   const [composeFeedback, setComposeFeedback] = useState('');
   const [smsBaseUrlDraft, setSmsBaseUrlDraft] = useState('');
   const [smsSenderIdDraft, setSmsSenderIdDraft] = useState('');
+  const [smsDailyLimitDraft, setSmsDailyLimitDraft] = useState('100');
   const [smsSettingsFeedback, setSmsSettingsFeedback] = useState('');
   const [smsRecipientDraft, setSmsRecipientDraft] = useState('');
   const [smsMessageDraft, setSmsMessageDraft] = useState('');
@@ -2484,7 +2487,14 @@ function AdminEmailCenter() {
     if (!smsSettings.data) return;
     setSmsBaseUrlDraft(smsSettings.data.baseUrl);
     setSmsSenderIdDraft(smsSettings.data.senderId);
+    setSmsDailyLimitDraft(String(smsSettings.data.dailyLimit));
   }, [smsSettings.data]);
+
+  useEffect(() => {
+    if (userLoaded && !isAdmin && emailSection === 'alerts') {
+      setLocation('/admin/email/send', { replace: true });
+    }
+  }, [emailSection, isAdmin, setLocation, userLoaded]);
 
   const invalidateEmailData = () => {
     void queryClient.invalidateQueries({ queryKey: getListAdminEmailOutboxQueryKey() });
@@ -2496,9 +2506,13 @@ function AdminEmailCenter() {
   const saveSmsConfiguration = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSmsSettingsFeedback('');
+    const canConfigure = smsSettings.data?.canConfigure === true;
     saveSmsSettings.mutate({
       data: {
-        baseUrl: smsBaseUrlDraft.trim(),
+        ...(canConfigure ? {
+          baseUrl: smsBaseUrlDraft.trim(),
+          dailyLimit: Number(smsDailyLimitDraft),
+        } : {}),
         senderId: smsSenderIdDraft.trim(),
       },
     }, {
@@ -2508,7 +2522,10 @@ function AdminEmailCenter() {
         setSmsSettingsFeedback('Infobip sender settings saved.');
         void queryClient.invalidateQueries({ queryKey: getGetAdminSmsSettingsQueryKey() });
       },
-      onError: () => setSmsSettingsFeedback('Settings could not be saved. Check the Infobip base URL and sender ID.'),
+      onError: (error: unknown) => {
+        const apiError = error as { data?: { error?: string } };
+        setSmsSettingsFeedback(apiError.data?.error ?? 'Settings could not be saved. Check the Infobip base URL, sender ID, and daily limit.');
+      },
     });
   };
 
@@ -2537,11 +2554,13 @@ function AdminEmailCenter() {
         setSmsRecipientDraft('');
         setSmsMessageDraft('');
         void queryClient.invalidateQueries({ queryKey: getListAdminSmsActivityQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetAdminSmsSettingsQueryKey() });
       },
       onError: (error: unknown) => {
         const apiError = error as { data?: { error?: string } };
         setSmsFeedback(apiError.data?.error ?? 'The SMS could not be sent. Check provider activity before retrying.');
         void queryClient.invalidateQueries({ queryKey: getListAdminSmsActivityQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetAdminSmsSettingsQueryKey() });
       },
     });
   };
@@ -2774,7 +2793,7 @@ function AdminEmailCenter() {
       />
       <nav className="admin-email-navigation" aria-label="Email center pages">
         {[
-          { href: '/admin/email/alerts', key: 'alerts', label: 'Automated alerts', icon: Mail },
+          ...(isAdmin ? [{ href: '/admin/email/alerts', key: 'alerts', label: 'Automated alerts', icon: Mail }] : []),
           { href: '/admin/email/templates', key: 'templates', label: 'Template settings', icon: FileText },
           { href: '/admin/email/send', key: 'send', label: 'One-off email', icon: Send },
           { href: '/admin/email/sms', key: 'sms', label: 'SMS sender', icon: Smartphone },
@@ -2793,7 +2812,7 @@ function AdminEmailCenter() {
         ))}
       </nav>
       <div className="admin-email-grid admin-email-section">
-        {emailSection === 'alerts' && <>
+        {isAdmin && emailSection === 'alerts' && <>
         <section className="detail-card admin-email-settings">
           <div className="detail-card-title"><Mail size={17} /><h2>Automated reviewer alerts</h2></div>
           <p className="field-help">Alerts contain an application reference and a secure reviewer link, not applicant answers, PINs, or evidence files.</p>
@@ -3158,9 +3177,12 @@ function AdminEmailCenter() {
                 value={smsBaseUrlDraft}
                 onChange={(event) => setSmsBaseUrlDraft(event.target.value)}
                 placeholder="https://xxxxx.api.infobip.com"
-                required
+                required={smsSettings.data?.canConfigure === true}
+                readOnly={smsSettings.data?.canConfigure !== true}
+                aria-readonly={smsSettings.data?.canConfigure !== true}
                 data-testid="input-sms-infobip-base-url"
               />
+              {smsSettings.data?.canConfigure !== true && <small className="field-help">Only an administrator can change the Infobip base URL.</small>}
               <label className="field-label" htmlFor="sms-sender-id">Custom sender ID</label>
               <input
                 id="sms-sender-id"
@@ -3175,6 +3197,27 @@ function AdminEmailCenter() {
                 data-testid="input-sms-sender-id"
               />
               <small className="field-help">3–11 letters or numbers, no spaces or punctuation. Country-specific approval may be required.</small>
+              <label className="field-label" htmlFor="sms-daily-limit">Daily messaging limit</label>
+              <input
+                id="sms-daily-limit"
+                className="text-input"
+                type="number"
+                min={0}
+                max={100000}
+                step={1}
+                value={smsDailyLimitDraft}
+                onChange={(event) => setSmsDailyLimitDraft(event.target.value)}
+                readOnly={smsSettings.data?.canConfigure !== true}
+                aria-readonly={smsSettings.data?.canConfigure !== true}
+                required={smsSettings.data?.canConfigure === true}
+                data-testid="input-sms-daily-limit"
+              />
+              {smsSettings.data?.canConfigure === true
+                ? <small className="field-help">Messages per day for all staff combined. Set to 0 to pause SMS sending. The limit resets at 00:00 UTC.</small>
+                : <small className="field-help">Only an administrator can change the daily messaging limit.</small>}
+              <p className="field-help" data-testid="text-sms-daily-usage">
+                Attempts today: {smsSettings.data?.dailyUsageCount ?? 0} / {smsSettings.data?.dailyLimit ?? 100} (UTC)
+              </p>
               {smsSettingsFeedback && <p className="admin-email-feedback" role="status" data-testid="text-sms-settings-feedback">{smsSettingsFeedback}</p>}
               <button className="button button-primary" type="submit" disabled={smsSettings.isLoading || saveSmsSettings.isPending} data-testid="button-save-sms-settings">
                 {saveSmsSettings.isPending ? 'Saving…' : 'Save SMS settings'}
@@ -3223,7 +3266,8 @@ function AdminEmailCenter() {
                   !smsSettings.data?.deliveryReportsConfigured ||
                   !smsSettings.data?.deliveryReportUrl ||
                   !smsSettings.data.baseUrl ||
-                  !smsSettings.data.senderId
+                  !smsSettings.data.senderId ||
+                  smsSettings.data.dailyUsageCount >= smsSettings.data.dailyLimit
                 }
                 data-testid="button-send-sms"
               >

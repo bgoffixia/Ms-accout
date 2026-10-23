@@ -2410,17 +2410,20 @@ components:
         providerEventAt: { type: string, format: date-time }
     AdminSmsSettings:
       type: object
-      required: [baseUrl, senderId, credentialConfigured, deliveryReportUrl, deliveryReportsConfigured, updatedAt]
+      required: [baseUrl, senderId, credentialConfigured, deliveryReportUrl, deliveryReportsConfigured, dailyLimit, dailyUsageCount, canConfigure, updatedAt]
       properties:
         baseUrl: { type: string, maxLength: 255 }
         senderId: { type: string, maxLength: 11 }
         credentialConfigured: { type: boolean }
         deliveryReportUrl: { type: ["string", "null"], format: uri }
         deliveryReportsConfigured: { type: boolean }
+        dailyLimit: { type: integer, minimum: 0, maximum: 100000 }
+        dailyUsageCount: { type: integer, minimum: 0 }
+        canConfigure: { type: boolean }
         updatedAt: { type: ["string", "null"], format: date-time }
     AdminSmsSettingsUpdate:
       type: object
-      required: [baseUrl, senderId]
+      minProperties: 1
       properties:
         baseUrl:
           type: string
@@ -2432,6 +2435,10 @@ components:
           minLength: 3
           maxLength: 11
           pattern: "^[A-Za-z0-9]+$"
+        dailyLimit:
+          type: integer
+          minimum: 0
+          maximum: 100000
     AdminSmsSendInput:
       type: object
       required: [recipientPhone, messageText]

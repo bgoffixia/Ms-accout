@@ -106,6 +106,28 @@ export async function saveStaffEmailConfiguration(
   return getStaffEmailConfiguration();
 }
 
+export async function saveStaffEmailBranding(
+  branding: StaffEmailBranding,
+  updatedByUserId: string,
+): Promise<StaffEmailConfiguration> {
+  const now = new Date();
+  await db
+    .insert(staffEmailSettingsTable)
+    .values({
+      key: STAFF_SETTINGS_KEY,
+      recipients: DEFAULT_RECIPIENTS,
+      alerts: DEFAULT_ALERTS,
+      branding,
+      updatedByUserId,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: staffEmailSettingsTable.key,
+      set: { branding, updatedByUserId, updatedAt: now },
+    });
+  return getStaffEmailConfiguration();
+}
+
 export function emailRecipientIdempotencyKey(
   baseKey: string,
   recipientEmail: string,

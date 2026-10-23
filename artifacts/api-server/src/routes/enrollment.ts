@@ -184,6 +184,7 @@ import {
   markStaffSmsAccepted,
   markStaffSmsFailed,
   normalizeInfobipBaseUrl,
+  reserveStaffSmsDailyQuota,
   saveStaffSmsConfiguration,
   sendInfobipSms,
   verifyInfobipDeliveryReportSignature,
@@ -198,6 +199,7 @@ import {
   emailRecipientIdempotencyKey,
   getStaffEmailConfiguration,
   isApprovedStaffSenderAddress,
+  saveStaffEmailBranding,
   saveStaffEmailConfiguration,
   verifyResendWebhookSignature,
   type StaffEmailMessageKind,
@@ -4063,9 +4065,22 @@ router.get("/admin/email/settings", requireReviewer, async (req, res): Promise<v
   res.setHeader("Cache-Control", "no-store");
   try {
     const configuration = await getStaffEmailConfiguration();
+    const isAdmin = res.locals.staffRole === "admin";
     res.json(
       GetAdminEmailSettingsResponse.parse({
         ...configuration,
+        ...(isAdmin
+          ? {}
+          : {
+              recipients: [],
+              alerts: {
+                contact_received: false,
+                step_saved: false,
+                contact_updated: false,
+                evidence_saved: false,
+                application_submitted: false,
+              },
+            }),
         updatedAt: configuration.updatedAt
           ? new Date(configuration.updatedAt)
           : null,
@@ -4134,25 +4149,44 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     parsed.data.recipients.map((email) => email.trim().toLowerCase()),
   )];
   try {
-    const configuration = await saveStaffEmailConfiguration(
-      recipients,
-      parsed.data.alerts,
-      {
-        ...branding,
-        logoUrl: branding.logoUrl?.trim() || null,
-        senderName: branding.senderName.trim(),
-        senderEmail: branding.senderEmail.trim().toLowerCase(),
-        bannerTitle: branding.bannerTitle.trim(),
-        bannerSubtitle: branding.bannerSubtitle.trim(),
-        preheaderText: branding.preheaderText.trim(),
-        messageEyebrow: branding.messageEyebrow.trim(),
-        footerBackgroundUrl: branding.footerBackgroundUrl?.trim() || null,
-      },
-      res.locals.userId as string,
-    );
+    const isAdmin = res.locals.staffRole === "admin";
+    const normalizedBranding = {
+      ...branding,
+      logoUrl: branding.logoUrl?.trim() || null,
+      senderName: branding.senderName.trim(),
+      senderEmail: branding.senderEmail.trim().toLowerCase(),
+      bannerTitle: branding.bannerTitle.trim(),
+      bannerSubtitle: branding.bannerSubtitle.trim(),
+      preheaderText: branding.preheaderText.trim(),
+      messageEyebrow: branding.messageEyebrow.trim(),
+      footerBackgroundUrl: branding.footerBackgroundUrl?.trim() || null,
+    };
+    const configuration = isAdmin
+      ? await saveStaffEmailConfiguration(
+          recipients,
+          parsed.data.alerts,
+          normalizedBranding,
+          res.locals.userId as string,
+        )
+      : await saveStaffEmailBranding(
+          normalizedBranding,
+          res.locals.userId as string,
+        );
     res.json(
       UpdateAdminEmailSettingsResponse.parse({
         ...configuration,
+        ...(isAdmin
+          ? {}
+          : {
+              recipients: [],
+              alerts: {
+                contact_received: false,
+                step_saved: false,
+                contact_updated: false,
+                evidence_saved: false,
+                application_submitted: false,
+              },
+            }),
         updatedAt: configuration.updatedAt
           ? new Date(configuration.updatedAt)
           : null,
@@ -4370,6 +4404,7 @@ router.get("/admin/email/sms/settings", requireReviewer, async (req, res): Promi
     res.json(
       GetAdminSmsSettingsResponse.parse({
         ...configuration,
+        canConfigure: res.locals.staffRole === "admin",
         updatedAt: configuration.updatedAt
           ? new Date(configuration.updatedAt)
           : null,
@@ -4385,26 +4420,54 @@ router.put("/admin/email/sms/settings", requireReviewer, async (req, res): Promi
   res.setHeader("Cache-Control", "no-store");
   const parsed = UpdateAdminSmsSettingsBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Enter the Infobip base URL and a valid sender ID." });
+    res.status(400).json({ error: "Enter at least one valid SMS setting." });
     return;
   }
-  const baseUrl = normalizeInfobipBaseUrl(parsed.data.baseUrl);
-  const senderId = parsed.data.senderId.trim();
-  if (!baseUrl || !isValidInfobipSenderId(senderId)) {
+  if (
+    parsed.data.baseUrl === undefined &&
+    parsed.data.senderId === undefined &&
+    parsed.data.dailyLimit === undefined
+  ) {
+    res.status(400).json({ error: "Enter at least one SMS setting to save." });
+    return;
+  }
+  const isAdmin = res.locals.staffRole === "admin";
+  if (!isAdmin && (
+    parsed.data.baseUrl !== undefined ||
+    parsed.data.dailyLimit !== undefined
+  )) {
+    res.status(403).json({
+      error: "Only an administrator can change the Infobip base URL or daily SMS limit.",
+    });
+    return;
+  }
+  const normalizedBaseUrl = parsed.data.baseUrl === undefined
+    ? undefined
+    : normalizeInfobipBaseUrl(parsed.data.baseUrl);
+  const baseUrl = normalizedBaseUrl ?? undefined;
+  const senderId = parsed.data.senderId?.trim();
+  if (
+    (parsed.data.baseUrl !== undefined && normalizedBaseUrl === null) ||
+    (senderId !== undefined && !isValidInfobipSenderId(senderId))
+  ) {
     res.status(400).json({
-      error: "Use your HTTPS Infobip base URL and a 3–11 character sender ID containing only letters and numbers.",
+      error: "Use the HTTPS Infobip base URL and a 3–11 character sender ID containing only letters and numbers.",
     });
     return;
   }
   try {
-    const saved = await saveStaffSmsConfiguration(
-      baseUrl,
-      senderId,
-      res.locals.userId as string,
-    );
+    const saved = await saveStaffSmsConfiguration({
+      ...(baseUrl !== undefined ? { baseUrl } : {}),
+      ...(senderId !== undefined ? { senderId } : {}),
+      ...(parsed.data.dailyLimit !== undefined
+        ? { dailyLimit: parsed.data.dailyLimit }
+        : {}),
+      updatedByUserId: res.locals.userId as string,
+    });
     res.json(
       UpdateAdminSmsSettingsResponse.parse({
         ...saved,
+        canConfigure: isAdmin,
         updatedAt: saved.updatedAt ? new Date(saved.updatedAt) : null,
       }),
     );
@@ -4446,6 +4509,21 @@ router.post("/admin/email/sms/send", requireReviewer, async (req, res): Promise<
   }
   if (!configuration.baseUrl || !configuration.senderId) {
     res.status(400).json({ error: "Save the Infobip base URL and sender ID before sending." });
+    return;
+  }
+
+  let quota;
+  try {
+    quota = await reserveStaffSmsDailyQuota();
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to reserve the daily SMS allowance");
+    res.status(503).json({ error: "The daily SMS allowance could not be checked." });
+    return;
+  }
+  if (!quota.allowed) {
+    res.status(429).json({
+      error: `Daily SMS limit reached (${quota.usedCount}/${quota.dailyLimit}). It resets at 00:00 UTC.`,
+    });
     return;
   }
 

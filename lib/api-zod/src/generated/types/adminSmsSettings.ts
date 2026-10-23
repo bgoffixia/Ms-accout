@@ -15,6 +15,14 @@ export interface AdminSmsSettings {
   /** @nullable */
   deliveryReportUrl: string | null;
   deliveryReportsConfigured: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  dailyLimit: number;
+  /** @minimum 0 */
+  dailyUsageCount: number;
+  canConfigure: boolean;
   /** @nullable */
   updatedAt: Date | null;
 }

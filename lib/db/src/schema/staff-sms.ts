@@ -1,9 +1,12 @@
-import { index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const staffSmsSettingsTable = pgTable("staff_sms_settings", {
   key: text("key").primaryKey(),
   baseUrl: text("base_url").notNull().default(""),
   senderId: text("sender_id").notNull().default(""),
+  dailyLimit: integer("daily_limit").notNull().default(100),
+  dailyUsageDate: date("daily_usage_date", { mode: "string" }),
+  dailyUsageCount: integer("daily_usage_count").notNull().default(0),
   updatedByUserId: text("updated_by_user_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

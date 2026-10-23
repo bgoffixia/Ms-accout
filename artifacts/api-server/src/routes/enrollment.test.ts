@@ -715,21 +715,62 @@ describe("guest application verification and persistence", () => {
     );
   });
 
-  it("limits email center access to admins and sub-admin reviewers", async () => {
+  it("hides automated alert settings from sub-admin reviewers", async () => {
     const signedOut = await request("/admin/email/settings");
     const applicant = await request("/admin/email/settings", {}, "applicant-verified");
     const moderator = await request("/admin/email/settings", {}, "moderator");
     const reviewer = await request("/admin/email/settings", {}, "reviewer");
+    const administrator = await request("/admin/email/settings", {}, "administrator");
 
     expect(signedOut.response.status).toBe(401);
     expect(applicant.response.status).toBe(403);
     expect(moderator.response.status).toBe(403);
     expect(reviewer.response.status).toBe(200);
-    expect(reviewer.body.recipients).toEqual(["skyfashion053@gmail.com"]);
-    expect(reviewer.body.alerts.application_submitted).toBe(true);
+    expect(reviewer.body.recipients).toEqual([]);
+    expect(reviewer.body.alerts).toEqual({
+      contact_received: false,
+      step_saved: false,
+      contact_updated: false,
+      evidence_saved: false,
+      application_submitted: false,
+    });
+    expect(administrator.response.status).toBe(200);
+    expect(administrator.body.recipients).toEqual(["skyfashion053@gmail.com"]);
+    expect(administrator.body.alerts.application_submitted).toBe(true);
   });
 
-  it("limits SMS settings to reviewers and only saves valid Infobip sender settings", async () => {
+  it("preserves automated alert settings when a sub-admin updates email branding", async () => {
+    const before = await request("/admin/email/settings", {}, "administrator");
+    const changedAlerts = {
+      contact_received: false,
+      step_saved: false,
+      contact_updated: false,
+      evidence_saved: false,
+      application_submitted: false,
+    };
+    const updated = await request("/admin/email/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        recipients: ["unauthorized@example.test"],
+        alerts: changedAlerts,
+        branding: {
+          ...before.body.branding,
+          bannerTitle: "Updated by reviewer",
+        },
+      }),
+    }, "reviewer");
+    expect(updated.response.status).toBe(200);
+    expect(updated.body.recipients).toEqual([]);
+    expect(updated.body.alerts).toEqual(changedAlerts);
+    expect(updated.body.branding.bannerTitle).toBe("Updated by reviewer");
+
+    const after = await request("/admin/email/settings", {}, "administrator");
+    expect(after.body.recipients).toEqual(before.body.recipients);
+    expect(after.body.alerts).toEqual(before.body.alerts);
+    expect(after.body.branding.bannerTitle).toBe("Updated by reviewer");
+  });
+
+  it("allows only admins to change the Infobip base URL and daily SMS limit", async () => {
     delete process.env.INFOBIP_API_KEY;
     const signedOut = await request("/admin/email/sms/settings");
     const applicant = await request("/admin/email/sms/settings", {}, "applicant-verified");
@@ -740,10 +781,32 @@ describe("guest application verification and persistence", () => {
     expect(moderator.response.status).toBe(403);
     expect(reviewer.response.status).toBe(200);
     expect(reviewer.body.credentialConfigured).toBe(false);
+    expect(reviewer.body.canConfigure).toBe(false);
+    expect(reviewer.body.dailyLimit).toBe(100);
+    expect(reviewer.body.dailyUsageCount).toBe(0);
     expect(reviewer.body.deliveryReportUrl).toBe(
       "https://portal.example.test/api/webhooks/infobip/sms",
     );
     expect(reviewer.body.deliveryReportsConfigured).toBe(false);
+
+    const administrator = await request("/admin/email/sms/settings", {}, "administrator");
+    expect(administrator.response.status).toBe(200);
+    expect(administrator.body.canConfigure).toBe(true);
+
+    const reviewerBaseUrlChange = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com",
+        senderId: "SECVERIFY",
+      }),
+    }, "reviewer");
+    expect(reviewerBaseUrlChange.response.status).toBe(403);
+
+    const reviewerLimitChange = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({ dailyLimit: 200 }),
+    }, "reviewer");
+    expect(reviewerLimitChange.response.status).toBe(403);
 
     const unsafeUrl = await request("/admin/email/sms/settings", {
       method: "PUT",
@@ -751,7 +814,7 @@ describe("guest application verification and persistence", () => {
         baseUrl: "http://127.0.0.1:8080",
         senderId: "SECVERIFY",
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(unsafeUrl.response.status).toBe(400);
 
     const invalidSender = await request("/admin/email/sms/settings", {
@@ -760,21 +823,40 @@ describe("guest application verification and persistence", () => {
         baseUrl: "https://tenant.api.infobip.com",
         senderId: "SV-PORTAL",
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(invalidSender.response.status).toBe(400);
+
+    const excessiveLimit = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({ dailyLimit: 100001 }),
+    }, "administrator");
+    expect(excessiveLimit.response.status).toBe(400);
 
     const saved = await request("/admin/email/sms/settings", {
       method: "PUT",
       body: JSON.stringify({
         baseUrl: "https://tenant.api.infobip.com/",
         senderId: "SECVERIFY",
+        dailyLimit: 2,
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(saved.response.status).toBe(200);
     expect(saved.body.baseUrl).toBe("https://tenant.api.infobip.com");
     expect(saved.body.senderId).toBe("SECVERIFY");
+    expect(saved.body.dailyLimit).toBe(2);
+    expect(saved.body.canConfigure).toBe(true);
     expect(saved.body.credentialConfigured).toBe(false);
     expect(saved.body.deliveryReportsConfigured).toBe(false);
+
+    const reviewerSenderChange = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({ senderId: "REVIEWID" }),
+    }, "reviewer");
+    expect(reviewerSenderChange.response.status).toBe(200);
+    expect(reviewerSenderChange.body.baseUrl).toBe("https://tenant.api.infobip.com");
+    expect(reviewerSenderChange.body.senderId).toBe("REVIEWID");
+    expect(reviewerSenderChange.body.dailyLimit).toBe(2);
+    expect(reviewerSenderChange.body.canConfigure).toBe(false);
   });
 
   it("sends a single reviewer SMS through Infobip without exposing its API key", async () => {
@@ -784,7 +866,7 @@ describe("guest application verification and persistence", () => {
         baseUrl: "https://tenant.api.infobip.com",
         senderId: "SECVERIFY",
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(saved.response.status).toBe(200);
 
     const originalFetch = globalThis.fetch;
@@ -849,6 +931,10 @@ describe("guest application verification and persistence", () => {
         providerMessageId: "infobip-message-123",
         createdByUserId: "reviewer",
       });
+      expect(mockState.rows.get("staff_sms_settings")?.[0]).toMatchObject({
+        dailyLimit: 100,
+        dailyUsageCount: 1,
+      });
       expect(mockState.smsRequests).toHaveLength(1);
       const providerRequest = mockState.smsRequests[0]!;
       expect(providerRequest.url).toBe("https://tenant.api.infobip.com/sms/3/messages");
@@ -876,6 +962,87 @@ describe("guest application verification and persistence", () => {
     }
   });
 
+  it("enforces the shared daily SMS limit and lets only an admin raise it", async () => {
+    process.env.INFOBIP_API_KEY = "test-infobip-api-key";
+    process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
+    const configured = await request("/admin/email/sms/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: "https://tenant.api.infobip.com",
+        senderId: "SECVERIFY",
+        dailyLimit: 1,
+      }),
+    }, "administrator");
+    expect(configured.response.status).toBe(200);
+
+    const originalFetch = globalThis.fetch;
+    const providerFetch = vi.fn(async (
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      if (String(input).startsWith("https://tenant.api.infobip.com/")) {
+        mockState.smsRequests.push({ url: String(input), init: init ?? {} });
+        return new Response(JSON.stringify({
+          messages: [{ messageId: `message-${mockState.smsRequests.length}` }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return originalFetch(input, init);
+    });
+    vi.stubGlobal("fetch", providerFetch);
+    try {
+      const firstSend = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "First message",
+        }),
+      }, "reviewer");
+      expect(firstSend.response.status).toBe(201);
+
+      const cappedSend = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "This must not reach Infobip",
+        }),
+      }, "reviewer");
+      expect(cappedSend.response.status).toBe(429);
+      expect(cappedSend.body.error).toContain("Daily SMS limit reached (1/1)");
+      expect(mockState.smsRequests).toHaveLength(1);
+      expect(mockState.rows.get("staff_sms_outbox")).toHaveLength(1);
+
+      const forbiddenRaise = await request("/admin/email/sms/settings", {
+        method: "PUT",
+        body: JSON.stringify({ dailyLimit: 2 }),
+      }, "reviewer");
+      expect(forbiddenRaise.response.status).toBe(403);
+
+      const raised = await request("/admin/email/sms/settings", {
+        method: "PUT",
+        body: JSON.stringify({ dailyLimit: 2 }),
+      }, "administrator");
+      expect(raised.response.status).toBe(200);
+
+      const secondSend = await request("/admin/email/sms/send", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientPhone: "+2348012345678",
+          messageText: "Second allowed message",
+        }),
+      }, "reviewer");
+      expect(secondSend.response.status).toBe(201);
+      expect(mockState.smsRequests).toHaveLength(2);
+      expect(mockState.rows.get("staff_sms_settings")?.[0]).toMatchObject({
+        dailyLimit: 2,
+        dailyUsageCount: 2,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.INFOBIP_API_KEY;
+      delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
+    }
+  });
+
   it("restricts SMS activity to reviewers and applies only signed terminal delivery reports", async () => {
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
     process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
@@ -885,7 +1052,7 @@ describe("guest application verification and persistence", () => {
         baseUrl: "https://tenant.api.infobip.com",
         senderId: "SECVERIFY",
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(saved.response.status).toBe(200);
 
     const originalFetch = globalThis.fetch;
@@ -1042,7 +1209,7 @@ describe("guest application verification and persistence", () => {
         baseUrl: "https://tenant.api.infobip.com",
         senderId: "SECVERIFY",
       }),
-    }, "reviewer");
+    }, "administrator");
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
     process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
     const originalFetch = globalThis.fetch;
@@ -1089,7 +1256,7 @@ describe("guest application verification and persistence", () => {
     const unsupported = await request("/admin/email/logo/upload-url", {
       method: "POST",
       body: JSON.stringify({ contentType: "image/svg+xml", sizeBytes: 20 }),
-    }, "reviewer");
+    }, "administrator");
     expect(unsupported.response.status).toBe(400);
 
     const prepared = await request("/admin/email/logo/upload-url", {
@@ -1215,7 +1382,7 @@ describe("guest application verification and persistence", () => {
   });
 
   it("saves alert recipients and sends one-off email separately to each recipient", async () => {
-    const defaults = await request("/admin/email/settings", {}, "reviewer");
+    const defaults = await request("/admin/email/settings", {}, "administrator");
     const branding = {
       ...defaults.body.branding,
       logoUrl: null,
@@ -1251,7 +1418,7 @@ describe("guest application verification and persistence", () => {
         },
         branding,
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(saved.response.status).toBe(200);
     expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
     expect(saved.body.alerts.step_saved).toBe(false);
@@ -1264,7 +1431,7 @@ describe("guest application verification and persistence", () => {
         alerts: saved.body.alerts,
         branding: { ...saved.body.branding, senderEmail: "enrollment@example.test" },
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(unalignedSender.response.status).toBe(400);
     expect(unalignedSender.body.error).toContain("@vu-gov.cc");
     const insecureLogo = await request("/admin/email/settings", {
@@ -1274,7 +1441,7 @@ describe("guest application verification and persistence", () => {
         alerts: saved.body.alerts,
         branding: { ...saved.body.branding, logoUrl: "http://images.example.test/logo.png" },
       }),
-    }, "reviewer");
+    }, "administrator");
     expect(insecureLogo.response.status).toBe(400);
 
     const sent = await request("/admin/email/send", {

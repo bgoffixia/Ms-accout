@@ -15,4 +15,10 @@ Public/shared applicant pages must not display staff/admin entry links or role n
 
 **Why:** The user wants applicants to use the shared dashboard without exposing role-based access or restricted staff controls.
 
+Only administrators may view or change automated email alert recipients/event toggles, configure the Infobip base URL, or change the shared daily SMS limit. Sub-admins may use reviewer mail tools and send SMS, but must not receive the real alert configuration.
+
+**Why:** The user explicitly restricted automated alerts and Infobip connection/usage controls to admins while retaining reviewer workflows.
+
+**How to apply:** Hide admin-only controls and routes in the UI, and enforce role checks or redacted responses in the API. Preserve separate sub-admin capabilities that the user did not restrict.
+
 **How to apply:** Keep the allowlist and role mapping on the server, require verified primary email before role assignment, enforce restrictions in API routes, omit staff links from public applicant layouts, keep all other staff role assignment invitation-only, and keep the unified applicant workspace protected.

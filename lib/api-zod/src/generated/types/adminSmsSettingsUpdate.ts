@@ -11,11 +11,16 @@ export interface AdminSmsSettingsUpdate {
      * @minLength 1
      * @maxLength 255
      */
-  baseUrl: string;
+  baseUrl?: string;
   /**
      * @minLength 3
      * @maxLength 11
      * @pattern ^[A-Za-z0-9]+$
      */
-  senderId: string;
+  senderId?: string;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  dailyLimit?: number;
 }

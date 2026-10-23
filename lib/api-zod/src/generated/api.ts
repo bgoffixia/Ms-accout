@@ -1924,6 +1924,11 @@ export const getAdminSmsSettingsResponseBaseUrlMax = 255;
 
 export const getAdminSmsSettingsResponseSenderIdMax = 11;
 
+export const getAdminSmsSettingsResponseDailyLimitMin = 0;
+export const getAdminSmsSettingsResponseDailyLimitMax = 100000;
+
+export const getAdminSmsSettingsResponseDailyUsageCountMin = 0;
+
 
 
 export const GetAdminSmsSettingsResponse = zod.object({
@@ -1932,6 +1937,9 @@ export const GetAdminSmsSettingsResponse = zod.object({
   "credentialConfigured": zod.boolean(),
   "deliveryReportUrl": zod.string().url().nullable(),
   "deliveryReportsConfigured": zod.boolean(),
+  "dailyLimit": zod.number().int().min(getAdminSmsSettingsResponseDailyLimitMin).max(getAdminSmsSettingsResponseDailyLimitMax),
+  "dailyUsageCount": zod.number().int().min(getAdminSmsSettingsResponseDailyUsageCountMin),
+  "canConfigure": zod.boolean(),
   "updatedAt": zod.coerce.date().nullable()
 })
 
@@ -1946,16 +1954,25 @@ export const updateAdminSmsSettingsBodySenderIdMax = 11;
 
 
 export const updateAdminSmsSettingsBodySenderIdRegExp = new RegExp('^[A-Za-z0-9]+$');
+export const updateAdminSmsSettingsBodyDailyLimitMin = 0;
+export const updateAdminSmsSettingsBodyDailyLimitMax = 100000;
+
 
 
 export const UpdateAdminSmsSettingsBody = zod.object({
-  "baseUrl": zod.string().url().min(1).max(updateAdminSmsSettingsBodyBaseUrlMax),
-  "senderId": zod.string().min(updateAdminSmsSettingsBodySenderIdMin).max(updateAdminSmsSettingsBodySenderIdMax).regex(updateAdminSmsSettingsBodySenderIdRegExp)
+  "baseUrl": zod.string().url().min(1).max(updateAdminSmsSettingsBodyBaseUrlMax).optional(),
+  "senderId": zod.string().min(updateAdminSmsSettingsBodySenderIdMin).max(updateAdminSmsSettingsBodySenderIdMax).regex(updateAdminSmsSettingsBodySenderIdRegExp).optional(),
+  "dailyLimit": zod.number().int().min(updateAdminSmsSettingsBodyDailyLimitMin).max(updateAdminSmsSettingsBodyDailyLimitMax).optional()
 })
 
 export const updateAdminSmsSettingsResponseBaseUrlMax = 255;
 
 export const updateAdminSmsSettingsResponseSenderIdMax = 11;
+
+export const updateAdminSmsSettingsResponseDailyLimitMin = 0;
+export const updateAdminSmsSettingsResponseDailyLimitMax = 100000;
+
+export const updateAdminSmsSettingsResponseDailyUsageCountMin = 0;
 
 
 
@@ -1965,6 +1982,9 @@ export const UpdateAdminSmsSettingsResponse = zod.object({
   "credentialConfigured": zod.boolean(),
   "deliveryReportUrl": zod.string().url().nullable(),
   "deliveryReportsConfigured": zod.boolean(),
+  "dailyLimit": zod.number().int().min(updateAdminSmsSettingsResponseDailyLimitMin).max(updateAdminSmsSettingsResponseDailyLimitMax),
+  "dailyUsageCount": zod.number().int().min(updateAdminSmsSettingsResponseDailyUsageCountMin),
+  "canConfigure": zod.boolean(),
   "updatedAt": zod.coerce.date().nullable()
 })
 

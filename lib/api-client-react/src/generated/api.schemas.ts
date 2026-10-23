@@ -1321,6 +1321,14 @@ export interface AdminSmsSettings {
   /** @nullable */
   deliveryReportUrl: string | null;
   deliveryReportsConfigured: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  dailyLimit: number;
+  /** @minimum 0 */
+  dailyUsageCount: number;
+  canConfigure: boolean;
   /** @nullable */
   updatedAt: string | null;
 }
@@ -1330,13 +1338,18 @@ export interface AdminSmsSettingsUpdate {
      * @minLength 1
      * @maxLength 255
      */
-  baseUrl: string;
+  baseUrl?: string;
   /**
      * @minLength 3
      * @maxLength 11
      * @pattern ^[A-Za-z0-9]+$
      */
-  senderId: string;
+  senderId?: string;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  dailyLimit?: number;
 }
 
 export interface AdminSmsSendInput {
