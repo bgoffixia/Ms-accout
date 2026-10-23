@@ -31,6 +31,7 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+/generated-artifacts/
 **/test-results/
 **/playwright-report/
 /libpeerconnection.log
