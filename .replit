@@ -26,3 +26,7 @@ channel = "stable-25_05"
 
 [userenv.shared]
 "Development admin email" = "bigdave13465@gmail.com"
+INFOBIP_DLR_WEBHOOK_SECRET = "Eskeleme147258@"
+
+[userenv.production]
+INFOBIP_API_KEY = "49cc12d1347896dda05939d9facf9a8a-ef5eea96-1d23-4990-a81a-f07df9ca02af"
