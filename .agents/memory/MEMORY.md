@@ -1,4 +1,4 @@
-- [Guest applicant path](guest-applicants.md) — Complete guest details, PIN, and evidence account-free; Clerk verification gates final submission, not draft visibility.
+- [Guest applicant path](guest-applicants.md) — Guest status uses a reference and private key; preserve reviewer access, encrypted PINs, and evidence protections.
 - [Staff access](staff-access.md) — Enforce staff roles server-side; restrict alerts, Infobip connection, and SMS limits to admins.
 - [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.
 - [Optional enrollment sections](optional-enrollment-sections.md) — Keep completion gates aligned with sections the applicant is told they may skip.

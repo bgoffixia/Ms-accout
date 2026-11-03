@@ -146,10 +146,10 @@ const stageSchemas: z.ZodType<WizardAnswers>[] = [
       }
     }
   }) }),
-  z.object({ reviewDeclarationAccepted: z.literal(true, { errorMap: () => ({ message: 'Confirm the declaration before submitting.' }) }) }),
+  z.object({}),
 ];
 
-const sectionKeys = ['personalInformation', 'nextOfKin', 'education', 'workInformation', 'proofOfIdentity', 'liveVideoRecording', 'bankDetails', 'reviewDeclarationAccepted'];
+const sectionKeys = ['personalInformation', 'nextOfKin', 'education', 'workInformation', 'proofOfIdentity', 'liveVideoRecording', 'bankDetails'];
 
 function section(answers: WizardAnswers, key: string): WizardAnswers {
   const value = answers[key];
@@ -304,8 +304,6 @@ export function EnrollmentWizard({
   const employmentStatus = watch('workInformation.employmentStatus');
   const documentType = watch('proofOfIdentity.documentType');
   const isBackRequired = ['National ID', 'Driver license', 'Passport card'].includes(String(documentType));
-  const declarationAccepted = Boolean(watch('reviewDeclarationAccepted'));
-  const declarationRegistration = register('reviewDeclarationAccepted');
 
   useEffect(() => {
     const safeSaved = { ...saved };
@@ -563,18 +561,15 @@ export function EnrollmentWizard({
 
   const beginSubmit = async () => {
     setSubmitError('');
-    const accepted = await handleSubmit(async (data) => {
-      const merged = { ...answers, reviewDeclarationAccepted: data.reviewDeclarationAccepted };
-      setAnswers(merged);
-      const savedOk = await saveStep(merged, 7);
+    await handleSubmit(async () => {
+      const savedOk = await saveStep(answers, 7);
       if (!savedOk) {
-        setSubmitError('Your declaration could not be saved. Please try again.');
+        setSubmitError('Your application could not be saved. Please try again.');
         return;
       }
-      const ok = await submit(merged);
+      const ok = await submit(answers);
       if (!ok) setSubmitError('We could not submit your application. Your saved details remain available.');
     })();
-    if (!accepted) setSubmitError('Review the declaration before submitting.');
   };
 
   const correctContactEmail = async () => {
@@ -647,8 +642,8 @@ export function EnrollmentWizard({
     return missing;
   }, [answers, application.hasPin, evidenceLater, isBackRequired, storageAvailable]);
   const readyToSubmit = privateTrackingKey
-    ? application.hasPin && declarationAccepted
-    : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && declarationAccepted && missingUploads.length === 0;
+    ? application.hasPin
+    : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -947,7 +942,7 @@ export function EnrollmentWizard({
                 ])}
               </div>
               {privateTrackingKey && updateContactEmail && <section className="ew-email-correction" data-testid="section-correct-contact-email">
-                <div><b>Need to correct your contact email?</b><p>Use an address you can verify after submitting to access your enrollment status page.</p></div>
+                <div><b>Need to correct your contact email?</b><p>Use an address the enrollment team can reach if follow-up is needed.</p></div>
                 <label className="ew-field" htmlFor="guest-contact-email">
                   <span className="ew-label">Contact email</span>
                   <input id="guest-contact-email" className="ew-input" type="email" autoComplete="email" maxLength={320}
@@ -958,37 +953,23 @@ export function EnrollmentWizard({
                     }} data-testid="input-correct-contact-email" />
                 </label>
                 {emailCorrectionError && <p className="ew-field-error" role="alert" data-testid="error-correct-contact-email">{emailCorrectionError}</p>}
-                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Verify this address after submission to access status.</p>}
+                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Status access uses your reference and private tracking key.</p>}
                 <button type="button" className="ew-button ew-button-quiet" onClick={() => void correctContactEmail()}
                   disabled={isSaving || contactEmailInput.trim().toLowerCase() === (application.applicantEmail ?? '').trim().toLowerCase()}
                   data-testid="button-save-contact-email">Save contact email</button>
               </section>}
-              <section className="ew-declaration" data-testid="section-declaration">
-                <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>Applicant declaration</b><p>I confirm that the information above is complete and accurate to the best of my knowledge.</p></div></div>
-                <label className="ew-consent-check"><input type="checkbox" {...declarationRegistration}
-                  checked={declarationAccepted}
-                  onChange={(event) => {
-                    setValue('reviewDeclarationAccepted', event.currentTarget.checked, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    });
-                  }}
-                  data-testid="check-declaration" />
-                  <span className="ew-checkmark" /><span>I have reviewed my information and agree to this declaration.</span></label>
-                {errorFor('reviewDeclarationAccepted') && <span className="ew-field-error" role="alert" data-testid="error-reviewDeclarationAccepted">{errorFor('reviewDeclarationAccepted')}</span>}
-              </section>
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
                   <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
                   <p>{privateTrackingKey
                     ? readyToSubmit
-                      ? 'Your category PIN is saved. Submit now; verify your email afterward to unlock status access. Any incomplete details or evidence remain visible to reviewers.'
-                      : `Your category PIN and applicant declaration are required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
+                      ? 'Your category PIN is saved. Submit to confirm your details. Any incomplete details or evidence remain visible to reviewers.'
+                      : `Your category PIN is required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length
                       ? `${storageAvailable ? 'Required items still missing' : 'Secure storage is unavailable; required references are missing'}: ${missingUploads.join(', ')}.`
-                      : 'Complete the declaration and all required details before submitting.'}</p>
+                      : 'Complete all required details before submitting.'}</p>
                 </div>
               </div>
               {(error || submitError) && <p className="ew-form-alert" role="alert" data-testid="text-submit-error">{submitError || error}</p>}

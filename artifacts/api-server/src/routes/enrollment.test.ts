@@ -1884,7 +1884,6 @@ describe("guest application verification and persistence", () => {
       name: "Test Applicant",
       nickname: "TA",
       categoryEntryComplete: true,
-      reviewDeclarationAccepted: true,
       personalInformation: {
         firstName: "Test",
         surname: "Applicant",
@@ -1978,7 +1977,6 @@ describe("guest application verification and persistence", () => {
       nextOfKin: { fullName: "Next Contact" },
       education: { institution: "Test College" },
       workInformation: { employmentStatus: "student" },
-      reviewDeclarationAccepted: true,
     });
     expect(visibleDraft.body[0].evidence).toHaveLength(2);
     expect(visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl)).toBe(true);
@@ -2035,8 +2033,35 @@ describe("guest application verification and persistence", () => {
     expect(unverifiedSubmit.body).toMatchObject({
       submissionStatus: "submitted",
       emailVerified: false,
-      emailVerificationRequired: true,
+      emailVerificationRequired: false,
       linkedApplicationId: null,
+    });
+
+    const unverifiedStatus = await request(
+      "/guest/preapplications/lookup",
+      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+    );
+    expect(unverifiedStatus.response.status).toBe(200);
+    expect(unverifiedStatus.body).toMatchObject({
+      submissionStatus: "submitted",
+      emailVerified: false,
+      emailVerificationRequired: false,
+      reviewStatus: "submitted",
+    });
+    expect(unverifiedStatus.body.answers).not.toEqual({});
+
+    const guestRecord = mockState.rows.get("guest_preapplications")?.[0];
+    const priorReviewStatus = guestRecord?.status;
+    if (guestRecord) guestRecord.status = "contacted";
+    const inReviewStatus = await request(
+      "/guest/preapplications/lookup",
+      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+    );
+    if (guestRecord && priorReviewStatus) guestRecord.status = priorReviewStatus;
+    expect(inReviewStatus.response.status).toBe(200);
+    expect(inReviewStatus.body).toMatchObject({
+      status: "contacted",
+      reviewStatus: "under_review",
     });
 
     const mismatchedSubmit = await request(
@@ -2217,7 +2242,6 @@ describe("guest application verification and persistence", () => {
         complete: false,
         answers: {
           personalInformation: { firstName: "Partial", email: contactEmail },
-          reviewDeclarationAccepted: true,
         },
       }),
     });
@@ -2235,7 +2259,7 @@ describe("guest application verification and persistence", () => {
     expect(submitted.body).toMatchObject({
       submissionStatus: "submitted",
       emailVerified: false,
-      emailVerificationRequired: true,
+      emailVerificationRequired: false,
       linkedApplicationId: null,
     });
 

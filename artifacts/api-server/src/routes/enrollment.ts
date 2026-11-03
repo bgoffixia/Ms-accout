@@ -484,11 +484,8 @@ function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
 
 function serializeGuestPreapplicationStatus(
   application: typeof guestPreapplicationsTable.$inferSelect,
-  restrictUnverifiedSubmittedStatus = false,
 ) {
   const answers = application.answers ?? {};
-  const emailVerificationRequired =
-    application.submissionStatus === "submitted" && !application.emailVerified;
   return {
     id: application.id,
     reference: application.reference,
@@ -499,28 +496,26 @@ function serializeGuestPreapplicationStatus(
     status: application.status,
     submissionStatus: application.submissionStatus,
     emailVerified: application.emailVerified,
-    emailVerificationRequired,
+    emailVerificationRequired: false,
     hasPin: Boolean(application.pinHash),
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
-    answers:
-      restrictUnverifiedSubmittedStatus && emailVerificationRequired
-        ? {}
-        : applicantSafeAnswers(answers),
+    answers: applicantSafeAnswers(answers),
     reviewStatus:
-      application.submissionStatus === "submitted" && !emailVerificationRequired
-        ? "submitted"
-        : null,
+      application.submissionStatus !== "submitted"
+        ? null
+        : application.status === "received"
+          ? "submitted"
+          : application.status === "contacted"
+            ? "under_review"
+            : null,
     applicantFollowup: null,
-    outstandingRequirements:
-      restrictUnverifiedSubmittedStatus && emailVerificationRequired
-        ? []
-        : outstandingApplicationRequirements(
-            application.categoryId,
-            answers,
-            Boolean(application.pinHash),
-          ),
+    outstandingRequirements: outstandingApplicationRequirements(
+      application.categoryId,
+      answers,
+      Boolean(application.pinHash),
+    ),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
   };
@@ -529,8 +524,7 @@ function serializeGuestPreapplicationStatus(
 async function serializeGuestPreapplicationStatusWithReview(
   application: typeof guestPreapplicationsTable.$inferSelect,
 ) {
-  const status = serializeGuestPreapplicationStatus(application, true);
-  if (status.emailVerificationRequired) return status;
+  const status = serializeGuestPreapplicationStatus(application);
   if (!application.linkedApplicationId) return status;
   const [linkedApplication] = await db
     .select()
@@ -1048,10 +1042,6 @@ function validateFinalApplication(
   ) {
     return "Complete the selected category's entry form first.";
   }
-  if (!answers.reviewDeclarationAccepted) {
-    return "Confirm the application declaration before submitting.";
-  }
-
   const personal = asRecord(answers.personalInformation);
   for (const [key, label] of [
     ["firstName", "first name"],
@@ -1203,7 +1193,6 @@ function outstandingApplicationRequirements(
     answers.categoryEntryComplete !== true ||
     !hasRequiredCategoryDetails(categoryId, answers)
   ) missing.push("Complete the category entry details");
-  if (answers.reviewDeclarationAccepted !== true) missing.push("Confirm the applicant declaration");
   if (!sectionHas("personalInformation", [
     "firstName", "surname", "dateOfBirth", "nationality", "phone", "email",
     "residentialAddress", "stateRegion", "city",
@@ -1989,10 +1978,6 @@ router.post(
         res.status(400).json({ error: "Create a category PIN before submitting the application." });
         return;
       }
-      if (preapplication.answers?.reviewDeclarationAccepted !== true) {
-        res.status(400).json({ error: "Confirm the application declaration before submitting." });
-        return;
-      }
       if (!(await guestEvidencePathsAreOwned(preapplication.id, preapplication.answers ?? {}))) {
         res.status(400).json({ error: "One or more evidence references are not attached to this application." });
         return;
@@ -2034,7 +2019,7 @@ router.post(
             changes: [{
               field: "Submission",
               before: "Not submitted",
-              after: "Submitted before email verification",
+                after: "Submitted by applicant",
             }],
           });
         }
@@ -2629,7 +2614,6 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
         JSON.stringify(application.answers?.[key]);
     });
     const unauthorizedChange = changedSections.some((key) => {
-      if (key === "reviewDeclarationAccepted") return false;
       const sectionIndex = wizardSections.indexOf(
         key as (typeof wizardSections)[number],
       );
@@ -2751,8 +2735,8 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
       const note =
         submittedAnswers?.categoryEntryComplete === true && savedPosition === 0
           ? "Category details and enrollment PIN saved."
-          : savedPosition === 7 && nextAnswers.reviewDeclarationAccepted === true
-            ? "Final review and declaration saved."
+          : savedPosition === 7
+            ? "Final review saved."
             : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
       await transaction.insert(applicationEventsTable).values({
         applicationId: applicationRow.id,

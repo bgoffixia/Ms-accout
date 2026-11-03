@@ -31,7 +31,6 @@ import {
   useUpdateGuestPreapplicationEmail,
   useRequestGuestApplicantEvidenceUpload, useCompleteGuestApplicantEvidenceUpload,
   useSubmitGuestPreapplication,
-  useLinkGuestPreapplicationAccount,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminGuestApplicationHistory, useGetAdminOverview,
   useGetAdminApplicationPin, useGetAdminGuestPreapplicationPin,
@@ -3373,6 +3372,19 @@ function saveGuestResume(reference: string, accessKey: string) {
   window.sessionStorage.setItem(GUEST_APPLICATION_RESUME_KEY, JSON.stringify({ reference, accessKey }));
 }
 
+function readGuestResume() {
+  try {
+    const stored = window.sessionStorage.getItem(GUEST_APPLICATION_RESUME_KEY);
+    if (!stored) return null;
+    const credentials = JSON.parse(stored) as { reference?: unknown; accessKey?: unknown };
+    return typeof credentials.reference === 'string' && typeof credentials.accessKey === 'string'
+      ? { reference: credentials.reference, accessKey: credentials.accessKey }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function saveGuestAuthContext(context: z.infer<typeof guestAuthContextSchema>) {
   window.sessionStorage.setItem(GUEST_APPLICATION_RESUME_KEY, JSON.stringify({
     reference: context.reference,
@@ -3733,7 +3745,6 @@ function GuestApplicationPage() {
   const requestEvidenceUpload = useRequestGuestApplicantEvidenceUpload();
   const completeEvidenceUpload = useCompleteGuestApplicantEvidenceUpload();
   const submitGuest = useSubmitGuestPreapplication();
-  const linkGuest = useLinkGuestPreapplicationAccount();
   const { user } = useUser();
   const [, setLocation] = useLocation();
   const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
@@ -3748,8 +3759,6 @@ function GuestApplicationPage() {
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState('');
   const [progressError, setProgressError] = useState('');
-  const [verificationOpen, setVerificationOpen] = useState(false);
-  const [verificationReady, setVerificationReady] = useState(false);
   const [resumeError, setResumeError] = useState('');
   const [resumeLoading, setResumeLoading] = useState(false);
   const resumeStarted = useRef(false);
@@ -4043,7 +4052,6 @@ function GuestApplicationPage() {
 
   const submitGuestApplication = async (answers: Record<string, unknown>): Promise<boolean> => {
     if (!created || !created.application.hasPin) return false;
-    setVerificationReady(false);
     if (!(await saveGuestProgress(answers, 7, false))) {
       return false;
     }
@@ -4053,27 +4061,13 @@ function GuestApplicationPage() {
         data: { reference: created.application.reference, accessKey: created.accessKey },
       });
       setStage('complete');
-      setVerificationReady(true);
-      setVerificationOpen(true);
       return true;
     } catch (error) {
-      setVerificationOpen(false);
       setProgressError(error instanceof Error
         ? error.message
         : 'The application could not be submitted. Your saved details remain available.');
       return false;
     }
-  };
-
-  const linkGuestStatus = async () => {
-    if (!created) throw new Error('The submitted application is no longer available in this session.');
-    const linked = await linkGuest.mutateAsync({
-      applicationId: created.application.id,
-      data: { reference: created.application.reference, accessKey: created.accessKey },
-    });
-    window.sessionStorage.removeItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY);
-    window.sessionStorage.removeItem(GUEST_APPLICATION_RESUME_KEY);
-    setLocation(`/applications/${linked.id}`, { replace: true });
   };
 
   const copyKey = async () => {
@@ -4090,25 +4084,27 @@ function GuestApplicationPage() {
     return <>
       <main className="guest-page portal-frame">
         <GuestPublicHeader />
-        <section className="guest-form-card guest-submit-confirmation" data-testid="guest-submission-confirmation">
+      </main>
+      <div className="guest-submit-success-overlay">
+        <section className="success-dialog guest-submit-success-dialog" role="dialog" aria-modal="true" aria-labelledby="guest-submission-title" data-testid="guest-submission-confirmation">
           <div className="success-dialog-icon"><ShieldCheck size={25} /></div>
           <span className="eyebrow">APPLICATION SUBMITTED</span>
-          <h1>Your application was submitted.</h1>
-          <p>Your saved details are available to authorized reviewers now. Verify <strong>{created.application.email}</strong> to open the enrollment status page and follow review updates.</p>
+          <h2 id="guest-submission-title">Enrollment submitted</h2>
+          <p>Your enrollment details have been saved and are available to authorized reviewers. Use your application reference and private tracking key to view status.</p>
           <div className="review-field"><span>Application reference</span><b className="mono">{created.application.reference}</b></div>
-          <button type="button" className="button button-primary guest-submit" onClick={() => setVerificationOpen(true)} data-testid="button-open-status-verification">
-            Verify email and view status <ArrowRight size={16} />
-          </button>
-          <p className="guest-track-back"><Link href="/guest/status">I’ll verify later — go to status lookup</Link></p>
+          <div className="guest-key-box">
+            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
+            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
+            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
+              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
+            </button>
+          </div>
+          <p className="guest-key-warning">Keep this key private. It is required with your reference to access status and cannot be recovered if lost.</p>
+          <Link href="/guest/track" className="button button-primary guest-submit" data-testid="link-track-created-application">
+            Track status <ArrowRight size={16} />
+          </Link>
         </section>
-      </main>
-      {verificationOpen && <GuestEmailVerificationDialog
-        email={created.application.email}
-        fullName={created.application.fullName}
-        ready={verificationReady}
-        onClose={() => setVerificationOpen(false)}
-        onVerified={linkGuestStatus}
-      />}
+      </div>
     </>;
   }
 
@@ -4153,13 +4149,6 @@ function GuestApplicationPage() {
       categoryCards={portalSettings.data?.cards}
       pageThemes={portalSettings.data?.pageThemes}
       />
-      {verificationOpen && <GuestEmailVerificationDialog
-        email={created.application.email}
-        fullName={created.application.fullName}
-        ready={verificationReady}
-        onClose={() => setVerificationOpen(false)}
-        onVerified={linkGuestStatus}
-      />}
     </>;
   }
 
@@ -4174,8 +4163,8 @@ function GuestApplicationPage() {
           <div className="eyebrow">{created.application.submissionStatus === 'submitted' ? 'APPLICATION SUBMITTED' : 'APPLICATION DRAFT SAVED'}</div>
           <h2 id="guest-apply-heading">{created.application.submissionStatus === 'submitted' ? 'Your application was submitted.' : 'Your details are saved.'}</h2>
           <p>{created.application.submissionStatus === 'submitted'
-            ? 'Your verified account is linked to this application. You can follow its review status from your dashboard.'
-            : 'Your saved draft is available to authorized reviewers. Resume it later to complete your details, evidence, and email verification.'}</p>
+            ? 'Your application has been submitted. Use your reference and private tracking key to view its status.'
+            : 'Your saved draft is available to authorized reviewers. Resume it later to complete your details and evidence.'}</p>
           <div className="guest-reference-box">
             <span>APPLICATION REFERENCE</span>
             <strong data-testid="text-guest-reference">{created.application.reference}</strong>
@@ -4299,15 +4288,17 @@ function GuestApplicationRoute() {
 
 function GuestTrackingPage() {
   const lookup = useLookupGuestPreapplication();
-  const linkGuest = useLinkGuestPreapplicationAccount();
   const [, setLocation] = useLocation();
   const [status, setStatus] = useState<GuestPreapplicationStatus | null>(null);
   const [lastAccessKey, setLastAccessKey] = useState('');
   const [lookupError, setLookupError] = useState('');
-  const [verificationOpen, setVerificationOpen] = useState(false);
+  const savedCredentials = readGuestResume();
   const form = useForm<GuestLookupValues>({
     resolver: zodResolver(guestLookupSchema),
-    defaultValues: { reference: '', accessKey: '' },
+    defaultValues: {
+      reference: savedCredentials?.reference ?? '',
+      accessKey: savedCredentials?.accessKey ?? '',
+    },
   });
   const onSubmit = async (values: GuestLookupValues) => {
     setLookupError('');
@@ -4317,20 +4308,9 @@ function GuestTrackingPage() {
       setStatus(result);
       setLastAccessKey(values.accessKey);
       form.reset({ reference: values.reference.trim(), accessKey: '' });
-      if (result.emailVerificationRequired) setVerificationOpen(true);
     } catch {
       setLookupError('We couldn’t find a matching application with those details. Check your reference and private key, then try again.');
     }
-  };
-  const openVerifiedStatus = async () => {
-    if (!status || !lastAccessKey) {
-      throw new Error('Look up your submitted application again before verifying email.');
-    }
-    const linked = await linkGuest.mutateAsync({
-      applicationId: status.id,
-      data: { reference: status.reference, accessKey: lastAccessKey },
-    });
-    setLocation(`/applications/${linked.id}`, { replace: true });
   };
   return <main className="guest-page guest-track-page portal-frame">
     <GuestPublicHeader />
@@ -4338,7 +4318,7 @@ function GuestTrackingPage() {
       <div className="guest-track-heading rise">
         <div className="eyebrow"><span className="eyebrow-rule" />PRIVATE STATUS LOOKUP</div>
         <h1>Your progress, clearly.</h1>
-        <p>Use your reference and private tracking key to resume a draft or verify your email for a submitted application. Email verification unlocks the enrollment status page.</p>
+        <p>Use your application reference and private tracking key to resume a draft or view the status of a submitted application.</p>
       </div>
       <section className="guest-track-card rise-delay">
         <Form {...form}><form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -4355,27 +4335,20 @@ function GuestTrackingPage() {
         </form></Form>
         <p className="guest-track-security"><LockKeyhole size={14} /> Your private key is never included in a link. Keep your own copy to return later.</p>
       </section>
-      {status?.emailVerificationRequired ? <section className="guest-status-card rise" aria-live="polite" data-testid="guest-status-verification-required">
-        <div className="guest-status-head"><div><span className="eyebrow">APPLICATION SUBMITTED</span><h2>{status.reference}</h2></div></div>
-        <div className="guest-status-next"><ShieldCheck size={17} /><p>Your application has been submitted and is available to authorized reviewers. Verify the email address on the application to unlock its status and follow review updates.</p></div>
-        <button type="button" className="button button-primary guest-submit" onClick={() => setVerificationOpen(true)} data-testid="button-verify-email-for-status">
-          Verify email to view status <ArrowRight size={16} />
-        </button>
-      </section> : status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
+      {status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
         <div className="guest-status-head"><div><span className="eyebrow">APPLICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.reviewStatus ?? status.status} testId="status-guest-application" /></div>
         <div className="guest-status-details">
           <div><span>Enrollment category</span><strong>{status.categoryName}</strong></div>
           <div><span>Current status</span><strong className="guest-status-capitalize">{(status.reviewStatus ?? status.status).replaceAll('_', ' ')}</strong></div>
-          <div><span>Email verification</span><strong>{status.emailVerified ? 'Verified' : 'Not verified'}</strong></div>
           <div><span>Last updated</span><strong>{formatDate(status.updatedAt)}</strong></div>
         </div>
         <div className="guest-status-next"><ShieldCheck size={17} /><p>{status.status === 'closed'
           ? 'This application is closed. Contact the enrollment team if you need help.'
           : status.submissionStatus === 'submitted'
-            ? `Your email-verified application has been submitted. Current review status: ${(status.reviewStatus ?? 'submitted').replaceAll('_', ' ')}. Check this page for progress and follow-up.`
+            ? `Your application has been submitted. Current review status: ${(status.reviewStatus ?? 'submitted').replaceAll('_', ' ')}. Check this page for progress and follow-up.`
             : status.detailsComplete
-              ? 'Your details and PIN are saved. Confirm the declaration and submit when ready; verify your email afterward to access the status page.'
-              : 'Your progress is saved as an unsubmitted draft. Continue when ready; incomplete fields and failed email verification do not remove saved progress.'}</p></div>
+              ? 'Your details and PIN are saved. Submit when ready.'
+              : 'Your progress is saved as an unsubmitted draft. Continue when ready; saved progress remains available with your private key.'}</p></div>
         {status.submissionStatus === 'submitted' && status.outstandingRequirements.length > 0 && <div className="review-note" data-testid="guest-outstanding-requirements">
           <b>Items still needed</b><ul>{status.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>
         </div>}
@@ -4394,12 +4367,6 @@ function GuestTrackingPage() {
           {status.detailsComplete ? 'Review saved application' : 'Continue application'} <ArrowRight size={16} />
         </button>}
       </section>}
-      {verificationOpen && status?.emailVerificationRequired && <GuestEmailVerificationDialog
-        email={status.email}
-        fullName={status.fullName}
-        onClose={() => setVerificationOpen(false)}
-        onVerified={openVerifiedStatus}
-      />}
       <p className="guest-track-back"><Link href="/guest/apply" data-testid="link-track-start-application">Need to start an application? <span>Begin here <ArrowRight size={14} /></span></Link></p>
     </div>
   </main>;
@@ -4628,7 +4595,6 @@ function AdminGuestApplicationReview() {
         {pinFeedback && <p className="field-help" role="status" data-testid="guest-pin-feedback">{pinFeedback}</p>}
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
-        <div className="review-field"><span>Applicant declaration</span><b>{application.answers.reviewDeclarationAccepted === true ? 'Accepted' : 'Not accepted'}</b></div>
       </section>
       <div className="admin-record-sections">
         <AdminAnswerSection title="Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} />

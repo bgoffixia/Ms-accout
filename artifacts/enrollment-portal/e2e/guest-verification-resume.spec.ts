@@ -169,44 +169,16 @@ class GuestApiFixture {
       if (!this.draft) return json({ message: "Not found" }, 404);
       this.draft.submissionStatus = "submitted";
       this.draft.emailVerified = false;
-      this.draft.emailVerificationRequired = true;
+      this.draft.emailVerificationRequired = false;
       return json(this.statusResponse());
-    }
-    if (method === "POST" && path === `/api/guest/preapplications/${applicationId}/link`) {
-      if (!this.draft) return json({ message: "Not found" }, 404);
-      this.markVerifiedSubmission();
-      return json({
-        id: "7aed516d-1e70-41a9-a239-4568b8fbc7c2",
-        reference,
-        categoryId: "category-1",
-        categoryName: "Category One",
-        status: "submitted",
-        currentStep: 7,
-        hasPin: true,
-        answers: this.draft.answers,
-        applicantName: this.draft.fullName,
-        applicantEmail: this.draft.email,
-        reviewNote: null,
-        createdAt: this.draft.createdAt,
-        updatedAt: this.draft.updatedAt,
-        submittedAt: "2026-10-12T12:05:00.000Z",
-      });
     }
 
     return json({ message: `Unmocked API request: ${method} ${path}` }, 501);
   }
 
-  markVerifiedSubmission() {
-    if (!this.draft) throw new Error("The browser test did not create a guest draft.");
-    this.draft.submissionStatus = "submitted";
-    this.draft.emailVerified = true;
-    this.draft.emailVerificationRequired = false;
-    this.draft.linkedApplicationId = "7aed516d-1e70-41a9-a239-4568b8fbc7c2";
-  }
-
   private detailsAreComplete() {
     const answers = this.draft?.answers as Record<string, any> | undefined;
-    if (!answers || answers.categoryEntryComplete !== true || answers.reviewDeclarationAccepted !== true) return false;
+    if (!answers || answers.categoryEntryComplete !== true) return false;
     const person = answers.personalInformation ?? {};
     const nextOfKin = answers.nextOfKin ?? {};
     const education = answers.education ?? {};
@@ -240,11 +212,13 @@ class GuestApiFixture {
   }
 
   private statusResponse() {
-    const emailVerificationRequired = this.draft!.submissionStatus === "submitted" && !this.draft!.emailVerified;
     return {
       ...this.draft,
-      emailVerificationRequired,
-      answers: emailVerificationRequired ? {} : this.draft!.answers,
+      emailVerificationRequired: false,
+      answers: this.draft!.answers,
+      reviewStatus: this.draft!.submissionStatus === "submitted" ? "submitted" : null,
+      applicantFollowup: null,
+      outstandingRequirements: [],
       // Deliberately include a reviewer-only value in the fixture to ensure it
       // never becomes visible in the applicant's resumed experience.
       reviewNote: reviewerOnlyNote,
@@ -533,15 +507,12 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
   }
 });
 
-test("submits before email verification and gates status access until the applicant verifies", async ({ page }) => {
+test("submits without email OTP and opens status with the private tracking key", async ({ page }) => {
   const api = new GuestApiFixture();
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
-  await page.route("**/api/__clerk/v1/client/**", (route) =>
-    route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ errors: [{ message: "Test email service unavailable." }] }) }),
-  );
   await page.route("**/__test-upload/**", (route) =>
     route.fulfill({ status: 200, body: "stored" }),
   );
@@ -655,8 +626,7 @@ test("submits before email verification and gates status access until the applic
   await page.locator("form.ew-form button[type=submit]").click();
   await expect.poll(() => api.uploadedEvidence.length).toBe(2);
   await page.locator("form.ew-form button[type=submit]").click();
-  await page.getByTestId("section-declaration").locator("label").click();
-  await expect(page.getByTestId("check-declaration")).toBeChecked();
+  await expect(page.getByTestId("section-declaration")).toHaveCount(0);
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("select-category-change")).toHaveCount(0);
   expect(api.draft?.submissionStatus).toBe("draft");
@@ -675,10 +645,6 @@ test("submits before email verification and gates status access until the applic
     `Submission readiness: ${await page.getByTestId("state-submit-readiness").innerText()}`,
     ).toBeEnabled();
   await page.getByTestId("button-submit-enrollment").click();
-  await expect(page.getByTestId("modal-guest-email-otp")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
-  await expect(page.getByTestId("input-guest-email-otp")).toBeVisible();
-  await page.getByRole("button", { name: "Close email verification" }).click();
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
 
   expect(api.createCount).toBe(1);
@@ -687,39 +653,30 @@ test("submits before email verification and gates status access until the applic
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
   expect(api.draft?.emailVerified).toBe(false);
   expect(api.draft?.submissionStatus).toBe("submitted");
-  expect(api.draft?.answers.reviewDeclarationAccepted).toBe(true);
+  expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
   expect(api.draft?.linkedApplicationId).toBeNull();
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("submitted");
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText(api.accessKey);
+  await expect(page.getByTestId("guest-submission-confirmation")).toHaveAttribute("role", "dialog");
+  await expect(page.getByTestId("link-track-created-application")).toContainText("Track status");
 
-  await page.goto("/guest/track");
-  await page.getByTestId("input-track-reference").fill(reference);
-  await page.getByTestId("input-track-key").fill(api.accessKey);
+  await page.getByTestId("link-track-created-application").click();
+  await expect(page.getByTestId("input-track-reference")).toHaveValue(reference);
+  await expect(page.getByTestId("input-track-key")).toHaveValue(api.accessKey);
   await page.getByTestId("button-lookup-guest-status").click();
-  await expect(page.getByTestId("guest-status-verification-required")).toBeVisible();
-  await expect(page.getByTestId("guest-public-status")).toHaveCount(0);
-  await expect(page.getByTestId("guest-status-verification-required")).not.toContainText("Jordan");
-  await page.getByRole("button", { name: "Close email verification" }).click();
+  await expect(page.getByTestId("guest-public-status")).toBeVisible();
+  await expect(page.getByTestId("status-guest-application")).toContainText("Pending Review");
+  await expect(page.getByTestId("guest-public-status")).not.toContainText(reviewerOnlyNote);
+  await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
 
-  // Reloading after an unsuccessful email verification keeps the submission,
-  // while its private status remains gated.
+  // Reloading preserves the submission and the private key in this browser session.
   await page.goto("/guest/apply?resume=1");
   await expect(page.getByTestId("guest-submission-confirmation")).toBeVisible();
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("submitted");
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
   await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(reviewerOnlyNote);
-  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText("Jordan");
+  await expect(page.getByTestId("guest-submission-confirmation")).toContainText(api.accessKey);
   expect(api.lookupCount).toBeGreaterThanOrEqual(2);
   expect(api.createCount).toBe(1);
-
-  // The server has now completed a verified submission for that same draft.
-  // A later browser return should show the existing submitted application.
-  api.markVerifiedSubmission();
-  await page.goto("/guest/apply?resume=1");
-  await expect(page.getByTestId("guest-submission-confirmation")).toBeVisible();
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Your application was submitted.");
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText(reference);
-  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(reviewerOnlyNote);
-  expect(api.createCount).toBe(1);
-  expect(api.draft?.linkedApplicationId).toBe("7aed516d-1e70-41a9-a239-4568b8fbc7c2");
 });
 
 test("lets guests skip incomplete fields but requires a PIN before enrollment details", async ({ page }) => {
@@ -771,7 +728,7 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
     await page.locator("form.ew-form button[type=submit]").click();
     await expectNoDocumentOverflow(page);
   }
-  await expect(page.getByTestId("section-declaration")).toBeVisible();
+  await expect(page.getByTestId("section-declaration")).toHaveCount(0);
   await expect(page.getByTestId("enrollment-preview")).toContainText("Configured final preview");
   await expect(page.getByTestId("review-section-0")).toContainText("Configured personal details");
   await expect(page.getByTestId("review-firstName")).toContainText("Configured first name");
@@ -781,8 +738,6 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await expect(page.getByTestId("review-category-name")).toContainText("Not provided");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Configured entry nickname");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Not provided");
-  await page.getByTestId("section-declaration").locator("label").click();
-  await expect(page.getByTestId("check-declaration")).toBeChecked();
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("button-submit-enrollment")).toBeEnabled();
   await expectNoDocumentOverflow(page);
