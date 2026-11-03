@@ -535,6 +535,8 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
 
 test("submits before email verification and gates status access until the applicant verifies", async ({ page }) => {
   const api = new GuestApiFixture();
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/**", (route) => api.handle(route));
   await page.route("**/api/__clerk/v1/client/**", (route) =>
@@ -660,6 +662,8 @@ test("submits before email verification and gates status access until the applic
   expect(api.draft?.submissionStatus).toBe("draft");
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
+  await expect(page.getByTestId("enrollment-preview")).toBeVisible();
+  expect(pageErrors).toEqual([]);
   const sectionStatuses = await Promise.all(
     Array.from({ length: 7 }, (_, index) =>
       page.getByTestId(`status-section-${index}`).innerText(),

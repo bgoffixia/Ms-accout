@@ -966,11 +966,12 @@ export function EnrollmentWizard({
               <section className="ew-declaration" data-testid="section-declaration">
                 <div className="ew-declaration-heading"><ShieldCheck size={19} /><div><b>Applicant declaration</b><p>I confirm that the information above is complete and accurate to the best of my knowledge.</p></div></div>
                 <label className="ew-consent-check"><input type="checkbox" {...declarationRegistration}
+                  checked={declarationAccepted}
                   onChange={(event) => {
-                    void declarationRegistration.onChange(event);
-                    const accepted = event.currentTarget.checked;
-                    const merged = { ...answers, ...getValues(), reviewDeclarationAccepted: accepted };
-                    setAnswers(merged);
+                    setValue('reviewDeclarationAccepted', event.currentTarget.checked, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
                   }}
                   data-testid="check-declaration" />
                   <span className="ew-checkmark" /><span>I have reviewed my information and agree to this declaration.</span></label>
