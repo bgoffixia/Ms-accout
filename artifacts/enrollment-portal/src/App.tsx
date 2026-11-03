@@ -332,8 +332,8 @@ function PublicLanding() {
         <PortalWordmark className="portal-wordmark-landing" />
         <div className="landing-content rise">
           <div className="eyebrow"><span className="eyebrow-rule" />SECURE ENROLLMENT</div>
-          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to Our Enrollment Portal')}</h1>
-          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Select your enrollment category and complete your application through our secure enrollment process.')}</p>
+          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal')}</h1>
+          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.')}</p>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
@@ -4295,7 +4295,7 @@ function GuestApplicationPage() {
                   <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
                 </FormItem>} />
                 <FormField control={form.control} name="phone" render={({ field }) => <FormItem className="guest-field">
-                  <FormLabel>Phone number <span className="guest-optional">OPTIONAL</span></FormLabel><FormControl><Input {...field} type="tel" autoComplete="tel" placeholder="+234 801 234 5678" data-testid="input-guest-phone" /></FormControl><FormMessage />
+                  <FormLabel>Phone number <span className="guest-optional">OPTIONAL</span></FormLabel><FormControl><Input {...field} type="tel" autoComplete="tel" placeholder="+678 801 234 5678" data-testid="input-guest-phone" /></FormControl><FormMessage />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
                   {isContinuing ? 'Checking details…' : 'Confirm to process verification'} <ArrowRight size={16} />

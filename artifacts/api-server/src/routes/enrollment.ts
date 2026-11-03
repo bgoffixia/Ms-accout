@@ -264,9 +264,9 @@ const categories = [
 
 const defaultPortalSettings = {
   hero: {
-    title: "Welcome to Our Enrollment Portal",
+    title: "Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal",
     description:
-      "Select your enrollment category and complete your application through our secure enrollment process.",
+      "Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.",
     getStartedLabel: "Get Started",
     loginLabel: "Log In",
   },
