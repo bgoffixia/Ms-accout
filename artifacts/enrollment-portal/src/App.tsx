@@ -4298,7 +4298,7 @@ function GuestApplicationPage() {
                   <FormLabel>Phone number <span className="guest-optional">OPTIONAL</span></FormLabel><FormControl><Input {...field} type="tel" autoComplete="tel" placeholder="+678 801 234 5678" data-testid="input-guest-phone" /></FormControl><FormMessage />
                 </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : 'Confirm to process verification'} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : 'Confirm and proceed verification'} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
