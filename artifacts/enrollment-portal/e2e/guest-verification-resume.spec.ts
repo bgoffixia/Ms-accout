@@ -658,6 +658,8 @@ test("submits before email verification and gates status access until the applic
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("select-category-change")).toHaveCount(0);
   expect(api.draft?.submissionStatus).toBe("draft");
+  expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
+  await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   const sectionStatuses = await Promise.all(
     Array.from({ length: 7 }, (_, index) =>
       page.getByTestId(`status-section-${index}`).innerText(),
@@ -681,6 +683,7 @@ test("submits before email verification and gates status access until the applic
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
   expect(api.draft?.emailVerified).toBe(false);
   expect(api.draft?.submissionStatus).toBe("submitted");
+  expect(api.draft?.answers.reviewDeclarationAccepted).toBe(true);
   expect(api.draft?.linkedApplicationId).toBeNull();
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText("submitted");
 
@@ -715,7 +718,7 @@ test("submits before email verification and gates status access until the applic
   expect(api.draft?.linkedApplicationId).toBe("7aed516d-1e70-41a9-a239-4568b8fbc7c2");
 });
 
-test("lets guests skip incomplete fields and the PIN while keeping final submission gated", async ({ page }) => {
+test("lets guests skip incomplete fields but requires a PIN before enrollment details", async ({ page }) => {
   const api = new GuestApiFixture();
   api.categoryOneTitle = "Configured Category One";
   api.screenCopyOverrides = {
@@ -752,7 +755,11 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("input-entry-pin")).toBeVisible();
   await expect(page.getByText("Continue without a PIN")).toHaveCount(0);
-  await page.getByTestId("button-pin-continue").click();
+  await expect(page.getByTestId("button-pin-continue")).toHaveCount(0);
+  const pinInput = page.getByTestId("input-entry-pin");
+  const pinLength = Number(await pinInput.getAttribute("maxlength"));
+  await pinInput.fill("1".repeat(pinLength));
+  await page.getByTestId("button-pin-key-confirm").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   await expectNoDocumentOverflow(page);
 
@@ -773,11 +780,11 @@ test("lets guests skip incomplete fields and the PIN while keeping final submiss
   await page.getByTestId("section-declaration").locator("label").click();
   await expect(page.getByTestId("check-declaration")).toBeChecked();
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
-  await expect(page.getByTestId("button-submit-enrollment")).toBeDisabled();
+  await expect(page.getByTestId("button-submit-enrollment")).toBeEnabled();
   await expectNoDocumentOverflow(page);
 
   expect(api.draft?.currentStep).toBe(7);
   expect(api.draft?.detailsComplete).toBe(false);
-  expect(api.draft?.hasPin).toBe(false);
-  expect(api.draft?.answers.reviewDeclarationAccepted).toBe(true);
+  expect(api.draft?.hasPin).toBe(true);
+  expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
 });

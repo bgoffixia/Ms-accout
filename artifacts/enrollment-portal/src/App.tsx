@@ -4065,10 +4065,6 @@ function GuestApplicationPage() {
     }
   };
 
-  const onGuestDeclarationChange = async (answers: Record<string, unknown>) => {
-    await saveGuestProgress(answers, 7, false);
-  };
-
   const linkGuestStatus = async () => {
     if (!created) throw new Error('The submitted application is no longer available in this session.');
     const linked = await linkGuest.mutateAsync({
@@ -4145,7 +4141,6 @@ function GuestApplicationPage() {
       error={progressError}
       reopenedSections={[]}
       privateTrackingKey={created.accessKey}
-      onDeclarationChange={(answers) => void onGuestDeclarationChange(answers)}
       updateContactEmail={saveGuestContactEmail}
       uploadEvidence={uploadGuestEvidence}
       saveStep={(answers, currentStep) => saveGuestProgress(answers, currentStep)}

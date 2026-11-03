@@ -30,7 +30,6 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
-  onDeclarationChange?: (answers: Record<string, unknown>) => void;
   uploadEvidence?: (
     file: File,
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
@@ -239,7 +238,6 @@ export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit,
   onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
-  onDeclarationChange,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -973,7 +971,6 @@ export function EnrollmentWizard({
                     const accepted = event.currentTarget.checked;
                     const merged = { ...answers, ...getValues(), reviewDeclarationAccepted: accepted };
                     setAnswers(merged);
-                    onDeclarationChange?.(merged);
                   }}
                   data-testid="check-declaration" />
                   <span className="ew-checkmark" /><span>I have reviewed my information and agree to this declaration.</span></label>

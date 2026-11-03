@@ -1038,7 +1038,6 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .otp-entry-input { width: 100%; min-height: 48px; font-size: 20px; letter-spacing: .22em; text-align: center; }
 .otp-entry-form .button { width: 100%; justify-content: center; margin: 4px 0 0; }
 .otp-resend { display: block; margin: 16px auto 0; }
-.pin-entry-skip { display: block; margin: 12px auto 0; }
 .form-card-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 24px; }
 .form-card-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; color: #276c82; background: #eaf3f5; }
 .form-card-heading h2, .decision-head h2 { margin: 1px 0 4px; color: #234159; font-size: 13px; font-weight: 700; }

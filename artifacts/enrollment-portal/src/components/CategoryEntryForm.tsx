@@ -138,7 +138,7 @@ export function CategoryEntryForm({
     setActivePinValue(activePinValue + key);
   };
 
-  const finish = (continueIncomplete = false): boolean => {
+  const finish = (): boolean => {
     setValidationError("");
     if (!guestMode && !name.trim()) {
       setValidationError("Enter your name to continue.");
@@ -153,7 +153,7 @@ export function CategoryEntryForm({
       return false;
     }
     const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
-    if (pinRequired && !continueIncomplete && !pinPattern.test(pin)) {
+    if (pinRequired && !pinPattern.test(pin)) {
       setValidationError(`Enter exactly ${pinLength} digits.`);
       return false;
     }
@@ -523,9 +523,6 @@ export function CategoryEntryForm({
                     ✓
                   </button>
                 </div>
-                {guestMode && <button type="button" className="text-action pin-entry-skip" onClick={() => finish(true)} disabled={isSaving} data-testid="button-pin-continue">
-                  Continue
-                </button>}
               </section>
             )}
 
