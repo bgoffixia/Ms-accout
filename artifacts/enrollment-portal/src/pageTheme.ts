@@ -15,7 +15,7 @@ export const PAGE_THEME_SCREENS = [
     `workflow-step-${index + 1}`,
     `Enrollment step ${index + 1}`,
   ] as const),
-  ["application-status", "Application status"],
+  ["application-status", "Security Verification Status"],
   ["support", "Applicant support"],
   ["admin-overview", "Admin overview"],
   ["admin-review", "Admin review queue"],

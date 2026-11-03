@@ -267,7 +267,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, public
     ? [
         { label: 'Home', href: '/', key: 'home', icon: ArrowLeft },
         { label: 'Categories', href: '/dashboard', key: 'dashboard', icon: Home },
-        { label: 'Track application', href: '/guest/track', key: 'track', icon: FileCheck2 },
+        { label: 'Track Security Verification Status', href: '/guest/track', key: 'track', icon: FileCheck2 },
       ]
     : [
         { label: 'Overview', href: '/dashboard', key: 'dashboard', icon: Home },
@@ -306,7 +306,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, public
           <button className="menu-trigger" aria-label="Open menu" onClick={() => setMenuOpen(true)} data-testid="button-open-menu"><Menu size={20} /></button>
           <PortalWordmark className="portal-wordmark-compact" />
           {publicDashboard
-            ? <Link href="/guest/track" className="compact-help" aria-label="Track an application" data-testid="link-compact-guest-track"><FileCheck2 size={18} /></Link>
+            ? <Link href="/guest/track" className="compact-help" aria-label="Track Security Verification Status" data-testid="link-compact-guest-track"><FileCheck2 size={18} /></Link>
             : <Link href="/support" className="compact-help" data-testid="link-compact-support"><CircleHelp size={18} /></Link>}
         </div>
         <main className={`page-content portal-scroll ${fitDashboard ? 'dashboard-page-content' : ''}`}>{children}</main>
@@ -338,7 +338,7 @@ function PublicLanding() {
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
             </Link>
             <Link href="/guest/track" className="landing-secondary-link" data-testid="link-track-application">
-              Track an application <ArrowRight size={15} />
+              Track Security Verification Status <ArrowRight size={15} />
             </Link>
           </div>
           <div className="landing-assurances">
@@ -817,7 +817,7 @@ function DraftApplication() {
         <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
         <div className="review-field"><span>Submission date</span><b>{formatDate(application.submittedAt)}</b></div>
         <div className="review-field"><span>Current status</span><b>Pending Review</b></div>
-        <button className="button button-primary" onClick={() => setLocation(`/applications/${application.id}`)} data-testid="button-view-submitted-status">View Application Status <ArrowRight size={15} /></button>
+        <button className="button button-primary" onClick={() => setLocation(`/applications/${application.id}`)} data-testid="button-view-submitted-status">View Security Verification Status <ArrowRight size={15} /></button>
         <button className="button button-quiet" onClick={() => setLocation('/dashboard')} data-testid="button-return-dashboard">Return to Dashboard</button>
       </section>
     </div>}
@@ -1694,7 +1694,7 @@ function AdminSettings() {
     ['category-entry-3', 'Category Three entry form'],
     ['category-entry-4', 'Category Four entry form'],
     ...Array.from({ length: 8 }, (_, index) => [`workflow-step-${index + 1}`, `Enrollment step ${index + 1}`] as [string, string]),
-    ['application-status', 'Application status'],
+    ['application-status', 'Security Verification Status'],
     ['support', 'Applicant support'],
     ['admin-overview', 'Admin overview'],
     ['admin-review', 'Admin review'],
@@ -3424,7 +3424,7 @@ function GuestPublicHeader() {
       <PortalWordmark />
     </Link>
     <nav aria-label="Public navigation">
-      <Link href="/guest/track" className="guest-header-link" data-testid="link-guest-track">Track an application <ArrowRight size={14} /></Link>
+      <Link href="/guest/track" className="guest-header-link" data-testid="link-guest-track">Track Security Verification Status <ArrowRight size={14} /></Link>
     </nav>
   </header>;
 }
@@ -3537,7 +3537,7 @@ function PublicApplicantDashboard() {
         </div>
         <div className="help-card">
           <div className="help-icon"><FileCheck2 size={17} /></div>
-          <div><b>Already started?</b><p>Use your private tracking key to view saved progress.</p><Link href="/guest/track" className="text-action" data-testid="link-dashboard-track">Track application <ArrowRight size={14} /></Link></div>
+          <div><b>Already started?</b><p>Use your private tracking key to view saved progress and security verification status.</p><Link href="/guest/track" className="text-action" data-testid="link-dashboard-track">Track Security Verification Status <ArrowRight size={14} /></Link></div>
         </div>
         <div className="aside-note"><LockKeyhole size={15} /><span>Your progress stays private and secure.</span></div>
       </aside>
@@ -4101,7 +4101,7 @@ function GuestApplicationPage() {
           </div>
           <p className="guest-key-warning">Keep this key private. It is required with your reference to access status and cannot be recovered if lost.</p>
           <Link href="/guest/track" className="button button-primary guest-submit" data-testid="link-track-created-application">
-            Track status <ArrowRight size={16} />
+            Track Security Verification Status <ArrowRight size={16} />
           </Link>
         </section>
       </div>
@@ -4264,7 +4264,7 @@ function GuestApplicationPage() {
         </>}
       </section>
     </div>
-    <footer className="guest-footer"><span>SECURE ENROLLMENT PORTAL</span><Link href="/guest/track" data-testid="link-guest-footer-track">Already started? Track your application</Link></footer>
+    <footer className="guest-footer"><span>SECURE ENROLLMENT PORTAL</span><Link href="/guest/track" data-testid="link-guest-footer-track">Track Security Verification Status</Link></footer>
   </main>;
 }
 
@@ -4316,9 +4316,9 @@ function GuestTrackingPage() {
     <GuestPublicHeader />
     <div className="guest-track-wrap">
       <div className="guest-track-heading rise">
-        <div className="eyebrow"><span className="eyebrow-rule" />PRIVATE STATUS LOOKUP</div>
+        <div className="eyebrow"><span className="eyebrow-rule" />SECURE STATUS ACCESS</div>
         <h1>Your progress, clearly.</h1>
-        <p>Use your application reference and private tracking key to resume a draft or view the status of a submitted application.</p>
+        <p>Use your application reference and private tracking key to resume a draft or view its security verification status.</p>
       </div>
       <section className="guest-track-card rise-delay">
         <Form {...form}><form className="guest-form" onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -4330,13 +4330,13 @@ function GuestTrackingPage() {
           </FormItem>} />
           {lookupError && <p className="guest-inline-error" role="alert" data-testid="track-lookup-error">{lookupError}</p>}
           <button type="submit" className="button button-primary guest-submit" disabled={lookup.isPending} data-testid="button-lookup-guest-status">
-            {lookup.isPending ? 'Checking status…' : 'Look up status'} <ArrowRight size={16} />
+            {lookup.isPending ? 'Checking security verification status…' : 'Track Security Verification Status'} <ArrowRight size={16} />
           </button>
         </form></Form>
         <p className="guest-track-security"><LockKeyhole size={14} /> Your private key is never included in a link. Keep your own copy to return later.</p>
       </section>
       {status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
-        <div className="guest-status-head"><div><span className="eyebrow">APPLICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.reviewStatus ?? status.status} testId="status-guest-application" /></div>
+        <div className="guest-status-head"><div><span className="eyebrow">SECURITY VERIFICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.reviewStatus ?? status.status} testId="status-guest-application" /></div>
         <div className="guest-status-details">
           <div><span>Enrollment category</span><strong>{status.categoryName}</strong></div>
           <div><span>Current status</span><strong className="guest-status-capitalize">{(status.reviewStatus ?? status.status).replaceAll('_', ' ')}</strong></div>
@@ -4349,9 +4349,6 @@ function GuestTrackingPage() {
             : status.detailsComplete
               ? 'Your details and PIN are saved. Submit when ready.'
               : 'Your progress is saved as an unsubmitted draft. Continue when ready; saved progress remains available with your private key.'}</p></div>
-        {status.submissionStatus === 'submitted' && status.outstandingRequirements.length > 0 && <div className="review-note" data-testid="guest-outstanding-requirements">
-          <b>Items still needed</b><ul>{status.outstandingRequirements.map((item) => <li key={item}>{item}</li>)}</ul>
-        </div>}
         {status.submissionStatus === 'submitted' && status.applicantFollowup && <div className="review-note" data-testid="guest-reviewer-followup">
           <b>Update from the review team</b><p>{status.applicantFollowup}</p>
         </div>}

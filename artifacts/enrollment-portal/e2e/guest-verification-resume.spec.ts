@@ -658,7 +658,7 @@ test("submits without email OTP and opens status with the private tracking key",
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText(api.accessKey);
   await expect(page.getByTestId("guest-submission-confirmation")).toHaveAttribute("role", "dialog");
-  await expect(page.getByTestId("link-track-created-application")).toContainText("Track status");
+  await expect(page.getByTestId("link-track-created-application")).toContainText("Track Security Verification Status");
 
   await page.getByTestId("link-track-created-application").click();
   await expect(page.getByTestId("input-track-reference")).toHaveValue(reference);

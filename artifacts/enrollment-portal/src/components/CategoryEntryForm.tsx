@@ -261,7 +261,7 @@ export function CategoryEntryForm({
               aria-label="Enrollment navigation"
             >
               <Link href={guestMode ? "/guest/track" : "/dashboard"} onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-dashboard">
-                {guestMode ? "Track application" : "Dashboard"}
+                {guestMode ? "Track Security Verification Status" : "Dashboard"}
               </Link>
               {!guestMode && <Link href="/support" onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-support">Contact support</Link>}
               {isPinStep && (
@@ -306,7 +306,7 @@ export function CategoryEntryForm({
             <nav id="category-two-reference-menu" className="category-two-reference-menu" aria-label="Language and enrollment navigation">
               <span className="category-two-menu-language">English · Current language</span>
               <Link href={guestMode ? "/guest/track" : "/dashboard"} onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-dashboard">
-                {guestMode ? "Track application" : "Dashboard"}
+                {guestMode ? "Track Security Verification Status" : "Dashboard"}
               </Link>
               {!guestMode && <Link href="/support" onClick={() => setCategoryTwoMenuOpen(false)} data-testid="link-entry-support">Contact support</Link>}
               {step > 0 && (
@@ -330,7 +330,7 @@ export function CategoryEntryForm({
         <>
           <div className="entry-top-row">
             <Link href={guestMode ? "/guest/track" : "/dashboard"} className="entry-back-link" data-testid="link-entry-dashboard">
-              <ArrowLeft size={16} /> {guestMode ? "Track application" : "Dashboard"}
+              <ArrowLeft size={16} /> {guestMode ? "Track Security Verification Status" : "Dashboard"}
             </Link>
             <span className="entry-reference">{reference}</span>
           </div>
