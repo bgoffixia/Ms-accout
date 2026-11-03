@@ -3468,17 +3468,9 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .guest-public-header nav { display: flex; align-items: center; gap: clamp(14px, 3vw, 34px); }
 .guest-header-link { display: inline-flex; align-items: center; gap: 7px; color: #49677b; font-size: 11px; font-weight: 700; text-decoration: none; }
 .guest-header-link:hover { color: #174d80; }
-.guest-page-grid { display: grid; width: min(1120px, 100%); flex: 1; align-self: center; grid-template-columns: minmax(0, .95fr) minmax(390px, .85fr); align-items: center; gap: clamp(45px, 8vw, 116px); padding: 54px 0 45px; }
-.guest-intro { max-width: 495px; }
-.guest-intro h1, .guest-track-heading h1 { margin: 18px 0 15px; color: #19344f; font: 500 clamp(40px, 4.7vw, 58px)/1.02 var(--app-font-serif); letter-spacing: -.05em; }
-.guest-intro > p, .guest-track-heading > p { max-width: 460px; color: #62768a; font-size: 14px; line-height: 1.8; }
-.guest-process { display: grid; gap: 22px; margin-top: 43px; }
-.guest-process-step { display: flex; align-items: flex-start; gap: 15px; }
-.guest-process-step > span { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border: 1px solid #d6e5df; border-radius: 10px; color: #287b61; background: #edf7f1; font: 10px var(--app-font-mono); }
-.guest-process-step b, .guest-process-step small { display: block; }
-.guest-process-step b { padding-top: 1px; color: #29465c; font-size: 12px; }
-.guest-process-step small { max-width: 340px; margin-top: 5px; color: #80919d; font-size: 11px; line-height: 1.5; }
-.guest-intro-note { display: flex; align-items: center; gap: 9px; margin-top: 37px; color: #527665; font-size: 11px; }
+.guest-page-grid { display: grid; width: min(1120px, 100%); flex: 1; align-self: center; grid-template-columns: minmax(0, 560px); justify-content: center; align-items: center; gap: 0; padding: 54px 0 45px; }
+.guest-track-heading h1 { margin: 18px 0 15px; color: #19344f; font: 500 clamp(40px, 4.7vw, 58px)/1.02 var(--app-font-serif); letter-spacing: -.05em; }
+.guest-track-heading > p { max-width: 460px; color: #62768a; font-size: 14px; line-height: 1.8; }
 .guest-form-card, .guest-track-card { width: 100%; padding: clamp(24px, 3vw, 37px); border: 1px solid #dfe8eb; border-radius: 18px; background: #fff; box-shadow: 0 20px 48px #1a3b5210; }
 .guest-form-topline { display: flex; justify-content: space-between; color: #8395a1; font: 9px var(--app-font-mono); letter-spacing: .09em; }
 .guest-form-card h2, .guest-track-card h2 { margin: 19px 0 5px; color: #193851; font: 500 29px/1.1 var(--app-font-serif); letter-spacing: -.03em; }
@@ -3621,11 +3613,6 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .guest-public-header .portal-wordmark-secondary { font-size: 8px; }
   .guest-header-link { font-size: 10px; }
   .guest-page-grid { grid-template-columns: 1fr; gap: 29px; padding: 37px 0 30px; }
-  .guest-intro { max-width: 560px; }
-  .guest-intro h1 { max-width: 390px; font-size: 43px; }
-  .guest-intro > p { font-size: 12px; }
-  .guest-process { grid-template-columns: 1fr; gap: 15px; margin-top: 25px; }
-  .guest-intro-note { margin-top: 20px; }
   .guest-form-card { max-width: 560px; justify-self: center; padding: 22px; }
   .guest-footer { min-height: 62px; }
   .guest-footer > span { font-size: 7px; }
@@ -3643,7 +3630,6 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
   .guest-page { padding-inline: 14px; }
   .guest-header-link { gap: 3px; }
   .guest-header-link svg { display: none; }
-  .guest-intro h1 { font-size: 38px; }
   .guest-status-head { align-items: flex-start; flex-direction: column; }
   .guest-status-details { grid-template-columns: 1fr; }
   .guest-footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 6px; padding: 11px 0; }
@@ -3740,10 +3726,6 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
     padding-block: 10px;
-  }
-
-  .guest-intro {
-    display: none;
   }
 
   .guest-form-card {

@@ -4190,19 +4190,6 @@ function GuestApplicationPage() {
   return <main className="guest-page portal-frame">
     <GuestPublicHeader />
     <div className="guest-page-grid">
-      <section className="guest-intro rise">
-        <div className="eyebrow"><span className="eyebrow-rule" />START WITHOUT AN ACCOUNT</div>
-        <h1>Apply without an account.</h1>
-        <p>Enter your name and email, choose a category, then complete the application online. You can submit before email verification; verifying your email afterward unlocks the enrollment status page. Unfinished and replaced uploads are removed within 24 hours. Saved evidence is kept for 90 days after the last activity on an unsubmitted draft.</p>
-        <div className="guest-process">
-          <div className="guest-process-step"><span>01</span><div><b>Share your contact details</b><small>Start with your name and email address.</small></div></div>
-          <div className="guest-process-step"><span>02</span><div><b>Choose an enrollment category</b><small>Select the category that matches your application.</small></div></div>
-          <div className="guest-process-step"><span>03</span><div><b>Complete your details</b><small>Your answers save as you move through each section.</small></div></div>
-          <div className="guest-process-step"><span>04</span><div><b>Submit, then verify email</b><small>Your submitted application is immediately available to reviewers; email verification unlocks your status page.</small></div></div>
-        </div>
-        <div className="guest-intro-note"><LockKeyhole size={16} /><span>You can complete every application step before creating an account. Keep your private tracking key to resume.</span></div>
-      </section>
-
       <section className="guest-form-card rise-delay" aria-labelledby="guest-apply-heading">
         {resumeLoading && <div className="guest-form-subtitle" role="status">Restoring your saved application…</div>}
         {resumeError && <p className="guest-inline-error" role="alert" data-testid="guest-resume-error">{resumeError}</p>}
