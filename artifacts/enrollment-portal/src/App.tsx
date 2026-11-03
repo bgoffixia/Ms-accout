@@ -3356,6 +3356,9 @@ function AdminEmailCenter() {
 const guestContactSchema = z.object({
   fullName: z.string().trim().min(2, 'Enter your full name.').max(160, 'Name must be 160 characters or fewer.'),
   email: z.string().trim().email('Enter a valid email address.').max(320),
+  phone: z.string().trim().max(40, 'Phone number must be 40 characters or fewer.')
+    .refine((value) => !value || /^\+?[0-9][0-9\s().-]{6,19}$/.test(value), 'Enter a valid phone number.')
+    .optional(),
 });
 const guestApplicationSchema = guestContactSchema.extend({
   categoryId: z.string().min(1, 'Choose an enrollment category.'),
@@ -3488,7 +3491,7 @@ function PublicApplicantDashboard() {
           detail={copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.')}
         />
         {contact && <div className="guest-dashboard-contact">
-          <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small></div>
+          <div><span>CONTACT DETAILS</span><strong>{contact.fullName}</strong><small>{contact.email}</small>{contact.phone && <small>{contact.phone}</small>}</div>
         </div>}
         {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
         <section className="selection-section rise-delay">
@@ -3782,6 +3785,7 @@ function GuestApplicationPage() {
       categoryId: '',
       fullName: readGuestDashboardContact()?.fullName ?? '',
       email: readGuestDashboardContact()?.email ?? '',
+      phone: readGuestDashboardContact()?.phone ?? '',
     },
   });
 
@@ -3903,9 +3907,10 @@ function GuestApplicationPage() {
     const contactDetails = guestContactSchema.safeParse({
       fullName: form.getValues('fullName'),
       email: form.getValues('email'),
+      phone: form.getValues('phone'),
     });
     if (!contactDetails.success) {
-      await form.trigger(['fullName', 'email']);
+      await form.trigger(['fullName', 'email', 'phone']);
       setIsContinuing(false);
       return;
     }
@@ -3949,6 +3954,7 @@ function GuestApplicationPage() {
       categoryId: values.categoryId as GuestPreapplicationInput['categoryId'],
       fullName: values.fullName.trim(),
       email: values.email.trim(),
+      ...(values.phone?.trim() ? { phone: values.phone.trim() } : {}),
     };
     const fingerprint = JSON.stringify(details);
     let input = pendingSubmission?.input;
@@ -3964,6 +3970,7 @@ function GuestApplicationPage() {
         categoryId: details.categoryId,
         fullName: details.fullName,
         email: details.email,
+        ...(details.phone ? { phone: details.phone } : {}),
       };
       setPendingSubmission({ fingerprint, input });
     }
@@ -4274,7 +4281,7 @@ function GuestApplicationPage() {
         </div> : <>
           <div className="guest-form-topline"><span>APPLICATION</span><span>STEP 1 OF 4</span></div>
             <h2 id="guest-apply-heading">Your contact details</h2>
-            <p className="guest-form-subtitle">Start with only your name and email. You’ll continue to the public category dashboard.</p>
+            <p className="guest-form-subtitle">Enter your contact details, then continue to the public category dashboard.</p>
             {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
@@ -4287,8 +4294,11 @@ function GuestApplicationPage() {
                 <FormField control={form.control} name="email" render={({ field }) => <FormItem className="guest-field">
                   <FormLabel>Email address</FormLabel><FormControl><Input {...field} type="email" autoComplete="email" placeholder="you@example.com" data-testid="input-guest-email" /></FormControl><FormMessage />
                 </FormItem>} />
+                <FormField control={form.control} name="phone" render={({ field }) => <FormItem className="guest-field">
+                  <FormLabel>Phone number <span className="guest-optional">OPTIONAL</span></FormLabel><FormControl><Input {...field} type="tel" autoComplete="tel" placeholder="+234 801 234 5678" data-testid="input-guest-phone" /></FormControl><FormMessage />
+                </FormItem>} />
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
-                  {isContinuing ? 'Checking details…' : 'Continue to categories'} <ArrowRight size={16} />
+                  {isContinuing ? 'Checking details…' : 'Confirm to process verification'} <ArrowRight size={16} />
                 </button>
                 <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
               </form>
