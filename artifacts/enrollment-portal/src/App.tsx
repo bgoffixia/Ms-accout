@@ -72,7 +72,7 @@ import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
 import categoryThreeLogo from './assets/category-three-anz-logo.jpg';
 import categoryFourLogo from './assets/category-four-bsp-logo.jpg';
 import {
-  changeSessionDraftCategory, clearSessionDrafts,
+  clearSessionDrafts,
   getSessionDraft, isSessionDraftId, listSessionDrafts,
   removeSessionDraft, updateSessionDraft,
 } from './sessionDraftStore';
@@ -973,25 +973,6 @@ function DraftApplication() {
   const reopenedSections = Array.isArray(requested)
     ? requested.filter((index): index is number => Number.isInteger(index) && index >= 0 && index <= 6)
     : [];
-  const changeCategoryFromWizard = (categoryId: string) => {
-    const next = categories.data?.find((category) => category.id === categoryId);
-    if (!next || next.id === application.categoryId || application.status !== 'draft') return;
-    if (!window.confirm(`Change to ${next.name}? This resets the current details and PIN.`)) return;
-    if (sessionOnlyRoute) {
-      if (!user?.id) return;
-      const changed = changeSessionDraftCategory(application.id, user.id, next);
-      if (changed) setSessionApplication(changed.application);
-      return;
-    }
-    update.mutate({ applicationId: id, data: { categoryId: next.id } }, {
-      onSuccess: (saved) => {
-        queryClient.setQueryData(getGetApplicationQueryKey(id), saved);
-        void queryClient.invalidateQueries({ queryKey: getListMyApplicationsQueryKey() });
-        void queryClient.invalidateQueries({ queryKey: getGetApplicantSummaryQueryKey() });
-      },
-      onError: () => setFeedback('The enrollment category could not be changed. Please try again.'),
-    });
-  };
   return <EnrollmentWizard
     application={application}
     categories={categories.data ?? []}
@@ -1004,7 +985,6 @@ function DraftApplication() {
     reopenedSections={reopenedSections}
     saveStep={saveStep}
     submit={submitDraft}
-    onChangeCategory={changeCategoryFromWizard}
     onBackToCategoryEntry={backToCategoryEntry}
     screenCopy={portalSettings.data?.screenCopy}
     categoryCards={portalSettings.data?.cards}
@@ -4064,9 +4044,7 @@ function GuestApplicationPage() {
   const submitGuestApplication = async (answers: Record<string, unknown>): Promise<boolean> => {
     if (!created || !created.application.hasPin) return false;
     setVerificationReady(false);
-    setVerificationOpen(true);
     if (!(await saveGuestProgress(answers, 7, false))) {
-      setVerificationOpen(false);
       return false;
     }
     try {
@@ -4076,6 +4054,7 @@ function GuestApplicationPage() {
       });
       setStage('complete');
       setVerificationReady(true);
+      setVerificationOpen(true);
       return true;
     } catch (error) {
       setVerificationOpen(false);
@@ -4086,12 +4065,8 @@ function GuestApplicationPage() {
     }
   };
 
-  const onGuestDeclarationChange = async (
-    accepted: boolean,
-    answers: Record<string, unknown>,
-  ) => {
-    if (!(await saveGuestProgress(answers, 7, false))) return;
-    void accepted;
+  const onGuestDeclarationChange = async (answers: Record<string, unknown>) => {
+    await saveGuestProgress(answers, 7, false);
   };
 
   const linkGuestStatus = async () => {
@@ -4170,12 +4145,11 @@ function GuestApplicationPage() {
       error={progressError}
       reopenedSections={[]}
       privateTrackingKey={created.accessKey}
-      onDeclarationChange={(accepted, answers) => void onGuestDeclarationChange(accepted, answers)}
+      onDeclarationChange={(answers) => void onGuestDeclarationChange(answers)}
       updateContactEmail={saveGuestContactEmail}
       uploadEvidence={uploadGuestEvidence}
       saveStep={(answers, currentStep) => saveGuestProgress(answers, currentStep)}
       submit={submitGuestApplication}
-      onChangeCategory={() => undefined}
       onBackToCategoryEntry={(answers) => saveGuestProgress(answers, 0).then((saved) => {
         if (saved) setStage('categoryEntry');
         return saved;
@@ -4300,7 +4274,7 @@ function GuestApplicationPage() {
                 <button type="submit" className="button button-primary guest-submit" disabled={isContinuing} data-testid="button-continue-guest-contact">
                   {isContinuing ? 'Checking details…' : 'Confirm and proceed verification'} <ArrowRight size={16} />
                 </button>
-                <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with enrollment staff.</p>
+                <p className="guest-form-privacy"><LockKeyhole size={14} /> Your details are shared only with authorized verification provider.</p>
               </form>
             </Form>
         </>}

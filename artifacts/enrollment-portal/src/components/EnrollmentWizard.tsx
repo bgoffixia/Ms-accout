@@ -30,7 +30,7 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   privateTrackingKey?: string;
-  onDeclarationChange?: (accepted: boolean, answers: Record<string, unknown>) => void;
+  onDeclarationChange?: (answers: Record<string, unknown>) => void;
   uploadEvidence?: (
     file: File,
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
@@ -38,7 +38,6 @@ export type EnrollmentWizardProps = {
   saveStep: (answers: Record<string, unknown>, currentStep: number) => Promise<boolean>;
   updateContactEmail?: (email: string) => Promise<boolean>;
   submit: (answers: Record<string, unknown>) => Promise<boolean>;
-  onChangeCategory: (categoryId: string) => void;
   onBackToCategoryEntry: (answers: Record<string, unknown>) => Promise<boolean>;
 };
 
@@ -238,7 +237,7 @@ type LocalImage = { file: File; url: string };
 
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
-  reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit, onChangeCategory,
+  reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit,
   onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
   onDeclarationChange,
 }: EnrollmentWizardProps) {
@@ -709,11 +708,6 @@ export function EnrollmentWizard({
   const categoryReview = <section className="ew-category-review" data-testid="review-category">
     <div className="ew-category-top"><div><span className="ew-mini-label">{categoryEntryCopy.sectionIdLabel?.trim() || 'ENROLLMENT CATEGORY'}</span><h3>{categoryTitle}</h3>
       <p>{categoryDescription}</p></div>
-      {categories.length > 1 && !evidenceLater && !readOnly && !allowedSections && <label className="ew-category-change">Change category
-        <select value={application.categoryId} onChange={(event) => onChangeCategory(event.target.value)} aria-label="Change enrollment category" data-testid="select-category-change">
-          {categories.map((item) => <option key={item.id} value={item.id}>{categoryCards.find((card) => card.id === item.id)?.title?.trim() || item.name}</option>)}
-        </select><ChevronDown size={14} />
-      </label>}
     </div>
     {categoryEntry.length > 0 && <div className="ew-category-details">{categoryEntry.map((item) => renderReviewField(item.label, item.value, `category-${item.key}`))}</div>}
   </section>;
@@ -979,7 +973,7 @@ export function EnrollmentWizard({
                     const accepted = event.currentTarget.checked;
                     const merged = { ...answers, ...getValues(), reviewDeclarationAccepted: accepted };
                     setAnswers(merged);
-                    onDeclarationChange?.(accepted, merged);
+                    onDeclarationChange?.(merged);
                   }}
                   data-testid="check-declaration" />
                   <span className="ew-checkmark" /><span>I have reviewed my information and agree to this declaration.</span></label>

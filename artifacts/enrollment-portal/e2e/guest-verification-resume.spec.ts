@@ -431,6 +431,7 @@ test("starts from the public shared dashboard and opens the selected category fo
   expect(descriptionLayout).toEqual({ fontSize: "13px", x: -6, y: 5 });
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
+  await expect(page.getByText("Your details are shared only with authorized verification provider.")).toBeVisible();
   await page.getByTestId("input-guest-full-name").fill("Jordan Applicant");
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
@@ -654,6 +655,9 @@ test("submits before email verification and gates status access until the applic
   await page.locator("form.ew-form button[type=submit]").click();
   await page.getByTestId("section-declaration").locator("label").click();
   await expect(page.getByTestId("check-declaration")).toBeChecked();
+  await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
+  await expect(page.getByTestId("select-category-change")).toHaveCount(0);
+  expect(api.draft?.submissionStatus).toBe("draft");
   const sectionStatuses = await Promise.all(
     Array.from({ length: 7 }, (_, index) =>
       page.getByTestId(`status-section-${index}`).innerText(),
