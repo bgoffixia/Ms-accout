@@ -64,7 +64,8 @@ import { z } from 'zod';
 import { CategoryEntryForm, type CategoryEntryAnswers } from './components/CategoryEntryForm';
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
-import { SecurityHeroVisual, SecurityLoadingIndicator } from './components/SecurityVisuals';
+import { SecurityLoadingIndicator } from './components/SecurityVisuals';
+import landingHeroArtwork from './assets/landing-account-security.webp';
 import { DEFAULT_PAGE_THEME, PAGE_THEME_SCREENS, normalizePageThemes, pageThemeBackground, pageThemeKeyForRoute } from './pageTheme';
 import categoryOneLogo from './assets/category-one-national-bank-logo-updated.png';
 import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
@@ -324,14 +325,14 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
 function PublicLanding() {
   const portalSettings = useGetPortalSettings();
   const hero = portalSettings.data?.hero;
-  const primaryLabel = hero?.getStartedLabel ?? 'Get Started';
+  const primaryLabel = hero?.getStartedLabel ?? 'Start security process';
   return (
     <main className="landing portal-frame">
       <section className="landing-copy">
         <PortalWordmark className="portal-wordmark-landing" />
         <div className="landing-content rise">
-          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Security')}</h1>
-          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'We protect systems, data, and users through strong controls and monitoring.')}</p>
+          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Protect Your Account from Hackers')}</h1>
+          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Stay safe. Stay secure. Complete your security verification to strengthen your account protection.')}</p>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
@@ -344,11 +345,23 @@ function PublicLanding() {
             <div><span className="assurance-icon"><LockKeyhole size={16} /></span><span><b>Private by design</b><small>Your details stay protected</small></span></div>
             <div><span className="assurance-icon"><Activity size={16} /></span><span><b>Know where you stand</b><small>Track review status clearly</small></span></div>
           </div>
-          <div className="landing-security-mobile"><SecurityHeroVisual /></div>
+          <div className="landing-security-mobile">
+            <img
+              className="landing-hero-image"
+              src={landingHeroArtwork}
+              alt="Account protection artwork showing a security shield, lock, and verification checklist."
+              loading="eager"
+            />
+          </div>
         </div>
       </section>
       <section className="landing-art" aria-label="Security and data protection overview">
-        <SecurityHeroVisual />
+        <img
+          className="landing-hero-image"
+          src={landingHeroArtwork}
+          alt="Account protection artwork showing a security shield, lock, and verification checklist."
+          loading="eager"
+        />
       </section>
     </main>
   );

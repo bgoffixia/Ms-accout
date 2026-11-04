@@ -264,9 +264,9 @@ const categories = [
 
 const defaultPortalSettings = {
   hero: {
-    title: "Security",
-    description: "We protect systems, data, and users through strong controls and monitoring.",
-    getStartedLabel: "Get Started",
+    title: "Protect Your Account from Hackers",
+    description: "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
+    getStartedLabel: "Start security process",
     loginLabel: "Log In",
   },
   cards: [
@@ -1347,6 +1347,18 @@ async function loadPortalSettings() {
     .where(eq(portalSettingsTable.key, "portal"))
     .limit(1);
   const settings = GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
+  const previousHeroDefaults = {
+    title: "Security",
+    description: "We protect systems, data, and users through strong controls and monitoring.",
+    buttonLabel: "Get Started",
+  };
+  if (settings.hero.title === previousHeroDefaults.title) settings.hero.title = defaultPortalSettings.hero.title;
+  if (settings.hero.description === previousHeroDefaults.description) {
+    settings.hero.description = defaultPortalSettings.hero.description;
+  }
+  if (settings.hero.getStartedLabel === previousHeroDefaults.buttonLabel) {
+    settings.hero.getStartedLabel = defaultPortalSettings.hero.getStartedLabel;
+  }
   const legacyTitle = "Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal";
   const legacyDescription = "Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.";
 
@@ -1355,6 +1367,15 @@ async function loadPortalSettings() {
     settings.hero.description = defaultPortalSettings.hero.description;
   }
   const landingCopy = settings.screenCopy?.landing;
+  if (landingCopy?.title === previousHeroDefaults.title) {
+    landingCopy.title = defaultPortalSettings.hero.title;
+  }
+  if (landingCopy?.description === previousHeroDefaults.description) {
+    landingCopy.description = defaultPortalSettings.hero.description;
+  }
+  if (landingCopy?.buttonLabel === previousHeroDefaults.buttonLabel) {
+    landingCopy.buttonLabel = defaultPortalSettings.hero.getStartedLabel;
+  }
   if (landingCopy?.title === legacyTitle) landingCopy.title = defaultPortalSettings.hero.title;
   if (landingCopy?.description === legacyDescription) {
     landingCopy.description = defaultPortalSettings.hero.description;
