@@ -1899,9 +1899,6 @@ describe("guest application verification and persistence", () => {
         fullName: "Next Contact",
         relationship: "Sibling",
         phone: "+15555550101",
-        residentialAddress: "20 Main Street",
-        city: "Toronto",
-        stateRegion: "Ontario",
       },
       education: {
         highestQualification: "Diploma",

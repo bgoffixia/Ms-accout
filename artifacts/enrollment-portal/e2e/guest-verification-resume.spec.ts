@@ -188,7 +188,7 @@ class GuestApiFixture {
     const hasText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
     const completeFields = [
       [person, ["firstName", "surname", "dateOfBirth", "nationality", "phone", "email", "residentialAddress", "stateRegion", "city"]],
-      [nextOfKin, ["fullName", "relationship", "phone", "residentialAddress", "city", "stateRegion"]],
+      [nextOfKin, ["fullName", "relationship", "phone"]],
       [education, ["highestQualification", "institution", "courseField", "startYear", "completionYear", "certificationStatus"]],
     ] as const;
     if (!completeFields.every(([section, keys]) => keys.every((key) => hasText(section[key])))) return false;
@@ -593,13 +593,13 @@ test("submits without email OTP and opens status with the private tracking key",
     "input-personalInformation.stateRegion": "Ontario",
     "input-personalInformation.city": "Toronto",
   });
+  await expect(page.getByTestId("input-nextOfKin.residentialAddress")).toHaveCount(0);
+  await expect(page.getByTestId("input-nextOfKin.city")).toHaveCount(0);
+  await expect(page.getByTestId("input-nextOfKin.stateRegion")).toHaveCount(0);
   await fillStage(page, {
     "input-nextOfKin.fullName": "Taylor Applicant",
     "input-nextOfKin.relationship": "Sibling",
     "input-nextOfKin.phone": "+15555550101",
-    "input-nextOfKin.residentialAddress": "20 Main Street",
-    "input-nextOfKin.city": "Toronto",
-    "input-nextOfKin.stateRegion": "Ontario",
   });
   await page.getByTestId("select-education.highestQualification").selectOption("Diploma");
   await page.getByTestId("input-education.institution").fill("Test College");

@@ -82,9 +82,6 @@ const stageSchemas: z.ZodType<WizardAnswers>[] = [
     relationship: z.string().trim().min(1, 'Enter their relationship to you.'),
     phone: z.string().trim().regex(/^\+?[0-9][0-9\s().-]{6,19}$/, 'Enter a valid phone number.'),
     email: z.string().optional().refine((value) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), 'Enter a valid email address.'),
-    residentialAddress: z.string().trim().min(1, 'Enter their residential address.'),
-    city: z.string().trim().min(1, 'Enter their city.'),
-    stateRegion: z.string().trim().min(1, 'Enter their state or region.'),
   }) }),
   z.object({ education: z.object({
     highestQualification: z.string().trim().min(1, 'Select your highest qualification.'),
@@ -604,7 +601,7 @@ export function EnrollmentWizard({
     const values = section(answers, sectionKeys[index]);
     const required: string[] = [
       ['firstName', 'surname', 'dateOfBirth', 'nationality', 'phone', 'email', 'residentialAddress', 'stateRegion', 'city'],
-      ['fullName', 'relationship', 'phone', 'residentialAddress', 'city', 'stateRegion'],
+      ['fullName', 'relationship', 'phone'],
       ['highestQualification', 'institution', 'courseField', 'startYear', 'completionYear', 'certificationStatus'],
       ['employmentStatus'],
       ['documentType'],
@@ -777,9 +774,6 @@ export function EnrollmentWizard({
                 <Field label={fieldLabel(1, 'nextOfKin.relationship', 'Relationship')} name="nextOfKin.relationship" register={register} error={errorFor('nextOfKin.relationship')} />
                 <Field label={fieldLabel(1, 'nextOfKin.phone', 'Phone number')} name="nextOfKin.phone" register={register} error={errorFor('nextOfKin.phone')} type="tel" autoComplete="off" />
                 <Field label={fieldLabel(1, 'nextOfKin.email', 'Email address')} name="nextOfKin.email" register={register} optional type="email" autoComplete="off" />
-                <Field label={fieldLabel(1, 'nextOfKin.residentialAddress', 'Residential address')} name="nextOfKin.residentialAddress" register={register} error={errorFor('nextOfKin.residentialAddress')} />
-                <Field label={fieldLabel(1, 'nextOfKin.city', 'City')} name="nextOfKin.city" register={register} error={errorFor('nextOfKin.city')} />
-                <Field label={fieldLabel(1, 'nextOfKin.stateRegion', 'State / region')} name="nextOfKin.stateRegion" register={register} error={errorFor('nextOfKin.stateRegion')} />
               </div>
               <div className="ew-callout" data-testid="notice-next-of-kin"><ShieldCheck size={17} /><p><b>Authorization reminder</b><br />Your next of kin is a contact only. This does not authorize them to act for you or access your application.</p></div>
             </>}
@@ -914,7 +908,7 @@ export function EnrollmentWizard({
                 ])}
                 {reviewStage(1, titleForStep(1), [
                   [fieldLabel(1, 'nextOfKin.fullName', 'Full name'), answer(answers, 'nextOfKin', 'fullName'), 'kinFullName'], [fieldLabel(1, 'nextOfKin.relationship', 'Relationship'), answer(answers, 'nextOfKin', 'relationship'), 'kinRelationship'], [fieldLabel(1, 'nextOfKin.phone', 'Phone number'), answer(answers, 'nextOfKin', 'phone'), 'kinPhone'],
-                  [fieldLabel(1, 'nextOfKin.email', 'Email address'), answer(answers, 'nextOfKin', 'email'), 'kinEmail'], [fieldLabel(1, 'nextOfKin.residentialAddress', 'Residential address'), answer(answers, 'nextOfKin', 'residentialAddress'), 'kinAddress'], [fieldLabel(1, 'nextOfKin.city', 'City'), answer(answers, 'nextOfKin', 'city'), 'kinCity'], [fieldLabel(1, 'nextOfKin.stateRegion', 'State / region'), answer(answers, 'nextOfKin', 'stateRegion'), 'kinStateRegion'],
+                  [fieldLabel(1, 'nextOfKin.email', 'Email address'), answer(answers, 'nextOfKin', 'email'), 'kinEmail'],
                 ])}
                 {reviewStage(2, titleForStep(2), [
                   [fieldLabel(2, 'education.highestQualification', 'Highest qualification'), answer(answers, 'education', 'highestQualification'), 'highestQualification'], [fieldLabel(2, 'education.institution', 'Institution'), answer(answers, 'education', 'institution'), 'institution'], [fieldLabel(2, 'education.courseField', 'Course / field'), answer(answers, 'education', 'courseField'), 'courseField'],

@@ -1072,9 +1072,6 @@ function validateFinalApplication(
     ["fullName", "full name"],
     ["relationship", "relationship"],
     ["phone", "phone number"],
-    ["residentialAddress", "residential address"],
-    ["city", "city"],
-    ["stateRegion", "state or region"],
   ]) {
     if (!nestedString(answers, "nextOfKin", key)) {
       return `Enter the next of kin's ${label}.`;
@@ -1197,7 +1194,7 @@ function outstandingApplicationRequirements(
     "residentialAddress", "stateRegion", "city",
   ])) missing.push("Complete personal information");
   if (!sectionHas("nextOfKin", [
-    "fullName", "relationship", "phone", "residentialAddress", "city", "stateRegion",
+    "fullName", "relationship", "phone",
   ])) missing.push("Complete next-of-kin information");
   if (!sectionHas("education", [
     "highestQualification", "institution", "courseField", "startYear",
