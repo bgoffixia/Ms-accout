@@ -846,7 +846,8 @@ html[data-portal-page-theme-mode="gradient"] .admin-shell {
 .empty-panel h3 { font-size: 19px; }
 .empty-panel p { margin-bottom: 0; }
 .empty-icon { display: grid; place-items: center; width: 35px; height: 35px; margin-bottom: 13px; color: #557990; border-radius: 11px; background: #eef4f6; }
-.loading-panel { max-width: 620px; padding: 18px; }
+.auth-loading { display: grid; place-items: center; padding: 18px; }
+.loading-panel { display: grid; width: 100%; max-width: 620px; margin-inline: auto; padding: 18px; place-items: center; }
 .skeleton { border-radius: 9px; background: linear-gradient(90deg, #e9eef2, #f4f6f8, #e9eef2); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
 .skeleton-title { width: 42%; height: 21px; margin-bottom: 12px; }
 .skeleton-line { width: 72%; height: 11px; margin-bottom: 23px; }

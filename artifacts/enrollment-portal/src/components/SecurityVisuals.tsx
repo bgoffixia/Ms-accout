@@ -1,4 +1,5 @@
 import './SecurityVisuals.css';
+import securityLoadingImage from '../assets/security-verification-loading.png';
 
 export function SecurityHeroVisual() {
   return (
@@ -58,14 +59,7 @@ export function SecurityHeroVisual() {
 export function SecurityLoadingIndicator({ label }: { label: string }) {
   return (
     <div className="security-loading" role="status" aria-label={label}>
-      <span className="security-loading-visual" aria-hidden="true">
-        <span className="security-loading-orbit security-loading-orbit-one" />
-        <span className="security-loading-orbit security-loading-orbit-two" />
-        <svg className="security-loading-shield" viewBox="0 0 48 54" fill="none">
-          <path d="M24 3 42 10v14c0 12-7.5 20.5-18 27C13.5 44.5 6 36 6 24V10L24 3Z" />
-          <path d="m17 26 5 5 10-11" />
-        </svg>
-      </span>
+      <img className="security-loading-image" src={securityLoadingImage} alt="" aria-hidden="true" />
       <span className="security-loading-label">{label}</span>
     </div>
   );
