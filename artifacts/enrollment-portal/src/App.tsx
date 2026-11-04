@@ -330,9 +330,8 @@ function PublicLanding() {
       <section className="landing-copy">
         <PortalWordmark className="portal-wordmark-landing" />
         <div className="landing-content rise">
-          <div className="eyebrow"><span className="eyebrow-rule" />SECURE ENROLLMENT</div>
-          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal')}</h1>
-          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.')}</p>
+          <h1>{copyText(portalSettings.data, 'landing', 'title', hero?.title ?? 'Security')}</h1>
+          <p className="landing-lede">{copyText(portalSettings.data, 'landing', 'description', hero?.description ?? 'We protect systems, data, and users through strong controls and monitoring.')}</p>
           <div className="landing-actions">
             <Link href="/guest/apply" className="button button-primary" data-testid="link-get-started">
               {copyText(portalSettings.data, 'landing', 'buttonLabel', primaryLabel)} <ArrowRight size={17} />

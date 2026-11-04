@@ -264,9 +264,8 @@ const categories = [
 
 const defaultPortalSettings = {
   hero: {
-    title: "Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal",
-    description:
-      "Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.",
+    title: "Security",
+    description: "We protect systems, data, and users through strong controls and monitoring.",
     getStartedLabel: "Get Started",
     loginLabel: "Log In",
   },
@@ -1347,7 +1346,20 @@ async function loadPortalSettings() {
     .from(portalSettingsTable)
     .where(eq(portalSettingsTable.key, "portal"))
     .limit(1);
-  return GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
+  const settings = GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
+  const legacyTitle = "Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal";
+  const legacyDescription = "Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.";
+
+  if (settings.hero.title === legacyTitle) settings.hero.title = defaultPortalSettings.hero.title;
+  if (settings.hero.description === legacyDescription) {
+    settings.hero.description = defaultPortalSettings.hero.description;
+  }
+  const landingCopy = settings.screenCopy?.landing;
+  if (landingCopy?.title === legacyTitle) landingCopy.title = defaultPortalSettings.hero.title;
+  if (landingCopy?.description === legacyDescription) {
+    landingCopy.description = defaultPortalSettings.hero.description;
+  }
+  return settings;
 }
 
 router.get("/portal/settings", async (req, res): Promise<void> => {
