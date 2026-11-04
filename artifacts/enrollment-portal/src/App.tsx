@@ -4238,7 +4238,7 @@ function GuestApplicationPage() {
         </div> : <>
           <div className="guest-form-topline"><span>APPLICATION</span><span>STEP 1 OF 4</span></div>
             <h2 id="guest-apply-heading">Your contact details</h2>
-            <p className="guest-form-subtitle">Enter your contact details, then continue to the public category dashboard.</p>
+            <p className="guest-form-subtitle">Enter your contact details as it appears in your account and identity documents to proceed</p>
             {contactSaveError && <p className="guest-inline-error" role="alert" data-testid="guest-contact-save-error">{contactSaveError}</p>}
             <Form {...form}>
               <form className="guest-form" onSubmit={(event) => {
