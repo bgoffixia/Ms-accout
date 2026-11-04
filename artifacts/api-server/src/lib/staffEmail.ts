@@ -23,6 +23,28 @@ export function isApprovedStaffSenderAddress(email: string): boolean {
   return match?.[1] === STAFF_EMAIL_DOMAIN;
 }
 
+type ResendEmailRequestOptions = {
+  method: "POST";
+  headers: Record<string, string>;
+  body: string;
+};
+
+async function sendResendEmail(options: ResendEmailRequestOptions): Promise<Response> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (apiKey) {
+    return fetch("https://api.resend.com/emails", {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${apiKey}`,
+        "User-Agent": "Replit",
+      },
+    });
+  }
+
+  return new ReplitConnectors().proxy("resend", "/emails", options);
+}
+
 const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
 export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
   logoUrl: null,
@@ -244,13 +266,12 @@ export async function dispatchStaffEmail(input: {
     return failed ?? record;
   }
 
-  const connectors = new ReplitConnectors();
   let lastError = "The email provider is temporarily unavailable. Retry this message later.";
   let attemptsMade = 0;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     attemptsMade += 1;
     try {
-      const response = await connectors.proxy("resend", "/emails", {
+      const response = await sendResendEmail({
         method: "POST",
         headers: {
           "Content-Type": "application/json",

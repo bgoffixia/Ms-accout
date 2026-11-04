@@ -488,6 +488,7 @@ describe("guest application verification and persistence", () => {
     mockState.failNextUpdateTable = null;
     delete process.env.INFOBIP_API_KEY;
     delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
+    delete process.env.RESEND_API_KEY;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
       primaryEmailAddress: {
@@ -713,6 +714,44 @@ describe("guest application verification and persistence", () => {
     expect(sent.options.headers["Idempotency-Key"]).toMatch(
       new RegExp(`^reviewer:guest-contact:${created.body.id}:[a-f0-9]{32}$`),
     );
+  });
+
+  it("uses a dedicated Resend API key for email sends when configured", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.RESEND_API_KEY;
+    const directRequests: Array<{ url: string; init?: RequestInit }> = [];
+    process.env.RESEND_API_KEY = "re_test_key";
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input);
+      if (url === "https://api.resend.com/emails") {
+        directRequests.push({ url, init });
+        return new Response(JSON.stringify({ id: "resend-api-key-test-id" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      const created = await createGuestDraft();
+      expect(created.response.status).toBe(201);
+      expect(directRequests).toHaveLength(1);
+      const [{ url, init }] = directRequests;
+      expect(url).toBe("https://api.resend.com/emails");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("authorization")).toBe("Bearer re_test_key");
+      expect(headers.get("user-agent")).toBe("Replit");
+      expect(headers.get("idempotency-key")).toMatch(
+        new RegExp(`^reviewer:guest-contact:${created.body.id}:[a-f0-9]{32}$`),
+      );
+      expect(JSON.parse(String(init?.body)).to).toEqual(["skyfashion053@gmail.com"]);
+      expect(mockState.emailRequests).toHaveLength(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;
+      else process.env.RESEND_API_KEY = originalApiKey;
+    }
   });
 
   it("hides automated alert settings from sub-admin reviewers", async () => {
