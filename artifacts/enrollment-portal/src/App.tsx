@@ -2364,7 +2364,7 @@ const defaultEmailBranding: AdminEmailBranding = {
   accentColor: '#49b8aa',
   headerColor: '#102b46',
   senderName: 'Security Verification',
-  senderEmail: 'notifications@vu-gov.cc',
+  senderEmail: 'infomail@vu-gov.cc',
   bannerMark: 'SV',
   bannerTitle: 'Security Verification',
   bannerSubtitle: 'ENROLLMENT PORTAL',
@@ -2904,7 +2904,7 @@ function AdminEmailCenter() {
         </section>
         <section className="detail-card admin-email-settings">
           <div className="detail-card-title"><Settings size={17} /><h2>Email banner and footer branding</h2></div>
-          <p className="field-help">Branding applies to automated alerts and staff emails. Changes apply to future messages after saving.</p>
+      <p className="field-help">Branding applies to automated alerts and staff emails. Messages are sent directly from the connected Google Workspace mailbox.</p>
           <form onSubmit={saveEmailSettings} className="admin-email-form">
             <div className="admin-email-branding-fields">
               <div className="admin-email-branding-heading">
@@ -2951,37 +2951,19 @@ function AdminEmailCenter() {
               {(logoPreviewUrl || brandingDraft.logoUrl) && <img className="admin-email-logo-current" src={logoPreviewUrl ?? brandingDraft.logoUrl ?? ''} alt="Current email header logo preview" />}
               <label className="field-label" htmlFor="email-brand-sender-name">Sender display name</label>
               <input id="email-brand-sender-name" className="text-input" maxLength={80} value={brandingDraft.senderName} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderName: event.target.value }))} required data-testid="input-email-brand-sender-name" />
-              <label className="field-label" htmlFor="email-brand-sender-email">Sender email address</label>
+              <label className="field-label" htmlFor="email-brand-sender-email">Google Workspace sender address</label>
               <div className="admin-email-address-field">
                 <input
                   id="email-brand-sender-email"
                   className="text-input admin-email-address-input"
-                  type="text"
-                  maxLength={64}
-                  pattern="[A-Za-z0-9][A-Za-z0-9._+-]*"
-                  value={brandingDraft.senderEmail.split('@')[0] ?? ''}
-                  onChange={(event) => {
-                    const username = (event.target.value.split('@')[0] ?? '')
-                      .replace(/[^A-Za-z0-9._+-]/g, '')
-                      .slice(0, 64)
-                      .toLowerCase();
-                    setBrandingDraft((current) => ({
-                      ...current,
-                      senderEmail: `${username}@vu-gov.cc`,
-                    }));
-                  }}
-                  placeholder="notifications"
-                  autoCapitalize="none"
-                  spellCheck={false}
+                  type="email"
+                  value={settings.data?.senderAddress ?? brandingDraft.senderEmail}
+                  readOnly
                   aria-describedby="email-brand-sender-domain-help"
-                  required
                   data-testid="input-email-brand-sender-email"
                 />
-                <span className="admin-email-address-domain" data-testid="text-email-brand-sender-domain">
-                  @vu-gov.cc
-                </span>
               </div>
-              <small id="email-brand-sender-domain-help" className="field-help">Only the name before @vu-gov.cc is editable; the domain is fixed and other sender domains are blocked. Confirm vu-gov.cc is verified in Resend; inbox placement also depends on recipient filters and sender reputation.</small>
+              <small id="email-brand-sender-domain-help" className="field-help">This is the primary address of the connected Google Workspace account. To send from a different account, change the Gmail connection.</small>
               <label className="field-label" htmlFor="email-brand-banner-title">Banner title</label>
               <input id="email-brand-banner-title" className="text-input" maxLength={100} value={brandingDraft.bannerTitle} onChange={(event) => setBrandingDraft((current) => ({ ...current, bannerTitle: event.target.value }))} required data-testid="input-email-brand-banner-title" />
               <label className="field-label" htmlFor="email-brand-banner-mark">Fallback logo mark</label>
@@ -3078,7 +3060,7 @@ function AdminEmailCenter() {
         {emailSection === 'send' && <section className="detail-card admin-email-compose">
           <div className="detail-card-title"><Send size={17} /><h2>Send a one-off email</h2></div>
           <p className="field-help">Messages are sent separately to each address so recipients cannot see one another.</p>
-          <div className="admin-email-sender"><span>From</span><b>{brandingDraft.senderName} &lt;{brandingDraft.senderEmail}&gt;</b></div>
+          <div className="admin-email-sender"><span>From</span><b>{brandingDraft.senderName} &lt;{settings.data?.senderAddress ?? brandingDraft.senderEmail}&gt;</b></div>
           <div className="admin-email-template-manager" aria-label="Reusable email templates">
             <label className="field-label" htmlFor="email-template-select">Saved message template</label>
             <div className="admin-email-template-select-row">

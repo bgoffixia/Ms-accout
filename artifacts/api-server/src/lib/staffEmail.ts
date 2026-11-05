@@ -23,26 +23,136 @@ export function isApprovedStaffSenderAddress(email: string): boolean {
   return match?.[1] === STAFF_EMAIL_DOMAIN;
 }
 
-type ResendEmailRequestOptions = {
-  method: "POST";
-  headers: Record<string, string>;
-  body: string;
+type GmailApiOptions = {
+  method: "GET" | "POST";
+  headers?: Record<string, string>;
+  body?: string;
 };
 
-async function sendResendEmail(options: ResendEmailRequestOptions): Promise<Response> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (apiKey) {
-    return fetch("https://api.resend.com/emails", {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${apiKey}`,
-        "User-Agent": "Replit",
-      },
-    });
-  }
+type GmailProfile = {
+  emailAddress?: unknown;
+};
 
-  return new ReplitConnectors().proxy("resend", "/emails", options);
+type GmailMessageList = {
+  messages?: Array<{ id?: unknown }>;
+};
+
+const GMAIL_PROFILE_CACHE_MS = 5 * 60 * 1000;
+let cachedWorkspaceMailbox: { emailAddress: string; expiresAt: number } | null = null;
+let workspaceMailboxLookup: Promise<string> | null = null;
+
+async function gmailRequest(path: string, options: GmailApiOptions): Promise<Response> {
+  return new ReplitConnectors().proxy("google-mail", path, options);
+}
+
+export async function getWorkspaceMailboxAddress(): Promise<string> {
+  if (cachedWorkspaceMailbox && cachedWorkspaceMailbox.expiresAt > Date.now()) {
+    return cachedWorkspaceMailbox.emailAddress;
+  }
+  if (workspaceMailboxLookup) return workspaceMailboxLookup;
+
+  workspaceMailboxLookup = (async () => {
+    const response = await gmailRequest("/gmail/v1/users/me/profile", { method: "GET" });
+    if (!response.ok) {
+      throw new Error(`Google Workspace mailbox lookup failed (${response.status}).`);
+    }
+    const profile = await response.json() as GmailProfile;
+    const emailAddress = typeof profile.emailAddress === "string"
+      ? profile.emailAddress.trim().toLowerCase()
+      : "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailAddress)) {
+      throw new Error("Google Workspace did not return a valid sender address.");
+    }
+    cachedWorkspaceMailbox = {
+      emailAddress,
+      expiresAt: Date.now() + GMAIL_PROFILE_CACHE_MS,
+    };
+    return emailAddress;
+  })();
+
+  try {
+    return await workspaceMailboxLookup;
+  } finally {
+    workspaceMailboxLookup = null;
+  }
+}
+
+function encodeMimeHeader(value: string): string {
+  const safeValue = value.replace(/[\r\n]+/g, " ").trim();
+  return `=?UTF-8?B?${Buffer.from(safeValue, "utf8").toString("base64")}?=`;
+}
+
+function encodeMimeBody(value: string): string {
+  const base64 = Buffer.from(value, "utf8").toString("base64");
+  return base64.match(/.{1,76}/g)?.join("\r\n") ?? "";
+}
+
+function gmailMessageId(idempotencyKey: string): string {
+  return `${createHash("sha256").update(idempotencyKey).digest("hex")}@${STAFF_EMAIL_DOMAIN}`;
+}
+
+function buildGmailRawMessage(input: {
+  idempotencyKey: string;
+  senderName: string;
+  senderEmail: string;
+  recipientEmail: string;
+  subject: string;
+  text: string;
+  html: string;
+}): { raw: string; messageId: string } {
+  const messageId = gmailMessageId(input.idempotencyKey);
+  const boundary = `portal_${messageId.split("@")[0]}`;
+  const mimeMessage = [
+    `From: ${encodeMimeHeader(input.senderName)} <${input.senderEmail}>`,
+    `To: ${input.recipientEmail}`,
+    `Subject: ${encodeMimeHeader(input.subject)}`,
+    `Message-ID: <${messageId}>`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    encodeMimeBody(input.text),
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    encodeMimeBody(input.html),
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+
+  return {
+    raw: Buffer.from(mimeMessage, "utf8").toString("base64url"),
+    messageId,
+  };
+}
+
+async function findPreviouslySentGmailMessage(messageId: string): Promise<string | null> {
+  const query = new URLSearchParams({
+    q: `in:sent rfc822msgid:${messageId}`,
+    maxResults: "1",
+  });
+  const response = await gmailRequest(
+    `/gmail/v1/users/me/messages?${query.toString()}`,
+    { method: "GET" },
+  );
+  if (!response.ok) {
+    throw new Error(`Could not verify Gmail send status (${response.status}).`);
+  }
+  const result = await response.json() as GmailMessageList;
+  const sentId = result.messages?.[0]?.id;
+  return typeof sentId === "string" ? sentId : null;
+}
+
+async function sendGmailEmail(raw: string): Promise<Response> {
+  return gmailRequest("/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ raw }),
+  });
 }
 
 const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
@@ -52,7 +162,7 @@ export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
   accentColor: "#49b8aa",
   headerColor: "#102b46",
   senderName: "Security Verification",
-  senderEmail: STAFF_EMAIL_ADDRESS,
+  senderEmail: "infomail@vu-gov.cc",
   bannerMark: "SV",
   bannerTitle: "Security Verification",
   bannerSubtitle: "ENROLLMENT PORTAL",
@@ -93,14 +203,13 @@ export async function getStaffEmailConfiguration(): Promise<StaffEmailConfigurat
     .where(eq(staffEmailSettingsTable.key, STAFF_SETTINGS_KEY))
     .limit(1);
   const branding = { ...DEFAULT_STAFF_EMAIL_BRANDING, ...(saved?.branding ?? {}) };
-  if (!branding.senderEmail.trim()) {
-    branding.senderEmail = DEFAULT_STAFF_EMAIL_BRANDING.senderEmail;
-  }
+  const senderAddress = await getWorkspaceMailboxAddress();
+  branding.senderEmail = senderAddress;
   return {
     recipients: saved?.recipients ?? DEFAULT_RECIPIENTS,
     alerts: { ...DEFAULT_ALERTS, ...(saved?.alerts ?? {}) },
     branding,
-    senderAddress: branding.senderEmail,
+    senderAddress,
     updatedAt: saved?.updatedAt?.toISOString() ?? null,
   };
 }
@@ -163,15 +272,15 @@ export function emailRecipientIdempotencyKey(
 
 function providerFailureMessage(status: number): string {
   if (status === 401 || status === 403) {
-    return "The email provider rejected the sender or its sending permission.";
+    return "Google Workspace rejected the connected mailbox or its email-sending permission.";
   }
   if (status === 429) {
-    return "The email provider rate limit was reached. Retry this message later.";
+    return "The Google Workspace sending limit was reached. Retry this message later.";
   }
   if (status === 400 || status === 422) {
-    return "The provider rejected the message. Check the sender address and message details.";
+    return "Google Workspace rejected the message. Check the sender and message details.";
   }
-  return "The email provider is temporarily unavailable. Retry this message later.";
+  return "Google Workspace is temporarily unavailable. Retry this message later.";
 }
 
 export async function dispatchStaffEmail(input: {
@@ -186,8 +295,6 @@ export async function dispatchStaffEmail(input: {
   const recipientEmail = input.recipientEmail.trim().toLowerCase();
   const idempotencyKey = input.idempotencyKey.slice(0, 256);
   const emailConfiguration = await getStaffEmailConfiguration();
-  const senderDisplayName = emailConfiguration.branding.senderName
-    .replace(/(["\\])/g, "\\$1");
   const [inserted] = await db
     .insert(staffEmailOutboxTable)
     .values({
@@ -206,6 +313,7 @@ export async function dispatchStaffEmail(input: {
     .returning();
 
   let record = inserted;
+  let shouldCheckSentBeforeRetry = false;
   if (!record) {
     const [existing] = await db
       .select()
@@ -251,6 +359,7 @@ export async function dispatchStaffEmail(input: {
       return current;
     }
     record = claimed;
+    shouldCheckSentBeforeRetry = true;
   }
 
   if (!isApprovedStaffSenderAddress(emailConfiguration.senderAddress)) {
@@ -266,67 +375,84 @@ export async function dispatchStaffEmail(input: {
     return failed ?? record;
   }
 
-  let lastError = "The email provider is temporarily unavailable. Retry this message later.";
-  let attemptsMade = 0;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    attemptsMade += 1;
-    try {
-      const response = await sendResendEmail({
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey,
-        },
-        body: JSON.stringify({
-          from: `"${senderDisplayName}" <${emailConfiguration.senderAddress}>`,
-          to: [recipientEmail],
-          subject: input.subject,
-          text: renderStaffEmailText({
-            messageText: input.messageText,
-            branding: emailConfiguration.branding,
-          }),
-          html: renderStaffEmailHtml({
-            subject: input.subject,
-            messageText: input.messageText,
-            branding: emailConfiguration.branding,
-          }),
-        }),
-      });
+  const { raw, messageId } = buildGmailRawMessage({
+    idempotencyKey,
+    senderName: emailConfiguration.branding.senderName,
+    senderEmail: emailConfiguration.senderAddress,
+    recipientEmail,
+    subject: input.subject,
+    text: renderStaffEmailText({
+      messageText: input.messageText,
+      branding: emailConfiguration.branding,
+    }),
+    html: renderStaffEmailHtml({
+      subject: input.subject,
+      messageText: input.messageText,
+      branding: emailConfiguration.branding,
+    }),
+  });
 
-      if (response.ok) {
-        let providerMessageId: string | null = null;
-        try {
-          const responseBody = await response.json() as { id?: unknown };
-          providerMessageId = typeof responseBody?.id === "string"
-            ? responseBody.id
-            : null;
-        } catch {
-          // Some connector responses do not include a readable body.
-        }
+  if (shouldCheckSentBeforeRetry) {
+    try {
+      const alreadySentId = await findPreviouslySentGmailMessage(messageId);
+      if (alreadySentId) {
         const [sent] = await db
           .update(staffEmailOutboxTable)
           .set({
             status: "sent",
-            providerMessageId,
+            providerMessageId: alreadySentId,
             deliveryStatus: "accepted",
             errorMessage: null,
-            attemptCount: record.attemptCount + attemptsMade - 1,
             updatedAt: new Date(),
           })
           .where(eq(staffEmailOutboxTable.id, record.id))
           .returning();
         return sent ?? record;
       }
-
-      lastError = providerFailureMessage(response.status);
-      if (response.status < 500 && response.status !== 429) break;
     } catch {
-      lastError = "Could not reach the email provider. Retry this message later.";
+      const [failed] = await db
+        .update(staffEmailOutboxTable)
+        .set({
+          status: "failed",
+          errorMessage: "Could not verify whether Gmail already sent this message. Check the Workspace Sent folder before retrying.",
+          updatedAt: new Date(),
+        })
+        .where(eq(staffEmailOutboxTable.id, record.id))
+        .returning();
+      return failed ?? record;
     }
+  }
 
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+  let lastError: string;
+  let providerMessageId: string | null = null;
+  try {
+    const response = await sendGmailEmail(raw);
+    if (response.ok) {
+      try {
+        const responseBody = await response.json() as { id?: unknown };
+        providerMessageId = typeof responseBody?.id === "string"
+          ? responseBody.id
+          : null;
+      } catch {
+        // Gmail may accept the message even if the connector omits its response body.
+      }
+      const [sent] = await db
+        .update(staffEmailOutboxTable)
+        .set({
+          status: "sent",
+          providerMessageId,
+          deliveryStatus: "accepted",
+          errorMessage: null,
+          attemptCount: record.attemptCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(staffEmailOutboxTable.id, record.id))
+        .returning();
+      return sent ?? record;
     }
+    lastError = providerFailureMessage(response.status);
+  } catch {
+    lastError = "Gmail's send result could not be confirmed. Check the Workspace Sent folder before retrying.";
   }
 
   const [failed] = await db
@@ -334,7 +460,7 @@ export async function dispatchStaffEmail(input: {
     .set({
       status: "failed",
       errorMessage: lastError,
-      attemptCount: record.attemptCount + attemptsMade - 1,
+      attemptCount: record.attemptCount,
       updatedAt: new Date(),
     })
     .where(eq(staffEmailOutboxTable.id, record.id))

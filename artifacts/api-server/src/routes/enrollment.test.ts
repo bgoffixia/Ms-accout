@@ -8,6 +8,8 @@ const mockState = vi.hoisted(() => ({
   uploadCount: 0,
   emailRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
   emailResponses: [] as Array<{ ok: boolean; status: number; body?: { id?: string } }>,
+  emailSearchRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
+  emailSearchResponses: [] as Array<{ ok: boolean; status: number; body?: { messages?: Array<{ id?: string }> } }>,
   smsRequests: [] as Array<{ url: string; init: RequestInit }>,
   failNextUpdateTable: null as string | null,
   tables: (() => {
@@ -38,6 +40,29 @@ const mockState = vi.hoisted(() => ({
     };
   })(),
 }));
+
+function parseGmailMessage(request: { options: Record<string, any> }) {
+  const payload = JSON.parse(request.options.body as string) as { raw: string };
+  const mime = Buffer.from(payload.raw, "base64url").toString("utf8");
+  const boundary = mime.match(/boundary="([^"]+)"/)?.[1];
+  const decodePart = (contentType: "text/plain" | "text/html") => {
+    if (!boundary) return "";
+    const marker = `Content-Type: ${contentType}; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n`;
+    const start = mime.indexOf(marker);
+    if (start < 0) return "";
+    const bodyStart = start + marker.length;
+    const bodyEnd = mime.indexOf(`\r\n--${boundary}`, bodyStart);
+    const encoded = mime.slice(bodyStart, bodyEnd < 0 ? undefined : bodyEnd).replace(/\s/g, "");
+    return Buffer.from(encoded, "base64").toString("utf8");
+  };
+  const subject = mime.match(/^Subject: =\?UTF-8\?B\?([^?]+)\?=$/m)?.[1];
+  return {
+    mime,
+    text: decodePart("text/plain"),
+    html: decodePart("text/html"),
+    subject: subject ? Buffer.from(subject, "base64").toString("utf8") : "",
+  };
+}
 
 function matches(row: Record<string, unknown>, expression: any): boolean {
   if (!expression) return true;
@@ -353,11 +378,31 @@ vi.mock("@clerk/express", () => ({
 vi.mock("@replit/connectors-sdk", () => ({
   ReplitConnectors: class {
     proxy(service: string, path: string, options: Record<string, any>) {
+      if (path === "/gmail/v1/users/me/profile") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ emailAddress: "infomail@vu-gov.cc" }),
+        });
+      }
+      if (path.startsWith("/gmail/v1/users/me/messages?")) {
+        mockState.emailSearchRequests.push({ service, path, options });
+        const next = mockState.emailSearchResponses.shift() ?? {
+          ok: true,
+          status: 200,
+          body: { messages: [] },
+        };
+        return Promise.resolve({
+          ok: next.ok,
+          status: next.status,
+          json: async () => next.body ?? {},
+        });
+      }
       mockState.emailRequests.push({ service, path, options });
       const next = mockState.emailResponses.shift() ?? {
         ok: true,
         status: 200,
-        body: { id: "resend-test-id" },
+        body: { id: "gmail-test-id" },
       };
       return Promise.resolve({
         ok: next.ok,
@@ -484,6 +529,8 @@ describe("guest application verification and persistence", () => {
     mockState.uploadCount = 0;
     mockState.emailRequests.length = 0;
     mockState.emailResponses.length = 0;
+    mockState.emailSearchRequests.length = 0;
+    mockState.emailSearchResponses.length = 0;
     mockState.smsRequests.length = 0;
     mockState.failNextUpdateTable = null;
     delete process.env.INFOBIP_API_KEY;
@@ -700,58 +747,34 @@ describe("guest application verification and persistence", () => {
     const created = await createGuestDraft();
     expect(mockState.emailRequests).toHaveLength(1);
     const sent = mockState.emailRequests[0];
-    expect(sent.service).toBe("resend");
-    expect(sent.path).toBe("/emails");
-    const message = JSON.parse(sent.options.body as string);
-    expect(message.to).toEqual(["skyfashion053@gmail.com"]);
-    expect(message.subject).toContain(created.body.reference);
-    expect(message.text).toContain(created.body.reference);
-    expect(message.text).not.toContain(contactEmail);
-    expect(message.html).toContain("Security Verification");
-    expect(message.html).toContain("ENROLLMENT PORTAL");
-    expect(message.html).toContain(created.body.reference);
-    expect(message.html).not.toContain(contactEmail);
-    expect(sent.options.headers["Idempotency-Key"]).toMatch(
-      new RegExp(`^reviewer:guest-contact:${created.body.id}:[a-f0-9]{32}$`),
-    );
+    expect(sent.service).toBe("google-mail");
+    expect(sent.path).toBe("/gmail/v1/users/me/messages/send");
+    const { mime, subject, text, html } = parseGmailMessage(sent);
+    expect(mime).toContain("To: skyfashion053@gmail.com");
+    expect(mime).toContain("<infomail@vu-gov.cc>");
+    expect(subject).toContain(created.body.reference);
+    expect(text).toContain(created.body.reference);
+    expect(text).not.toContain(contactEmail);
+    expect(html).toContain("Security Verification");
+    expect(html).toContain("ENROLLMENT PORTAL");
+    expect(html).toContain(created.body.reference);
+    expect(html).not.toContain(contactEmail);
+    expect(mime).toMatch(/Message-ID: <[a-f0-9]{64}@vu-gov\.cc>/);
   });
 
-  it("uses a dedicated Resend API key for email sends when configured", async () => {
-    const originalFetch = globalThis.fetch;
-    const originalApiKey = process.env.RESEND_API_KEY;
-    const directRequests: Array<{ url: string; init?: RequestInit }> = [];
-    process.env.RESEND_API_KEY = "re_test_key";
-    globalThis.fetch = (async (input, init) => {
-      const url = String(input);
-      if (url === "https://api.resend.com/emails") {
-        directRequests.push({ url, init });
-        return new Response(JSON.stringify({ id: "resend-api-key-test-id" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return originalFetch(input, init);
-    }) as typeof fetch;
+  it("uses the connected Workspace account as the sender", async () => {
+    const settings = await request("/admin/email/settings", {}, "administrator");
+    expect(settings.response.status).toBe(200);
+    expect(settings.body.senderAddress).toBe("infomail@vu-gov.cc");
+    expect(settings.body.branding.senderEmail).toBe("infomail@vu-gov.cc");
 
-    try {
-      const created = await createGuestDraft();
-      expect(created.response.status).toBe(201);
-      expect(directRequests).toHaveLength(1);
-      const [{ url, init }] = directRequests;
-      expect(url).toBe("https://api.resend.com/emails");
-      const headers = new Headers(init?.headers);
-      expect(headers.get("authorization")).toBe("Bearer re_test_key");
-      expect(headers.get("user-agent")).toBe("Replit");
-      expect(headers.get("idempotency-key")).toMatch(
-        new RegExp(`^reviewer:guest-contact:${created.body.id}:[a-f0-9]{32}$`),
-      );
-      expect(JSON.parse(String(init?.body)).to).toEqual(["skyfashion053@gmail.com"]);
-      expect(mockState.emailRequests).toHaveLength(0);
-    } finally {
-      globalThis.fetch = originalFetch;
-      if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;
-      else process.env.RESEND_API_KEY = originalApiKey;
-    }
+    const sent = await createGuestDraft();
+    const gmailRequestRecord = mockState.emailRequests[0];
+    expect(sent.response.status).toBe(201);
+    expect(gmailRequestRecord.service).toBe("google-mail");
+    expect(gmailRequestRecord.path).toBe("/gmail/v1/users/me/messages/send");
+    expect(gmailRequestRecord.options.headers["Content-Type"]).toBe("application/json");
+    expect(parseGmailMessage(gmailRequestRecord).mime).toContain("From: =?UTF-8?B?");
   });
 
   it("hides automated alert settings from sub-admin reviewers", async () => {
@@ -1398,7 +1421,7 @@ describe("guest application verification and persistence", () => {
       }),
     }, "reviewer");
     expect(sent.response.status).toBe(201);
-    const outgoingHtml = JSON.parse(mockState.emailRequests[0].options.body).html;
+    const outgoingHtml = parseGmailMessage(mockState.emailRequests[0]).html;
     expect(outgoingHtml).toContain("A revised &lt;subject&gt;");
     expect(outgoingHtml).toContain("A revised message with &lt;details&gt; &amp; updates.");
     expect(outgoingHtml).not.toContain("A revised message with <details> & updates.");
@@ -1429,7 +1452,7 @@ describe("guest application verification and persistence", () => {
       accentColor: "#167c80",
       headerColor: "#ffffff",
       senderName: "Enrollment Team",
-      senderEmail: "enrollment@vu-gov.cc",
+      senderEmail: "infomail@vu-gov.cc",
       bannerMark: "ET",
       bannerTitle: "Enrollment Updates & Notices",
       bannerSubtitle: "APPLICATION PORTAL",
@@ -1462,7 +1485,7 @@ describe("guest application verification and persistence", () => {
     expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
     expect(saved.body.alerts.step_saved).toBe(false);
     expect(saved.body.branding).toEqual(branding);
-    expect(saved.body.senderAddress).toBe("enrollment@vu-gov.cc");
+    expect(saved.body.senderAddress).toBe("infomail@vu-gov.cc");
     const unalignedSender = await request("/admin/email/settings", {
       method: "PUT",
       body: JSON.stringify({
@@ -1472,7 +1495,16 @@ describe("guest application verification and persistence", () => {
       }),
     }, "administrator");
     expect(unalignedSender.response.status).toBe(400);
-    expect(unalignedSender.body.error).toContain("@vu-gov.cc");
+    expect(unalignedSender.body.error).toContain("connected Google Workspace");
+    const wrongWorkspaceAlias = await request("/admin/email/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        recipients: saved.body.recipients,
+        alerts: saved.body.alerts,
+        branding: { ...saved.body.branding, senderEmail: "enrollment@vu-gov.cc" },
+      }),
+    }, "administrator");
+    expect(wrongWorkspaceAlias.response.status).toBe(400);
     const insecureLogo = await request("/admin/email/settings", {
       method: "PUT",
       body: JSON.stringify({
@@ -1496,28 +1528,29 @@ describe("guest application verification and persistence", () => {
     expect(sent.body).toHaveLength(2);
     expect(sent.body.every((message: any) => message.status === "sent")).toBe(true);
     expect(mockState.emailRequests).toHaveLength(2);
-    expect(mockState.emailRequests.map((item) => JSON.parse(item.options.body).to))
-      .toEqual([["one@example.test"], ["two@example.test"]]);
-    const sentPayload = JSON.parse(mockState.emailRequests[0].options.body);
-    expect(sentPayload.from).toBe('"Enrollment Team" <enrollment@vu-gov.cc>');
-    expect(sentPayload.html).toContain("Enrollment Updates &amp; Notices");
-    expect(sentPayload.html).not.toContain("Enrollment Updates & Notices");
-    expect(sentPayload.html).toContain(">ET</span>");
-    expect(sentPayload.html).toContain("APPLICATION PORTAL");
-    expect(sentPayload.html).toContain("Please read your latest update.");
-    expect(sentPayload.html).toContain("REVIEW NOTICE");
-    expect(sentPayload.html).toContain("background:#ffffff");
-    expect(sentPayload.html).toContain("color:#102b46");
-    expect(sentPayload.html).toContain("background-color:#334455");
-    expect(sentPayload.html).toContain("background-image:url(\"https://images.example.test/footer.jpg\")");
-    expect(sentPayload.html).toContain("background:#8800aa");
-    expect(sentPayload.html).toContain("color:#eeeeee");
-    expect(sentPayload.html).toContain("Enrollment Team · Application updates");
-    expect(sentPayload.html).toContain('href="https://portal.example.test"');
-    expect(sentPayload.html).toContain(">Open the portal</a>");
-    expect(sentPayload.text).toContain("Application updates");
-    expect(sentPayload.text).toContain("Open the portal: https://portal.example.test");
-    const emailHtml = JSON.parse(mockState.emailRequests[0].options.body).html;
+    const firstMessage = parseGmailMessage(mockState.emailRequests[0]);
+    const secondMessage = parseGmailMessage(mockState.emailRequests[1]);
+    expect(firstMessage.mime).toContain("To: one@example.test");
+    expect(secondMessage.mime).toContain("To: two@example.test");
+    expect(firstMessage.mime).toContain("<infomail@vu-gov.cc>");
+    expect(firstMessage.html).toContain("Enrollment Updates &amp; Notices");
+    expect(firstMessage.html).not.toContain("Enrollment Updates & Notices");
+    expect(firstMessage.html).toContain(">ET</span>");
+    expect(firstMessage.html).toContain("APPLICATION PORTAL");
+    expect(firstMessage.html).toContain("Please read your latest update.");
+    expect(firstMessage.html).toContain("REVIEW NOTICE");
+    expect(firstMessage.html).toContain("background:#ffffff");
+    expect(firstMessage.html).toContain("color:#102b46");
+    expect(firstMessage.html).toContain("background-color:#334455");
+    expect(firstMessage.html).toContain("background-image:url(\"https://images.example.test/footer.jpg\")");
+    expect(firstMessage.html).toContain("background:#8800aa");
+    expect(firstMessage.html).toContain("color:#eeeeee");
+    expect(firstMessage.html).toContain("Enrollment Team · Application updates");
+    expect(firstMessage.html).toContain('href="https://portal.example.test"');
+    expect(firstMessage.html).toContain(">Open the portal</a>");
+    expect(firstMessage.text).toContain("Application updates");
+    expect(firstMessage.text).toContain("Open the portal: https://portal.example.test");
+    const emailHtml = firstMessage.html;
     expect(emailHtml).toContain("Portal &lt;update&gt;");
     expect(emailHtml).toContain("A short staff update &amp; &lt;details&gt;.");
     expect(emailHtml).not.toContain("A short staff update & <details>.");
@@ -1671,11 +1704,7 @@ describe("guest application verification and persistence", () => {
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {
-    mockState.emailResponses.push(
-      { ok: false, status: 500 },
-      { ok: false, status: 500 },
-      { ok: false, status: 500 },
-    );
+    mockState.emailResponses.push({ ok: false, status: 500 });
     const sent = await request("/admin/email/send", {
       method: "POST",
       body: JSON.stringify({
@@ -1692,10 +1721,41 @@ describe("guest application verification and persistence", () => {
     }, "reviewer");
     expect(retried.response.status).toBe(200);
     expect(retried.body.status).toBe("sent");
-    expect(retried.body.attemptCount).toBe(4);
-    expect(mockState.emailRequests).toHaveLength(4);
-    expect(JSON.parse(mockState.emailRequests[0].options.body).html)
-      .toBe(JSON.parse(mockState.emailRequests[3].options.body).html);
+    expect(retried.body.attemptCount).toBe(2);
+    expect(mockState.emailSearchRequests).toHaveLength(1);
+    expect(mockState.emailRequests).toHaveLength(2);
+    expect(parseGmailMessage(mockState.emailRequests[0]).mime)
+      .toBe(parseGmailMessage(mockState.emailRequests[1]).mime);
+  });
+
+  it("checks Gmail Sent before retrying an uncertain send", async () => {
+    mockState.emailResponses.push({ ok: false, status: 503 });
+    mockState.emailSearchResponses.push({
+      ok: true,
+      status: 200,
+      body: { messages: [{ id: "gmail-already-sent-id" }] },
+    });
+    const sent = await request("/admin/email/send", {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: crypto.randomUUID(),
+        recipients: ["uncertain@example.test"],
+        subject: "Check sent status",
+        messageText: "Do not send this twice.",
+      }),
+    }, "reviewer");
+    expect(sent.body[0].status).toBe("failed");
+
+    const retried = await request(`/admin/email/outbox/${sent.body[0].id}/retry`, {
+      method: "POST",
+    }, "reviewer");
+
+    expect(retried.response.status).toBe(200);
+    expect(retried.body.status).toBe("sent");
+    expect(retried.body.providerMessageId).toBe("gmail-already-sent-id");
+    expect(mockState.emailRequests).toHaveLength(1);
+    expect(mockState.emailSearchRequests).toHaveLength(1);
+    expect(mockState.emailSearchRequests[0].path).toContain("rfc822msgid%3A");
   });
 
   it("does not send a duplicate one-off email when the same request is retried", async () => {
@@ -1739,7 +1799,7 @@ describe("guest application verification and persistence", () => {
     expect(saved.response.status).toBe(200);
     expect(mockState.rows.get("guest_preapplication_revisions")).toHaveLength(1);
     expect(mockState.emailRequests).toHaveLength(2);
-    expect(JSON.parse(mockState.emailRequests[1].options.body as string).text)
+    expect(parseGmailMessage(mockState.emailRequests[1]).text)
       .toContain("Next of kin");
 
     const retry = await request(`/guest/preapplications/${created.body.id}`, {

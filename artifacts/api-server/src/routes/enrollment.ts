@@ -198,6 +198,7 @@ import {
   dispatchStaffEmail,
   emailRecipientIdempotencyKey,
   getStaffEmailConfiguration,
+  getWorkspaceMailboxAddress,
   isApprovedStaffSenderAddress,
   saveStaffEmailBranding,
   saveStaffEmailConfiguration,
@@ -4114,9 +4115,20 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
     return;
   }
   const { branding } = parsed.data;
-  if (!isApprovedStaffSenderAddress(branding.senderEmail)) {
+  let workspaceSenderAddress: string;
+  try {
+    workspaceSenderAddress = await getWorkspaceMailboxAddress();
+  } catch (error) {
+    req.log.error({ err: error }, "Google Workspace sender is unavailable");
+    res.status(503).json({ error: "The connected Google Workspace sender is unavailable." });
+    return;
+  }
+  if (
+    !isApprovedStaffSenderAddress(workspaceSenderAddress) ||
+    branding.senderEmail.trim().toLowerCase() !== workspaceSenderAddress
+  ) {
     res.status(400).json({
-      error: "Use a sender address on the configured @vu-gov.cc domain.",
+      error: "The sender address must match the connected Google Workspace account.",
     });
     return;
   }
