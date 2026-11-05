@@ -60,6 +60,9 @@ export function SecurityLoadingIndicator({ label }: { label: string }) {
   return (
     <div className="security-loading" role="status" aria-label={label}>
       <img className="security-loading-image" src={securityLoadingImage} alt="" aria-hidden="true" />
+      <span className="security-loading-caption">
+        Secured. Private. Protected - Software for systems, data, and user Encryption through strong controls and monitoring
+      </span>
       <span className="security-loading-label">{label}</span>
     </div>
   );

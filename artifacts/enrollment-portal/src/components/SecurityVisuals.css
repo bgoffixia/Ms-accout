@@ -199,6 +199,15 @@
   border-radius: 14px;
 }
 
+.security-loading-caption {
+  max-width: 560px;
+  padding-inline: 14px;
+  color: #526c7e;
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: center;
+}
+
 .security-loading-label { font-size: 12px; line-height: 1.45; text-align: center; }
 
 @media (max-width: 700px) {
