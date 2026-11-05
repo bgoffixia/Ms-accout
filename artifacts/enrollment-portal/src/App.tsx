@@ -66,6 +66,7 @@ import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityLoadingIndicator } from './components/SecurityVisuals';
 import landingHeroArtwork from './assets/landing-account-security-checklist.jpg';
+import { correctedGuestRevisions } from './lib/guestRevisionHistory';
 import { DEFAULT_PAGE_THEME, PAGE_THEME_SCREENS, normalizePageThemes, pageThemeBackground, pageThemeKeyForRoute } from './pageTheme';
 import categoryOneLogo from './assets/category-one-national-bank-logo-updated.png';
 import categoryTwoLogo from './assets/category-two-bred-bank-logo.jpg';
@@ -2113,6 +2114,7 @@ function AdminApplicationReview() {
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   const application = review.data;
   if (!application) return <AdminShell><section className="state-card"><span className="state-icon"><FileText size={20} /></span><h2>Application not in this review queue</h2><p>It may have changed status or may not be available to this staff account.</p><Link href="/admin" className="button button-primary" data-testid="link-back-review">Back to review queue</Link></section></AdminShell>;
+  const correctedHistory = correctedGuestRevisions(guestHistory.data ?? []);
   const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
   const entryScreen = categoryEntryScreenId(application.categoryId);
   const categoryEntryTitle = copyText(portalSettings.data, entryScreen, 'title', categoryTitle);
@@ -2250,10 +2252,10 @@ function AdminApplicationReview() {
         {history.isLoading ? <LoadingPanel label="Loading review history" /> : (history.data ?? []).length === 0 ? <p className="field-help">No previous decisions or notes.</p> :
           <div className="admin-history-list">{history.data?.map((event: ApplicationEvent) => <article key={event.id}><b>{event.eventType.replaceAll('_', ' ')}</b><span>{formatDate(event.createdAt)} · {event.actorUserId}</span><p>{event.note || 'No reason recorded.'}</p></article>)}</div>}
         <h3>Applicant saved entries and corrections</h3>
-        {guestHistory.isLoading ? <LoadingPanel label="Loading applicant changes" /> : (guestHistory.data ?? []).length === 0
-          ? <p className="field-help">No guest draft changes were recorded before submission.</p>
+        {guestHistory.isLoading ? <LoadingPanel label="Loading applicant changes" /> : correctedHistory.length === 0
+          ? <p className="field-help">No corrected fields have been recorded.</p>
           : <div className="admin-history-list" data-testid="guest-application-revisions">
-            {guestHistory.data?.map((revision) => <article key={revision.id}>
+            {correctedHistory.map((revision) => <article key={revision.id}>
               <b>{`Saved at step ${revision.currentStep + 1}`}</b><span>{formatDate(revision.createdAt)}</span>
               <ul>{revision.changes.map((change, index) => <li key={`${revision.id}-${index}`}>
                 <strong>{change.field.replace(/^answers\./, '').replaceAll('.', ' ').replaceAll('_', ' ')}</strong>: {change.before || '—'} → {change.after || '—'}
@@ -4550,6 +4552,7 @@ function AdminGuestApplicationReview() {
       <Link href="/admin/review" className="button button-primary" data-testid="link-guest-detail-not-found">Back to Applicants</Link>
     </section>
   </div></AdminShell>;
+  const correctedHistory = correctedGuestRevisions(application.history);
   const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
   const entryScreen = categoryEntryScreenId(application.categoryId);
 
@@ -4632,8 +4635,8 @@ function AdminGuestApplicationReview() {
       </div>
       <section className="detail-card admin-history-card" data-testid={`guest-preapplication-history-${application.id}`}>
         <div className="detail-card-title"><Activity size={17} /><h2>Saved entries and corrections</h2></div>
-        {application.history.length === 0 ? <p className="field-help">No changes have been recorded yet.</p> :
-          <div className="admin-history-list">{application.history.map((revision) => <article key={revision.id}>
+         {correctedHistory.length === 0 ? <p className="field-help">No corrected fields have been recorded yet.</p> :
+           <div className="admin-history-list">{correctedHistory.map((revision) => <article key={revision.id}>
             <b>{`Saved at step ${revision.currentStep + 1}`}</b><span>{formatDate(revision.createdAt)}</span>
             <ul>{revision.changes.map((change, index) => <li key={`${revision.id}-${index}`}>
               <strong>{change.field.replace(/^answers\./, '').replaceAll('.', ' ').replaceAll('_', ' ')}</strong>: {change.before || '—'} → {change.after || '—'}
