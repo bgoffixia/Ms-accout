@@ -2043,6 +2043,65 @@ function displayAdminValue(value: unknown): string {
   return String(value);
 }
 
+type ReviewerEvidenceFile = {
+  id: string;
+  evidenceSlot: string;
+  fileName: string;
+  sizeBytes: number;
+  uploadedAt: string | null;
+  downloadUrl: string | null;
+};
+
+type RequiredEvidenceSlot = { slot: string; label: string };
+
+function evidenceSlotLabel(slot: string): string {
+  switch (slot) {
+    case 'identity_front': return 'Identity document front';
+    case 'identity_back': return 'Identity document back';
+    case 'education_certificate': return 'Education certificate';
+    case 'verification_video': return 'Verification video';
+    default: return 'Identity document';
+  }
+}
+
+function AdminEvidenceAttachments({
+  items,
+  requiredSlots = [],
+  linkTestIdPrefix,
+  missingTestIdPrefix,
+}: {
+  items: ReviewerEvidenceFile[];
+  requiredSlots?: RequiredEvidenceSlot[];
+  linkTestIdPrefix: string;
+  missingTestIdPrefix: string;
+}) {
+  const missingSlots = requiredSlots.filter((required) =>
+    !items.some((item) =>
+      item.evidenceSlot === required.slot
+      || (required.slot === 'identity_front' && item.evidenceSlot === 'identity_document'),
+    ),
+  );
+  if (items.length === 0 && missingSlots.length === 0) return null;
+
+  return <div className="reviewer-step-evidence">
+    <p className="field-help">Evidence files attached to this enrollment step</p>
+    <ul className="guest-evidence-list" aria-label="Evidence attached to enrollment step">
+      {items.map((item) => <li key={item.id} data-testid={`${linkTestIdPrefix}-item-${item.id}`}>
+        <span>
+          <b>{evidenceSlotLabel(item.evidenceSlot)}</b>
+          <small>{item.fileName}{item.uploadedAt ? ` · ${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : ' · Upload pending verification'}</small>
+        </span>
+        {item.downloadUrl
+          ? <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-${linkTestIdPrefix}-${item.id}`}>Download securely</a>
+          : <small className="submitted-evidence-state">Pending — upload verification</small>}
+      </li>)}
+      {missingSlots.map((required) => <li key={required.slot} data-testid={`${missingTestIdPrefix}-${required.slot}`}>
+        <span><b>{required.label}</b><small>Missing — no file was attached</small></span>
+      </li>)}
+    </ul>
+  </div>;
+}
+
 function AdminAnswerSection({
   title,
   data,
@@ -2050,6 +2109,9 @@ function AdminAnswerSection({
   settings,
   workflowStep,
   group,
+  evidenceItems,
+  requiredEvidenceSlots,
+  evidenceTestIdPrefix,
 }: {
   title: string;
   data: Record<string, unknown>;
@@ -2057,6 +2119,9 @@ function AdminAnswerSection({
   settings?: PortalSettings;
   workflowStep?: number;
   group?: string;
+  evidenceItems?: ReviewerEvidenceFile[];
+  requiredEvidenceSlots?: RequiredEvidenceSlot[];
+  evidenceTestIdPrefix: string;
 }) {
   const entries = Object.entries(data).filter(([key]) => !key.startsWith('__') && !key.toLowerCase().includes('ciphertext') && !key.toLowerCase().includes('objectpath'));
   const sectionTitle = workflowStep
@@ -2068,6 +2133,12 @@ function AdminAnswerSection({
       <span>{configuredFieldLabel(settings, workflowStep, group, key, key.replace(/([A-Z])/g, ' $1').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()))}</span>
       <b>{displayAdminValue(value)}</b>
     </div>) : <p className="field-help">No information provided.</p>}
+    <AdminEvidenceAttachments
+      items={evidenceItems ?? []}
+      requiredSlots={requiredEvidenceSlots}
+      linkTestIdPrefix={evidenceTestIdPrefix}
+      missingTestIdPrefix={`missing-${evidenceTestIdPrefix}`}
+    />
     {note && <p className="field-help">{note}</p>}
   </section>;
 }
@@ -2118,7 +2189,7 @@ function AdminApplicationReview() {
   const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
   const entryScreen = categoryEntryScreenId(application.categoryId);
   const categoryEntryTitle = copyText(portalSettings.data, entryScreen, 'title', categoryTitle);
-  const evidence = application.evidence;
+  const evidence: ReviewerEvidenceFile[] = application.evidence ?? [];
   const identity = readAnswerGroup(application.answers, 'proofOfIdentity');
   const requiredEvidenceSlots = [
     { slot: 'identity_front', label: 'Identity document front' },
@@ -2213,34 +2284,14 @@ function AdminApplicationReview() {
         {pinFeedback && <p className="field-help" role="status" data-testid="application-pin-feedback">{pinFeedback}</p>}
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
-      {evidence !== undefined && <section className="detail-card submitted-evidence-panel" data-testid="submitted-guest-evidence">
-        <div className="detail-card-title"><LockKeyhole size={17} /><h2>{copyText(portalSettings.data, 'workflow-step-5', 'title', 'Private identity evidence')}</h2></div>
-        <p className="field-help">Files are available only to authorized enrollment reviewers. Each download is served through a secure, non-cached link.</p>
-        <ul className="guest-evidence-list" aria-label="Submitted application evidence">
-          {evidence.map((item) => <li key={item.id} data-testid={`submitted-evidence-${item.id}`}>
-            <span>
-              <b>{item.evidenceSlot === 'identity_front' ? 'Identity document front' : item.evidenceSlot === 'identity_back' ? 'Identity document back' : item.evidenceSlot === 'education_certificate' ? 'Education certificate' : item.evidenceSlot === 'verification_video' ? 'Verification video' : 'Identity document'}</b>
-              <small>{item.fileName}{item.uploadedAt ? ` · ${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : ''}</small>
-            </span>
-            {item.uploadedAt && item.downloadUrl
-              ? <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-submitted-evidence-${item.id}`}>Download securely</a>
-              : <small className="submitted-evidence-state">Pending — upload verification</small>}
-          </li>)}
-          {requiredEvidenceSlots.filter((required) =>
-            !evidence.some((item) => item.evidenceSlot === required.slot),
-          ).map((required) => <li key={required.slot} data-testid={`missing-submitted-evidence-${required.slot}`}>
-            <span><b>{required.label}</b><small>Missing — no file was attached</small></span>
-          </li>)}
-        </ul>
-      </section>}
       <div className="admin-record-sections">
-        <AdminAnswerSection title="Section 2 · Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} />
-        <AdminAnswerSection title="Section 3 · Next of kin" settings={portalSettings.data} workflowStep={2} group="nextOfKin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicant was asked to share these details with the contact’s permission." />
-        <AdminAnswerSection title="Section 4 · Education" settings={portalSettings.data} workflowStep={3} group="education" data={readAnswerGroup(application.answers, 'education')} />
-        <AdminAnswerSection title="Section 5 · Work information" settings={portalSettings.data} workflowStep={4} group="workInformation" data={readAnswerGroup(application.answers, 'workInformation')} />
-        <AdminAnswerSection title="Section 6 · Proof of identity" settings={portalSettings.data} workflowStep={5} group="proofOfIdentity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
-        <AdminAnswerSection title="Section 7 · Video recording" settings={portalSettings.data} workflowStep={6} group="liveVideoRecording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="No identity or liveness conclusion is made from this recording. The uploaded file is listed in the evidence panel above." />
-        <AdminAnswerSection title="Section 8 · Bank details" settings={portalSettings.data} workflowStep={7} group="bankDetails" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown to authorized reviewers only; the account number is encrypted in storage." />
+        <AdminAnswerSection title="Section 2 · Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} evidenceTestIdPrefix="personal-information-evidence" />
+        <AdminAnswerSection title="Section 3 · Next of kin" settings={portalSettings.data} workflowStep={2} group="nextOfKin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicant was asked to share these details with the contact’s permission." evidenceTestIdPrefix="next-of-kin-evidence" />
+        <AdminAnswerSection title="Section 4 · Education" settings={portalSettings.data} workflowStep={3} group="education" data={readAnswerGroup(application.answers, 'education')} evidenceItems={evidence.filter((item) => item.evidenceSlot === 'education_certificate')} evidenceTestIdPrefix="education-evidence" />
+        <AdminAnswerSection title="Section 5 · Work information" settings={portalSettings.data} workflowStep={4} group="workInformation" data={readAnswerGroup(application.answers, 'workInformation')} evidenceTestIdPrefix="work-information-evidence" />
+        <AdminAnswerSection title="Section 6 · Proof of identity" settings={portalSettings.data} workflowStep={5} group="proofOfIdentity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} evidenceItems={evidence.filter((item) => ['identity_front', 'identity_back', 'identity_document'].includes(item.evidenceSlot))} requiredEvidenceSlots={requiredEvidenceSlots.filter((required) => required.slot !== 'verification_video')} evidenceTestIdPrefix="submitted-evidence" note="Private identity documents are attached to this step; downloads use secure links." />
+        <AdminAnswerSection title="Section 7 · Video recording" settings={portalSettings.data} workflowStep={6} group="liveVideoRecording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} evidenceItems={evidence.filter((item) => item.evidenceSlot === 'verification_video')} requiredEvidenceSlots={requiredEvidenceSlots.filter((required) => required.slot === 'verification_video')} evidenceTestIdPrefix="submitted-video-evidence" note="No identity or liveness conclusion is made from this recording." />
+        <AdminAnswerSection title="Section 8 · Bank details" settings={portalSettings.data} workflowStep={7} group="bankDetails" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown to authorized reviewers only; the account number is encrypted in storage." evidenceTestIdPrefix="bank-details-evidence" />
       </div>
       <section className="detail-card admin-history-card">
         <div className="detail-card-title"><Activity size={17} /><h2>Section 9 · Submission metadata and review history</h2></div>
@@ -4555,6 +4606,14 @@ function AdminGuestApplicationReview() {
   const correctedHistory = correctedGuestRevisions(application.history);
   const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
   const entryScreen = categoryEntryScreenId(application.categoryId);
+  const identity = readAnswerGroup(application.answers, 'proofOfIdentity');
+  const requiredGuestEvidenceSlots = [
+    { slot: 'identity_front', label: 'Identity document front' },
+    ...(['National ID', 'Driver license', 'Passport card'].includes(String(identity.documentType))
+      ? [{ slot: 'identity_back', label: 'Identity document back' }]
+      : []),
+    { slot: 'verification_video', label: 'Verification video' },
+  ];
 
   return <AdminShell active="review">
     <div className="admin-review-page guest-applicant-review-page">
@@ -4588,7 +4647,8 @@ function AdminGuestApplicationReview() {
         </section>
       </div>
       <section className="detail-card guest-evidence-panel guest-review-detail-evidence">
-        <div className="detail-card-title"><LockKeyhole size={17} /><h2>Private identity evidence</h2></div>
+        <div className="detail-card-title"><LockKeyhole size={17} /><h2>Evidence readiness and reviewer uploads</h2></div>
+        <p className="field-help">Private evidence files are listed under their matching enrollment steps below.</p>
         <div className={`guest-review-readiness ${application.reviewReady ? 'is-ready' : ''}`} role="status">
           <span>{application.reviewReady ? 'Ready for full review' : 'Not ready for submission'}</span>
           <small>{application.detailsComplete ? 'Application details are complete.' : 'Application details are incomplete.'} Required for submission: PIN, identity front, and verification video.</small>
@@ -4605,13 +4665,6 @@ function AdminGuestApplicationReview() {
               onChange={(event) => handleEvidenceFile('verification_video', event)} data-testid={`input-guest-detail-video-${application.id}`} />
           </label>
         </div>
-        {application.evidence.length > 0 ? <ul className="guest-evidence-list" aria-label="Private evidence files">
-          {application.evidence.map((item) => <li key={item.id}>
-            <span><b>{item.evidenceSlot === 'identity_front' ? 'Identity document front' : item.evidenceSlot === 'identity_back' ? 'Identity document back' : item.evidenceSlot === 'education_certificate' ? 'Education certificate' : item.evidenceSlot === 'verification_video' ? 'Verification video' : 'Identity document'}</b>
-              <small>{item.fileName} · {item.uploadedAt ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB` : 'Upload pending verification'}</small></span>
-            {item.downloadUrl && <a href={item.downloadUrl} className="guest-evidence-download" data-testid={`link-guest-detail-evidence-${item.id}`}>Download securely</a>}
-          </li>)}
-        </ul> : <p className="field-help">No private evidence files have been received yet.</p>}
       </section>
       <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>{copyText(portalSettings.data, entryScreen, 'title', categoryTitle)}</h2></div>
@@ -4625,13 +4678,13 @@ function AdminGuestApplicationReview() {
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
       </section>
       <div className="admin-record-sections">
-        <AdminAnswerSection title="Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} />
-        <AdminAnswerSection title="Next of kin" settings={portalSettings.data} workflowStep={2} group="nextOfKin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." />
-        <AdminAnswerSection title="Education" settings={portalSettings.data} workflowStep={3} group="education" data={readAnswerGroup(application.answers, 'education')} />
-        <AdminAnswerSection title="Work information" settings={portalSettings.data} workflowStep={4} group="workInformation" data={readAnswerGroup(application.answers, 'workInformation')} />
-        <AdminAnswerSection title="Proof of identity details" settings={portalSettings.data} workflowStep={5} group="proofOfIdentity" data={readAnswerGroup(application.answers, 'proofOfIdentity')} note="Uploaded private identity files are listed in the evidence panel above." />
-        <AdminAnswerSection title="Video verification details" settings={portalSettings.data} workflowStep={6} group="liveVideoRecording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} note="The uploaded video is listed in the evidence panel above." />
-        <AdminAnswerSection title="Optional bank details" settings={portalSettings.data} workflowStep={7} group="bankDetails" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown only to authorized reviewers." />
+        <AdminAnswerSection title="Personal information" settings={portalSettings.data} workflowStep={1} group="personalInformation" data={readAnswerGroup(application.answers, 'personalInformation')} evidenceTestIdPrefix="guest-personal-information-evidence" />
+        <AdminAnswerSection title="Next of kin" settings={portalSettings.data} workflowStep={2} group="nextOfKin" data={readAnswerGroup(application.answers, 'nextOfKin')} note="Applicants are asked to share these details with the contact’s permission." evidenceTestIdPrefix="guest-next-of-kin-evidence" />
+        <AdminAnswerSection title="Education" settings={portalSettings.data} workflowStep={3} group="education" data={readAnswerGroup(application.answers, 'education')} evidenceItems={application.evidence.filter((item) => item.evidenceSlot === 'education_certificate')} evidenceTestIdPrefix="guest-education-evidence" />
+        <AdminAnswerSection title="Work information" settings={portalSettings.data} workflowStep={4} group="workInformation" data={readAnswerGroup(application.answers, 'workInformation')} evidenceTestIdPrefix="guest-work-information-evidence" />
+        <AdminAnswerSection title="Proof of identity details" settings={portalSettings.data} workflowStep={5} group="proofOfIdentity" data={identity} evidenceItems={application.evidence.filter((item) => ['identity_front', 'identity_back', 'identity_document'].includes(item.evidenceSlot))} requiredEvidenceSlots={requiredGuestEvidenceSlots.filter((required) => required.slot !== 'verification_video')} evidenceTestIdPrefix="guest-detail-evidence" note="Private identity proof documents are attached to this step." />
+        <AdminAnswerSection title="Video verification details" settings={portalSettings.data} workflowStep={6} group="liveVideoRecording" data={readAnswerGroup(application.answers, 'liveVideoRecording')} evidenceItems={application.evidence.filter((item) => item.evidenceSlot === 'verification_video')} requiredEvidenceSlots={requiredGuestEvidenceSlots.filter((required) => required.slot === 'verification_video')} evidenceTestIdPrefix="guest-video-evidence" note="The uploaded video is attached to this step." />
+        <AdminAnswerSection title="Optional bank details" settings={portalSettings.data} workflowStep={7} group="bankDetails" data={readAnswerGroup(application.answers, 'bankDetails')} note="Shown only to authorized reviewers." evidenceTestIdPrefix="guest-bank-details-evidence" />
       </div>
       <section className="detail-card admin-history-card" data-testid={`guest-preapplication-history-${application.id}`}>
         <div className="detail-card-title"><Activity size={17} /><h2>Saved entries and corrections</h2></div>
