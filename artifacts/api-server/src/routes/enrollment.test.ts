@@ -33,7 +33,6 @@ const mockState = vi.hoisted(() => ({
       supportTicketsTable: makeTable("enrollment_support_tickets"),
       staffEmailSettingsTable: makeTable("staff_email_settings"),
       staffEmailOutboxTable: makeTable("staff_email_outbox"),
-      staffEmailProviderEventsTable: makeTable("staff_email_provider_events"),
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
       staffSmsSettingsTable: makeTable("staff_sms_settings"),
       staffSmsOutboxTable: makeTable("staff_sms_outbox"),
@@ -213,7 +212,6 @@ function makeDatabase() {
           staff_email_settings: ["key"],
           staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
-          staff_email_provider_events: ["providerEventId"],
         };
         const conflict = (uniqueFields[tableName] ?? []).some((field) =>
           values[field] != null && rows.some((row) => row[field] === values[field]),
@@ -476,13 +474,10 @@ describe("guest application verification and persistence", () => {
     process.env.PRIVATE_OBJECT_DIR = "test-private";
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "test-bucket";
     process.env.SESSION_SECRET = "test-session-secret";
-    process.env.RESEND_WEBHOOK_SECRET =
-      `whsec_${Buffer.from("test-resend-signing-key").toString("base64")}`;
     process.env.REPLIT_DOMAINS = "portal.example.test";
     app.use(express.json({
       verify(request, _response, body) {
         if (
-          request.url?.startsWith("/api/webhooks/resend") ||
           request.url?.startsWith("/api/webhooks/infobip/sms")
         ) {
           (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
@@ -519,7 +514,6 @@ describe("guest application verification and persistence", () => {
       "enrollment_support_tickets",
       "staff_email_settings",
       "staff_email_outbox",
-      "staff_email_provider_events",
       "staff_email_templates",
       "staff_sms_settings",
       "staff_sms_outbox",
@@ -535,7 +529,6 @@ describe("guest application verification and persistence", () => {
     mockState.failNextUpdateTable = null;
     delete process.env.INFOBIP_API_KEY;
     delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
-    delete process.env.RESEND_API_KEY;
     mockState.users.set("applicant-unverified", {
       id: "applicant-unverified",
       primaryEmailAddress: {
@@ -666,30 +659,6 @@ describe("guest application verification and persistence", () => {
       }
     }
   });
-
-  function signedResendEvent(
-    event: Record<string, unknown>,
-    signatureOverride?: string,
-    timestampSeconds = Math.floor(Date.now() / 1000),
-  ) {
-    const body = JSON.stringify(event);
-    const webhookId = crypto.randomUUID();
-    const timestamp = timestampSeconds.toString();
-    const signingKey = Buffer.from("test-resend-signing-key");
-    const signature = createHmac("sha256", signingKey)
-      .update(`${webhookId}.${timestamp}.`)
-      .update(body)
-      .digest("base64");
-    return {
-      method: "POST",
-      body,
-      headers: {
-        "svix-id": webhookId,
-        "svix-timestamp": timestamp,
-        "svix-signature": signatureOverride ?? `v1,${signature}`,
-      },
-    };
-  }
 
   async function uploadEvidence(
     applicationId: string,
@@ -1559,148 +1528,17 @@ describe("guest application verification and persistence", () => {
     expect(outbox.response.status).toBe(200);
     expect(outbox.body).toHaveLength(2);
     expect(outbox.body[0].subject).toBe("Portal <update>");
-    expect(outbox.body[0].deliveryStatus).toBe("accepted");
-    expect(outbox.body[0].providerEventAt).toBeNull();
+    expect(outbox.body[0]).not.toHaveProperty("deliveryStatus");
+    expect(outbox.body[0]).not.toHaveProperty("providerEventAt");
+    expect(outbox.body[0]).not.toHaveProperty("providerEvents");
   });
 
-  it("updates accepted email outcomes only from verified, non-stale Resend events", async () => {
-    const deliveredId = "resend-delivery-lifecycle";
-    const bouncedId = "resend-bounced-message";
-    const accepted = (providerMessageId: string) => newRow("staff_email_outbox", {
-      idempotencyKey: `webhook:${providerMessageId}`,
-      recipientEmail: "person@example.test",
-      subject: "Delivery status test",
-      messageText: "Test",
-      eventKind: "manual",
-      status: "sent",
-      providerMessageId,
-      deliveryStatus: "accepted",
-      attemptCount: 1,
-    });
-    mockState.rows.set("staff_email_outbox", [accepted(deliveredId), accepted(bouncedId)]);
-
-    const invalid = await request("/webhooks/resend", signedResendEvent({
-      type: "email.delivered",
-      data: { email_id: deliveredId },
-    }, "v1,invalid"));
-    expect(invalid.response.status).toBe(400);
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
-
-    const stale = await request("/webhooks/resend", signedResendEvent({
-      type: "email.delivered",
-      data: { email_id: deliveredId },
-    }, undefined, Math.floor(Date.now() / 1000) - 360));
-    expect(stale.response.status).toBe(400);
-
-    const missingEventTime = await request("/webhooks/resend", signedResendEvent({
-      type: "email.delivered",
-      data: { email_id: deliveredId },
-    }));
-    expect(missingEventTime.response.status).toBe(400);
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
-
-    const deliveredWebhook = signedResendEvent({
-      type: "email.delivered",
-      created_at: "2026-09-12T10:11:12.000Z",
-      data: { email_id: deliveredId },
-    });
-    const delivered = await request("/webhooks/resend", deliveredWebhook);
-    expect(delivered.response.status).toBe(200);
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("delivered");
-    expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
-      .toEqual(new Date("2026-09-12T10:11:12.000Z"));
-
-    const repeatedDelivery = await request("/webhooks/resend", deliveredWebhook);
-    expect(repeatedDelivery.response.status).toBe(200);
-    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(1);
-
-    const complained = await request("/webhooks/resend", signedResendEvent({
-      type: "email.complained",
-      created_at: "2026-09-13T11:12:13.000Z",
-      data: { email_id: deliveredId },
-    }));
-    expect(complained.response.status).toBe(200);
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("complained");
-    expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
-      .toEqual(new Date("2026-09-13T11:12:13.000Z"));
-
-    const outOfOrderBounce = await request("/webhooks/resend", signedResendEvent({
-      type: "email.bounced",
-      created_at: "2026-09-11T09:10:11.000Z",
-      data: { email_id: deliveredId },
-    }));
-    expect(outOfOrderBounce.response.status).toBe(200);
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("complained");
-
-    const bounced = await request("/webhooks/resend", signedResendEvent({
-      type: "email.bounced",
-      created_at: "2026-09-14T12:13:14.000Z",
-      data: { email_id: bouncedId },
-    }));
-    expect(bounced.response.status).toBe(200);
-    expect(mockState.rows.get("staff_email_outbox")?.[1].deliveryStatus).toBe("bounced");
-    expect(mockState.rows.get("staff_email_outbox")?.[1].providerEventAt)
-      .toEqual(new Date("2026-09-14T12:13:14.000Z"));
-
-    const outbox = await request("/admin/email/outbox", {}, "administrator");
-    expect(outbox.body[0].providerEventAt).toBe("2026-09-13T11:12:13.000Z");
-    expect(outbox.body[0].providerEvents.map((event: any) => [
-      event.deliveryStatus,
-      event.providerEventAt,
-    ])).toEqual([
-      ["bounced", "2026-09-11T09:10:11.000Z"],
-      ["delivered", "2026-09-12T10:11:12.000Z"],
-      ["complained", "2026-09-13T11:12:13.000Z"],
-    ]);
-    expect(outbox.body[1].providerEventAt).toBe("2026-09-14T12:13:14.000Z");
-
-    const lateDelivered = await request("/webhooks/resend", signedResendEvent({
-      type: "email.delivered",
-      created_at: "2026-09-15T13:14:15.000Z",
-      data: { email_id: bouncedId },
-    }));
-    expect(lateDelivered.response.status).toBe(200);
-    expect(mockState.rows.get("staff_email_outbox")?.[1].deliveryStatus).toBe("bounced");
-    expect(mockState.rows.get("staff_email_outbox")?.[1].providerEventAt)
-      .toEqual(new Date("2026-09-14T12:13:14.000Z"));
-    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(5);
-  });
-
-  it("returns a retryable error when saving a delivery outcome fails and applies it on resend", async () => {
-    const providerMessageId = "resend-retry-after-database-outage";
-    mockState.rows.set("staff_email_outbox", [newRow("staff_email_outbox", {
-      idempotencyKey: `webhook:${providerMessageId}`,
-      recipientEmail: "person@example.test",
-      subject: "Delivery retry test",
-      messageText: "Test",
-      eventKind: "manual",
-      status: "sent",
-      providerMessageId,
-      deliveryStatus: "accepted",
-      providerEventAt: null,
-      attemptCount: 1,
-    })]);
-    const event = {
-      type: "email.delivered",
-      created_at: "2026-09-15T13:14:15.000Z",
-      data: { email_id: providerMessageId },
-    };
-
-    mockState.failNextUpdateTable = "staff_email_outbox";
-    const failedAttempt = await request("/webhooks/resend", signedResendEvent(event));
-    expect(failedAttempt.response.status).toBe(503);
-    expect(failedAttempt.body.error).toBe("Email delivery outcome could not be recorded.");
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("accepted");
-    expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt).toBeNull();
-    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(0);
-
-    const resent = await request("/webhooks/resend", signedResendEvent(event));
-    expect(resent.response.status).toBe(200);
-    expect(resent.body.received).toBe(true);
-    expect(mockState.rows.get("staff_email_outbox")?.[0].deliveryStatus).toBe("delivered");
-    expect(mockState.rows.get("staff_email_outbox")?.[0].providerEventAt)
-      .toEqual(new Date("2026-09-15T13:14:15.000Z"));
-    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(1);
+  it("does not expose the removed Resend webhook route", async () => {
+    const result = await request("/webhooks/resend", {
+      method: "POST",
+      body: JSON.stringify({ type: "email.delivered", data: { email_id: "legacy-id" } }),
+    }, "administrator");
+    expect(result.response.status).toBe(404);
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {

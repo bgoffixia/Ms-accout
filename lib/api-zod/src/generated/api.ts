@@ -1734,15 +1734,6 @@ export const GetPublicStaffEmailFooterBackgroundResponse = zod.unknown()
 
 
 /**
- * Validates the Svix signature using the configured webhook secret.
- * @summary Receive a verified Resend email delivery event
- */
-export const ReceiveResendEmailEventBody = zod.record(zod.string(), zod.unknown())
-
-export const ReceiveResendEmailEventResponse = zod.unknown()
-
-
-/**
  * @summary List recent staff and automated email messages
  */
 export const ListAdminEmailOutboxResponseItem = zod.object({
@@ -1754,12 +1745,6 @@ export const ListAdminEmailOutboxResponseItem = zod.object({
   "applicationReference": zod.string().nullable(),
   "status": zod.enum(['sending', 'sent', 'failed']),
   "providerMessageId": zod.string().nullable(),
-  "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
-  "providerEventAt": zod.coerce.date().nullable(),
-  "providerEvents": zod.array(zod.object({
-  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
-  "providerEventAt": zod.coerce.date()
-})),
   "errorMessage": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "attemptCount": zod.number().int(),
@@ -1902,12 +1887,6 @@ export const SendAdminEmailResponseItem = zod.object({
   "applicationReference": zod.string().nullable(),
   "status": zod.enum(['sending', 'sent', 'failed']),
   "providerMessageId": zod.string().nullable(),
-  "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
-  "providerEventAt": zod.coerce.date().nullable(),
-  "providerEvents": zod.array(zod.object({
-  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
-  "providerEventAt": zod.coerce.date()
-})),
   "errorMessage": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "attemptCount": zod.number().int(),
@@ -2082,12 +2061,6 @@ export const RetryAdminEmailResponse = zod.object({
   "applicationReference": zod.string().nullable(),
   "status": zod.enum(['sending', 'sent', 'failed']),
   "providerMessageId": zod.string().nullable(),
-  "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
-  "providerEventAt": zod.coerce.date().nullable(),
-  "providerEvents": zod.array(zod.object({
-  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
-  "providerEventAt": zod.coerce.date()
-})),
   "errorMessage": zod.string().nullable(),
   "createdByUserId": zod.string().nullable(),
   "attemptCount": zod.number().int(),

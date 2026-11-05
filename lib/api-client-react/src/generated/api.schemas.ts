@@ -1259,33 +1259,6 @@ export const AdminEmailMessageStatus = {
   failed: 'failed',
 } as const;
 
-/**
- * @nullable
- */
-export type AdminEmailMessageDeliveryStatus = typeof AdminEmailMessageDeliveryStatus[keyof typeof AdminEmailMessageDeliveryStatus] | null;
-
-
-export const AdminEmailMessageDeliveryStatus = {
-  accepted: 'accepted',
-  delivered: 'delivered',
-  bounced: 'bounced',
-  complained: 'complained',
-} as const;
-
-export type AdminEmailProviderEventDeliveryStatus = typeof AdminEmailProviderEventDeliveryStatus[keyof typeof AdminEmailProviderEventDeliveryStatus];
-
-
-export const AdminEmailProviderEventDeliveryStatus = {
-  delivered: 'delivered',
-  bounced: 'bounced',
-  complained: 'complained',
-} as const;
-
-export interface AdminEmailProviderEvent {
-  deliveryStatus: AdminEmailProviderEventDeliveryStatus;
-  providerEventAt: string;
-}
-
 export interface AdminEmailMessage {
   id: string;
   recipientEmail: string;
@@ -1298,11 +1271,6 @@ export interface AdminEmailMessage {
   status: AdminEmailMessageStatus;
   /** @nullable */
   providerMessageId: string | null;
-  /** @nullable */
-  deliveryStatus: AdminEmailMessageDeliveryStatus;
-  /** @nullable */
-  providerEventAt: string | null;
-  providerEvents: AdminEmailProviderEvent[];
   /** @nullable */
   errorMessage: string | null;
   /** @nullable */
@@ -1418,8 +1386,6 @@ export type InfobipSmsDeliveryReportResultsItem = {
 export interface InfobipSmsDeliveryReport {
   results: InfobipSmsDeliveryReportResultsItem[];
 }
-
-export interface ResendWebhookEvent { [key: string]: unknown }
 
 export type ListApplicationsForReviewParams = {
 status?: ListApplicationsForReviewStatus;
