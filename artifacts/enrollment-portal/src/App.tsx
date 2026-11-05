@@ -136,9 +136,15 @@ function PrimaryButton({ children, onClick, disabled, kind = 'button', testId, q
   );
 }
 
-function LoadingPanel({ label = 'Loading your information' }: { label?: string }) {
+function LoadingPanel({
+  label = 'Loading your information',
+  testId = 'state-loading',
+}: {
+  label?: string;
+  testId?: string;
+}) {
   return (
-    <div className="loading-panel" data-testid="state-loading">
+    <div className="loading-panel" data-testid={testId}>
       <SecurityLoadingIndicator label={label} />
     </div>
   );
@@ -3572,7 +3578,7 @@ function PublicApplicantDashboard() {
             <div><h2>Account providers</h2><p>Select an account provider to continue.</p></div>
             <span className="step-indicator">START HERE</span>
           </div>
-          {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
+          {categories.isLoading ? <LoadingPanel label="Loading account providers" testId="guest-dashboard-loading" /> :
             categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
               <p>Account providers could not be loaded.</p>
               <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
@@ -4189,6 +4195,12 @@ function GuestApplicationPage() {
     </>;
   }
 
+  if (resumeLoading) {
+    return <main className="portal-frame auth-loading" aria-busy="true">
+      <LoadingPanel label="Restoring your saved application" testId="guest-resume-loading" />
+    </main>;
+  }
+
   if (stage === 'application' && created) {
     const wizardApplication: EnrollmentApplication = {
       id: created.application.id,
@@ -4237,7 +4249,6 @@ function GuestApplicationPage() {
     <GuestPublicHeader />
     <div className="guest-page-grid">
       <section className="guest-form-card rise-delay" aria-labelledby="guest-apply-heading">
-        {resumeLoading && <div className="guest-form-subtitle" role="status">Restoring your saved application…</div>}
         {resumeError && <p className="guest-inline-error" role="alert" data-testid="guest-resume-error">{resumeError}</p>}
         {stage === 'complete' && created ? <div className="guest-success" data-testid="guest-application-success">
           <span className="guest-success-mark"><Check size={22} /></span>
@@ -4359,9 +4370,8 @@ function GuestApplicationRoute() {
     if (skipContactStep) setLocation('/dashboard', { replace: true });
   }, [skipContactStep, setLocation]);
 
-  if (skipContactStep) return <main className="guest-page portal-frame" aria-busy="true">
-    <GuestPublicHeader />
-    <div className="guest-track-wrap"><p role="status" data-testid="guest-contact-step-skipped">Returning to your categories…</p></div>
+  if (skipContactStep) return <main className="portal-frame auth-loading" aria-busy="true">
+    <LoadingPanel label="Returning to account providers" testId="guest-contact-step-skipped" />
   </main>;
 
   return <GuestApplicationPage />;

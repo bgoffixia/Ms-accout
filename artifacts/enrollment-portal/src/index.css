@@ -3539,9 +3539,6 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .guest-submit { width: 100%; min-height: 48px; margin-top: 2px; border-radius: 10px; }
 .guest-form-privacy { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 1px 0 0; color: #7d8e98; font-size: 10px; }
 .guest-form-privacy svg, .guest-track-security svg { color: #44816a; }
-.guest-category-skeleton { display: grid; gap: 14px; padding: 8px 0; }
-.guest-category-skeleton > div { height: 43px; border-radius: 9px; background: linear-gradient(90deg, #edf1f2, #f8fafa, #edf1f2); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
-.guest-category-skeleton > div:last-child { width: 73%; }
 .guest-inline-error { margin: 0; padding: 12px 14px; border: 1px solid #f0d4d1; border-radius: 9px; color: #984846; background: #fff8f6; font-size: 11px; line-height: 1.5; }
 .guest-inline-error p { margin: 0 0 4px; }
 .guest-success-mark { display: grid; width: 47px; height: 47px; margin-bottom: 20px; place-items: center; border-radius: 14px; color: #287b61; background: #eaf6ef; }
