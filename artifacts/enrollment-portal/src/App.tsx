@@ -65,7 +65,7 @@ import { CategoryEntryForm, type CategoryEntryAnswers } from './components/Categ
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityLoadingIndicator } from './components/SecurityVisuals';
-import landingHeroArtwork from './assets/landing-account-security-checklist.jpg';
+import landingHeroArtwork from './assets/public-account-security-checklist.png';
 import { correctedGuestRevisions } from './lib/guestRevisionHistory';
 import { DEFAULT_PAGE_THEME, PAGE_THEME_SCREENS, normalizePageThemes, pageThemeBackground, pageThemeKeyForRoute } from './pageTheme';
 import categoryOneLogo from './assets/category-one-national-bank-logo-updated.png';
@@ -363,7 +363,7 @@ function PublicLanding() {
             <img
               className="landing-hero-image"
               src={landingHeroArtwork}
-              alt="Account security checklist with a shield, lock, and steps for safer accounts."
+              alt="Account Security Checklist: use a strong password, enable two-step verification or a passkey, use authorized encryption, and keep credentials private."
               loading="eager"
             />
           </div>
@@ -373,7 +373,7 @@ function PublicLanding() {
         <img
           className="landing-hero-image"
           src={landingHeroArtwork}
-          alt="Account security checklist with a shield, lock, and steps for safer accounts."
+          alt="Account Security Checklist: use a strong password, enable two-step verification or a passkey, use authorized encryption, and keep credentials private."
           loading="eager"
         />
       </section>
