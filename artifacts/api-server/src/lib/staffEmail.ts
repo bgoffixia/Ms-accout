@@ -1,9 +1,10 @@
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 import {
   db,
   staffEmailOutboxTable,
+  staffEmailProviderEventsTable,
   staffEmailSettingsTable,
   type StaffEmailBranding,
   type StaffEmailAlertEvents,
@@ -37,9 +38,25 @@ type GmailMessageList = {
   messages?: Array<{ id?: unknown }>;
 };
 
+type GmailMessagePayload = {
+  mimeType?: unknown;
+  headers?: Array<{ name?: unknown; value?: unknown }>;
+  body?: { data?: unknown };
+  parts?: GmailMessagePayload[];
+};
+
+type GmailFullMessage = {
+  internalDate?: unknown;
+  payload?: GmailMessagePayload;
+};
+
 const GMAIL_PROFILE_CACHE_MS = 5 * 60 * 1000;
+const GMAIL_DELIVERY_SYNC_CACHE_MS = 60 * 1000;
 let cachedWorkspaceMailbox: { emailAddress: string; expiresAt: number } | null = null;
 let workspaceMailboxLookup: Promise<string> | null = null;
+let lastWorkspaceDeliverySyncAt = 0;
+let workspaceDeliverySync: Promise<void> | null = null;
+const inspectedWorkspaceDeliveryMessageIds = new Set<string>();
 
 async function gmailRequest(path: string, options: GmailApiOptions): Promise<Response> {
   return new ReplitConnectors().proxy("google-mail", path, options);
@@ -89,6 +106,221 @@ function encodeMimeBody(value: string): string {
 
 function gmailMessageId(idempotencyKey: string): string {
   return `${createHash("sha256").update(idempotencyKey).digest("hex")}@${STAFF_EMAIL_DOMAIN}`;
+}
+
+function decodeGmailBody(data: unknown): string {
+  if (typeof data !== "string") return "";
+  try {
+    return Buffer.from(data, "base64url").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function collectGmailMessageContent(
+  payload: GmailMessagePayload | undefined,
+  contentTypes: string[],
+  headers: string[],
+  bodies: string[],
+): void {
+  if (!payload) return;
+  if (typeof payload.mimeType === "string") {
+    contentTypes.push(payload.mimeType.toLowerCase());
+  }
+  for (const header of payload.headers ?? []) {
+    if (typeof header.name === "string" && typeof header.value === "string") {
+      headers.push(`${header.name}: ${header.value}`);
+    }
+  }
+  const body = decodeGmailBody(payload.body?.data);
+  if (body) bodies.push(body);
+  for (const part of payload.parts ?? []) {
+    collectGmailMessageContent(part, contentTypes, headers, bodies);
+  }
+}
+
+function resolveGmailDeliveryStatus(
+  contentTypes: string[],
+  bodies: string[],
+): "delivered" | "bounced" | null {
+  if (!contentTypes.some((type) => type.includes("message/delivery-status"))) {
+    return null;
+  }
+  const deliveryStatusParts = bodies.join("\n");
+  const action = deliveryStatusParts.match(/(?:^|\r?\n)\s*Action\s*:\s*([a-z]+)/i)?.[1]
+    ?.toLowerCase();
+  if (action === "delivered") return "delivered";
+  if (action === "failed") return "bounced";
+  return null;
+}
+
+export async function recordStaffEmailDeliveryEvent(input: {
+  outboxId: string;
+  providerEventId: string;
+  deliveryStatus: Exclude<StaffEmailDeliveryStatus, "accepted">;
+  providerEventAt: Date;
+}): Promise<void> {
+  const earlierStatuses: Record<
+    Exclude<StaffEmailDeliveryStatus, "accepted">,
+    StaffEmailDeliveryStatus[]
+  > = {
+    delivered: ["accepted"],
+    bounced: ["accepted", "delivered"],
+    complained: ["accepted", "delivered", "bounced"],
+  };
+  await db.transaction(async (tx) => {
+    const [savedEvent] = await tx
+      .insert(staffEmailProviderEventsTable)
+      .values(input)
+      .onConflictDoNothing({
+        target: staffEmailProviderEventsTable.providerEventId,
+      })
+      .returning({ id: staffEmailProviderEventsTable.id });
+
+    if (!savedEvent) return;
+
+    await tx
+      .update(staffEmailOutboxTable)
+      .set({
+        deliveryStatus: input.deliveryStatus,
+        providerEventAt: input.providerEventAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(staffEmailOutboxTable.id, input.outboxId),
+          or(
+            isNull(staffEmailOutboxTable.providerEventAt),
+            lt(staffEmailOutboxTable.providerEventAt, input.providerEventAt),
+          ),
+          or(
+            isNull(staffEmailOutboxTable.deliveryStatus),
+            inArray(
+              staffEmailOutboxTable.deliveryStatus,
+              earlierStatuses[input.deliveryStatus],
+            ),
+          ),
+        ),
+      );
+  });
+}
+
+function rememberInspectedDeliveryMessage(messageId: string): void {
+  inspectedWorkspaceDeliveryMessageIds.add(messageId);
+  if (inspectedWorkspaceDeliveryMessageIds.size > 5_000) {
+    const oldest = inspectedWorkspaceDeliveryMessageIds.values().next().value;
+    if (oldest) inspectedWorkspaceDeliveryMessageIds.delete(oldest);
+  }
+}
+
+async function scanWorkspaceDeliveryNotices(
+  records: StaffEmailOutboxRecord[],
+): Promise<void> {
+  const pendingRecords = records.filter((record) =>
+    record.status === "sent" &&
+    (record.deliveryStatus === "accepted" || record.deliveryStatus == null),
+  );
+  if (!pendingRecords.length) return;
+
+  const byRfcMessageId = new Map(
+    pendingRecords.map((record) => [
+      gmailMessageId(record.idempotencyKey),
+      record,
+    ]),
+  );
+  const query = new URLSearchParams({
+    q: "newer_than:90d {from:mailer-daemon from:postmaster}",
+    maxResults: "50",
+  });
+  const listResponse = await gmailRequest(
+    `/gmail/v1/users/me/messages?${query.toString()}`,
+    { method: "GET" },
+  );
+  if (!listResponse.ok) {
+    throw new Error(`Gmail delivery notice lookup failed (${listResponse.status}).`);
+  }
+  const listed = await listResponse.json() as GmailMessageList;
+  const messageIds = (listed.messages ?? [])
+    .map((message) => message.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  if (!messageIds.length) return;
+
+  const eventIds = messageIds.map((id) => `gmail-dsn:${id}`);
+  const knownEvents = await db
+    .select({ providerEventId: staffEmailProviderEventsTable.providerEventId })
+    .from(staffEmailProviderEventsTable)
+    .where(inArray(staffEmailProviderEventsTable.providerEventId, eventIds));
+  const knownEventIds = new Set(knownEvents.map((event) => event.providerEventId));
+
+  for (const messageId of messageIds) {
+    const providerEventId = `gmail-dsn:${messageId}`;
+    if (
+      knownEventIds.has(providerEventId) ||
+      inspectedWorkspaceDeliveryMessageIds.has(messageId)
+    ) {
+      continue;
+    }
+    const response = await gmailRequest(
+      `/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}?format=full`,
+      { method: "GET" },
+    );
+    if (!response.ok) {
+      if (response.status === 404) {
+        rememberInspectedDeliveryMessage(messageId);
+        continue;
+      }
+      throw new Error(`Gmail delivery notice could not be loaded (${response.status}).`);
+    }
+    const message = await response.json() as GmailFullMessage;
+    const contentTypes: string[] = [];
+    const headers: string[] = [];
+    const bodies: string[] = [];
+    collectGmailMessageContent(message.payload, contentTypes, headers, bodies);
+    const deliveryStatus = resolveGmailDeliveryStatus(contentTypes, bodies);
+    const searchableContent = `${headers.join("\n")}\n${bodies.join("\n")}`.toLowerCase();
+    const matched = [...byRfcMessageId.entries()].find(([rfcMessageId]) =>
+      searchableContent.includes(rfcMessageId.toLowerCase()),
+    );
+    const internalDate = typeof message.internalDate === "string"
+      ? Number(message.internalDate)
+      : typeof message.internalDate === "number"
+        ? message.internalDate
+        : NaN;
+    if (deliveryStatus && matched && Number.isFinite(internalDate) && internalDate > 0) {
+      await recordStaffEmailDeliveryEvent({
+        outboxId: matched[1].id,
+        providerEventId,
+        deliveryStatus,
+        providerEventAt: new Date(internalDate),
+      });
+    }
+    rememberInspectedDeliveryMessage(messageId);
+  }
+}
+
+export async function refreshWorkspaceEmailDeliveryStatuses(
+  records: StaffEmailOutboxRecord[],
+): Promise<void> {
+  if (
+    Date.now() - lastWorkspaceDeliverySyncAt < GMAIL_DELIVERY_SYNC_CACHE_MS
+  ) {
+    return;
+  }
+  if (workspaceDeliverySync) return workspaceDeliverySync;
+
+  workspaceDeliverySync = scanWorkspaceDeliveryNotices(records);
+  try {
+    await workspaceDeliverySync;
+    lastWorkspaceDeliverySyncAt = Date.now();
+  } finally {
+    workspaceDeliverySync = null;
+  }
+}
+
+export function resetWorkspaceEmailDeliverySyncCache(): void {
+  lastWorkspaceDeliverySyncAt = 0;
+  workspaceDeliverySync = null;
+  inspectedWorkspaceDeliveryMessageIds.clear();
 }
 
 function buildGmailRawMessage(input: {
@@ -422,6 +654,7 @@ export async function dispatchStaffEmail(input: {
           .set({
             status: "sent",
             providerMessageId: alreadySentId,
+            deliveryStatus: "accepted",
             errorMessage: null,
             updatedAt: new Date(),
           })
@@ -461,6 +694,7 @@ export async function dispatchStaffEmail(input: {
         .set({
           status: "sent",
           providerMessageId,
+          deliveryStatus: "accepted",
           errorMessage: null,
           attemptCount: record.attemptCount,
           updatedAt: new Date(),
@@ -486,3 +720,9 @@ export async function dispatchStaffEmail(input: {
     .returning();
   return failed ?? record;
 }
+
+export type StaffEmailDeliveryStatus =
+  | "accepted"
+  | "delivered"
+  | "bounced"
+  | "complained";

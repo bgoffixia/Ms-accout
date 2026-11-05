@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
@@ -10,6 +10,10 @@ const mockState = vi.hoisted(() => ({
   emailResponses: [] as Array<{ ok: boolean; status: number; body?: { id?: string } }>,
   emailSearchRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
   emailSearchResponses: [] as Array<{ ok: boolean; status: number; body?: { messages?: Array<{ id?: string }> } }>,
+  emailDeliveryListRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
+  emailDeliveryListResponses: [] as Array<{ ok: boolean; status: number; body?: { messages?: Array<{ id?: string }> } }>,
+  emailDeliveryMessageRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
+  emailDeliveryMessageResponses: new Map<string, { ok: boolean; status: number; body?: unknown }>(),
   smsRequests: [] as Array<{ url: string; init: RequestInit }>,
   failNextUpdateTable: null as string | null,
   tables: (() => {
@@ -33,6 +37,7 @@ const mockState = vi.hoisted(() => ({
       supportTicketsTable: makeTable("enrollment_support_tickets"),
       staffEmailSettingsTable: makeTable("staff_email_settings"),
       staffEmailOutboxTable: makeTable("staff_email_outbox"),
+      staffEmailProviderEventsTable: makeTable("staff_email_provider_events"),
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
       staffSmsSettingsTable: makeTable("staff_sms_settings"),
       staffSmsOutboxTable: makeTable("staff_sms_outbox"),
@@ -384,11 +389,41 @@ vi.mock("@replit/connectors-sdk", () => ({
         });
       }
       if (path.startsWith("/gmail/v1/users/me/messages?")) {
-        mockState.emailSearchRequests.push({ service, path, options });
-        const next = mockState.emailSearchResponses.shift() ?? {
+        const query = new URLSearchParams(path.split("?")[1]);
+        if (query.get("q")?.startsWith("in:sent")) {
+          mockState.emailSearchRequests.push({ service, path, options });
+          const next = mockState.emailSearchResponses.shift() ?? {
+            ok: true,
+            status: 200,
+            body: { messages: [] },
+          };
+          return Promise.resolve({
+            ok: next.ok,
+            status: next.status,
+            json: async () => next.body ?? {},
+          });
+        }
+        mockState.emailDeliveryListRequests.push({ service, path, options });
+        const next = mockState.emailDeliveryListResponses.shift() ?? {
           ok: true,
           status: 200,
           body: { messages: [] },
+        };
+        return Promise.resolve({
+          ok: next.ok,
+          status: next.status,
+          json: async () => next.body ?? {},
+        });
+      }
+      const deliveryMessage = path.match(
+        /^\/gmail\/v1\/users\/me\/messages\/([^/?]+)\?format=full$/,
+      );
+      if (deliveryMessage) {
+        mockState.emailDeliveryMessageRequests.push({ service, path, options });
+        const messageId = decodeURIComponent(deliveryMessage[1]!);
+        const next = mockState.emailDeliveryMessageResponses.get(messageId) ?? {
+          ok: false,
+          status: 404,
         };
         return Promise.resolve({
           ok: next.ok,
@@ -459,6 +494,7 @@ vi.mock("../lib/objectStorage", () => ({
 import express from "express";
 import router from "./enrollment";
 import { cleanupExpiredGuestEvidence } from "../lib/guestEvidenceCleanup";
+import { resetWorkspaceEmailDeliverySyncCache } from "../lib/staffEmail";
 
 const accessKey = "a".repeat(43);
 const contactEmail = "applicant@example.test";
@@ -514,6 +550,7 @@ describe("guest application verification and persistence", () => {
       "enrollment_support_tickets",
       "staff_email_settings",
       "staff_email_outbox",
+      "staff_email_provider_events",
       "staff_email_templates",
       "staff_sms_settings",
       "staff_sms_outbox",
@@ -525,6 +562,11 @@ describe("guest application verification and persistence", () => {
     mockState.emailResponses.length = 0;
     mockState.emailSearchRequests.length = 0;
     mockState.emailSearchResponses.length = 0;
+    mockState.emailDeliveryListRequests.length = 0;
+    mockState.emailDeliveryListResponses.length = 0;
+    mockState.emailDeliveryMessageRequests.length = 0;
+    mockState.emailDeliveryMessageResponses.clear();
+    resetWorkspaceEmailDeliverySyncCache();
     mockState.smsRequests.length = 0;
     mockState.failNextUpdateTable = null;
     delete process.env.INFOBIP_API_KEY;
@@ -1595,9 +1637,9 @@ describe("guest application verification and persistence", () => {
     expect(outbox.response.status).toBe(200);
     expect(outbox.body).toHaveLength(2);
     expect(outbox.body[0].subject).toBe("Portal <update>");
-    expect(outbox.body[0]).not.toHaveProperty("deliveryStatus");
-    expect(outbox.body[0]).not.toHaveProperty("providerEventAt");
-    expect(outbox.body[0]).not.toHaveProperty("providerEvents");
+    expect(outbox.body[0].deliveryStatus).toBe("accepted");
+    expect(outbox.body[0].providerEventAt).toBeNull();
+    expect(outbox.body[0].providerEvents).toEqual([]);
   });
 
   it("does not expose the removed Resend webhook route", async () => {
@@ -1606,6 +1648,119 @@ describe("guest application verification and persistence", () => {
       body: JSON.stringify({ type: "email.delivered", data: { email_id: "legacy-id" } }),
     }, "administrator");
     expect(result.response.status).toBe(404);
+  });
+
+  it("applies Gmail delivery and bounce notices, retries temporary lookups, and deduplicates notices", async () => {
+    const deliveredKey = "gmail-dsn-delivered";
+    const bouncedKey = "gmail-dsn-bounced";
+    const rfcMessageId = (key: string) =>
+      `${createHash("sha256").update(key).digest("hex")}@vu-gov.cc`;
+    const makePending = (idempotencyKey: string) => newRow("staff_email_outbox", {
+      idempotencyKey,
+      recipientEmail: `${idempotencyKey}@example.test`,
+      subject: "Gmail delivery status test",
+      messageText: "Test message",
+      eventKind: "manual",
+      status: "sent",
+      providerMessageId: `gmail-api-${idempotencyKey}`,
+      deliveryStatus: "accepted",
+      providerEventAt: null,
+      attemptCount: 1,
+    });
+    mockState.rows.set("staff_email_outbox", [
+      makePending(deliveredKey),
+      makePending(bouncedKey),
+    ]);
+    const deliveredNoticeId = "gmail-dsn-delivered-notice";
+    const olderBounceNoticeId = "gmail-dsn-older-bounce-notice";
+    const bouncedNoticeId = "gmail-dsn-bounced-notice";
+    const deliveredAt = Date.now() - 5_000;
+    const olderBounceAt = Date.now() - 6_000;
+    const bouncedAt = Date.now() - 3_000;
+    mockState.emailDeliveryListResponses.push(
+      { ok: false, status: 503 },
+      {
+        ok: true,
+        status: 200,
+        body: {
+          messages: [
+            { id: deliveredNoticeId },
+            { id: olderBounceNoticeId },
+            { id: bouncedNoticeId },
+          ],
+        },
+      },
+    );
+    const makeDsn = (key: string, action: "delivered" | "failed", internalDate: number) => ({
+      internalDate: String(internalDate),
+      payload: {
+        mimeType: "multipart/report",
+        parts: [
+          {
+            mimeType: "message/delivery-status",
+            body: {
+              data: Buffer.from(
+                `Action: ${action}\r\nStatus: ${action === "delivered" ? "2.0.0" : "5.1.1"}\r\n`,
+              ).toString("base64url"),
+            },
+          },
+          {
+            mimeType: "message/rfc822",
+            headers: [{ name: "Message-ID", value: `<${rfcMessageId(key)}>` }],
+            body: { data: Buffer.from("Original message").toString("base64url") },
+          },
+        ],
+      },
+    });
+    mockState.emailDeliveryMessageResponses.set(deliveredNoticeId, {
+      ok: true,
+      status: 200,
+      body: makeDsn(deliveredKey, "delivered", deliveredAt),
+    });
+    mockState.emailDeliveryMessageResponses.set(olderBounceNoticeId, {
+      ok: true,
+      status: 200,
+      body: makeDsn(deliveredKey, "failed", olderBounceAt),
+    });
+    mockState.emailDeliveryMessageResponses.set(bouncedNoticeId, {
+      ok: true,
+      status: 200,
+      body: makeDsn(bouncedKey, "failed", bouncedAt),
+    });
+
+    const temporaryFailure = await request("/admin/email/outbox", {}, "reviewer");
+    expect(temporaryFailure.response.status).toBe(200);
+    expect(temporaryFailure.body.map((message: any) => message.deliveryStatus))
+      .toEqual(["accepted", "accepted"]);
+
+    const refreshed = await request("/admin/email/outbox", {}, "reviewer");
+    expect(refreshed.response.status).toBe(200);
+    expect(refreshed.body.map((message: any) => message.deliveryStatus))
+      .toEqual(["delivered", "bounced"]);
+    expect(refreshed.body.map((message: any) => message.providerEvents.length))
+      .toEqual([2, 1]);
+    expect(refreshed.body[0].providerEventAt).toBe(new Date(deliveredAt).toISOString());
+    expect(mockState.emailDeliveryListRequests).toHaveLength(2);
+    expect(mockState.emailDeliveryMessageRequests).toHaveLength(3);
+
+    resetWorkspaceEmailDeliverySyncCache();
+    mockState.emailDeliveryListResponses.push({
+      ok: true,
+      status: 200,
+      body: {
+        messages: [
+          { id: deliveredNoticeId },
+          { id: olderBounceNoticeId },
+          { id: bouncedNoticeId },
+        ],
+      },
+    });
+    const duplicateNotices = await request("/admin/email/outbox", {}, "reviewer");
+    expect(duplicateNotices.response.status).toBe(200);
+    expect(duplicateNotices.body.map((message: any) => message.providerEvents.length))
+      .toEqual([2, 1]);
+    expect(mockState.emailDeliveryMessageRequests).toHaveLength(3);
+    expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(3);
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {

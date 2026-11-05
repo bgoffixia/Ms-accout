@@ -2357,7 +2357,7 @@ components:
         messageText: { type: string, minLength: 1, maxLength: 10000 }
     AdminEmailMessage:
       type: object
-      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
+      required: [id, recipientEmail, subject, messageText, eventKind, applicationReference, status, providerMessageId, deliveryStatus, providerEventAt, providerEvents, errorMessage, createdByUserId, attemptCount, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         recipientEmail: { type: string, format: email }
@@ -2369,11 +2369,23 @@ components:
         applicationReference: { type: ["string", "null"] }
         status: { type: string, enum: [sending, sent, failed] }
         providerMessageId: { type: ["string", "null"] }
+        deliveryStatus: { type: ["string", "null"], enum: [accepted, delivered, bounced, complained, null] }
+        providerEventAt: { type: ["string", "null"], format: date-time }
+        providerEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminEmailProviderEvent"
         errorMessage: { type: ["string", "null"] }
         createdByUserId: { type: ["string", "null"] }
         attemptCount: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    AdminEmailProviderEvent:
+      type: object
+      required: [deliveryStatus, providerEventAt]
+      properties:
+        deliveryStatus: { type: string, enum: [delivered, bounced, complained] }
+        providerEventAt: { type: string, format: date-time }
     AdminSmsSettings:
       type: object
       required: [baseUrl, senderId, credentialConfigured, deliveryReportUrl, deliveryReportsConfigured, dailyLimit, dailyUsageCount, canConfigure, updatedAt]

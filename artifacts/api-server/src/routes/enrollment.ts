@@ -165,6 +165,7 @@ import {
   supportTicketsTable,
   type StaffSmsOutboxRecord,
   staffEmailOutboxTable,
+  staffEmailProviderEventsTable,
   staffEmailTemplatesTable,
   type StaffEmailOutboxRecord,
 } from "@workspace/db";
@@ -201,6 +202,8 @@ import {
   isApprovedStaffSenderAddress,
   saveStaffEmailBranding,
   saveStaffEmailConfiguration,
+  refreshWorkspaceEmailDeliveryStatuses,
+  recordStaffEmailDeliveryEvent,
   type StaffEmailMessageKind,
 } from "../lib/staffEmail";
 
@@ -3813,6 +3816,10 @@ function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
     applicationReference: record.applicationReference ?? null,
     status: record.status,
     providerMessageId: record.providerMessageId ?? null,
+    deliveryStatus:
+      record.deliveryStatus ?? (record.status === "sent" ? "accepted" : null),
+    providerEventAt: record.providerEventAt ?? null,
+    providerEvents: [],
     errorMessage: record.errorMessage ?? null,
     createdByUserId: record.createdByUserId ?? null,
     attemptCount: record.attemptCount,
@@ -4163,14 +4170,54 @@ router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<v
 router.get("/admin/email/outbox", requireReviewer, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   try {
-    const records = await db
+    let records = await db
       .select()
       .from(staffEmailOutboxTable)
       .orderBy(desc(staffEmailOutboxTable.createdAt))
       .limit(100);
+    try {
+      await refreshWorkspaceEmailDeliveryStatuses(records);
+    } catch (error) {
+      req.log.warn({ err: error }, "Could not refresh Gmail delivery notices");
+    }
+    records = await db
+      .select()
+      .from(staffEmailOutboxTable)
+      .orderBy(desc(staffEmailOutboxTable.createdAt))
+      .limit(100);
+    const messageIds = records.map((record) => record.id);
+    const providerEvents = messageIds.length
+      ? await db
+          .select({
+            outboxId: staffEmailProviderEventsTable.outboxId,
+            deliveryStatus: staffEmailProviderEventsTable.deliveryStatus,
+            providerEventAt: staffEmailProviderEventsTable.providerEventAt,
+          })
+          .from(staffEmailProviderEventsTable)
+          .where(inArray(staffEmailProviderEventsTable.outboxId, messageIds))
+          .orderBy(
+            asc(staffEmailProviderEventsTable.providerEventAt),
+            asc(staffEmailProviderEventsTable.id),
+          )
+      : [];
+    const eventsByMessageId = new Map<
+      string,
+      { deliveryStatus: string; providerEventAt: Date }[]
+    >();
+    for (const event of providerEvents) {
+      const events = eventsByMessageId.get(event.outboxId) ?? [];
+      events.push({
+        deliveryStatus: event.deliveryStatus,
+        providerEventAt: event.providerEventAt,
+      });
+      eventsByMessageId.set(event.outboxId, events);
+    }
     res.json(
       ListAdminEmailOutboxResponse.parse(
-        records.map(serializeStaffEmailRecord),
+        records.map((record) => ({
+          ...serializeStaffEmailRecord(record),
+          providerEvents: eventsByMessageId.get(record.id) ?? [],
+        })),
       ),
     );
   } catch (error) {

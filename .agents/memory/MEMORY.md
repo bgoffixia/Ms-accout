@@ -6,3 +6,4 @@
 - [Reviewer email alerts](reviewer-email-alerts.md) — Start reviewer emails after category selection; send alerts for meaningful progress, evidence, corrections, and submission.
 - [Workspace email sending](workspace-email-sender.md) — Staff mail uses the connected Gmail identity; protect retries from duplicate sends with a Sent-folder check.
 - [Portal branding](portal-branding.md) — Use the exact M-soft Account Protection brand; keep security-status wording functional.
+- [Gmail delivery notices](gmail-delivery-notices.md) — Gmail acceptance is not proof of delivery; only explicit DSNs establish recipient delivery or bounce outcomes.
