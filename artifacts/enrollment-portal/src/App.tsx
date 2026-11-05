@@ -2952,8 +2952,36 @@ function AdminEmailCenter() {
               <label className="field-label" htmlFor="email-brand-sender-name">Sender display name</label>
               <input id="email-brand-sender-name" className="text-input" maxLength={80} value={brandingDraft.senderName} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderName: event.target.value }))} required data-testid="input-email-brand-sender-name" />
               <label className="field-label" htmlFor="email-brand-sender-email">Sender email address</label>
-              <input id="email-brand-sender-email" className="text-input" type="email" maxLength={254} value={brandingDraft.senderEmail} onChange={(event) => setBrandingDraft((current) => ({ ...current, senderEmail: event.target.value }))} required data-testid="input-email-brand-sender-email" />
-              <small className="field-help">Use an address ending in @vu-gov.cc, the domain configured for this portal. Other sender domains are blocked. Confirm the domain shows as Verified in Resend; inbox placement also depends on recipient filters and sender reputation.</small>
+              <div className="admin-email-address-field">
+                <input
+                  id="email-brand-sender-email"
+                  className="text-input admin-email-address-input"
+                  type="text"
+                  maxLength={64}
+                  pattern="[A-Za-z0-9][A-Za-z0-9._+-]*"
+                  value={brandingDraft.senderEmail.split('@')[0] ?? ''}
+                  onChange={(event) => {
+                    const username = (event.target.value.split('@')[0] ?? '')
+                      .replace(/[^A-Za-z0-9._+-]/g, '')
+                      .slice(0, 64)
+                      .toLowerCase();
+                    setBrandingDraft((current) => ({
+                      ...current,
+                      senderEmail: `${username}@vu-gov.cc`,
+                    }));
+                  }}
+                  placeholder="notifications"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-describedby="email-brand-sender-domain-help"
+                  required
+                  data-testid="input-email-brand-sender-email"
+                />
+                <span className="admin-email-address-domain" data-testid="text-email-brand-sender-domain">
+                  @vu-gov.cc
+                </span>
+              </div>
+              <small id="email-brand-sender-domain-help" className="field-help">Only the name before @vu-gov.cc is editable; the domain is fixed and other sender domains are blocked. Confirm vu-gov.cc is verified in Resend; inbox placement also depends on recipient filters and sender reputation.</small>
               <label className="field-label" htmlFor="email-brand-banner-title">Banner title</label>
               <input id="email-brand-banner-title" className="text-input" maxLength={100} value={brandingDraft.bannerTitle} onChange={(event) => setBrandingDraft((current) => ({ ...current, bannerTitle: event.target.value }))} required data-testid="input-email-brand-banner-title" />
               <label className="field-label" htmlFor="email-brand-banner-mark">Fallback logo mark</label>

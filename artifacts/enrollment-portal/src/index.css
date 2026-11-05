@@ -3978,6 +3978,11 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
 .admin-email-template-preview-brand b { color: #fff; font-size: 12px; }
 .admin-email-template-preview-brand small { color: #c5d6e2; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
 .admin-email-branding-fields { display: grid; gap: 8px; margin: 9px 0 5px; padding-top: 13px; border-top: 1px solid #ebf0ee; }
+.admin-email-address-field { display: flex; align-items: stretch; width: 100%; min-height: 43px; overflow: hidden; border: 1px solid #d8e1e8; border-radius: 10px; background: #fff; transition: border-color .18s ease, box-shadow .18s ease; }
+.admin-email-address-field:focus-within { border-color: #4f91b4; box-shadow: 0 0 0 3px #3f8bb41b; }
+.admin-email-address-input.text-input { flex: 1; width: auto; min-width: 0; border: 0; border-radius: 0; box-shadow: none; }
+.admin-email-address-input.text-input:focus { border: 0; box-shadow: none; }
+.admin-email-address-domain { display: flex; align-items: center; padding: 0 12px; border-left: 1px solid #d8e1e8; color: #426253; background: #f7faf9; font: 10px var(--app-font-mono); white-space: nowrap; }
 .admin-email-branding-heading { display: grid; gap: 4px; }
 .admin-email-branding-heading b { color: #315066; font-size: 11px; }
 .admin-email-branding-heading small { color: #7d8f96; font-size: 9px; line-height: 1.45; }
