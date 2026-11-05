@@ -51,7 +51,7 @@ export function SecurityHeroVisual() {
       <div className="security-data-ribbon">
         <span>SECURE ENROLLMENT</span><i /><span>YOUR INFORMATION, RESPECTED</span>
       </div>
-      <span className="security-hero-coordinate">SV–04&nbsp; / &nbsp;VERIFIED SPACE</span>
+      <span className="security-hero-coordinate">MS–04&nbsp; / &nbsp;VERIFIED SPACE</span>
     </div>
   );
 }

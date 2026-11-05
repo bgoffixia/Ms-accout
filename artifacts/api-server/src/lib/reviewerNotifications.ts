@@ -79,7 +79,7 @@ export async function sendReviewerNotification(
   const subject = `${title} · ${notification.reference}`;
   const text = [
     `Application reference: ${notification.reference}`,
-    `Category: ${notification.categoryName}`,
+    `Account Provider: ${notification.categoryName}`,
     `Saved section: ${stepLabel(notification.currentStep)}`,
     "The complete application record is available in the authenticated reviewer workspace.",
     link,

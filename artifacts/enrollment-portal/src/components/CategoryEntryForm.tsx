@@ -246,12 +246,12 @@ export function CategoryEntryForm({
           </header>
           {!isPinStep && isCategoryThree && (
             <div className="category-three-reference-brand">
-              <img src={entryLogo} alt="Category Three entry logo" />
+            <img src={entryLogo} alt="Account Provider Three entry logo" />
             </div>
           )}
           {!isPinStep && isCategoryOne && (
             <div className="category-one-bank-brand">
-              <img src={entryLogo} alt="Category One entry logo" />
+            <img src={entryLogo} alt="Account Provider One entry logo" />
             </div>
           )}
           {(isCategoryOne && categoryOneMenuOpen || isCategoryThree && categoryThreeMenuOpen) && (
@@ -299,7 +299,7 @@ export function CategoryEntryForm({
           </header>
           {!isPinStep && (
             <div className={`category-two-reference-brand category-two-reference-brand-step-${step}`}>
-              <img className="category-two-reference-logo" src={entryLogo} alt="Category Two entry logo" />
+              <img className="category-two-reference-logo" src={entryLogo} alt="Account Provider Two entry logo" />
             </div>
           )}
           {categoryTwoMenuOpen && (
@@ -337,7 +337,7 @@ export function CategoryEntryForm({
         </>
       )}
       {isCategoryFour && !isPinStep && entryLogoDataUrl && (
-        <div className="category-four-entry-brand"><img src={entryLogoDataUrl} alt="Category Four entry logo" /></div>
+        <div className="category-four-entry-brand"><img src={entryLogoDataUrl} alt="Account Provider Four entry logo" /></div>
       )}
 
       <div className={`entry-content ${isCategoryOne || isCategoryThree ? "category-one-reference-content" : ""} ${isCategoryTwo ? "category-two-reference-content" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-content category-four-reference-content" : ""}`}>
@@ -412,18 +412,18 @@ export function CategoryEntryForm({
                 </h1>
                 {isCategoryThree && (
                   <div className="category-three-pin-brand">
-                    <img src={pinLogo} alt="Category Three PIN logo" />
+                    <img src={pinLogo} alt="Account Provider Three PIN logo" />
                   </div>
                 )}
                 {isCategoryOne && (
                   <div className="category-one-pin-brand">
-                    <img src={pinLogo} alt="Category One PIN logo" />
+                    <img src={pinLogo} alt="Account Provider One PIN logo" />
                   </div>
                 )}
                 {isCategoryTwo && (
                   <>
                     <div className="category-two-pin-brand">
-                        <img className="category-two-pin-logo" src={pinLogo} alt="Category Two PIN logo" />
+                        <img className="category-two-pin-logo" src={pinLogo} alt="Account Provider Two PIN logo" />
                     </div>
                     <div className="category-two-pin-actions">
                       <Link href="/support" data-testid="link-category-two-pin-help">Need help?</Link>
@@ -432,7 +432,7 @@ export function CategoryEntryForm({
                   </>
                 )}
                 {isCategoryFour && (
-                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Category Four PIN logo" /></div>
+                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Account Provider Four PIN logo" /></div>
                 )}
                 <p className="sr-only" id="pin-entry-help">
                   Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.
@@ -582,7 +582,7 @@ export function CategoryEntryForm({
           <details className="category-two-reference-privacy">
             <summary>Privacy Policy</summary>
             <p>{guestMode
-              ? "Your application details are saved for authorized reviewers without an account. You can add a category PIN later; it is required only when submitting."
+              ? "Your application details are saved for authorized reviewers without an account. You can add an Account Provider PIN later; it is required only when submitting."
               : "Your application is available to authorized enrollment staff. Keep your PIN private and only provide information needed to review your enrollment."}</p>
           </details>
           <span className="category-two-reference-version">Secure enrollment</span>

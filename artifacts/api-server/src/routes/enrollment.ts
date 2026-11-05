@@ -236,43 +236,46 @@ async function notifyEnrollmentReviewer(
 const categories = [
   {
     id: "category-1",
-    name: "Enrollment Category One",
-    description: "Complete the registration process for Category One.",
+    name: "Account Provider One",
+    description: "Complete the enrollment for Account Provider One.",
     accent: "green",
   },
   {
     id: "category-2",
-    name: "Enrollment Category Two",
-    description: "Complete the registration process for Category Two.",
+    name: "Account Provider Two",
+    description: "Complete the enrollment for Account Provider Two.",
     accent: "cobalt",
   },
   {
     id: "category-3",
-    name: "Enrollment Category Three",
-    description: "Complete the registration process for Category Three.",
+    name: "Account Provider Three",
+    description: "Complete the enrollment for Account Provider Three.",
     accent: "ocean",
   },
   {
     id: "category-4",
-    name: "Enrollment Category Four",
-    description: "Complete the registration process for Category Four.",
+    name: "Account Provider Four",
+    description: "Complete the enrollment for Account Provider Four.",
     accent: "white",
   },
 ] as const;
 
+const PUBLIC_HERO_DESCRIPTION =
+  "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.";
+
 const defaultPortalSettings = {
   hero: {
     title: "Protect Your Account from Hackers",
-    description: "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
+    description: PUBLIC_HERO_DESCRIPTION,
     getStartedLabel: "Start security process",
     loginLabel: "Log In",
   },
   cards: [
     {
       id: "category-1",
-      title: "Enrollment Category One",
-      description: "Complete the registration process for Category One.",
-      buttonLabel: "Select Category",
+      title: "Account Provider One",
+      description: "Complete the enrollment for Account Provider One.",
+      buttonLabel: "Select Account Provider",
       backgroundColor: "#0EAD46",
       logoDataUrl: null,
       entryLogoDataUrl: null,
@@ -286,9 +289,9 @@ const defaultPortalSettings = {
     },
     {
       id: "category-2",
-      title: "Enrollment Category Two",
-      description: "Complete the registration process for Category Two.",
-      buttonLabel: "Select Category",
+      title: "Account Provider Two",
+      description: "Complete the enrollment for Account Provider Two.",
+      buttonLabel: "Select Account Provider",
       backgroundColor: "#0C4DA1",
       logoDataUrl: null,
       entryLogoDataUrl: null,
@@ -302,9 +305,9 @@ const defaultPortalSettings = {
     },
     {
       id: "category-3",
-      title: "Enrollment Category Three",
-      description: "Complete the registration process for Category Three.",
-      buttonLabel: "Select Category",
+      title: "Account Provider Three",
+      description: "Complete the enrollment for Account Provider Three.",
+      buttonLabel: "Select Account Provider",
       backgroundColor: "#0072AE",
       logoDataUrl: null,
       entryLogoDataUrl: null,
@@ -318,9 +321,9 @@ const defaultPortalSettings = {
     },
     {
       id: "category-4",
-      title: "Enrollment Category Four",
-      description: "Complete the registration process for Category Four.",
-      buttonLabel: "Select Category",
+      title: "Account Provider Four",
+      description: "Complete the enrollment for Account Provider Four.",
+      buttonLabel: "Select Account Provider",
       backgroundColor: "#FFFFFF",
       logoDataUrl: null,
       entryLogoDataUrl: null,
@@ -662,7 +665,7 @@ function guestRevisionChanges(
   }
   if (Boolean(application.pinHash) !== hasPin) {
     changes.push({
-      field: "Category PIN",
+      field: "Account Provider PIN",
       before: application.pinHash ? "Set" : "Not set",
       after: hasPin ? "Set (PIN value is never retained in history)" : "Not set",
     });
@@ -1030,13 +1033,13 @@ function validateFinalApplication(
   requireEvidence = true,
 ): string | null {
   if (!categories.some((category) => category.id === categoryId)) {
-    return "The selected enrollment category is invalid.";
+    return "The selected account provider is invalid.";
   }
   if (
     answers.categoryEntryComplete !== true ||
     !hasRequiredCategoryDetails(categoryId, answers)
   ) {
-    return "Complete the selected category's entry form first.";
+    return "Complete the selected account provider's entry form first.";
   }
   const personal = asRecord(answers.personalInformation);
   for (const [key, label] of [
@@ -1181,11 +1184,11 @@ function outstandingApplicationRequirements(
   const sectionHas = (section: string, fields: string[]) =>
     fields.every((field) => Boolean(nestedString(answers, section, field)));
 
-  if (!hasPin) missing.push("Create the category PIN");
+  if (!hasPin) missing.push("Create the Account Provider PIN");
   if (
     answers.categoryEntryComplete !== true ||
     !hasRequiredCategoryDetails(categoryId, answers)
-  ) missing.push("Complete the category entry details");
+  ) missing.push("Complete the account provider entry details");
   if (!sectionHas("personalInformation", [
     "firstName", "surname", "dateOfBirth", "nationality", "phone", "email",
     "residentialAddress", "stateRegion", "city",
@@ -1341,6 +1344,46 @@ async function loadPortalSettings() {
     .where(eq(portalSettingsTable.key, "portal"))
     .limit(1);
   const settings = GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
+  const providerNames = ["One", "Two", "Three", "Four"] as const;
+  for (const card of settings.cards) {
+    const categoryIndex = Number(card.id.replace("category-", "")) - 1;
+    const number = providerNames[categoryIndex];
+    if (!number) continue;
+    if (card.title === `Enrollment Category ${number}`) {
+      card.title = `Account Provider ${number}`;
+    }
+    if (card.description === `Complete the registration process for Category ${number}.`) {
+      card.description = `Complete the enrollment for Account Provider ${number}.`;
+    }
+    if (card.buttonLabel === "Select Category") {
+      card.buttonLabel = "Select Account Provider";
+    }
+  }
+  const dashboardCopy = settings.screenCopy?.dashboard;
+  if (dashboardCopy?.title === "Choose an enrollment category.") {
+    dashboardCopy.title = "Choose an account provider.";
+  }
+  if (dashboardCopy?.description === "Select a category to continue.") {
+    dashboardCopy.description = "Select an account provider to continue.";
+  }
+  if (dashboardCopy?.sectionIdLabel === "ENROLLMENT CATEGORIES") {
+    dashboardCopy.sectionIdLabel = "ACCOUNT PROVIDERS";
+  }
+  for (const [index, number] of providerNames.entries()) {
+    const entryCopy = settings.screenCopy?.[`category-entry-${index + 1}`];
+    if (entryCopy?.title === `Category ${number}`) {
+      entryCopy.title = `Account Provider ${number}`;
+    }
+    if (entryCopy?.sectionIdLabel === "ENROLLMENT CATEGORY") {
+      entryCopy.sectionIdLabel = "ACCOUNT PROVIDER";
+    }
+    if (entryCopy?.nameLabel === "Category entry name") {
+      entryCopy.nameLabel = "Account Provider entry name";
+    }
+    if (entryCopy?.pinLabel === "Category PIN") {
+      entryCopy.pinLabel = "Account Provider PIN";
+    }
+  }
   const previousHeroDefaults = {
     title: "Security",
     description: "We protect systems, data, and users through strong controls and monitoring.",
@@ -1373,6 +1416,10 @@ async function loadPortalSettings() {
   if (landingCopy?.title === legacyTitle) landingCopy.title = defaultPortalSettings.hero.title;
   if (landingCopy?.description === legacyDescription) {
     landingCopy.description = defaultPortalSettings.hero.description;
+  }
+  settings.hero.description = PUBLIC_HERO_DESCRIPTION;
+  if (landingCopy) {
+    landingCopy.description = PUBLIC_HERO_DESCRIPTION;
   }
   return settings;
 }
@@ -1537,7 +1584,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       const requiredLength = categoryPinLength(application.categoryId);
       if (parsedBody.data.pin.length !== requiredLength) {
         res.status(400).json({
-          error: `This category requires an exactly ${requiredLength}-digit PIN.`,
+        error: `This account provider requires an exactly ${requiredLength}-digit PIN.`,
         });
         return;
       }
@@ -1560,7 +1607,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
     );
     if (application.pinHash && pinHash && application.pinHash !== pinHash) {
       changes.push({
-        field: "Category PIN",
+        field: "Account Provider PIN",
         before: "Set",
         after: "Replaced (PIN value is never retained in history)",
       });
@@ -2002,7 +2049,7 @@ router.post(
         return;
       }
       if (!preapplication.pinHash) {
-        res.status(400).json({ error: "Create a category PIN before submitting the application." });
+        res.status(400).json({ error: "Create an Account Provider PIN before submitting the application." });
         return;
       }
       if (!(await guestEvidencePathsAreOwned(preapplication.id, preapplication.answers ?? {}))) {
@@ -2156,7 +2203,7 @@ router.post(
         return;
       }
       if (!preapplication.pinHash) {
-        res.status(400).json({ error: "Create a category PIN before submitting the application." });
+        res.status(400).json({ error: "Create an Account Provider PIN before submitting the application." });
         return;
       }
       const answers = preapplication.answers ?? {};
@@ -2415,7 +2462,7 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   }
   if (parsed.data.pin.length !== categoryPinLength(categoryId)) {
     res.status(400).json({
-      error: `This category requires an exactly ${categoryPinLength(categoryId)}-digit PIN.`,
+      error: `This account provider requires an exactly ${categoryPinLength(categoryId)}-digit PIN.`,
     });
     return;
   }
@@ -2567,7 +2614,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
   const nextCategoryId = parsed.data.categoryId;
   if (application.status === "needs_information" && nextCategoryId) {
     res.status(403).json({
-      error: "An application under correction cannot change its selected category.",
+      error: "An application under correction cannot change its selected account provider.",
     });
     return;
   }
@@ -2581,7 +2628,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
       parsed.data.pinConfirmation !== undefined)
   ) {
     res.status(400).json({
-      error: "Change the category separately before editing the new application.",
+      error: "Change the account provider separately before editing the new application.",
     });
     return;
   }
@@ -2608,7 +2655,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     parsed.data.pin.length !== categoryPinLength(application.categoryId)
   ) {
     res.status(400).json({
-      error: `This category requires an exactly ${categoryPinLength(application.categoryId)}-digit PIN.`,
+      error: `This account provider requires an exactly ${categoryPinLength(application.categoryId)}-digit PIN.`,
     });
     return;
   }
@@ -2673,7 +2720,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     !hasRequiredCategoryDetails(application.categoryId, nextAnswers)
   ) {
     res.status(400).json({
-      error: "Enter all required category details before continuing.",
+      error: "Enter all required account provider details before continuing.",
     });
     return;
   }
@@ -2683,7 +2730,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     !parsed.data.pin
   ) {
     res.status(400).json({
-      error: "Create the required category PIN before continuing.",
+      error: "Create the required Account Provider PIN before continuing.",
     });
     return;
   }
@@ -2692,12 +2739,12 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     !parsed.data.pin &&
     !application.pinHash
   ) {
-    res.status(400).json({ error: "Create the required category PIN before continuing." });
+    res.status(400).json({ error: "Create the required Account Provider PIN before continuing." });
     return;
   }
   if (entryIsComplete && !hasRequiredCategoryDetails(application.categoryId, nextAnswers)) {
     res.status(400).json({
-      error: "Enter all required category details before saving this application.",
+      error: "Enter all required account provider details before saving this application.",
     });
     return;
   }
@@ -2761,7 +2808,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
       const savedPosition = parsed.data.currentStep ?? application.currentStep;
       const note =
         submittedAnswers?.categoryEntryComplete === true && savedPosition === 0
-          ? "Category details and enrollment PIN saved."
+          ? "Account Provider details and PIN saved."
           : savedPosition === 7
             ? "Final review saved."
             : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
@@ -2829,7 +2876,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
   if (application.status === "draft") {
     if (body.data.categoryId && body.data.categoryId !== application.categoryId) {
       res.status(409).json({
-        error: "The selected category changed. Refresh the application before submitting.",
+        error: "The selected account provider changed. Refresh the application before submitting.",
       });
       return;
     }
@@ -2861,7 +2908,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
     if (body.data.pin) {
       if (body.data.pin.length !== categoryPinLength(application.categoryId)) {
         res.status(400).json({
-          error: `This category requires an exactly ${categoryPinLength(application.categoryId)}-digit PIN.`,
+          error: `This account provider requires an exactly ${categoryPinLength(application.categoryId)}-digit PIN.`,
         });
         return;
       }
@@ -3718,6 +3765,11 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
   if (new Set(ids).size !== 4 || categories.some((category) => !ids.includes(category.id))) {
     res.status(400).json({ error: "Settings must contain each of the four enrollment cards exactly once." });
     return;
+  }
+  parsed.data.hero.description = PUBLIC_HERO_DESCRIPTION;
+  const landingCopy = parsed.data.screenCopy.landing;
+  if (landingCopy) {
+    landingCopy.description = PUBLIC_HERO_DESCRIPTION;
   }
   if (parsed.data.cards.some((card) =>
     !validatePublicImageDataUrl(card.logoDataUrl)

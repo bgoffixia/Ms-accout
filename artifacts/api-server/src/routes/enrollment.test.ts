@@ -612,6 +612,60 @@ describe("guest application verification and persistence", () => {
     return { response, body };
   }
 
+  it("overrides saved admin hero descriptions with the fixed public copy", async () => {
+    const defaults = await request("/portal/settings");
+    const configured = {
+      ...defaults.body,
+      hero: {
+        ...defaults.body.hero,
+        description: "An older admin-configured hero description.",
+      },
+      screenCopy: {
+        ...defaults.body.screenCopy,
+        landing: {
+          ...defaults.body.screenCopy.landing,
+          description: "An older admin-configured landing description.",
+        },
+      },
+    };
+    mockState.rows.set("portal_settings", [
+      newRow("portal_settings", { key: "portal", value: configured }),
+    ]);
+
+    const loaded = await request("/portal/settings");
+
+    expect(loaded.response.status).toBe(200);
+    expect(loaded.body.hero.description).toBe(
+      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
+    );
+    expect(loaded.body.screenCopy.landing.description).toBe(
+      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
+    );
+
+    const attemptedAdminOverride = {
+      ...loaded.body,
+      hero: { ...loaded.body.hero, description: "Another admin-configured description." },
+      screenCopy: {
+        ...loaded.body.screenCopy,
+        landing: {
+          ...loaded.body.screenCopy.landing,
+          description: "Another admin-configured landing description.",
+        },
+      },
+    };
+    const saved = await request("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(attemptedAdminOverride),
+    }, "administrator");
+    expect(saved.response.status).toBe(200);
+    expect(saved.body.hero.description).toBe(
+      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
+    );
+    expect(saved.body.screenCopy.landing.description).toBe(
+      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
+    );
+  });
+
   it("grants the additional admin role only in development and only after email verification", async () => {
     const originalNodeEnv = process.env.NODE_ENV;
     try {
@@ -713,6 +767,18 @@ describe("guest application verification and persistence", () => {
   }
 
   it("notifies the sub-admin when a new guest contact record is created without putting applicant PII in the email", async () => {
+    mockState.rows.set("staff_email_settings", [newRow("staff_email_settings", {
+      key: "global",
+      branding: {
+        senderName: "Security Verification",
+        bannerMark: "SV",
+        bannerTitle: "Security Verification",
+        bannerSubtitle: "ENROLLMENT PORTAL",
+        preheaderText: "A message from the Security Verification Enrollment Portal team.",
+        footerText: "Enrollment Portal staff communications",
+        footerLinkText: "Visit the enrollment portal",
+      },
+    })]);
     const created = await createGuestDraft();
     expect(mockState.emailRequests).toHaveLength(1);
     const sent = mockState.emailRequests[0];
@@ -724,8 +790,9 @@ describe("guest application verification and persistence", () => {
     expect(subject).toContain(created.body.reference);
     expect(text).toContain(created.body.reference);
     expect(text).not.toContain(contactEmail);
-    expect(html).toContain("Security Verification");
-    expect(html).toContain("ENROLLMENT PORTAL");
+    expect(html).toContain("M-soft Account Protection");
+    expect(html).toContain("Bank Grade Security System");
+    expect(html).not.toContain("Security Verification");
     expect(html).toContain(created.body.reference);
     expect(html).not.toContain(contactEmail);
     expect(mime).toMatch(/Message-ID: <[a-f0-9]{64}@vu-gov\.cc>/);
@@ -2127,7 +2194,7 @@ describe("guest application verification and persistence", () => {
     expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("4826");
   });
 
-  it("allows partial guest submission before email verification while keeping the category PIN mandatory", async () => {
+  it("allows partial guest submission before email verification while keeping the Account Provider PIN mandatory", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",
       body: JSON.stringify({
@@ -2148,7 +2215,7 @@ describe("guest application verification and persistence", () => {
       "applicant-verified",
     );
     expect(missingPin.response.status).toBe(400);
-    expect(missingPin.body.error).toContain("category PIN");
+    expect(missingPin.body.error).toContain("Account Provider PIN");
 
     const initialProgress = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",

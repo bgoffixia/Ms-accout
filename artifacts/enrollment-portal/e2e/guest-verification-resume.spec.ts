@@ -29,7 +29,7 @@ class GuestApiFixture {
   accessKey = "";
   createCount = 0;
   lookupCount = 0;
-  categoryOneTitle = "Category One";
+  categoryOneTitle = "Account Provider One";
   screenCopyOverrides: Record<string, Record<string, string>> = {};
   readonly uploadedEvidence: { id: string; slot: string; objectPath: string }[] = [];
   private evidenceId = 0;
@@ -45,8 +45,8 @@ class GuestApiFixture {
     if (method === "GET" && path === "/api/enrollment/categories") {
       return json(["category-1", "category-2", "category-3", "category-4"].map((id, index) => ({
         id,
-        name: `Category ${index + 1}`,
-        description: "Enrollment application category.",
+        name: `Account Provider ${index + 1}`,
+        description: "Account provider enrollment.",
         accent: "#168341",
       })));
     }
@@ -83,7 +83,7 @@ class GuestApiFixture {
         },
         screenCopy: {
           dashboard: {
-            title: "Choose a category to begin.",
+          title: "Choose an account provider.",
             description: "This dashboard introduction should appear once.",
             sectionIdLabel: "START ENROLLMENT",
           },
@@ -312,7 +312,7 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const body = path === "/api/enrollment/categories"
-      ? [{ id: "category-1", name: "Category One", description: "Enrollment category.", accent: "#168341" }]
+      ? [{ id: "category-1", name: "Account Provider One", description: "Account provider enrollment.", accent: "#168341" }]
       : path === "/api/portal/settings"
         ? {
             hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
@@ -368,7 +368,7 @@ test("starts from the public shared dashboard and opens the selected category fo
   await expect(page.getByTestId("link-nav-track")).toHaveCount(1);
   await expect(page.getByTestId("link-nav-admin")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Admin access" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Choose a category to begin." })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Choose an account provider." })).toHaveCount(1);
   await expect(page.getByText("This dashboard introduction should appear once.")).toHaveCount(1);
   await expect(page.getByTestId("guest-dashboard-category-category-1")).toBeVisible();
   await expect(page.getByTestId("guest-dashboard-category-category-4")).toBeVisible();
@@ -681,10 +681,10 @@ test("submits without email OTP and opens status with the private tracking key",
 
 test("lets guests skip incomplete fields but requires a PIN before enrollment details", async ({ page }) => {
   const api = new GuestApiFixture();
-  api.categoryOneTitle = "Configured Category One";
+  api.categoryOneTitle = "Configured Account Provider One";
   api.screenCopyOverrides = {
     "category-entry-1": {
-      sectionIdLabel: "CONFIGURED CATEGORY LABEL",
+      sectionIdLabel: "CONFIGURED ACCOUNT PROVIDER LABEL",
       nameLabel: "Configured entry name",
       nicknameLabel: "Configured entry nickname",
     },
@@ -732,8 +732,8 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await expect(page.getByTestId("enrollment-preview")).toContainText("Configured final preview");
   await expect(page.getByTestId("review-section-0")).toContainText("Configured personal details");
   await expect(page.getByTestId("review-firstName")).toContainText("Configured first name");
-  await expect(page.getByTestId("review-category")).toContainText("CONFIGURED CATEGORY LABEL");
-  await expect(page.getByTestId("review-category")).toContainText("Configured Category One");
+  await expect(page.getByTestId("review-category")).toContainText("CONFIGURED ACCOUNT PROVIDER LABEL");
+  await expect(page.getByTestId("review-category")).toContainText("Configured Account Provider One");
   await expect(page.getByTestId("review-category-name")).toContainText("Configured entry name");
   await expect(page.getByTestId("review-category-name")).toContainText("Not provided");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Configured entry nickname");
