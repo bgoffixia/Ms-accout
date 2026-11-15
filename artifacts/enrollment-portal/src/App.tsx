@@ -1743,6 +1743,7 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['nicknameLabel', 'Nickname field label', 'Nickname'],
+        ['surnameLabel', 'Additional surname field label', 'Surname'],
         ['pinLabel', 'PIN prompt label', 'Please enter your PIN'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
@@ -1982,7 +1983,7 @@ function AdminSettings() {
               </label>
               <label className="settings-check"><input type="checkbox" checked={copy.pinRequired !== 'false'} onChange={(event) => updateScreenCopy(screen, 'pinRequired', String(event.target.checked))} /> Require account provider PIN</label>
               <label className="settings-check"><input type="checkbox" checked={copy.nameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nameEnabled', String(event.target.checked))} /> Show first field</label>
-              <label className="settings-check"><input type="checkbox" checked={copy.nicknameEnabled === 'true' || (copy.nicknameEnabled !== 'false' && screen === 'category-entry-1')} onChange={(event) => updateScreenCopy(screen, 'nicknameEnabled', String(event.target.checked))} /> Show nickname field</label>
+              {screen === 'category-entry-1' && <label className="settings-check"><input type="checkbox" checked={copy.nicknameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nicknameEnabled', String(event.target.checked))} /> Show nickname field</label>}
               <label className="settings-check"><input type="checkbox" checked={copy.surnameEnabled === 'true' || (copy.surnameEnabled !== 'false' && screen !== 'category-entry-1')} onChange={(event) => updateScreenCopy(screen, 'surnameEnabled', String(event.target.checked))} /> Show surname field</label>
             </div>
             <p className="field-help">Choose which provider fields appear and whether the PIN step is required. The PIN keypad accepts the configured number of digits.</p>
