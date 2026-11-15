@@ -403,7 +403,7 @@ export function CategoryEntryForm({
                 </button>
 
                 <h1 id="pin-entry-heading" className="pin-entry-title" aria-live="polite">
-                  {screenCopy.pinLabel || screenCopy.pinPrompt || (isCategoryTwo ? "Create a 6-digit PIN" : "Please enter your PIN")}
+                  {screenCopy.pinLabel || screenCopy.pinPrompt || (isCategoryTwo ? `Create a ${pinLength}-digit PIN` : "Please enter your PIN")}
                 </h1>
                 {isCategoryThree && (
                   <div className="category-three-pin-brand">
