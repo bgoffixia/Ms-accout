@@ -13,7 +13,6 @@ import {
 import {
   getGetApplicationQueryKey, getGetApplicantSummaryQueryKey,
   getGetAdminApplicationHistoryQueryKey, getGetAdminApplicationQueryKey,
-  getGetAdminApplicationPinQueryKey, getGetAdminGuestPreapplicationPinQueryKey,
   getGetAdminGuestApplicationHistoryQueryKey,
   getGetAdminOverviewQueryKey,
   getGetAdminEmailSettingsQueryKey,
@@ -33,7 +32,6 @@ import {
   useSubmitGuestPreapplication,
   useCreateSupportTicket, useDecideApplication, useDeleteMyDrafts,
   useGetAdminApplication, useGetAdminApplicationHistory, useGetAdminGuestApplicationHistory, useGetAdminOverview,
-  useGetAdminApplicationPin, useGetAdminGuestPreapplicationPin,
   useGetAdminEmailSettings, useListAdminEmailOutbox, useUpdateAdminEmailSettings,
   useListAdminEmailTemplates, useCreateAdminEmailTemplate, useUpdateAdminEmailTemplate, useDeleteAdminEmailTemplate,
   useSendAdminEmail, useRetryAdminEmail, useRequestAdminEmailLogoUpload, useCompleteAdminEmailLogoUpload,
@@ -916,13 +914,12 @@ function DraftApplication() {
         if (!user?.id) throw new Error('The signed-in account could not be confirmed.');
         const record = getSessionDraft(application.id, user.id);
         if (!record) throw new Error('This session-only application is no longer available.');
-        if (!record.pin) throw new Error('Create the Account Provider PIN before submitting.');
         saved = await submitNew.mutateAsync({
           data: {
             submissionId: record.submissionId,
             categoryId: application.categoryId,
             answers,
-            pin: record.pin,
+            referenceCode: record.application.referenceCode ?? undefined,
           },
         });
         removeSessionDraft(application.id, user.id);
@@ -951,17 +948,16 @@ function DraftApplication() {
       savedAnswers={application.answers ?? {}}
       isSaving={!sessionOnlyRoute && update.isPending}
       error={feedback}
-      pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
       categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
+      referenceCodeVisible={categoryEntryCopy.referenceCodeVisible !== 'false'}
+      referenceCodeLabel={categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code'}
+      savedReferenceCode={application.referenceCode}
       screenCopy={categoryEntryCopy}
       pageTheme={portalSettings.data?.pageThemes?.[categoryEntryScreenId]}
       entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
-      pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
       entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
       entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
-      pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
-      pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
-      onComplete={(entryAnswers: CategoryEntryAnswers, entryPin: string) => {
+      onComplete={(entryAnswers: CategoryEntryAnswers, referenceCode: string | null) => {
         setFeedback('');
         if (sessionOnlyRoute) {
           if (!user?.id) {
@@ -971,8 +967,8 @@ function DraftApplication() {
           const saved = updateSessionDraft(application.id, user.id, {
             currentStep: 0,
             answers: { ...application.answers, ...entryAnswers, categoryEntryComplete: true },
-            hasPin: true,
-          }, entryPin);
+            referenceCode,
+          });
           if (!saved) {
             setFeedback('This session-only application is no longer available. Start a new application.');
             return;
@@ -985,7 +981,7 @@ function DraftApplication() {
           data: {
             currentStep: 0,
             answers: { ...application.answers, ...entryAnswers, categoryEntryComplete: true },
-            pin: entryPin,
+            referenceCode: referenceCode ?? '',
           },
         }, {
           onSuccess: (saved) => {
@@ -1502,8 +1498,6 @@ function AdminSettings() {
         cardLogoVerticalOffset: card.cardLogoVerticalOffset ?? 0,
         entryLogoAlignment: card.entryLogoAlignment ?? normalizeAlignment(legacyCopy.entryLogoAlignment),
         entryLogoVerticalOffset: card.entryLogoVerticalOffset ?? parseOffset(legacyCopy.entryLogoVerticalOffset),
-        pinLogoAlignment: card.pinLogoAlignment ?? normalizeAlignment(legacyCopy.entryLogoAlignment),
-        pinLogoVerticalOffset: card.pinLogoVerticalOffset ?? parseOffset(legacyCopy.entryLogoVerticalOffset),
       };
     }),
     pageThemes: normalizePageThemes(settings.pageThemes),
@@ -1620,7 +1614,7 @@ function AdminSettings() {
       },
     } : current);
   };
-  const uploadLogo = (cardId: string, field: 'logoDataUrl' | 'entryLogoDataUrl' | 'pinLogoDataUrl', file?: File) => {
+  const uploadLogo = (cardId: string, field: 'logoDataUrl' | 'entryLogoDataUrl', file?: File) => {
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
       setError('Choose a PNG, JPEG, or WebP image no larger than 2 MB.');
@@ -1636,43 +1630,31 @@ function AdminSettings() {
     reader.onerror = () => setError('The image could not be read.');
     reader.readAsDataURL(file);
   };
-  const logoEditor = (card: PortalSettingsCardsItem, placement: 'card' | 'entry' | 'pin') => {
+  const logoEditor = (card: PortalSettingsCardsItem, placement: 'card' | 'entry') => {
     const assetField = placement === 'card'
       ? 'logoDataUrl'
-      : placement === 'entry'
-        ? 'entryLogoDataUrl'
-        : 'pinLogoDataUrl';
+      : 'entryLogoDataUrl';
     const alignmentField = placement === 'card'
       ? 'cardLogoAlignment'
-      : placement === 'entry'
-        ? 'entryLogoAlignment'
-        : 'pinLogoAlignment';
+      : 'entryLogoAlignment';
     const offsetField = placement === 'card'
       ? 'cardLogoVerticalOffset'
-      : placement === 'entry'
-        ? 'entryLogoVerticalOffset'
-        : 'pinLogoVerticalOffset';
+      : 'entryLogoVerticalOffset';
     const activeAsset = card[assetField];
     const fallbackAsset = placement === 'card'
       ? fallbackLogoForCategory(card.id)
-      : placement === 'entry'
-        ? card.logoDataUrl || fallbackLogoForCategory(card.id)
-        : card.entryLogoDataUrl || card.logoDataUrl || fallbackLogoForCategory(card.id);
+      : card.logoDataUrl || fallbackLogoForCategory(card.id);
     const previewAsset = activeAsset || fallbackAsset;
     const alignment = typeof card[alignmentField] === 'string' ? card[alignmentField] as string : placement === 'card' ? 'left' : 'center';
     const offset = typeof card[offsetField] === 'number' ? card[offsetField] as number : 0;
     const limit = placement === 'card' ? 48 : 120;
     const editorTitle = placement === 'card'
       ? 'Account Provider card logo'
-      : placement === 'entry'
-        ? 'Entry form logo'
-        : 'PIN screen logo';
+      : 'Entry form logo';
     const inputTestId = `input-settings-${placement}-logo-${card.id}`;
     const resetLabel = placement === 'card'
       ? 'Use built-in Account Provider logo'
-      : placement === 'entry'
-        ? 'Use Account Provider card logo'
-        : 'Use entry form logo';
+      : 'Use Account Provider card logo';
     return <div className="settings-logo-editor" key={placement} data-testid={`settings-logo-editor-${placement}-${card.id}`}>
       <div className="settings-logo-editor-heading">
         <div><b>{editorTitle}</b><small>PNG, JPEG, or WebP · up to 2 MB</small></div>
@@ -1748,7 +1730,7 @@ function AdminSettings() {
         ['nameLabel', 'Name field label', 'Name'],
         ['nicknameLabel', 'Nickname field label', 'Nickname'],
         ['surnameLabel', 'Additional surname field label', 'Surname'],
-        ['pinLabel', 'PIN prompt label', 'Please enter your PIN'],
+        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
     },
@@ -1758,7 +1740,7 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Login field label', 'Login'],
         ['surnameLabel', 'Surname field label', 'Surname'],
-        ['pinLabel', 'PIN prompt label', 'Please enter your PIN'],
+        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'First step button text', 'Connect'],
         ['buttonLabelStep2', 'Second step button text', 'Continue'],
       ],
@@ -1769,7 +1751,7 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['surnameLabel', 'Surname field label', 'Surname'],
-        ['pinLabel', 'PIN prompt label', 'Please enter your PIN'],
+        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
     },
@@ -1779,7 +1761,7 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['surnameLabel', 'Surname field label', 'Surname'],
-        ['pinLabel', 'PIN prompt label', 'Please enter your PIN'],
+        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
     },
@@ -1909,14 +1891,12 @@ function AdminSettings() {
          <div className="settings-logo-editors">
            {logoEditor(card, 'card')}
            {logoEditor(card, 'entry')}
-           {logoEditor(card, 'pin')}
          </div>
       </article>)}
     </section>
     <section className="detail-card settings-panel" id="settings-appearance" aria-labelledby="settings-appearance-title">
       <div className="detail-card-title"><Settings size={17} /><h2 id="settings-appearance-title">Form and button appearance</h2></div>
       <div className="settings-inline-fields">
-        <label className="field-label settings-color-field">PIN screen background<input type="color" value={draft.theme.pinScreenBackground} onChange={(event) => updateTheme('pinScreenBackground', event.target.value.toUpperCase())} /></label>
         <label className="field-label">Primary button size<select className="text-input select-input" value={draft.theme.buttonSize} onChange={(event) => updateTheme('buttonSize', event.target.value)}><option value="compact">Compact</option><option value="standard">Standard</option><option value="large">Large</option></select></label>
         <label className="field-label">Primary button placement<select className="text-input select-input" value={draft.theme.buttonPlacement} onChange={(event) => updateTheme('buttonPlacement', event.target.value)}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
       </div>
@@ -1958,7 +1938,7 @@ function AdminSettings() {
     </section>
     <section className="detail-card settings-panel" id="settings-category-copy" aria-labelledby="settings-category-copy-title">
       <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Account Provider entry form labels and buttons</h2></div>
-      <p className="field-help">Customize the visible field labels, PIN prompts, and action buttons for each account provider. Leave a field blank to use its current default.</p>
+      <p className="field-help">Customize entry-field labels, the optional Reference Code, and action buttons. Reference Codes are plain-text tracking metadata, never an authentication factor.</p>
       <div className="settings-screen-list">
         {categoryEntrySettings.map(({ screen, title, fields }) => {
           const copy = draft.screenCopy[screen] ?? {};
@@ -1966,7 +1946,9 @@ function AdminSettings() {
           const resolvedText = (key: string, fallback: string) => copy[key]?.trim() || fallback;
           const previewFields = fields.filter(([key]) => ['nameLabel', 'nicknameLabel', 'surnameLabel'].includes(key));
           const previewButtons = fields.filter(([key]) => key.startsWith('buttonLabel'));
-          const pinPrompt = fields.find(([key]) => key === 'pinLabel');
+          const referenceCodeField = fields.find(([key]) => key === 'referenceCodeLabel');
+          const referenceCodeVisible = copy.referenceCodeVisible !== 'false';
+          const publishedReferenceCodeVisible = publishedCopy.referenceCodeVisible !== 'false';
           return <details className="settings-screen" key={screen} data-testid={`settings-category-entry-${screen}`}>
             <summary>{title}<span>{screen}</span></summary>
             <div className="settings-inline-fields">
@@ -1981,16 +1963,22 @@ function AdminSettings() {
                 />
               </label>)}
             </div>
-            <div className="settings-inline-fields" aria-label={title + ' field and PIN configuration'}>
-              <label className="field-label">PIN length (4–12 digits)
-                <input className="text-input" type="number" min={4} max={12} value={copy.pinLength ?? (screen === 'category-entry-2' ? '6' : '4')} onChange={(event) => updateScreenCopy(screen, 'pinLength', event.target.value)} data-testid={'input-copy-' + screen + '-pinLength'} />
-              </label>
+            <div className="settings-inline-fields" aria-label={`${title} field configuration`}>
               <label className="settings-check"><input type="checkbox" checked={copy.nameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nameEnabled', String(event.target.checked))} /> Show first field</label>
               {screen === 'category-entry-1' && <label className="settings-check"><input type="checkbox" checked={copy.nicknameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nicknameEnabled', String(event.target.checked))} /> Show nickname field</label>}
               <label className="settings-check"><input type="checkbox" checked={copy.surnameEnabled === 'true' || (copy.surnameEnabled !== 'false' && screen !== 'category-entry-1')} onChange={(event) => updateScreenCopy(screen, 'surnameEnabled', String(event.target.checked))} /> Show surname field</label>
             </div>
-            <p className="field-help">Choose which provider fields appear. The PIN step remains mandatory, and its keypad accepts the configured number of digits.</p>
-            <section className="settings-published-copy" aria-label={title + ' current published text'} data-testid={'published-copy-' + screen}>
+            <p className="field-help">Choose which provider fields appear. Reference Codes are optional plain-text tracking metadata, not authentication factors.</p>
+            <label className="settings-check">
+              <input
+                type="checkbox"
+                checked={referenceCodeVisible}
+                onChange={(event) => updateScreenCopy(screen, 'referenceCodeVisible', String(event.target.checked))}
+                data-testid={`toggle-reference-code-${screen}`}
+              />
+              Show optional Reference Code field
+            </label>
+            <section className="settings-published-copy" aria-label={`${title} current published text`} data-testid={`published-copy-${screen}`}>
               <span className="settings-category-preview-caption">Currently published on this screen</span>
               <div className="settings-published-copy-list">
                 {fields.map(([key, label, defaultText]) => <p key={key}><b>{label}</b><span>{publishedCopy[key]?.trim() || defaultText}</span></p>)}
@@ -2004,9 +1992,11 @@ function AdminSettings() {
                   <div aria-hidden="true" />
                 </div>)}
               </div>
-              {pinPrompt && <div className="settings-category-preview-pin">
-                <span>{resolvedText(pinPrompt[0], pinPrompt[2])}</span>
+              {referenceCodeField && referenceCodeVisible && <div className="settings-category-preview-field">
+                <span>{resolvedText(referenceCodeField[0], referenceCodeField[2])}</span>
+                <div aria-hidden="true" />
               </div>}
+              {referenceCodeField && <p className="field-help">Currently published: {publishedReferenceCodeVisible ? 'Reference Code is visible' : 'Reference Code is hidden'} · {publishedCopy.referenceCodeLabel?.trim() || 'Reference Code'}</p>}
               <div className="settings-category-preview-actions">
                 {previewButtons.map(([key, label, defaultText]) => <div className="settings-category-preview-action" key={key}>
                   <small>{label}</small>
@@ -2049,7 +2039,7 @@ function AdminSettings() {
             </div>
           </section>
           <div className="settings-inline-fields">
-            {keys.map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'pinLabel' ? 'PIN prompt label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}{screen === 'landing' && key === 'description' ? ' (fixed)' : ''}
+            {keys.map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'referenceCodeLabel' ? 'Reference Code label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}{screen === 'landing' && key === 'description' ? ' (fixed)' : ''}
               <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key === 'backButtonLabel' ? 60 : 500} placeholder="Use portal default" readOnly={screen === 'landing' && key === 'description'} onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
             </label>)}
           </div>
@@ -2177,10 +2167,6 @@ function AdminApplicationReview() {
   const params = useParams<{ applicationId?: string }>();
   const id = params.applicationId ?? '';
   const review = useGetAdminApplication(id);
-  const pinQuery = useGetAdminApplicationPin(id, {
-    query: { queryKey: getGetAdminApplicationPinQueryKey(id), enabled: false, gcTime: 0 },
-    request: { cache: 'no-store' },
-  });
   const portalSettings = useGetPortalSettings();
   const history = useGetAdminApplicationHistory(id);
   const guestHistory = useGetAdminGuestApplicationHistory(id, {
@@ -2196,21 +2182,6 @@ function AdminApplicationReview() {
   const [internalNote, setInternalNote] = useState('');
   const [requestedSections, setRequestedSections] = useState<number[]>([]);
   const [error, setError] = useState('');
-  const [pinRevealed, setPinRevealed] = useState(false);
-  const [pinFeedback, setPinFeedback] = useState('');
-  const revealOrHidePin = async () => {
-    if (pinRevealed) {
-      setPinRevealed(false);
-      setPinFeedback('');
-      queryClient.removeQueries({ queryKey: getGetAdminApplicationPinQueryKey(id) });
-      return;
-    }
-    setPinFeedback('');
-    const result = await pinQuery.refetch();
-    if (result.data?.available && result.data.pin) setPinRevealed(true);
-    else if (result.isError) setPinFeedback('The PIN could not be retrieved. Please try again.');
-    else setPinFeedback('This PIN was saved before reviewer reveal was available and cannot be recovered. The applicant must set a new PIN.');
-  };
   if (review.isLoading) return <AdminShell><LoadingPanel /></AdminShell>;
   if (review.isError) return <AdminShell><AccessError retry={() => void review.refetch()} /></AdminShell>;
   const application = review.data;
@@ -2307,11 +2278,8 @@ function AdminApplicationReview() {
         <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected card')}</span><b>{categoryTitle}</b></div>
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
-        <div className="review-field"><span>Account Provider PIN</span><b>{pinRevealed ? pinQuery.data?.pin : application.hasPin ? 'Set (hidden)' : 'Not set'}</b></div>
-        {application.hasPin && <button type="button" className="text-action" onClick={() => void revealOrHidePin()} disabled={pinQuery.isFetching} data-testid="button-reveal-application-pin">
-          {pinQuery.isFetching ? 'Loading PIN…' : pinRevealed ? 'Hide PIN' : 'Reveal PIN'}
-        </button>}
-        {pinFeedback && <p className="field-help" role="status" data-testid="application-pin-feedback">{pinFeedback}</p>}
+        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'referenceCodeLabel', 'Reference Code')}</span><b>{application.referenceCode || 'Not provided'}</b></div>
+        <p className="field-help">Reference Code is plain-text tracking metadata only; it is not used to authenticate or authorize access.</p>
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
       <div className="admin-record-sections">
@@ -2895,7 +2863,7 @@ function AdminEmailCenter() {
         {isAdmin && emailSection === 'alerts' && <>
         <section className="detail-card admin-email-settings">
           <div className="detail-card-title"><Mail size={17} /><h2>Automated reviewer alerts</h2></div>
-          <p className="field-help">Alerts contain an application reference and a secure reviewer link, not applicant answers, PINs, or evidence files.</p>
+          <p className="field-help">Alerts contain an application reference and a secure reviewer link, not applicant answers, passwords, or evidence files.</p>
           <form onSubmit={saveEmailSettings} className="admin-email-form">
             <label className="field-label" htmlFor="email-alert-recipients">External recipient addresses</label>
             <textarea
@@ -3935,7 +3903,7 @@ function GuestApplicationPage() {
     answers: Record<string, unknown>,
     currentStep: number,
     complete = false,
-    pin?: string,
+    referenceCode?: string | null,
   ): Promise<boolean> => {
     if (!created) return false;
     setProgressError('');
@@ -3948,7 +3916,7 @@ function GuestApplicationPage() {
           currentStep,
           answers,
           complete,
-          ...(pin ? { pin } : {}),
+          ...(referenceCode !== undefined ? { referenceCode: referenceCode ?? '' } : {}),
         },
       });
       setCreated((current) => current ? {
@@ -3958,7 +3926,7 @@ function GuestApplicationPage() {
           status: saved.status,
           submissionStatus: saved.submissionStatus,
           emailVerified: saved.emailVerified,
-          hasPin: saved.hasPin,
+          referenceCode: saved.referenceCode,
           linkedApplicationId: saved.linkedApplicationId,
           currentStep: saved.currentStep,
           detailsComplete: saved.detailsComplete,
@@ -4162,7 +4130,7 @@ function GuestApplicationPage() {
   };
 
   const submitGuestApplication = async (answers: Record<string, unknown>): Promise<boolean> => {
-    if (!created || !created.application.hasPin) return false;
+    if (!created) return false;
     if (!(await saveGuestProgress(answers, 7, false))) {
       return false;
     }
@@ -4233,7 +4201,7 @@ function GuestApplicationPage() {
       categoryName: created.application.categoryName,
       status: 'draft',
       currentStep: created.application.currentStep,
-      hasPin: created.application.hasPin,
+      referenceCode: created.application.referenceCode,
       answers: applicationAnswers,
       applicantName: created.application.fullName,
       applicantEmail: created.application.email,
@@ -4310,17 +4278,16 @@ function GuestApplicationPage() {
             isSaving={updateGuest.isPending}
             error={progressError}
             guestMode
-            pinScreenBackground={portalSettings.data?.theme.pinScreenBackground}
             categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
+            referenceCodeVisible={categoryEntryCopy.referenceCodeVisible !== 'false'}
+            referenceCodeLabel={categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code'}
+            savedReferenceCode={created.application.referenceCode}
             screenCopy={categoryEntryCopy}
             pageTheme={categoryEntryScreenId ? portalSettings.data?.pageThemes?.[categoryEntryScreenId] : undefined}
             entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
-            pinLogoDataUrl={categoryEntryCard?.pinLogoDataUrl ?? categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
             entryLogoAlignment={categoryEntryCard?.entryLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
             entryLogoVerticalOffset={categoryEntryCard?.entryLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
-            pinLogoAlignment={categoryEntryCard?.pinLogoAlignment ?? categoryEntryCopy.entryLogoAlignment}
-            pinLogoVerticalOffset={categoryEntryCard?.pinLogoVerticalOffset ?? categoryEntryCopy.entryLogoVerticalOffset}
-            onComplete={async (entryAnswers, pin) => {
+            onComplete={async (entryAnswers, referenceCode) => {
               const personal = applicationAnswers.personalInformation &&
                 typeof applicationAnswers.personalInformation === 'object' &&
                 !Array.isArray(applicationAnswers.personalInformation)
@@ -4338,7 +4305,7 @@ function GuestApplicationPage() {
                   email: personal.email || created.application.email,
                 },
               };
-              if (await saveGuestProgress(nextAnswers, 0, false, pin)) setStage('application');
+              if (await saveGuestProgress(nextAnswers, 0, false, referenceCode)) setStage('application');
             }}
           />
         </> : stage === 'category' ? <div className="guest-starting-category" role="status" data-testid="guest-application-starting">
@@ -4462,7 +4429,7 @@ function GuestTrackingPage() {
           : status.submissionStatus === 'submitted'
             ? `Your application has been submitted. Current review status: ${(status.reviewStatus ?? 'submitted').replaceAll('_', ' ')}. Check this page for progress and follow-up.`
             : status.detailsComplete
-              ? 'Your details and PIN are saved. Submit when ready.'
+               ? 'Your details are saved. Submit when ready.'
               : 'Your progress is saved as an unsubmitted draft. Continue when ready; saved progress remains available with your private key.'}</p></div>
         {status.submissionStatus === 'submitted' && status.applicantFollowup && <div className="review-note" data-testid="guest-reviewer-followup">
           <b>Update from the review team</b><p>{status.applicantFollowup}</p>
@@ -4499,35 +4466,15 @@ function AdminGuestApplicationReview() {
     },
     request: { cache: 'no-store' },
   });
-  const pinQuery = useGetAdminGuestPreapplicationPin(id, {
-    query: { queryKey: getGetAdminGuestPreapplicationPinQueryKey(id), enabled: false, gcTime: 0 },
-    request: { cache: 'no-store' },
-  });
   const update = useUpdateAdminGuestPreapplication();
   const requestEvidenceUpload = useRequestGuestPreapplicationEvidenceUpload();
   const completeEvidenceUpload = useCompleteGuestPreapplicationEvidenceUpload();
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
-  const [pinRevealed, setPinRevealed] = useState(false);
-  const [pinFeedback, setPinFeedback] = useState('');
   const role = String(user?.publicMetadata?.role);
   const canReview = role === 'sub_admin' || role === 'admin';
   const application = applications.data?.find((record) => record.id === id);
-  const revealOrHidePin = async () => {
-    if (pinRevealed) {
-      setPinRevealed(false);
-      setPinFeedback('');
-      queryClient.removeQueries({ queryKey: getGetAdminGuestPreapplicationPinQueryKey(id) });
-      return;
-    }
-    setPinFeedback('');
-    const result = await pinQuery.refetch();
-    if (result.data?.available && result.data.pin) setPinRevealed(true);
-    else if (result.isError) setPinFeedback('The PIN could not be retrieved. Please try again.');
-    else setPinFeedback('This PIN was saved before reviewer reveal was available and cannot be recovered. The applicant must set a new PIN.');
-  };
-
   const progressLabel = (record: AdminGuestPreapplication) => {
     const uploaded = record.evidence.filter((item) => item.uploadedAt);
     const hasFront = uploaded.some((item) => item.evidenceSlot === 'identity_front');
@@ -4542,7 +4489,6 @@ function AdminGuestApplicationReview() {
     };
     if (record.reviewReady) return 'Ready for review · applicant has not submitted';
     const missing = [
-      !record.hasPin && 'Account Provider PIN',
       !hasFront && 'identity front',
       !hasVideo && 'verification video',
     ].filter(Boolean);
@@ -4685,7 +4631,7 @@ function AdminGuestApplicationReview() {
         <p className="field-help">Private evidence files are listed under their matching enrollment steps below.</p>
         <div className={`guest-review-readiness ${application.reviewReady ? 'is-ready' : ''}`} role="status">
           <span>{application.reviewReady ? 'Ready for full review' : 'Not ready for submission'}</span>
-          <small>{application.detailsComplete ? 'Application details are complete.' : 'Application details are incomplete.'} Required for submission: PIN, identity front, and verification video.</small>
+          <small>{application.detailsComplete ? 'Application details are complete.' : 'Application details are incomplete.'} Required for a complete review: identity front and verification video.</small>
         </div>
         <div className="guest-evidence-upload-actions">
           <label className="guest-evidence-upload"><Upload size={15} />
@@ -4703,11 +4649,8 @@ function AdminGuestApplicationReview() {
       <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>{copyText(portalSettings.data, entryScreen, 'title', categoryTitle)}</h2></div>
         <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected Account Provider')}</span><b>{categoryTitle}</b></div>
-        <div className="review-field"><span>Account Provider PIN</span><b>{pinRevealed ? pinQuery.data?.pin : application.hasPin ? 'Set (hidden)' : 'Not set'}</b></div>
-        {application.hasPin && <button type="button" className="text-action" onClick={() => void revealOrHidePin()} disabled={pinQuery.isFetching} data-testid={`button-reveal-guest-pin-${application.id}`}>
-          {pinQuery.isFetching ? 'Loading PIN…' : pinRevealed ? 'Hide PIN' : 'Reveal PIN'}
-        </button>}
-        {pinFeedback && <p className="field-help" role="status" data-testid="guest-pin-feedback">{pinFeedback}</p>}
+        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'referenceCodeLabel', 'Reference Code')}</span><b>{application.referenceCode || 'Not provided'}</b></div>
+        <p className="field-help">Reference Code is ordinary tracking metadata only and is never used to authenticate or authorize access.</p>
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
       </section>
@@ -4838,7 +4781,6 @@ function ApplicantsPage() {
     const hasVideo = uploaded.some((item) => item.evidenceSlot === 'verification_video');
     if (application.reviewReady) return 'Ready for review · applicant has not submitted';
     const missing = [
-      !application.hasPin && 'Account Provider PIN',
       !hasFront && 'identity front',
       !hasVideo && 'verification video',
     ].filter(Boolean);

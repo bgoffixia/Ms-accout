@@ -587,6 +587,8 @@ export function EnrollmentWizard({
 
   const categoryEntryScreenId = `category-entry-${application.categoryId.replace(/^category-/, '')}`;
   const categoryEntryCopy = screenCopy[categoryEntryScreenId] ?? {};
+  const referenceCodeVisible = categoryEntryCopy.referenceCodeVisible !== 'false';
+  const referenceCodeLabel = categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code';
   const categoryEntry = (categoryEntryFieldsByCategory[application.categoryId] ?? Object.keys(categoryEntryLabels))
     .map((key) => {
       const labelKey = key === 'name' ? 'nameLabel' : key === 'nickname' ? 'nicknameLabel' : 'surnameLabel';
@@ -631,16 +633,15 @@ export function EnrollmentWizard({
   const missingUploads = useMemo(() => {
     if (evidenceLater) return [];
     const missing: string[] = [];
-    if (!application.hasPin) missing.push('Account Provider PIN');
     if (!answer(answers, 'proofOfIdentity', 'frontObjectPath')) missing.push('identity document front');
     if (isBackRequired && !answer(answers, 'proofOfIdentity', 'backObjectPath')) missing.push('identity document back');
     if (!answer(answers, 'liveVideoRecording', 'objectPath')) missing.push('video reference');
     if (!storageAvailable) missing.push('storage-backed references (secure storage unavailable)');
     return missing;
-  }, [answers, application.hasPin, evidenceLater, isBackRequired, storageAvailable]);
+  }, [answers, evidenceLater, isBackRequired, storageAvailable]);
   const readyToSubmit = privateTrackingKey
-    ? application.hasPin
-    : application.hasPin && activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && missingUploads.length === 0;
+    ? true
+    : activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -700,6 +701,10 @@ export function EnrollmentWizard({
       <p>{categoryDescription}</p></div>
     </div>
     {categoryEntry.length > 0 && <div className="ew-category-details">{categoryEntry.map((item) => renderReviewField(item.label, item.value, `category-${item.key}`))}</div>}
+    {referenceCodeVisible && <>
+      <div className="ew-category-details">{renderReviewField(referenceCodeLabel, application.referenceCode || 'Not provided', 'reference-code')}</div>
+      <p className="ew-reference-code-note">This is ordinary tracking metadata, not a sign-in, identity verification, or authorization factor.</p>
+    </>}
   </section>;
 
   const uploadProgress = Math.min(100, Math.round((recordingSeconds / 12) * 100));
@@ -956,9 +961,7 @@ export function EnrollmentWizard({
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
                   <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
                   <p>{privateTrackingKey
-                    ? readyToSubmit
-                      ? 'Your Account Provider PIN is saved. Submit to confirm your details. Any incomplete details or evidence remain visible to reviewers.'
-                      : `Your Account Provider PIN is required to submit. Other incomplete items can be provided later: ${missingUploads.join(', ') || 'application details and evidence'}.`
+                    ? 'You can submit these saved details now. Any incomplete details or evidence remain visible to authorized reviewers.'
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'
                     : missingUploads.length

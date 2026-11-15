@@ -68,8 +68,7 @@ export const guestPreapplicationsTable = pgTable(
     emailVerified: boolean("email_verified").notNull().default(false),
     clerkUserId: text("clerk_user_id"),
     linkedApplicationId: uuid("linked_application_id"),
-    pinHash: text("pin_hash"),
-    pinEncrypted: text("pin_encrypted"),
+    referenceCode: text("reference_code"),
     updatedByUserId: text("updated_by_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -160,8 +159,7 @@ export const enrollmentApplicationsTable = pgTable(
     categoryId: text("category_id").notNull(),
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
-    pinHash: text("pin_hash"),
-    pinEncrypted: text("pin_encrypted"),
+    referenceCode: text("reference_code"),
     answers: jsonb("answers")
       .$type<Record<string, unknown>>()
       .notNull()

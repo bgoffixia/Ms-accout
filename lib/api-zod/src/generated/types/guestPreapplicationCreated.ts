@@ -19,7 +19,11 @@ export interface GuestPreapplicationCreated {
   status: GuestPreapplicationStatusValue;
   submissionStatus: GuestPreapplicationCreatedSubmissionStatus;
   emailVerified: boolean;
-  hasPin: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  referenceCode: string | null;
   linkedApplicationId: string | null;
   /**
      * @minimum 0

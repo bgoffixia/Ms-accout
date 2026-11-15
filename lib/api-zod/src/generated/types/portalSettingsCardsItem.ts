@@ -8,7 +8,6 @@
 import type { PortalSettingsCardsItemCardLogoAlignment } from './portalSettingsCardsItemCardLogoAlignment';
 import type { PortalSettingsCardsItemEntryLogoAlignment } from './portalSettingsCardsItemEntryLogoAlignment';
 import type { PortalSettingsCardsItemId } from './portalSettingsCardsItemId';
-import type { PortalSettingsCardsItemPinLogoAlignment } from './portalSettingsCardsItemPinLogoAlignment';
 
 export type PortalSettingsCardsItem = {
   id: PortalSettingsCardsItemId;
@@ -30,11 +29,6 @@ export type PortalSettingsCardsItem = {
      * @nullable
      */
   entryLogoDataUrl?: string | null;
-  /**
-     * @maxLength 6000000
-     * @nullable
-     */
-  pinLogoDataUrl?: string | null;
   cardLogoAlignment?: PortalSettingsCardsItemCardLogoAlignment;
   /**
      * @minimum -48
@@ -77,10 +71,4 @@ export type PortalSettingsCardsItem = {
      * @maximum 120
      */
   entryLogoVerticalOffset?: number;
-  pinLogoAlignment?: PortalSettingsCardsItemPinLogoAlignment;
-  /**
-     * @minimum -120
-     * @maximum 120
-     */
-  pinLogoVerticalOffset?: number;
 };

@@ -15,7 +15,7 @@ type GuestDraft = {
   submissionStatus: "draft" | "submitted";
   emailVerified: boolean;
   emailVerificationRequired: boolean;
-  hasPin: boolean;
+  referenceCode: string | null;
   linkedApplicationId: string | null;
   currentStep: number;
   detailsComplete: boolean;
@@ -61,7 +61,6 @@ class GuestApiFixture {
           backgroundColor: "#F5F8FA",
           logoDataUrl: null,
           entryLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='5' fill='green'/%3E%3C/svg%3E" : null,
-          pinLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect width='10' height='10' fill='blue'/%3E%3C/svg%3E" : null,
           cardLogoAlignment: "center",
           cardLogoVerticalOffset: 0,
           cardTitleFontSize: id === "category-1" ? 18 : 14,
@@ -72,11 +71,8 @@ class GuestApiFixture {
           cardDescriptionVerticalOffset: id === "category-1" ? 5 : 0,
           entryLogoAlignment: "left",
           entryLogoVerticalOffset: 14,
-          pinLogoAlignment: "right",
-          pinLogoVerticalOffset: -14,
         })),
         theme: {
-          pinScreenBackground: "#FFFFFF",
           buttonSize: "standard",
           buttonPlacement: "right",
           categoryInputTransparent: true,
@@ -87,6 +83,7 @@ class GuestApiFixture {
             description: "This dashboard introduction should appear once.",
             sectionIdLabel: "START ENROLLMENT",
           },
+          "category-entry-1": { referenceCodeVisible: "true", referenceCodeLabel: "Reference Code" },
           ...this.screenCopyOverrides,
         },
         pageThemes: {},
@@ -108,7 +105,7 @@ class GuestApiFixture {
         submissionStatus: "draft",
         emailVerified: false,
         emailVerificationRequired: false,
-        hasPin: false,
+        referenceCode: null,
         linkedApplicationId: null,
         currentStep: 0,
         detailsComplete: false,
@@ -127,7 +124,9 @@ class GuestApiFixture {
       const body = request.postDataJSON();
       this.draft.answers = body.answers;
       this.draft.currentStep = body.currentStep;
-      this.draft.hasPin ||= Boolean(body.pin);
+      if (typeof body.referenceCode === "string") {
+        this.draft.referenceCode = body.referenceCode.trim() || null;
+      }
       this.draft.detailsComplete = this.detailsAreComplete();
       this.draft.updatedAt = new Date().toISOString();
       return json(this.statusResponse());
@@ -318,7 +317,6 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
             hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
             cards: [],
             theme: {
-              pinScreenBackground: "#FFFFFF",
               buttonSize: "standard",
               buttonPlacement: "right",
               categoryInputTransparent: true,
@@ -420,9 +418,11 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
-  await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
-  await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-right/);
-  await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "-14px");
+  await expect(page.locator(".entry-reference-code-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
+  await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-reference-code-stage/);
+  await expect(page.getByTestId("input-reference-code")).toBeVisible();
+  await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+  await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
   expect(api.createCount).toBe(1);
   expect(api.draft?.categoryId).toBe("category-1");
@@ -460,7 +460,7 @@ test("keeps contact details out of same-session back navigation and returns relo
   await expect(page.getByTestId("link-get-started")).toBeVisible();
 });
 
-test("keeps every guest category entry and PIN screen within one phone viewport", async ({ browser }) => {
+test("keeps every guest category entry and Reference Code screen within one phone viewport", async ({ browser }) => {
   for (const categoryId of ["category-1", "category-2", "category-3", "category-4"]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 568 } });
     const page = await context.newPage();
@@ -477,21 +477,23 @@ test("keeps every guest category entry and PIN screen within one phone viewport"
     const nextButton = page.locator("form button[type=submit]").first();
     await nextButton.click();
     if (categoryId === "category-2") {
-      await expect(page.locator(".category-entry-screen")).not.toHaveClass(/entry-pin-stage/);
+      await expect(page.locator(".category-entry-screen")).not.toHaveClass(/entry-reference-code-stage/);
       await expectNoDocumentOverflow(page);
       await page.locator("form button[type=submit]").first().click();
     }
-    await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-pin-stage/);
+    await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-reference-code-stage/);
     await expectNoDocumentOverflow(page);
-    const pinKeys = page.locator(".pin-entry-key");
-    for (let index = 0; index < await pinKeys.count(); index += 1) {
-      const box = await pinKeys.nth(index).boundingBox();
-      expect(box, `${categoryId} keypad key ${index} should be visible`).not.toBeNull();
-      expect(box!.x).toBeGreaterThanOrEqual(0);
-      expect(box!.y).toBeGreaterThanOrEqual(0);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(390);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(568);
-    }
+    const field = page.getByTestId("input-reference-code");
+    await expect(field).toBeVisible();
+    expect(await field.getAttribute("type")).toBe("text");
+    await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+    await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
+    const box = await field.boundingBox();
+    expect(box, `${categoryId} Reference Code field should be visible`).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(568);
     await context.close();
   }
 });
@@ -553,31 +555,16 @@ test("submits without email OTP and opens status with the private tracking key",
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await page.setViewportSize({ width: 390, height: 568 });
   await page.locator("form button[type=submit]").click();
-  const pinInput = page.getByTestId("input-entry-pin");
+  const referenceCodeInput = page.getByTestId("input-reference-code");
   await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
-  await expect(page.locator("#pin-entry-heading")).toHaveCSS("font-size", "12px");
+  await expect(referenceCodeInput).toBeVisible();
+  await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+  await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
+  await referenceCodeInput.fill("CASE-4826");
   await expectNoDocumentOverflow(page);
-  const keypadButtons = await page.locator(".pin-entry-key").all();
-  for (const button of keypadButtons) {
-    const bounds = await button.boundingBox();
-    expect(bounds, "every PIN key should have a visible bounding box").not.toBeNull();
-    expect(bounds!.y).toBeGreaterThanOrEqual(0);
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(568);
-  }
-  await page.getByTestId("button-pin-key-4").click();
-  await page.getByTestId("button-pin-key-8").click();
-  await expect(pinInput).toHaveValue("48");
-  await page.getByTestId("button-pin-key-confirm").click();
-  await expect(page.getByTestId("text-entry-error")).toContainText("Enter exactly 4 digits.");
-  await page.getByTestId("button-pin-key-clear").click();
-  await expect(pinInput).toHaveValue("");
-  for (const digit of ["4", "8", "2", "6"]) {
-    await page.getByTestId(`button-pin-key-${digit}`).click();
-  }
-  await expect(pinInput).toHaveValue("4826");
   await expect(page.getByTestId("enrollment-wizard")).toHaveCount(0);
-  await page.getByTestId("button-pin-key-confirm").click();
+  await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoDocumentOverflow(page);
@@ -653,6 +640,7 @@ test("submits without email OTP and opens status with the private tracking key",
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
   expect(api.draft?.emailVerified).toBe(false);
   expect(api.draft?.submissionStatus).toBe("submitted");
+  expect(api.draft?.referenceCode).toBe("CASE-4826");
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
   expect(api.draft?.linkedApplicationId).toBeNull();
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
@@ -679,7 +667,7 @@ test("submits without email OTP and opens status with the private tracking key",
   expect(api.createCount).toBe(1);
 });
 
-test("lets guests skip incomplete fields but requires a PIN before enrollment details", async ({ page }) => {
+test("lets guests continue with incomplete details and an optional Reference Code", async ({ page }) => {
   const api = new GuestApiFixture();
   api.categoryOneTitle = "Configured Account Provider One";
   api.screenCopyOverrides = {
@@ -687,6 +675,7 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
       sectionIdLabel: "CONFIGURED ACCOUNT PROVIDER LABEL",
       nameLabel: "Configured entry name",
       nicknameLabel: "Configured entry nickname",
+      referenceCodeLabel: "Configured tracking reference",
     },
     "workflow-step-1": {
       title: "Configured personal details",
@@ -714,13 +703,11 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await expectNoDocumentOverflow(page);
 
   await page.locator("form button[type=submit]").click();
-  await expect(page.getByTestId("input-entry-pin")).toBeVisible();
-  await expect(page.getByText("Continue without a PIN")).toHaveCount(0);
-  await expect(page.getByTestId("button-pin-continue")).toHaveCount(0);
-  const pinInput = page.getByTestId("input-entry-pin");
-  const pinLength = Number(await pinInput.getAttribute("maxlength"));
-  await pinInput.fill("1".repeat(pinLength));
-  await page.getByTestId("button-pin-key-confirm").click();
+  await expect(page.getByTestId("input-reference-code")).toBeVisible();
+  await expect(page.getByTestId("input-reference-code")).toHaveAttribute("type", "text");
+  await expect(page.locator(".reference-code-entry-screen")).toContainText("non-secret tracking metadata");
+  await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
+  await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   await expectNoDocumentOverflow(page);
 
@@ -738,12 +725,14 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await expect(page.getByTestId("review-category-name")).toContainText("Not provided");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Configured entry nickname");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Not provided");
+  await expect(page.getByTestId("review-category")).toContainText("Configured tracking reference");
+  await expect(page.getByTestId("review-category")).toContainText("Not provided");
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("button-submit-enrollment")).toBeEnabled();
   await expectNoDocumentOverflow(page);
 
   expect(api.draft?.currentStep).toBe(7);
   expect(api.draft?.detailsComplete).toBe(false);
-  expect(api.draft?.hasPin).toBe(true);
+  expect(api.draft?.referenceCode).toBeNull();
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
 });

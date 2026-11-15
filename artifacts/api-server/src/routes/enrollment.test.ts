@@ -117,7 +117,7 @@ function newRow(tableName: string, values: Record<string, unknown>) {
       emailVerified: false,
       clerkUserId: null,
       linkedApplicationId: null,
-      pinHash: null,
+      referenceCode: null,
       phone: null,
       updatedByUserId: null,
       createdAt: now,
@@ -214,6 +214,7 @@ function makeDatabase() {
           guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
           enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
           guest_preapplication_evidence: ["objectPath"],
+          portal_settings: ["key"],
           staff_email_settings: ["key"],
           staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
@@ -507,6 +508,8 @@ describe("guest application verification and persistence", () => {
   let baseUrl = "";
 
   beforeAll(async () => {
+    process.env.SUPABASE_URL = "https://storage.test";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-only-storage-key";
     process.env.PRIVATE_OBJECT_DIR = "test-private";
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "test-bucket";
     process.env.SESSION_SECRET = "test-session-secret";
@@ -708,6 +711,36 @@ describe("guest application verification and persistence", () => {
     expect(publicSettings.response.status).toBe(200);
     expect(publicSettings.body.hero.description).toBe("New public landing-page description.");
     expect(publicSettings.body.screenCopy.landing.description).toBe("New public landing-page description.");
+  });
+
+  it("persists Reference Code visibility and label in portal settings", async () => {
+    const defaults = await request("/portal/settings");
+    const settings = {
+      ...defaults.body,
+      screenCopy: {
+        ...defaults.body.screenCopy,
+        "category-entry-1": {
+          ...defaults.body.screenCopy["category-entry-1"],
+          referenceCodeVisible: "false",
+          referenceCodeLabel: "Internal tracking note",
+        },
+      },
+    };
+    const saved = await request("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    }, "administrator");
+
+    expect(saved.response.status).toBe(200);
+    expect(saved.body.screenCopy["category-entry-1"]).toMatchObject({
+      referenceCodeVisible: "false",
+      referenceCodeLabel: "Internal tracking note",
+    });
+    const persisted = mockState.rows.get("portal_settings")?.find((row) => row.key === "portal");
+    expect((persisted?.value as any).screenCopy["category-entry-1"]).toMatchObject({
+      referenceCodeVisible: "false",
+      referenceCodeLabel: "Internal tracking note",
+    });
   });
 
   it("grants the additional admin role only in development and only after email verification", async () => {
@@ -1748,11 +1781,23 @@ describe("guest application verification and persistence", () => {
 
     const refreshed = await request("/admin/email/outbox", {}, "reviewer");
     expect(refreshed.response.status).toBe(200);
-    expect(refreshed.body.map((message: any) => message.deliveryStatus))
-      .toEqual(["delivered", "bounced"]);
-    expect(refreshed.body.map((message: any) => message.providerEvents.length))
-      .toEqual([2, 1]);
-    expect(refreshed.body[0].providerEventAt).toBe(new Date(deliveredAt).toISOString());
+    const refreshedByRecipient = Object.fromEntries(
+      refreshed.body.map((message: any) => [message.recipientEmail, message]),
+    );
+    expect(Object.fromEntries(
+      Object.entries(refreshedByRecipient).map(([email, message]: [string, any]) => [email, message.deliveryStatus]),
+    )).toEqual({
+      "gmail-dsn-delivered@example.test": "delivered",
+      "gmail-dsn-bounced@example.test": "bounced",
+    });
+    expect(Object.fromEntries(
+      Object.entries(refreshedByRecipient).map(([email, message]: [string, any]) => [email, message.providerEvents.length]),
+    )).toEqual({
+      "gmail-dsn-delivered@example.test": 2,
+      "gmail-dsn-bounced@example.test": 1,
+    });
+    expect(refreshedByRecipient["gmail-dsn-delivered@example.test"].providerEventAt)
+      .toBe(new Date(deliveredAt).toISOString());
     expect(mockState.emailDeliveryListRequests).toHaveLength(2);
     expect(mockState.emailDeliveryMessageRequests).toHaveLength(3);
 
@@ -1976,7 +2021,7 @@ describe("guest application verification and persistence", () => {
         categoryId: "category-1",
         status: "draft",
         currentStep: 3,
-        pinHash: null,
+        referenceCode: null,
         answers: {
           contactDetails: {
             fullName: `Enrollment Applicant ${index}`,
@@ -2028,13 +2073,12 @@ describe("guest application verification and persistence", () => {
         currentStep: 3,
         answers: { name: "Test Applicant", nickname: "TA" },
         complete: false,
-        pin: "4826",
+        referenceCode: "CASE-4826",
       }),
     });
     expect(initialProgress.response.status).toBe(200);
     expect(initialProgress.body.currentStep).toBe(3);
-    expect(initialProgress.body.hasPin).toBe(true);
-    expect(JSON.stringify(initialProgress.body)).not.toContain("4826");
+    expect(initialProgress.body.referenceCode).toBe("CASE-4826");
 
     const identityPath = await uploadEvidence(
       applicationId,
@@ -2103,7 +2147,7 @@ describe("guest application verification and persistence", () => {
     });
     expect(completeProgress.response.status, JSON.stringify(completeProgress.body)).toBe(200);
     expect(completeProgress.body.detailsComplete).toBe(true);
-    expect(completeProgress.body.hasPin).toBe(true);
+    expect(completeProgress.body.referenceCode).toBe("CASE-4826");
 
     const anonymousReviewerCheck = await request("/admin/guest-preapplications");
     expect(anonymousReviewerCheck.response.status).toBe(401);
@@ -2133,7 +2177,7 @@ describe("guest application verification and persistence", () => {
       submissionStatus: "draft",
       currentStep: 7,
       detailsComplete: true,
-      hasPin: true,
+      referenceCode: "CASE-4826",
       reviewReady: true,
     });
     expect(visibleDraft.body[0].answers).toMatchObject({
@@ -2149,20 +2193,13 @@ describe("guest application verification and persistence", () => {
     });
     expect(visibleDraft.body[0].evidence).toHaveLength(2);
     expect(visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl)).toBe(true);
-    expect(JSON.stringify(visibleDraft.body)).not.toContain("4826");
-    const preverificationPin = await request(
+    expect(JSON.stringify(visibleDraft.body)).toContain("CASE-4826");
+    const removedGuestPinRoute = await request(
       `/admin/guest-preapplications/${applicationId}/pin`,
       {},
       "reviewer",
     );
-    expect(preverificationPin.response.status).toBe(200);
-    expect(preverificationPin.body).toEqual({ pin: "4826", available: true });
-    expect(preverificationPin.response.headers.get("cache-control")).toContain("no-store");
-    expect((await request(
-      `/admin/guest-preapplications/${applicationId}/pin`,
-      {},
-      "applicant-unverified",
-    )).response.status).toBe(403);
+    expect(removedGuestPinRoute.response.status).toBe(404);
 
     const privateFilePath = `/admin/guest-preapplications/${applicationId}/evidence/${visibleDraft.body[0].evidence[0].id}/file`;
     expect((await request(privateFilePath)).response.status).toBe(401);
@@ -2285,7 +2322,9 @@ describe("guest application verification and persistence", () => {
       clerkUserId: "applicant-corrected-verified",
       linkedApplicationId: successfulLink.body.id,
     });
-    expect(String(storedDraft?.pinHash)).toMatch(/^scrypt\$/);
+    expect(storedDraft).toMatchObject({ referenceCode: "CASE-4826" });
+    expect(storedDraft).not.toHaveProperty("pinHash");
+    expect(storedDraft).not.toHaveProperty("pinEncrypted");
     const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(finalReviewerList.response.status).toBe(200);
     expect(finalReviewerList.body).toHaveLength(0);
@@ -2302,14 +2341,12 @@ describe("guest application verification and persistence", () => {
     )).toBe(true);
     expect(JSON.stringify(finalReviewerRecord.body.evidence)).not.toContain("objectPath");
     expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("/objects/test/");
-    const linkedReviewerPin = await request(
+    const removedApplicationPinRoute = await request(
       `/admin/applications/${successfulLink.body.id}/pin`,
       {},
       "reviewer",
     );
-    expect(linkedReviewerPin.response.status).toBe(200);
-    expect(linkedReviewerPin.body).toEqual({ pin: "4826", available: true });
-    expect(linkedReviewerPin.response.headers.get("cache-control")).toContain("no-store");
+    expect(removedApplicationPinRoute.response.status).toBe(404);
     const submittedEvidencePath = finalReviewerRecord.body.evidence[0].downloadUrl.replace("/api", "");
     expect((await request(submittedEvidencePath)).response.status).toBe(401);
     expect((await request(submittedEvidencePath, {}, "applicant-verified")).response.status).toBe(403);
@@ -2346,7 +2383,7 @@ describe("guest application verification and persistence", () => {
     expect(finalReviewerRecord.body).toMatchObject({
       applicantName: "Test Applicant",
       applicantEmail: "corrected@example.test",
-      hasPin: true,
+      referenceCode: "CASE-4826",
       answers: {
         contactDetails: {
           fullName: "Test Applicant",
@@ -2359,10 +2396,10 @@ describe("guest application verification and persistence", () => {
         workInformation: { employmentStatus: "student" },
       },
     });
-    expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("4826");
+    expect(JSON.stringify(finalReviewerRecord.body)).toContain("CASE-4826");
   });
 
-  it("allows partial guest submission before email verification while keeping the Account Provider PIN mandatory", async () => {
+  it("accepts optional non-secret Reference Codes and submits incomplete guest applications without PIN factors", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",
       body: JSON.stringify({
@@ -2377,30 +2414,45 @@ describe("guest application verification and persistence", () => {
     const { id: applicationId, reference } = created.body as { id: string; reference: string };
     const submitBody = JSON.stringify({ reference, accessKey });
 
-    const missingPin = await request(
-      `/guest/preapplications/${applicationId}/submit`,
-      { method: "POST", body: submitBody },
-      "applicant-verified",
-    );
-    expect(missingPin.response.status).toBe(400);
-    expect(missingPin.body.error).toContain("Account Provider PIN");
-
-    const initialProgress = await request(`/guest/preapplications/${applicationId}`, {
+    const numericSecretLikeCode = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({
         reference,
         accessKey,
         currentStep: 1,
         complete: false,
-        answers: {
-          personalInformation: { firstName: "Initial", email: contactEmail },
-        },
+        answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
+        referenceCode: "739102",
+      }),
+    });
+    expect(numericSecretLikeCode.response.status).toBe(400);
+    expect(numericSecretLikeCode.body.error).toContain("non-secret Reference Code");
+
+    const pinLikeCode = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 1,
+        complete: false,
+        referenceCode: "PIN-739102",
+      }),
+    });
+    expect(pinLikeCode.response.status).toBe(400);
+
+    const legacyPinInput = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 1,
+        complete: false,
+        answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
         pin: "739102",
       }),
     });
-    expect(initialProgress.response.status).toBe(200);
-    expect(initialProgress.body.detailsComplete).toBe(false);
-    expect(initialProgress.body.hasPin).toBe(true);
+    expect(legacyPinInput.response.status).toBe(400);
+    expect(legacyPinInput.body.error).toContain("Legacy PIN inputs");
 
     const savedPartial = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
@@ -2412,12 +2464,16 @@ describe("guest application verification and persistence", () => {
         answers: {
           personalInformation: { firstName: "Partial", email: contactEmail },
         },
+        referenceCode: "CASE-739102",
       }),
     });
     expect(savedPartial.response.status).toBe(200);
     expect(savedPartial.body.detailsComplete).toBe(false);
-    expect(savedPartial.body.hasPin).toBe(true);
-    expect(JSON.stringify(savedPartial.body)).not.toContain("739102");
+    expect(savedPartial.body.referenceCode).toBe("CASE-739102");
+    const storedDraft = mockState.rows.get("guest_preapplications")?.[0];
+    expect(storedDraft).toMatchObject({ referenceCode: "CASE-739102" });
+    expect(storedDraft).not.toHaveProperty("pinHash");
+    expect(storedDraft).not.toHaveProperty("pinEncrypted");
 
     const submitted = await request(
       `/guest/preapplications/${applicationId}/submit`,
@@ -2442,14 +2498,16 @@ describe("guest application verification and persistence", () => {
 
     const savedRevisionRows = mockState.rows.get("guest_preapplication_revisions") ?? [];
     expect(savedRevisionRows.length).toBeGreaterThan(0);
-    expect(JSON.stringify(savedRevisionRows)).not.toContain("739102");
+    expect(JSON.stringify(savedRevisionRows)).toContain("CASE-739102");
+    expect(JSON.stringify(savedRevisionRows)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
     const reviewerHistory = await request(
       `/admin/applications/${linked.body.id}/guest-history`,
       {},
       "reviewer",
     );
     expect(reviewerHistory.response.status).toBe(200);
-    expect(JSON.stringify(reviewerHistory.body)).not.toContain("739102");
+    expect(JSON.stringify(reviewerHistory.body)).toContain("CASE-739102");
+    expect(JSON.stringify(reviewerHistory.body)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
     expect(JSON.stringify(reviewerHistory.body)).toContain('"field":"Saved progress step"');
     expect(reviewerHistory.body.some((revision: any) =>
       revision.changes.some((change: any) => change.after === "Partial"),
@@ -2504,6 +2562,13 @@ describe("guest application verification and persistence", () => {
       reviewStatus: "submitted",
     });
     expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
+    const codeIsNotAnAccessFactor = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: "CASE-739102", accessKey }),
+    });
+    expect(codeIsNotAnAccessFactor.response.status).toBe(404);
+    const removedPinRoute = await request(`/admin/applications/${linked.body.id}/pin`, {}, "reviewer");
+    expect(removedPinRoute.response.status).toBe(404);
   });
 
   it("cleans expired guest evidence but preserves evidence linked to submitted applications", async () => {

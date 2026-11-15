@@ -76,7 +76,6 @@ import type {
   ListSupportTicketsForAdminParams,
   NewApplicationSubmissionInput,
   PortalSettings,
-  ReviewerPin,
   StaffAccessClaimResponse,
   StaffRegistrationCheckInput,
   StaffRegistrationCheckResponse,
@@ -1967,83 +1966,6 @@ export const useClearApplicantRecords = <TError = ErrorType<void>,
       return useMutation(getClearApplicantRecordsMutationOptions(options));
     }
 
-export const getGetAdminGuestPreapplicationPinUrl = (applicationId: string,) => {
-
-
-
-
-  return `/api/admin/guest-preapplications/${applicationId}/pin`
-}
-
-/**
- * @summary Reveal a guest applicant PIN to an authorized reviewer
- */
-export const getAdminGuestPreapplicationPin = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<ReviewerPin> => {
-
-  return customFetch<ReviewerPin>(getGetAdminGuestPreapplicationPinUrl(applicationId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getGetAdminGuestPreapplicationPinQueryKey = (applicationId: string,) => {
-    return [
-    `/api/admin/guest-preapplications/${applicationId}/pin`
-    ] as const;
-    }
-
-
-export const getGetAdminGuestPreapplicationPinQueryOptions = <TData = Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError = ErrorType<unknown>>(applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetAdminGuestPreapplicationPinQueryKey(applicationId);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>> = ({ signal }) => getAdminGuestPreapplicationPin(applicationId, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetAdminGuestPreapplicationPinQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>>
-export type GetAdminGuestPreapplicationPinQueryError = ErrorType<unknown>
-
-
-/**
- * @summary Reveal a guest applicant PIN to an authorized reviewer
- */
-
-export function useGetAdminGuestPreapplicationPin<TData = Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError = ErrorType<unknown>>(
- applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminGuestPreapplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetAdminGuestPreapplicationPinQueryOptions(applicationId,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
 export const getUpdateAdminGuestPreapplicationUrl = (applicationId: string,) => {
 
 
@@ -2523,83 +2445,6 @@ export function useGetAdminApplication<TData = Awaited<ReturnType<typeof getAdmi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminApplicationQueryOptions(applicationId,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export const getGetAdminApplicationPinUrl = (applicationId: string,) => {
-
-
-
-
-  return `/api/admin/applications/${applicationId}/pin`
-}
-
-/**
- * @summary Reveal an applicant PIN to an authorized reviewer
- */
-export const getAdminApplicationPin = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<ReviewerPin> => {
-
-  return customFetch<ReviewerPin>(getGetAdminApplicationPinUrl(applicationId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getGetAdminApplicationPinQueryKey = (applicationId: string,) => {
-    return [
-    `/api/admin/applications/${applicationId}/pin`
-    ] as const;
-    }
-
-
-export const getGetAdminApplicationPinQueryOptions = <TData = Awaited<ReturnType<typeof getAdminApplicationPin>>, TError = ErrorType<unknown>>(applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetAdminApplicationPinQueryKey(applicationId);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminApplicationPin>>> = ({ signal }) => getAdminApplicationPin(applicationId, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationPin>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetAdminApplicationPinQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminApplicationPin>>>
-export type GetAdminApplicationPinQueryError = ErrorType<unknown>
-
-
-/**
- * @summary Reveal an applicant PIN to an authorized reviewer
- */
-
-export function useGetAdminApplicationPin<TData = Awaited<ReturnType<typeof getAdminApplicationPin>>, TError = ErrorType<unknown>>(
- applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminApplicationPin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetAdminApplicationPinQueryOptions(applicationId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

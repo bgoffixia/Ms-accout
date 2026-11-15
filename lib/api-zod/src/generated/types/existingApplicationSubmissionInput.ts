@@ -11,8 +11,6 @@ import type { ExistingApplicationSubmissionInputCategoryId } from './existingApp
 export interface ExistingApplicationSubmissionInput {
   categoryId?: ExistingApplicationSubmissionInputCategoryId;
   answers?: ExistingApplicationSubmissionInputAnswers;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin?: string;
-  /** @pattern ^[0-9]{4,6}$ */
-  pinConfirmation?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
 }
