@@ -1422,10 +1422,8 @@ async function loadPortalSettings() {
   if (landingCopy?.description === legacyDescription) {
     landingCopy.description = defaultPortalSettings.hero.description;
   }
-  settings.hero.description = PUBLIC_HERO_DESCRIPTION;
-  if (landingCopy) {
-    landingCopy.description = PUBLIC_HERO_DESCRIPTION;
-  }
+  // Preserve administrator-configured landing copy. Public responses are read-only;
+  // only the primary-admin settings endpoint can change these values.
   return settings;
 }
 
@@ -3771,10 +3769,10 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
     res.status(400).json({ error: "Settings must contain each of the four enrollment cards exactly once." });
     return;
   }
-  parsed.data.hero.description = PUBLIC_HERO_DESCRIPTION;
   const landingCopy = parsed.data.screenCopy.landing;
+  // Keep the dedicated hero field and the landing-screen copy in sync.
   if (landingCopy) {
-    landingCopy.description = PUBLIC_HERO_DESCRIPTION;
+    landingCopy.description = parsed.data.hero.description;
   }
   if (parsed.data.cards.some((card) =>
     !validatePublicImageDataUrl(card.logoDataUrl)
