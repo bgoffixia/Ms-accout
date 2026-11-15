@@ -372,7 +372,7 @@ export function CategoryEntryForm({
                     />
                   </label>
                 )}
-                {showSurname && (((!isCategoryOne && !isCategoryTwo) && step === 0) || (isCategoryTwo && step === 1)) ? (
+                {showSurname && (isCategoryTwo ? step === 1 : step === 0) ? (
                   <label className="entry-field" htmlFor="entry-surname">
                     <span>{screenCopy.surnameLabel || "Surname"}</span>
                     <input
