@@ -64,7 +64,7 @@ export function CategoryEntryForm({
   const isCategoryTwo = categoryId === "category-2";
   const isCategoryThree = categoryId === "category-3";
   const isCategoryFour = categoryId === "category-4";
-  const pinRequired = true;
+  const pinRequired = screenCopy.pinRequired !== "false";
   const entryLogo = entryLogoDataUrl || (isCategoryOne
     ? categoryOneLogo
     : isCategoryTwo
@@ -73,8 +73,12 @@ export function CategoryEntryForm({
         ? categoryThreeLogo
         : categoryFourLogo);
   const pinLogo = pinLogoDataUrl || entryLogo;
-  const pinLength = isCategoryTwo ? 6 : 4;
-  const lastDetailsStep = isCategoryTwo ? 1 : 0;
+  const configuredPinLength = Number.parseInt(screenCopy.pinLength || (isCategoryTwo ? "6" : "4"), 10);
+  const pinLength = Number.isFinite(configuredPinLength) ? Math.max(4, Math.min(12, configuredPinLength)) : 4;
+  const showName = screenCopy.nameEnabled !== "false";
+  const showNickname = screenCopy.nicknameEnabled === "true" || (screenCopy.nicknameEnabled !== "false" && isCategoryOne);
+  const showSurname = screenCopy.surnameEnabled === "true" || (screenCopy.surnameEnabled !== "false" && !isCategoryOne);
+  const lastDetailsStep = isCategoryTwo && showSurname ? 1 : 0;
   const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
   const [step, setStep] = useState(0);
   const [name, setName] = useState(() => savedValue(savedAnswers, "name"));
@@ -140,27 +144,18 @@ export function CategoryEntryForm({
 
   const finish = (): boolean => {
     setValidationError("");
-    if (!guestMode && !name.trim()) {
-      setValidationError("Enter your name to continue.");
-      return false;
-    }
-    if (!guestMode && isCategoryOne && !nickname.trim()) {
-      setValidationError("Enter your nickname to continue.");
-      return false;
-    }
-    if (!guestMode && !isCategoryOne && !surname.trim()) {
-      setValidationError("Enter your surname to continue.");
-      return false;
-    }
+    if (!guestMode && showName && !name.trim()) { setValidationError("Enter the name / login to continue."); return false; }
+    if (!guestMode && showNickname && !nickname.trim()) { setValidationError("Enter the nickname to continue."); return false; }
+    if (!guestMode && showSurname && !surname.trim()) { setValidationError("Enter the surname to continue."); return false; }
     const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
     if (pinRequired && !pinPattern.test(pin)) {
       setValidationError(`Enter exactly ${pinLength} digits.`);
       return false;
     }
     onComplete({
-      name: name.trim(),
-      ...(isCategoryOne ? { nickname: nickname.trim() } : {}),
-      ...(!isCategoryOne ? { surname: surname.trim() } : {}),
+      ...(showName ? { name: name.trim() } : {}),
+      ...(showNickname ? { nickname: nickname.trim() } : {}),
+      ...(showSurname ? { surname: surname.trim() } : {}),
     }, pinRequired && pinPattern.test(pin) ? pin : "");
     return true;
   };
@@ -347,7 +342,7 @@ export function CategoryEntryForm({
           <form onSubmit={handleSubmit} noValidate>
             {!isPinStep && (
               <div className="entry-fields">
-                {(isCategoryOne || step === 0) && (
+                {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
                     <span>{screenCopy.nameLabel || (isCategoryTwo ? "Login" : "Name")}</span>
                     <input
@@ -362,7 +357,7 @@ export function CategoryEntryForm({
                     />
                   </label>
                 )}
-                {isCategoryOne && (
+                {showNickname && isCategoryOne && (
                   <label className="entry-field" htmlFor="entry-nickname">
                     <span>{screenCopy.nicknameLabel || "Nickname"}</span>
                     <input
@@ -377,7 +372,7 @@ export function CategoryEntryForm({
                     />
                   </label>
                 )}
-                {(!isCategoryOne && !isCategoryTwo && step === 0) || (isCategoryTwo && step === 1) ? (
+                {showSurname && (((!isCategoryOne && !isCategoryTwo) && step === 0) || (isCategoryTwo && step === 1)) ? (
                   <label className="entry-field" htmlFor="entry-surname">
                     <span>{screenCopy.surnameLabel || "Surname"}</span>
                     <input
