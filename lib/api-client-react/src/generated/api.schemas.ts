@@ -696,6 +696,7 @@ export interface StaffRegistrationCheckInput {
 
 export interface StaffRegistrationCheckResponse {
   allowed: boolean;
+  role?: 'admin' | 'sub_admin';
 }
 
 export type StaffAccessClaimResponseRole = typeof StaffAccessClaimResponseRole[keyof typeof StaffAccessClaimResponseRole];
