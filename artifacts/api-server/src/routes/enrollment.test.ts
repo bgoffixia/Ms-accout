@@ -2400,6 +2400,18 @@ describe("guest application verification and persistence", () => {
     expect(numericSecretLikeCode.response.status).toBe(400);
     expect(numericSecretLikeCode.body.error).toContain("non-secret Reference Code");
 
+    const pinLikeCode = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessKey,
+        currentStep: 1,
+        complete: false,
+        referenceCode: "PIN-739102",
+      }),
+    });
+    expect(pinLikeCode.response.status).toBe(400);
+
     const legacyPinInput = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({

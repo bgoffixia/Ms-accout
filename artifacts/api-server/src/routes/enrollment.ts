@@ -771,11 +771,14 @@ function normalizeReferenceCode(value: unknown): { value?: string; error?: strin
   if (typeof value !== "string") return { error: "Reference Code must be plain text." };
   const normalized = value.trim();
   if (!normalized) return { value: undefined };
+  const includesSecretTerm =
+    /\b(?:pin|password|passcode|otp|one[-\s]?time|verification code)\b/i.test(normalized);
   if (
     normalized.length > 80 ||
     !/^[A-Za-z0-9][A-Za-z0-9 _./-]*$/.test(normalized) ||
     !/[A-Za-z]/.test(normalized) ||
-    /^\d{4,8}$/.test(normalized)
+    /^[0-9\s./-]+$/.test(normalized) ||
+    includesSecretTerm
   ) {
     return {
       error: "Enter a non-secret Reference Code with letters and numbers only; never use a PIN, password, or verification code.",

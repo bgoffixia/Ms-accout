@@ -3951,3 +3951,84 @@ html[data-portal-button-placement="right"] .category-entry-screen.category-one-r
     padding: 14px;
   }
 }
+
+/* The optional Reference Code is a compact text form, not a keypad screen. */
+.category-entry-screen.entry-reference-code-stage .entry-content {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  width: 100%;
+  min-height: 0;
+  padding: max(58px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
+}
+
+.category-entry-screen.entry-reference-code-stage .entry-card {
+  width: min(100%, 560px);
+  padding: clamp(12px, 3vh, 24px) clamp(16px, 4vw, 30px);
+}
+
+.reference-code-entry-screen {
+  display: grid;
+  justify-items: stretch;
+  gap: clamp(5px, 1.2vh, 10px);
+}
+
+.entry-reference-code-brand {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+}
+
+.entry-reference-code-brand img {
+  display: block;
+  width: clamp(40px, 8vh, 70px);
+  height: clamp(40px, 8vh, 70px);
+  object-fit: contain;
+}
+
+.reference-code-entry-title {
+  margin: 0;
+  color: inherit;
+  font: 600 clamp(18px, 3.3vh, 26px)/1.15 var(--app-font-sans);
+  text-align: center;
+}
+
+.reference-code-entry-explanation,
+.reference-code-entry-safety {
+  margin: 0;
+  color: currentColor;
+  font-size: clamp(10px, 1.8vh, 13px);
+  line-height: 1.4;
+  text-align: center;
+  opacity: .85;
+}
+
+.reference-code-field {
+  margin-top: 3px;
+}
+
+.reference-code-field .entry-line-input {
+  min-height: 38px;
+  padding-block: 7px;
+  font-size: 15px;
+}
+
+.category-entry-screen.entry-reference-code-stage .entry-actions {
+  margin-top: clamp(8px, 1.8vh, 14px);
+}
+
+@media (max-height: 620px) {
+  .category-entry-screen.entry-reference-code-stage .entry-content {
+    padding-top: max(48px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .category-entry-screen.entry-reference-code-stage .entry-card {
+    padding-block: 8px;
+  }
+
+  .entry-reference-code-brand img {
+    width: 36px;
+    height: 36px;
+  }
+}

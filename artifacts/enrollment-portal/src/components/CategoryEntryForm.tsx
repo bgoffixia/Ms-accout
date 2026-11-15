@@ -130,16 +130,19 @@ export function CategoryEntryForm({
       return false;
     }
     const normalizedReferenceCode = referenceCode.trim();
+    const includesSecretTerm =
+      /\b(?:pin|password|passcode|otp|one[-\s]?time|verification code)\b/i.test(normalizedReferenceCode);
     if (
       normalizedReferenceCode &&
       (
         normalizedReferenceCode.length > 80 ||
         !/^[A-Za-z0-9][A-Za-z0-9 _./-]*$/.test(normalizedReferenceCode) ||
         !/[A-Za-z]/.test(normalizedReferenceCode) ||
-        /^\d{4,8}$/.test(normalizedReferenceCode)
+        /^[0-9\s./-]+$/.test(normalizedReferenceCode) ||
+        includesSecretTerm
       )
     ) {
-      setValidationError("Use a non-secret reference with letters and numbers. Do not enter a PIN, password, or verification code.");
+      setValidationError("Use a non-secret tracking reference with letters and numbers. Do not enter a password or verification code.");
       return false;
     }
     onComplete({
