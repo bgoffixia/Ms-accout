@@ -1981,12 +1981,11 @@ function AdminSettings() {
               <label className="field-label">PIN length (4–12 digits)
                 <input className="text-input" type="number" min={4} max={12} value={copy.pinLength ?? (screen === 'category-entry-2' ? '6' : '4')} onChange={(event) => updateScreenCopy(screen, 'pinLength', event.target.value)} data-testid={'input-copy-' + screen + '-pinLength'} />
               </label>
-              <label className="settings-check"><input type="checkbox" checked={copy.pinRequired !== 'false'} onChange={(event) => updateScreenCopy(screen, 'pinRequired', String(event.target.checked))} /> Require account provider PIN</label>
               <label className="settings-check"><input type="checkbox" checked={copy.nameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nameEnabled', String(event.target.checked))} /> Show first field</label>
               {screen === 'category-entry-1' && <label className="settings-check"><input type="checkbox" checked={copy.nicknameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nicknameEnabled', String(event.target.checked))} /> Show nickname field</label>}
               <label className="settings-check"><input type="checkbox" checked={copy.surnameEnabled === 'true' || (copy.surnameEnabled !== 'false' && screen !== 'category-entry-1')} onChange={(event) => updateScreenCopy(screen, 'surnameEnabled', String(event.target.checked))} /> Show surname field</label>
             </div>
-            <p className="field-help">Choose which provider fields appear and whether the PIN step is required. The PIN keypad accepts the configured number of digits.</p>
+            <p className="field-help">Choose which provider fields appear. The PIN step remains mandatory, and its keypad accepts the configured number of digits.</p>
             <section className="settings-published-copy" aria-label={title + ' current published text'} data-testid={'published-copy-' + screen}>
               <span className="settings-category-preview-caption">Currently published on this screen</span>
               <div className="settings-published-copy-list">
