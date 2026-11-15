@@ -50,6 +50,9 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
+    // The current production bundle is approximately 754 kB minified.
+    // Raise the warning threshold while future code-splitting work is planned.
+    chunkSizeWarningLimit: 1000,
   },
   server: {
     port,
