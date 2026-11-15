@@ -121,8 +121,8 @@ async function ensurePrivateBucket(bucketName: string): Promise<void> {
         id: bucketName,
         name: bucketName,
         public: false,
-        fileSizeLimit: 209715200,
-        allowedMimeTypes: [
+        file_size_limit: 209715200,
+        allowed_mime_types: [
           "application/pdf",
           "image/jpeg",
           "image/png",
