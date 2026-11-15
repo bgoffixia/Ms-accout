@@ -1240,6 +1240,8 @@ function outstandingApplicationRequirements(
 
 function isPrivateStorageConfigured(): boolean {
   return Boolean(
+    process.env.SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY &&
     process.env.PRIVATE_OBJECT_DIR &&
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID,
   );
