@@ -1,4 +1,4 @@
-name: Frontend build
+name: Application build
 
 on:
   push:
@@ -57,6 +57,12 @@ jobs:
 
       - name: Type-check frontend
         run: pnpm --filter @workspace/enrollment-portal typecheck
+
+      - name: Type-check API
+        run: pnpm --filter @workspace/api-server typecheck
+
+      - name: Build API
+        run: pnpm --filter @workspace/api-server build
 
       - name: Build frontend
         run: pnpm --filter @workspace/enrollment-portal build
