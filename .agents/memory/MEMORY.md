@@ -1,9 +1,0 @@
-- [Guest applicant path](guest-applicants.md) — Guest status uses a reference and private key; preserve reviewer access, encrypted PINs, and evidence protections.
-- [Staff access](staff-access.md) — Enforce staff roles server-side; restrict alerts, Infobip connection, and SMS limits to admins.
-- [Applicant progress visibility](application-progress.md) — Persist wizard steps server-side and expose them only to authorized reviewers.
-- [Optional enrollment sections](optional-enrollment-sections.md) — Align completion gates with copy; collect only next-of-kin identity and contact details, not location.
-- [Applicant viewport locking](applicant-viewport-lock.md) — Root overflow hidden alone may leave a programmatic document scroll range; keep scrolling inside panels.
-- [Reviewer email alerts](reviewer-email-alerts.md) — Start reviewer emails after category selection; send alerts for meaningful progress, evidence, corrections, and submission.
-- [Workspace email sending](workspace-email-sender.md) — Staff mail uses the connected Gmail identity; protect retries from duplicate sends with a Sent-folder check.
-- [Portal branding](portal-branding.md) — Use the exact M-soft Account Protection brand; keep security-status wording functional.
-- [Gmail delivery notices](gmail-delivery-notices.md) — Gmail acceptance is not proof of delivery; only explicit DSNs establish recipient delivery or bounce outcomes.
