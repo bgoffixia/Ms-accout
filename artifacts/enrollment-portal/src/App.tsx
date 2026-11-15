@@ -398,12 +398,12 @@ function staffReviewReturnPath(value: string | null): string | null {
   return null;
 }
 
-function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff' | 'admin'; allowlistedEmail?: string }) {
+function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' | 'staff' | 'admin'; allowlistedEmail?: string; authContext?: 'admin' | 'staff' }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
   const directStaffRegistration = (mode === 'staff' || mode === 'admin') && !!allowlistedEmail;
-  const adminRegistrationIntent = mode === 'admin' || new URLSearchParams(window.location.search).get('adminRegistration') === '1';
-  const staffSignInRegistration = mode === 'in' && new URLSearchParams(window.location.search).get('staffRegistration') === '1';
+  const adminRegistrationIntent = mode === 'admin' || authContext === 'admin' || new URLSearchParams(window.location.search).get('adminRegistration') === '1';
+  const staffSignInRegistration = mode === 'in' && (authContext === 'staff' || new URLSearchParams(window.location.search).get('staffRegistration') === '1');
   const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration || adminRegistrationIntent;
   const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
   const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
@@ -5091,9 +5091,9 @@ function RoutedPages() {
     <Route path="/guest/apply" component={GuestApplicationRoute} />
     <Route path="/guest/track" component={GuestTrackingPage} />
     <Route path="/staff/sign-up/*?" component={StaffSignUpPage} />
-    <Route path="/staff/sign-in/*?" component={() => <AuthPage mode="in" />} />
+    <Route path="/staff/sign-in/*?" component={() => <AuthPage mode="in" authContext="staff" />} />
     <Route path="/admin/sign-up/*?" component={AdminSignUpPage} />
-    <Route path="/admin/sign-in/*?" component={() => <AuthPage mode="in" />} />
+    <Route path="/admin/sign-in/*?" component={() => <AuthPage mode="in" authContext="admin" />} />
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
