@@ -51,7 +51,7 @@ export async function setObjectAclPolicy(
   aclPolicy: ObjectAclPolicy,
 ): Promise<void> {
   const [exists] = await objectFile.exists();
-  if (!exists) throw new Error(\`Object not found: \${objectFile.name}\`);
+  if (!exists) throw new Error(`Object not found: ${objectFile.name}`);
 
   await objectFile.setMetadata({
     metadata: {
