@@ -25,7 +25,6 @@ import {
   type Request,
   type Response,
   Router,
-  type IRouter,
 } from "express";
 import {
   CreateSupportTicketBody,
@@ -172,7 +171,7 @@ import {
 import {
   ObjectNotFoundError,
   ObjectStorageService,
-} from "../lib/objectStorage";
+} from "../lib/objectStorage.js";
 import {
   applyInfobipDeliveryReport,
   createStaffSmsAttempt,
@@ -188,12 +187,12 @@ import {
   saveStaffSmsConfiguration,
   sendInfobipSms,
   verifyInfobipDeliveryReportSignature,
-} from "../lib/staffSms";
-import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup";
+} from "../lib/staffSms.js";
+import { INCOMPLETE_GUEST_UPLOAD_RETENTION_MS } from "../lib/guestEvidenceCleanup.js";
 import {
   sendReviewerNotification,
   type ReviewerNotification,
-} from "../lib/reviewerNotifications";
+} from "../lib/reviewerNotifications.js";
 import {
   dispatchStaffEmail,
   emailRecipientIdempotencyKey,
@@ -205,7 +204,7 @@ import {
   refreshWorkspaceEmailDeliveryStatuses,
   recordStaffEmailDeliveryEvent,
   type StaffEmailMessageKind,
-} from "../lib/staffEmail";
+} from "../lib/staffEmail.js";
 
 type ApplicationStatus =
   | "draft"
@@ -215,7 +214,7 @@ type ApplicationStatus =
   | "approved"
   | "rejected";
 
-const router: IRouter = Router();
+const router = Router();
 const objectStorage = new ObjectStorageService();
 
 async function notifyEnrollmentReviewer(

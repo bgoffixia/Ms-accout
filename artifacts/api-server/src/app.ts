@@ -1,46 +1,25 @@
-import express, { type Express } from "express";
-import pinoHttp from "pino-http";
+import express from "express";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
-import router from "./routes";
-import { logger } from "./lib/logger";
+import router from "./routes/index.js";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
   getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
+} from "./middlewares/clerkProxyMiddleware.js";
 
-const app: Express = express();
+const app = express();
 
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
-      },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
-    },
-  }),
-);
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 app.use("/api/admin/settings", express.json({ limit: "40mb" }));
 app.use(
   express.json({
     limit: "4mb",
-    verify(request, _response, body) {
-      if (
-        request.url?.split("?")[0] === "/api/webhooks/infobip/sms"
-      ) {
-        (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
+    verify(request: any, _response: any, body: Uint8Array) {
+      if (request.originalUrl?.split("?")[0] === "/api/webhooks/infobip/sms") {
+        // Preserve the raw webhook bytes without depending on Node Buffer
+        // declarations in this package's browser-oriented TypeScript config.
+        request.rawBody = new Uint8Array(body);
       }
     },
   }),
@@ -48,10 +27,10 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
-  clerkMiddleware((req) => ({
+  clerkMiddleware((req: any) => ({
     publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
+      getClerkProxyHost(req as { headers: Record<string, string | string[] | undefined> }) ?? "",
+      (globalThis as any)["process"]?.["env"]?.["CLERK_PUBLISHABLE_KEY"],
     ),
   })),
 );
