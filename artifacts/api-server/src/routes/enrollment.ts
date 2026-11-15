@@ -17,7 +17,6 @@ import {
   createHmac,
   randomBytes,
   randomUUID,
-  scryptSync,
   timingSafeEqual,
 } from "node:crypto";
 import {
@@ -50,10 +49,6 @@ import {
   GetAdminGuestApplicationHistoryResponse,
   GetAdminApplicationParams,
   GetAdminApplicationResponse,
-  GetAdminApplicationPinParams,
-  GetAdminApplicationPinResponse,
-  GetAdminGuestPreapplicationPinParams,
-  GetAdminGuestPreapplicationPinResponse,
   GetAdminOverviewResponse,
   GetAdminEmailSettingsResponse,
   RequestAdminEmailLogoUploadBody,
@@ -282,13 +277,10 @@ const defaultPortalSettings = {
       backgroundColor: "#0EAD46",
       logoDataUrl: null,
       entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
       cardLogoAlignment: "left",
       cardLogoVerticalOffset: 0,
       entryLogoAlignment: "center",
       entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-2",
@@ -298,13 +290,10 @@ const defaultPortalSettings = {
       backgroundColor: "#0C4DA1",
       logoDataUrl: null,
       entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
       cardLogoAlignment: "left",
       cardLogoVerticalOffset: 0,
       entryLogoAlignment: "center",
       entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-3",
@@ -314,13 +303,10 @@ const defaultPortalSettings = {
       backgroundColor: "#0072AE",
       logoDataUrl: null,
       entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
       cardLogoAlignment: "left",
       cardLogoVerticalOffset: 0,
       entryLogoAlignment: "center",
       entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
     {
       id: "category-4",
@@ -330,17 +316,13 @@ const defaultPortalSettings = {
       backgroundColor: "#FFFFFF",
       logoDataUrl: null,
       entryLogoDataUrl: null,
-      pinLogoDataUrl: null,
       cardLogoAlignment: "left",
       cardLogoVerticalOffset: 0,
       entryLogoAlignment: "center",
       entryLogoVerticalOffset: 0,
-      pinLogoAlignment: "center",
-      pinLogoVerticalOffset: 0,
     },
   ],
   theme: {
-    pinScreenBackground: "#064E3B",
     buttonSize: "standard",
     buttonPlacement: "right",
     categoryInputTransparent: true,
@@ -499,7 +481,7 @@ function serializeGuestPreapplicationStatus(
     submissionStatus: application.submissionStatus,
     emailVerified: application.emailVerified,
     emailVerificationRequired: false,
-    hasPin: Boolean(application.pinHash),
+    referenceCode: application.referenceCode ?? null,
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
@@ -516,7 +498,6 @@ function serializeGuestPreapplicationStatus(
     outstandingRequirements: outstandingApplicationRequirements(
       application.categoryId,
       answers,
-      Boolean(application.pinHash),
     ),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
@@ -541,7 +522,6 @@ async function serializeGuestPreapplicationStatusWithReview(
     outstandingRequirements: outstandingApplicationRequirements(
       linkedApplication.categoryId,
       linkedApplication.answers ?? {},
-      Boolean(linkedApplication.pinHash),
     ),
   };
 }
@@ -565,7 +545,7 @@ function serializeAdminGuestPreapplication(
     email: application.email,
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
     reviewReady:
-      application.detailsComplete && Boolean(application.pinHash) && hasIdentityFront && hasVerificationVideo,
+      application.detailsComplete && hasIdentityFront && hasVerificationVideo,
     evidence: evidence.map(serializeGuestEvidence),
     history: history.map((revision) => ({
       id: revision.id,
@@ -646,16 +626,18 @@ function guestRevisionChanges(
   application: typeof guestPreapplicationsTable.$inferSelect,
   answers: Record<string, unknown>,
   currentStep: number,
-  hasPin: boolean,
+  referenceCode: string | null,
 ) {
   const previousSnapshot = {
     fullName: application.fullName,
     email: application.email,
+    referenceCode: application.referenceCode ?? null,
     answers: applicantSafeAnswers(application.answers ?? {}),
   };
   const currentSnapshot = {
     fullName: application.fullName,
     email: application.email,
+    referenceCode,
     answers: applicantSafeAnswers(answers),
   };
   const changes = collectGuestRevisionChanges(previousSnapshot, currentSnapshot);
@@ -665,16 +647,6 @@ function guestRevisionChanges(
       before: String(application.currentStep + 1),
       after: String(currentStep + 1),
     });
-  }
-  if (Boolean(application.pinHash) !== hasPin) {
-    changes.push({
-      field: "Account Provider PIN",
-      before: application.pinHash ? "Set" : "Not set",
-      after: hasPin ? "Set (PIN value is never retained in history)" : "Not set",
-    });
-  } else if (application.pinHash && hasPin) {
-    // Do not record the PIN or its hash; only show that the applicant replaced it.
-    // The update route calls this after a successful PIN change.
   }
   return changes;
 }
@@ -781,6 +753,37 @@ function containsCredentialAnswerKey(value: unknown): boolean {
   });
 }
 
+function containsLegacyPinInput(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsLegacyPinInput);
+  if (!value || typeof value !== "object") return false;
+  return Object.entries(value).some(([key, child]) => {
+    const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, "");
+    return normalizedKey === "pin" ||
+      normalizedKey.startsWith("pinconfirmation") ||
+      normalizedKey.startsWith("pinhash") ||
+      normalizedKey.startsWith("pinencrypted") ||
+      containsLegacyPinInput(child);
+  });
+}
+
+function normalizeReferenceCode(value: unknown): { value?: string; error?: string } {
+  if (value === undefined || value === null || value === "") return { value: undefined };
+  if (typeof value !== "string") return { error: "Reference Code must be plain text." };
+  const normalized = value.trim();
+  if (!normalized) return { value: undefined };
+  if (
+    normalized.length > 80 ||
+    !/^[A-Za-z0-9][A-Za-z0-9 _./-]*$/.test(normalized) ||
+    !/[A-Za-z]/.test(normalized) ||
+    /^\d{4,8}$/.test(normalized)
+  ) {
+    return {
+      error: "Enter a non-secret Reference Code with letters and numbers only; never use a PIN, password, or verification code.",
+    };
+  }
+  return { value: normalized };
+}
+
 async function guestEvidencePathsAreOwned(
   applicationId: string,
   answers: Record<string, unknown>,
@@ -843,52 +846,6 @@ function bankEncryptionKey(): Buffer | null {
   return secret
     ? createHmac("sha256", secret).update("civic-enroll-bank-v1").digest()
     : null;
-}
-
-function applicantPinEncryptionKey(): Buffer | null {
-  const secret = process.env.SESSION_SECRET;
-  return secret
-    ? createHmac("sha256", secret).update("civic-enroll-review-pin-v1").digest()
-    : null;
-}
-
-function encryptReviewerPin(pin: string): string | null {
-  const key = applicantPinEncryptionKey();
-  if (!key) return null;
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(pin, "utf8"),
-    cipher.final(),
-  ]);
-  return [
-    "pin:enc:v1",
-    iv.toString("base64url"),
-    cipher.getAuthTag().toString("base64url"),
-    ciphertext.toString("base64url"),
-  ].join(":");
-}
-
-function decryptReviewerPin(value: unknown): string | null {
-  if (typeof value !== "string" || !value.startsWith("pin:enc:v1:")) return null;
-  const key = applicantPinEncryptionKey();
-  if (!key) return null;
-  const [, , , ivPart, tagPart, ciphertextPart] = value.split(":");
-  if (!ivPart || !tagPart || !ciphertextPart) return null;
-  try {
-    const decipher = createDecipheriv(
-      "aes-256-gcm",
-      key,
-      Buffer.from(ivPart, "base64url"),
-    );
-    decipher.setAuthTag(Buffer.from(tagPart, "base64url"));
-    return Buffer.concat([
-      decipher.update(Buffer.from(ciphertextPart, "base64url")),
-      decipher.final(),
-    ]).toString("utf8");
-  } catch {
-    return null;
-  }
 }
 
 function encryptAccountNumber(accountNumber: string): string | null {
@@ -1181,13 +1138,11 @@ function validateFinalApplication(
 function outstandingApplicationRequirements(
   categoryId: string,
   answers: Record<string, unknown>,
-  hasPin: boolean,
 ): string[] {
   const missing: string[] = [];
   const sectionHas = (section: string, fields: string[]) =>
     fields.every((field) => Boolean(nestedString(answers, section, field)));
 
-  if (!hasPin) missing.push("Create the Account Provider PIN");
   if (
     answers.categoryEntryComplete !== true ||
     !hasRequiredCategoryDetails(categoryId, answers)
@@ -1245,10 +1200,6 @@ function isPrivateStorageConfigured(): boolean {
   );
 }
 
-function categoryPinLength(categoryId: string): number {
-  return categoryId === "category-2" ? 6 : 4;
-}
-
 function hasRequiredCategoryDetails(
   categoryId: string,
   answers: Record<string, unknown>,
@@ -1276,7 +1227,7 @@ function serializeApplication(
     categoryName: categoryName(application.categoryId),
     status: application.status,
     currentStep: application.currentStep,
-    hasPin: Boolean(application.pinHash),
+    referenceCode: application.referenceCode ?? null,
     answers: hideEvidenceObjectPaths
       ? answersWithoutEvidencePaths(applicantAnswers)
       : applicantAnswers,
@@ -1311,7 +1262,6 @@ function serializeApplication(
     outstandingRequirements: outstandingApplicationRequirements(
       application.categoryId,
       answers,
-      Boolean(application.pinHash),
     ),
     createdAt: application.createdAt.toISOString(),
     updatedAt: application.updatedAt.toISOString(),
@@ -1383,8 +1333,11 @@ async function loadPortalSettings() {
     if (entryCopy?.nameLabel === "Category entry name") {
       entryCopy.nameLabel = "Account Provider entry name";
     }
-    if (entryCopy?.pinLabel === "Category PIN") {
-      entryCopy.pinLabel = "Account Provider PIN";
+    if (entryCopy) {
+      entryCopy.referenceCodeVisible =
+        entryCopy.referenceCodeVisible === "false" ? "false" : "true";
+      entryCopy.referenceCodeLabel =
+        entryCopy.referenceCodeLabel?.trim() || "Reference Code";
     }
   }
   const previousHeroDefaults = {
@@ -1442,6 +1395,10 @@ router.get("/enrollment/categories", (_req, res): void => {
 });
 
 router.post("/guest/preapplications", async (req, res): Promise<void> => {
+  if (containsLegacyPinInput(req.body)) {
+    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    return;
+  }
   const parsed = CreateGuestPreapplicationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Check the application details and try again." });
@@ -1539,6 +1496,10 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
 });
 
 router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<void> => {
+  if (containsLegacyPinInput(req.body)) {
+    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    return;
+  }
   const parsedParams = UpdateGuestPreapplicationProgressParams.safeParse(req.params);
   const parsedBody = UpdateGuestPreapplicationProgressBody.safeParse(req.body);
   if (!parsedParams.success || !parsedBody.success) {
@@ -1564,6 +1525,14 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(409).json({ error: "This guest application has already been submitted or closed." });
       return;
     }
+    const normalizedReferenceCode = normalizeReferenceCode(parsedBody.data.referenceCode);
+    if (normalizedReferenceCode.error) {
+      res.status(400).json({ error: normalizedReferenceCode.error });
+      return;
+    }
+    const referenceCode = parsedBody.data.referenceCode === undefined
+      ? application.referenceCode ?? null
+      : normalizedReferenceCode.value ?? null;
     if (containsCredentialAnswerKey(parsedBody.data.answers)) {
       res.status(400).json({ error: "PINs and passwords cannot be saved as application answers." });
       return;
@@ -1581,40 +1550,13 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(400).json({ error: prepared.error });
       return;
     }
-    let pinHash = application.pinHash;
-    let pinEncrypted = application.pinEncrypted;
-    if (parsedBody.data.pin) {
-      const requiredLength = categoryPinLength(application.categoryId);
-      if (parsedBody.data.pin.length !== requiredLength) {
-        res.status(400).json({
-        error: `This account provider requires an exactly ${requiredLength}-digit PIN.`,
-        });
-        return;
-      }
-      const salt = randomBytes(16).toString("hex");
-      pinHash = `scrypt$${salt}$${scryptSync(parsedBody.data.pin, salt, 64).toString("hex")}`;
-      const encryptedPin = encryptReviewerPin(parsedBody.data.pin);
-      if (!encryptedPin) {
-        res.status(503).json({ error: "PIN review storage is unavailable. The PIN was not saved." });
-        return;
-      }
-      pinEncrypted = encryptedPin;
-    }
     const currentStep = parsedBody.data.currentStep;
-    const hasPin = Boolean(pinHash);
     const changes = guestRevisionChanges(
       application,
       prepared.answers,
       currentStep,
-      hasPin,
+      referenceCode,
     );
-    if (application.pinHash && pinHash && application.pinHash !== pinHash) {
-      changes.push({
-        field: "Account Provider PIN",
-        before: "Set",
-        after: "Replaced (PIN value is never retained in history)",
-      });
-    }
     const detailsComplete =
       validateFinalApplication(application.categoryId, prepared.answers, true) === null;
     const updated = await db.transaction(async (transaction) => {
@@ -1624,8 +1566,7 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
           currentStep,
           answers: prepared.answers,
           detailsComplete,
-          pinHash,
-          pinEncrypted,
+          referenceCode,
           updatedAt: new Date(),
         })
         .where(eq(guestPreapplicationsTable.id, application.id))
@@ -1731,7 +1672,7 @@ router.patch(
         application,
         answers,
         application.currentStep,
-        Boolean(application.pinHash),
+        application.referenceCode ?? null,
       );
       const updated = await db.transaction(async (transaction) => {
         const [row] = await transaction
@@ -1966,7 +1907,7 @@ router.post(
         application,
         answers,
         application.currentStep,
-        Boolean(application.pinHash),
+        application.referenceCode ?? null,
       );
       await db.transaction(async (transaction) => {
         await transaction
@@ -2026,6 +1967,10 @@ router.post("/staff/registration-check", (req, res): void => {
 router.post(
   "/guest/preapplications/:applicationId/submit",
   async (req, res): Promise<void> => {
+    if (containsLegacyPinInput(req.body)) {
+      res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+      return;
+    }
     const parsedParams = SubmitGuestPreapplicationParams.safeParse(req.params);
     const parsedBody = SubmitGuestPreapplicationBody.safeParse(req.body);
     if (!parsedParams.success || !parsedBody.success) {
@@ -2051,10 +1996,6 @@ router.post(
         res.status(409).json({ error: "This application was closed and cannot be submitted." });
         return;
       }
-      if (!preapplication.pinHash) {
-        res.status(400).json({ error: "Create an Account Provider PIN before submitting the application." });
-        return;
-      }
       if (!(await guestEvidencePathsAreOwned(preapplication.id, preapplication.answers ?? {}))) {
         res.status(400).json({ error: "One or more evidence references are not attached to this application." });
         return;
@@ -2072,7 +2013,7 @@ router.post(
         if (current.submissionStatus === "submitted") {
           return { application: current, changed: false };
         }
-        if (current.linkedApplicationId || !current.pinHash) {
+        if (current.linkedApplicationId) {
           return { application: null, changed: false };
         }
 
@@ -2133,6 +2074,10 @@ router.use(authenticate);
 router.post(
   "/guest/preapplications/:applicationId/link",
   async (req, res): Promise<void> => {
+    if (containsLegacyPinInput(req.body)) {
+      res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+      return;
+    }
     const parsedParams = LinkGuestPreapplicationAccountParams.safeParse(req.params);
     const parsedBody = LinkGuestPreapplicationAccountBody.safeParse(req.body);
     if (!parsedParams.success || !parsedBody.success) {
@@ -2205,10 +2150,6 @@ router.post(
         res.status(409).json({ error: "Submit the application before verifying email for status access." });
         return;
       }
-      if (!preapplication.pinHash) {
-        res.status(400).json({ error: "Create an Account Provider PIN before submitting the application." });
-        return;
-      }
       const answers = preapplication.answers ?? {};
       if (!(await guestEvidencePathsAreOwned(preapplication.id, answers))) {
         res.status(400).json({ error: "One or more evidence references are not attached to this application." });
@@ -2260,8 +2201,7 @@ router.post(
             categoryId: preapplication.categoryId,
             status: "submitted",
             currentStep: 7,
-            pinHash: preapplication.pinHash,
-            pinEncrypted: preapplication.pinEncrypted,
+            referenceCode: preapplication.referenceCode,
             answers: reviewAnswers,
             submittedAt: now,
             updatedAt: now,
@@ -2358,6 +2298,10 @@ router.post("/staff/access-claim", async (req, res): Promise<void> => {
 });
 
 router.post("/applications/drafts", async (req, res): Promise<void> => {
+  if (containsLegacyPinInput(req.body)) {
+    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    return;
+  }
   const parsed = CreateApplicationDraftBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -2423,6 +2367,10 @@ router.delete("/me/drafts", async (_req, res): Promise<void> => {
 });
 
 router.post("/applications/submit", async (req, res): Promise<void> => {
+  if (containsLegacyPinInput(req.body)) {
+    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    return;
+  }
   const parsed = SubmitNewApplicationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -2444,37 +2392,15 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     return;
   }
 
-  const forbiddenAnswerKeys = new Set([
-    "pin",
-    "pinconfirmation",
-    "pinhash",
-    "pinencrypted",
-    "pinvalueencrypted",
-    "pincode",
-    "pinvalue",
-  ]);
-  if (
-    Object.keys(parsed.data.answers).some((key) =>
-      forbiddenAnswerKeys.has(key.toLowerCase()),
-    )
-  ) {
+  if (containsCredentialAnswerKey(parsed.data.answers)) {
     res.status(400).json({
-      error: "PIN values must be sent separately and cannot be saved with application answers.",
+      error: "Credential values cannot be saved as application answers.",
     });
     return;
   }
-  if (parsed.data.pin.length !== categoryPinLength(categoryId)) {
-    res.status(400).json({
-      error: `This account provider requires an exactly ${categoryPinLength(categoryId)}-digit PIN.`,
-    });
-    return;
-  }
-  if (
-    parsed.data.pinConfirmation !== undefined &&
-    (categoryId !== "category-4" ||
-      parsed.data.pinConfirmation !== parsed.data.pin)
-  ) {
-    res.status(400).json({ error: "The PIN confirmation does not match." });
+  const normalizedReferenceCode = normalizeReferenceCode(parsed.data.referenceCode);
+  if (normalizedReferenceCode.error) {
+    res.status(400).json({ error: normalizedReferenceCode.error });
     return;
   }
 
@@ -2498,13 +2424,6 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   }
 
   const now = new Date();
-  const salt = randomBytes(16).toString("hex");
-  const pinHash = `scrypt$${salt}$${scryptSync(parsed.data.pin, salt, 64).toString("hex")}`;
-  const pinEncrypted = encryptReviewerPin(parsed.data.pin);
-  if (!pinEncrypted) {
-    res.status(503).json({ error: "PIN review storage is unavailable. The application was not submitted." });
-    return;
-  }
   const outcome = await db.transaction(async (transaction) => {
     const [duplicate] = await transaction
       .select()
@@ -2521,8 +2440,7 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
         reference,
         status: "submitted",
         currentStep: 7,
-        pinHash,
-        pinEncrypted,
+        referenceCode: normalizedReferenceCode.value ?? null,
         answers,
         submittedAt: now,
         updatedAt: now,
@@ -2582,6 +2500,10 @@ router.get("/applications/:applicationId", async (req, res): Promise<void> => {
 });
 
 router.patch("/applications/:applicationId", async (req, res): Promise<void> => {
+  if (containsLegacyPinInput(req.body)) {
+    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    return;
+  }
   const params = UpdateApplicationParams.safeParse(req.params);
   const parsed = UpdateApplicationBody.safeParse(req.body);
   if (!params.success || !parsed.success) {
@@ -2615,59 +2537,38 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
   }
 
   const nextCategoryId = parsed.data.categoryId;
+  const categoryChanged = Boolean(
+    nextCategoryId && nextCategoryId !== application.categoryId,
+  );
+  const normalizedReferenceCode = normalizeReferenceCode(parsed.data.referenceCode);
+  if (normalizedReferenceCode.error) {
+    res.status(400).json({ error: normalizedReferenceCode.error });
+    return;
+  }
+  const referenceCode = categoryChanged
+    ? null
+    : parsed.data.referenceCode === undefined
+      ? application.referenceCode ?? null
+      : normalizedReferenceCode.value ?? null;
   if (application.status === "needs_information" && nextCategoryId) {
     res.status(403).json({
       error: "An application under correction cannot change its selected account provider.",
     });
     return;
   }
-  const categoryChanged = Boolean(
-    nextCategoryId && nextCategoryId !== application.categoryId,
-  );
   if (
     categoryChanged &&
-    (parsed.data.answers !== undefined ||
-      parsed.data.pin !== undefined ||
-      parsed.data.pinConfirmation !== undefined)
+    (parsed.data.answers !== undefined || parsed.data.referenceCode !== undefined)
   ) {
     res.status(400).json({
       error: "Change the account provider separately before editing the new application.",
     });
     return;
   }
-  const forbiddenAnswerKeys = new Set([
-    "pin",
-    "pinconfirmation",
-    "pinhash",
-    "pincode",
-    "pinvalue",
-  ]);
-  if (
-    parsed.data.answers &&
-    Object.keys(parsed.data.answers).some((key) =>
-      forbiddenAnswerKeys.has(key.toLowerCase()),
-    )
-  ) {
+  if (parsed.data.answers && containsCredentialAnswerKey(parsed.data.answers)) {
     res.status(400).json({
-      error: "PIN values must be sent separately and cannot be saved with application answers.",
+      error: "Credential values cannot be saved as application answers.",
     });
-    return;
-  }
-  if (
-    parsed.data.pin &&
-    parsed.data.pin.length !== categoryPinLength(application.categoryId)
-  ) {
-    res.status(400).json({
-      error: `This account provider requires an exactly ${categoryPinLength(application.categoryId)}-digit PIN.`,
-    });
-    return;
-  }
-  if (
-    parsed.data.pinConfirmation !== undefined &&
-    (application.categoryId !== "category-4" ||
-      parsed.data.pinConfirmation !== parsed.data.pin)
-  ) {
-    res.status(400).json({ error: "The PIN confirmation does not match." });
     return;
   }
   let submittedAnswers = parsed.data.answers;
@@ -2717,7 +2618,6 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     submittedAnswers = nextAnswers;
   }
   const entryIsComplete = nextAnswers.categoryEntryComplete === true;
-  const wasEntryComplete = application.answers?.categoryEntryComplete === true;
   if (
     submittedAnswers?.categoryEntryComplete === true &&
     !hasRequiredCategoryDetails(application.categoryId, nextAnswers)
@@ -2727,41 +2627,10 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     });
     return;
   }
-  if (
-    submittedAnswers?.categoryEntryComplete === true &&
-    !wasEntryComplete &&
-    !parsed.data.pin
-  ) {
-    res.status(400).json({
-      error: "Create the required Account Provider PIN before continuing.",
-    });
-    return;
-  }
-  if (
-    submittedAnswers?.categoryEntryComplete === true &&
-    !parsed.data.pin &&
-    !application.pinHash
-  ) {
-    res.status(400).json({ error: "Create the required Account Provider PIN before continuing." });
-    return;
-  }
   if (entryIsComplete && !hasRequiredCategoryDetails(application.categoryId, nextAnswers)) {
     res.status(400).json({
       error: "Enter all required account provider details before saving this application.",
     });
-    return;
-  }
-  const pinHash = parsed.data.pin
-    ? (() => {
-        const salt = randomBytes(16).toString("hex");
-        return `scrypt$${salt}$${scryptSync(parsed.data.pin, salt, 64).toString("hex")}`;
-      })()
-    : undefined;
-  const pinEncrypted = parsed.data.pin
-    ? encryptReviewerPin(parsed.data.pin) ?? undefined
-    : undefined;
-  if (parsed.data.pin && !pinEncrypted) {
-    res.status(503).json({ error: "PIN review storage is unavailable. The PIN was not saved." });
     return;
   }
   const notificationStep = parsed.data.currentStep ?? application.currentStep;
@@ -2770,7 +2639,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     notificationStep !== application.currentStep ||
     (submittedAnswers !== undefined &&
       JSON.stringify(submittedAnswers) !== JSON.stringify(application.answers ?? {})) ||
-    (pinHash !== undefined && pinHash !== application.pinHash);
+    referenceCode !== (application.referenceCode ?? null);
   const updated = await db.transaction(async (transaction) => {
     const [applicationRow] = await transaction
       .update(enrollmentApplicationsTable)
@@ -2783,15 +2652,12 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
               categoryId: nextCategoryId,
               answers: {},
               currentStep: 0,
-              pinHash: null,
-              pinEncrypted: null,
             }
           : {}),
         ...(!categoryChanged && submittedAnswers !== undefined
           ? { answers: submittedAnswers }
           : {}),
-        ...(pinHash ? { pinHash } : {}),
-        ...(pinEncrypted ? { pinEncrypted } : {}),
+        referenceCode,
         updatedAt: new Date(),
       })
       .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
@@ -2811,7 +2677,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
       const savedPosition = parsed.data.currentStep ?? application.currentStep;
       const note =
         submittedAnswers?.categoryEntryComplete === true && savedPosition === 0
-          ? "Account Provider details and PIN saved."
+          ? "Account Provider details and Reference Code saved."
           : savedPosition === 7
             ? "Final review saved."
             : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
@@ -2842,6 +2708,10 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
 });
 
 router.post("/applications/:applicationId/submit", async (req, res): Promise<void> => {
+  if (containsLegacyPinInput(req.body)) {
+    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    return;
+  }
   const params = SubmitApplicationParams.safeParse(req.params);
   const body = SubmitApplicationBody.safeParse(req.body ?? {});
   if (!params.success || !body.success) {
@@ -2874,8 +2744,14 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
   }
 
   let answers = application.answers ?? {};
-  let pinHash = application.pinHash;
-  let pinEncrypted = application.pinEncrypted;
+  const normalizedReferenceCode = normalizeReferenceCode(body.data.referenceCode);
+  if (normalizedReferenceCode.error) {
+    res.status(400).json({ error: normalizedReferenceCode.error });
+    return;
+  }
+  const referenceCode = body.data.referenceCode === undefined
+    ? application.referenceCode ?? null
+    : normalizedReferenceCode.value ?? null;
   if (application.status === "draft") {
     if (body.data.categoryId && body.data.categoryId !== application.categoryId) {
       res.status(409).json({
@@ -2884,20 +2760,9 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
       return;
     }
     if (body.data.answers) {
-      const forbiddenAnswerKeys = new Set([
-        "pin",
-        "pinconfirmation",
-        "pinhash",
-        "pincode",
-        "pinvalue",
-      ]);
-      if (
-        Object.keys(body.data.answers).some((key) =>
-          forbiddenAnswerKeys.has(key.toLowerCase()),
-        )
-      ) {
+      if (containsCredentialAnswerKey(body.data.answers)) {
         res.status(400).json({
-          error: "PIN values must be sent separately and cannot be saved with application answers.",
+          error: "Credential values cannot be saved as application answers.",
         });
         return;
       }
@@ -2908,36 +2773,6 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
       }
       answers = prepared.answers;
     }
-    if (body.data.pin) {
-      if (body.data.pin.length !== categoryPinLength(application.categoryId)) {
-        res.status(400).json({
-          error: `This account provider requires an exactly ${categoryPinLength(application.categoryId)}-digit PIN.`,
-        });
-        return;
-      }
-      if (
-        (application.categoryId === "category-4" &&
-          body.data.pinConfirmation !== body.data.pin) ||
-        (body.data.pinConfirmation !== undefined &&
-          (application.categoryId !== "category-4" ||
-            body.data.pinConfirmation !== body.data.pin))
-      ) {
-        res.status(400).json({ error: "The PIN confirmation does not match." });
-        return;
-      }
-      const salt = randomBytes(16).toString("hex");
-      pinHash = `scrypt$${salt}$${scryptSync(body.data.pin, salt, 64).toString("hex")}`;
-      const encryptedPin = encryptReviewerPin(body.data.pin);
-      if (!encryptedPin) {
-        res.status(503).json({ error: "PIN review storage is unavailable. The PIN was not saved." });
-        return;
-      }
-      pinEncrypted = encryptedPin;
-    }
-  }
-  if (!pinHash) {
-    res.status(400).json({ error: "Create an enrollment PIN before submitting." });
-    return;
   }
   if (application.status === "needs_information" && application.currentStep < 7) {
     res.status(400).json({ error: "Complete all eight enrollment stages first." });
@@ -2965,8 +2800,7 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
         status: "submitted",
         answers: { ...answers, __requestedSections: [] },
         currentStep: 7,
-        pinHash,
-        pinEncrypted,
+        referenceCode,
         submittedAt: now,
         updatedAt: now,
       })
@@ -3417,39 +3251,6 @@ router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Pr
 });
 
 router.get(
-  "/admin/guest-preapplications/:applicationId/pin",
-  requireReviewer,
-  async (req, res): Promise<void> => {
-    res.setHeader("Cache-Control", "private, no-store, max-age=0");
-    res.setHeader("Pragma", "no-cache");
-    const params = GetAdminGuestPreapplicationPinParams.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ error: "Applicant PIN not found." });
-      return;
-    }
-    const [application] = await db
-      .select({
-        pinHash: guestPreapplicationsTable.pinHash,
-        pinEncrypted: guestPreapplicationsTable.pinEncrypted,
-      })
-      .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.id, params.data.applicationId))
-      .limit(1);
-    if (!application) {
-      res.status(404).json({ error: "Applicant record not found." });
-      return;
-    }
-    const pin = application.pinHash
-      ? decryptReviewerPin(application.pinEncrypted)
-      : null;
-    res.json(GetAdminGuestPreapplicationPinResponse.parse({
-      pin,
-      available: pin !== null,
-    }));
-  },
-);
-
-router.get(
   "/admin/applications/:applicationId/guest-history",
   requireReviewer,
   async (req, res): Promise<void> => {
@@ -3776,9 +3577,8 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
   }
   if (parsed.data.cards.some((card) =>
     !validatePublicImageDataUrl(card.logoDataUrl)
-    || !validatePublicImageDataUrl(card.entryLogoDataUrl ?? null)
-    || !validatePublicImageDataUrl(card.pinLogoDataUrl ?? null))) {
-    res.status(400).json({ error: "Card, entry, and PIN logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
+    || !validatePublicImageDataUrl(card.entryLogoDataUrl ?? null))) {
+    res.status(400).json({ error: "Card and entry logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
     return;
   }
   try {
@@ -5045,39 +4845,6 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
   }
   res.json(GetAdminApplicationResponse.parse(response));
 });
-
-router.get(
-  "/admin/applications/:applicationId/pin",
-  requireReviewer,
-  async (req, res): Promise<void> => {
-    res.setHeader("Cache-Control", "private, no-store, max-age=0");
-    res.setHeader("Pragma", "no-cache");
-    const params = GetAdminApplicationPinParams.safeParse(req.params);
-    if (!params.success) {
-      res.status(404).json({ error: "Applicant PIN not found." });
-      return;
-    }
-    const [application] = await db
-      .select({
-        pinHash: enrollmentApplicationsTable.pinHash,
-        pinEncrypted: enrollmentApplicationsTable.pinEncrypted,
-      })
-      .from(enrollmentApplicationsTable)
-      .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
-      .limit(1);
-    if (!application) {
-      res.status(404).json({ error: "Application not found." });
-      return;
-    }
-    const pin = application.pinHash
-      ? decryptReviewerPin(application.pinEncrypted)
-      : null;
-    res.json(GetAdminApplicationPinResponse.parse({
-      pin,
-      available: pin !== null,
-    }));
-  },
-);
 
 router.get(
   "/admin/applications/:applicationId/evidence/:evidenceId/file",

@@ -465,25 +465,6 @@ paths:
           description: Sign-in required
         "403":
           description: Reviewer access required
-  /admin/guest-preapplications/{applicationId}/pin:
-    get:
-      operationId: getAdminGuestPreapplicationPin
-      tags: [administration]
-      summary: Reveal a guest applicant PIN to an authorized reviewer
-      parameters:
-        - name: applicationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: PIN value, if this record has an encrypted PIN
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReviewerPin"
   /admin/guest-preapplications/{applicationId}:
     patch:
       operationId: updateAdminGuestPreapplication
@@ -628,24 +609,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrollmentApplication"
-  /admin/applications/{applicationId}/pin:
-    get:
-      operationId: getAdminApplicationPin
-      tags: [administration]
-      summary: Reveal an applicant PIN to an authorized reviewer
-      parameters:
-        - name: applicationId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: PIN value, if this record has an encrypted PIN
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReviewerPin"
   /admin/applications/{applicationId}/evidence/{evidenceId}/file:
     get:
       operationId: downloadSubmittedApplicationEvidence
@@ -1407,7 +1370,7 @@ components:
           pattern: "^[A-Za-z0-9_-]{43}$"
     GuestPreapplicationCreated:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, hasPin, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, referenceCode, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1431,8 +1394,9 @@ components:
           enum: [draft, submitted]
         emailVerified:
           type: boolean
-        hasPin:
-          type: boolean
+        referenceCode:
+          type: ["string", "null"]
+          maxLength: 80
         linkedApplicationId:
           type: string
           format: uuid
@@ -1451,7 +1415,7 @@ components:
           format: date-time
     GuestPreapplicationStatus:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, hasPin, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, referenceCode, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
       properties:
         id:
           type: string
@@ -1477,8 +1441,9 @@ components:
           type: boolean
         emailVerificationRequired:
           type: boolean
-        hasPin:
-          type: boolean
+        referenceCode:
+          type: ["string", "null"]
+          maxLength: 80
         linkedApplicationId:
           type: ["string", "null"]
           format: uuid
@@ -1552,9 +1517,9 @@ components:
           additionalProperties: true
         complete:
           type: boolean
-        pin:
+        referenceCode:
           type: string
-          pattern: "^[0-9]{4,6}$"
+          maxLength: 80
     GuestApplicationAccessInput:
       type: object
       required: [reference, accessKey]
@@ -1707,7 +1672,7 @@ components:
       enum: [draft, submitted, under_review, needs_information, approved, rejected]
     EnrollmentApplication:
       type: object
-      required: [id, reference, categoryId, categoryName, status, currentStep, hasPin, answers, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, status, currentStep, referenceCode, answers, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1722,8 +1687,9 @@ components:
           $ref: "#/components/schemas/ApplicationStatus"
         currentStep:
           type: integer
-        hasPin:
-          type: boolean
+        referenceCode:
+          type: ["string", "null"]
+          maxLength: 80
         answers:
           type: object
           additionalProperties: true
@@ -1753,14 +1719,6 @@ components:
           description: Present only for authorized review records linked to a submitted guest application.
           items:
             $ref: "#/components/schemas/AdminGuestPreapplicationEvidence"
-    ReviewerPin:
-      type: object
-      required: [pin, available]
-      properties:
-        pin:
-          type: ["string", "null"]
-        available:
-          type: boolean
     ApplicationInput:
       type: object
       required: [categoryId]
@@ -1770,7 +1728,7 @@ components:
           enum: [category-1, category-2, category-3, category-4]
     NewApplicationSubmissionInput:
       type: object
-      required: [submissionId, categoryId, answers, pin]
+      required: [submissionId, categoryId, answers]
       properties:
         submissionId:
           type: string
@@ -1781,12 +1739,9 @@ components:
         answers:
           type: object
           additionalProperties: true
-        pin:
+        referenceCode:
           type: string
-          pattern: "^[0-9]{4,6}$"
-        pinConfirmation:
-          type: string
-          pattern: "^[0-9]{4,6}$"
+          maxLength: 80
     ExistingApplicationSubmissionInput:
       type: object
       properties:
@@ -1796,12 +1751,9 @@ components:
         answers:
           type: object
           additionalProperties: true
-        pin:
+        referenceCode:
           type: string
-          pattern: "^[0-9]{4,6}$"
-        pinConfirmation:
-          type: string
-          pattern: "^[0-9]{4,6}$"
+          maxLength: 80
     DeleteMyApplicationDraftsResponse:
       type: object
       required: [deletedCount]
@@ -1859,12 +1811,9 @@ components:
         answers:
           type: object
           additionalProperties: true
-        pin:
+        referenceCode:
           type: string
-          pattern: "^[0-9]{4,6}$"
-        pinConfirmation:
-          type: string
-          pattern: "^[0-9]{4,6}$"
+          maxLength: 80
     ApplicationDraftInput:
       type: object
       required: [categoryId]
@@ -2026,7 +1975,6 @@ components:
               backgroundColor: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
               logoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
               entryLogoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
-              pinLogoDataUrl: { type: ["string", "null"], maxLength: 6000000 }
               cardLogoAlignment: { type: string, enum: [left, center, right] }
               cardLogoVerticalOffset: { type: integer, minimum: -48, maximum: 48 }
               cardTitleFontSize: { type: integer, minimum: 10, maximum: 24 }
@@ -2037,13 +1985,10 @@ components:
               cardDescriptionVerticalOffset: { type: integer, minimum: -40, maximum: 40 }
               entryLogoAlignment: { type: string, enum: [left, center, right] }
               entryLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
-              pinLogoAlignment: { type: string, enum: [left, center, right] }
-              pinLogoVerticalOffset: { type: integer, minimum: -120, maximum: 120 }
         theme:
           type: object
-          required: [pinScreenBackground, buttonSize, buttonPlacement, categoryInputTransparent]
+          required: [buttonSize, buttonPlacement, categoryInputTransparent]
           properties:
-            pinScreenBackground: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
             buttonSize: { type: string, enum: [compact, standard, large] }
             buttonPlacement: { type: string, enum: [left, center, right] }
             categoryInputTransparent: { type: boolean }

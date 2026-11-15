@@ -9,7 +9,7 @@ describe("correctedGuestRevisions", () => {
         changes: [
           { field: "answers.personalInformation.firstName", before: "Not provided", after: "Taylor" },
           { field: "answers.education.certificateObjectPath", before: "No private evidence attached", after: "Private evidence attached" },
-          { field: "Account Provider PIN", before: "Not set", after: "Set (PIN value is never retained in history)" },
+          { field: "referenceCode", before: "CASE-104", after: "CASE-105" },
           { field: "Saved progress step", before: "1", after: "2" },
           { field: "answers.personalInformation.lastName", before: "Jordan", after: "Jordan-Lee" },
           { field: "answers.personalInformation.city", before: "Port Vila", after: "Not provided" },
@@ -30,6 +30,7 @@ describe("correctedGuestRevisions", () => {
         changes: [
           { field: "answers.personalInformation.lastName", before: "Jordan", after: "Jordan-Lee" },
           { field: "answers.personalInformation.city", before: "Port Vila", after: "Not provided" },
+          { field: "referenceCode", before: "CASE-104", after: "CASE-105" },
         ],
       },
     ]);

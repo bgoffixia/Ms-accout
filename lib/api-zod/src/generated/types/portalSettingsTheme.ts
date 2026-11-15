@@ -9,8 +9,6 @@ import type { PortalSettingsThemeButtonPlacement } from './portalSettingsThemeBu
 import type { PortalSettingsThemeButtonSize } from './portalSettingsThemeButtonSize';
 
 export type PortalSettingsTheme = {
-  /** @pattern ^#[0-9A-Fa-f]{6}$ */
-  pinScreenBackground: string;
   buttonSize: PortalSettingsThemeButtonSize;
   buttonPlacement: PortalSettingsThemeButtonPlacement;
   categoryInputTransparent: boolean;

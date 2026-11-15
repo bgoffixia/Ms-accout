@@ -99,7 +99,11 @@ export interface GuestPreapplicationCreated {
   status: GuestPreapplicationStatusValue;
   submissionStatus: GuestPreapplicationCreatedSubmissionStatus;
   emailVerified: boolean;
-  hasPin: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  referenceCode: string | null;
   linkedApplicationId: string | null;
   /**
      * @minimum 0
@@ -157,7 +161,11 @@ export interface GuestPreapplicationStatus {
   submissionStatus: GuestPreapplicationStatusSubmissionStatus;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
-  hasPin: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  referenceCode: string | null;
   /** @nullable */
   linkedApplicationId: string | null;
   /**
@@ -210,8 +218,8 @@ export interface GuestPreapplicationProgressInput {
   currentStep: number;
   answers: GuestPreapplicationProgressInputAnswers;
   complete: boolean;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
 }
 
 export interface GuestApplicationAccessInput {
@@ -413,7 +421,11 @@ export interface EnrollmentApplication {
   categoryName: string;
   status: ApplicationStatus;
   currentStep: number;
-  hasPin: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  referenceCode: string | null;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;
@@ -430,12 +442,6 @@ export interface EnrollmentApplication {
   submittedAt?: string | null;
   /** Present only for authorized review records linked to a submitted guest application. */
   evidence?: AdminGuestPreapplicationEvidence[];
-}
-
-export interface ReviewerPin {
-  /** @nullable */
-  pin: string | null;
-  available: boolean;
 }
 
 export type ApplicationInputCategoryId = typeof ApplicationInputCategoryId[keyof typeof ApplicationInputCategoryId];
@@ -468,10 +474,8 @@ export interface NewApplicationSubmissionInput {
   submissionId: string;
   categoryId: NewApplicationSubmissionInputCategoryId;
   answers: NewApplicationSubmissionInputAnswers;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin: string;
-  /** @pattern ^[0-9]{4,6}$ */
-  pinConfirmation?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
 }
 
 export type ExistingApplicationSubmissionInputCategoryId = typeof ExistingApplicationSubmissionInputCategoryId[keyof typeof ExistingApplicationSubmissionInputCategoryId];
@@ -489,10 +493,8 @@ export type ExistingApplicationSubmissionInputAnswers = { [key: string]: unknown
 export interface ExistingApplicationSubmissionInput {
   categoryId?: ExistingApplicationSubmissionInputCategoryId;
   answers?: ExistingApplicationSubmissionInputAnswers;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin?: string;
-  /** @pattern ^[0-9]{4,6}$ */
-  pinConfirmation?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
 }
 
 export interface DeleteMyApplicationDraftsResponse {
@@ -546,10 +548,8 @@ export interface ApplicationUpdate {
      */
   currentStep?: number;
   answers?: ApplicationUpdateAnswers;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin?: string;
-  /** @pattern ^[0-9]{4,6}$ */
-  pinConfirmation?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
 }
 
 export type ApplicationDraftInputCategoryId = typeof ApplicationDraftInputCategoryId[keyof typeof ApplicationDraftInputCategoryId];
@@ -781,15 +781,6 @@ export const PortalSettingsCardsItemEntryLogoAlignment = {
   right: 'right',
 } as const;
 
-export type PortalSettingsCardsItemPinLogoAlignment = typeof PortalSettingsCardsItemPinLogoAlignment[keyof typeof PortalSettingsCardsItemPinLogoAlignment];
-
-
-export const PortalSettingsCardsItemPinLogoAlignment = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
-} as const;
-
 export type PortalSettingsCardsItem = {
   id: PortalSettingsCardsItemId;
   /** @maxLength 100 */
@@ -810,11 +801,6 @@ export type PortalSettingsCardsItem = {
      * @nullable
      */
   entryLogoDataUrl?: string | null;
-  /**
-     * @maxLength 6000000
-     * @nullable
-     */
-  pinLogoDataUrl?: string | null;
   cardLogoAlignment?: PortalSettingsCardsItemCardLogoAlignment;
   /**
      * @minimum -48
@@ -857,12 +843,6 @@ export type PortalSettingsCardsItem = {
      * @maximum 120
      */
   entryLogoVerticalOffset?: number;
-  pinLogoAlignment?: PortalSettingsCardsItemPinLogoAlignment;
-  /**
-     * @minimum -120
-     * @maximum 120
-     */
-  pinLogoVerticalOffset?: number;
 };
 
 export type PortalSettingsThemeButtonSize = typeof PortalSettingsThemeButtonSize[keyof typeof PortalSettingsThemeButtonSize];
@@ -884,8 +864,6 @@ export const PortalSettingsThemeButtonPlacement = {
 } as const;
 
 export type PortalSettingsTheme = {
-  /** @pattern ^#[0-9A-Fa-f]{6}$ */
-  pinScreenBackground: string;
   buttonSize: PortalSettingsThemeButtonSize;
   buttonPlacement: PortalSettingsThemeButtonPlacement;
   categoryInputTransparent: boolean;
