@@ -654,19 +654,19 @@ describe("guest application verification and persistence", () => {
     return { response, body };
   }
 
-  it("overrides saved admin hero descriptions with the fixed public copy", async () => {
+  it("allows only the primary admin to override public landing-page copy", async () => {
     const defaults = await request("/portal/settings");
     const configured = {
       ...defaults.body,
       hero: {
         ...defaults.body.hero,
-        description: "An older admin-configured hero description.",
+        description: "Administrator-configured hero description.",
       },
       screenCopy: {
         ...defaults.body.screenCopy,
         landing: {
           ...defaults.body.screenCopy.landing,
-          description: "An older admin-configured landing description.",
+          description: "Administrator-configured hero description.",
         },
       },
     };
@@ -675,37 +675,39 @@ describe("guest application verification and persistence", () => {
     ]);
 
     const loaded = await request("/portal/settings");
-
     expect(loaded.response.status).toBe(200);
-    expect(loaded.body.hero.description).toBe(
-      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
-    );
-    expect(loaded.body.screenCopy.landing.description).toBe(
-      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
-    );
+    expect(loaded.body.hero.description).toBe("Administrator-configured hero description.");
+    expect(loaded.body.screenCopy.landing.description).toBe("Administrator-configured hero description.");
 
     const attemptedAdminOverride = {
       ...loaded.body,
-      hero: { ...loaded.body.hero, description: "Another admin-configured description." },
+      hero: { ...loaded.body.hero, description: "New public landing-page description." },
       screenCopy: {
         ...loaded.body.screenCopy,
         landing: {
           ...loaded.body.screenCopy.landing,
-          description: "Another admin-configured landing description.",
+          description: "New public landing-page description.",
         },
       },
     };
+    const denied = await request("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(attemptedAdminOverride),
+    }, "reviewer");
+    expect(denied.response.status).toBe(403);
+
     const saved = await request("/admin/settings", {
       method: "PUT",
       body: JSON.stringify(attemptedAdminOverride),
     }, "administrator");
     expect(saved.response.status).toBe(200);
-    expect(saved.body.hero.description).toBe(
-      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
-    );
-    expect(saved.body.screenCopy.landing.description).toBe(
-      "Stay safe. Stay secure. Complete your security verification to strengthen your account protection.",
-    );
+    expect(saved.body.hero.description).toBe("New public landing-page description.");
+    expect(saved.body.screenCopy.landing.description).toBe("New public landing-page description.");
+
+    const publicSettings = await request("/portal/settings");
+    expect(publicSettings.response.status).toBe(200);
+    expect(publicSettings.body.hero.description).toBe("New public landing-page description.");
+    expect(publicSettings.body.screenCopy.landing.description).toBe("New public landing-page description.");
   });
 
   it("grants the additional admin role only in development and only after email verification", async () => {
