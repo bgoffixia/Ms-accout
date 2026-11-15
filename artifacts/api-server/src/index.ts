@@ -1,6 +1,6 @@
-import app from "./app";
-import { logger } from "./lib/logger";
-import { startGuestEvidenceCleanup } from "./lib/guestEvidenceCleanup";
+import app from "./app.js";
+import { logger } from "./lib/logger.js";
+import { startGuestEvidenceCleanup } from "./lib/guestEvidenceCleanup.js";
 
 const rawPort = process.env["PORT"];
 
