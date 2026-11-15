@@ -31,6 +31,7 @@ const mockState = vi.hoisted(() => ({
       guestPreapplicationsTable: makeTable("guest_preapplications"),
       guestPreapplicationEvidenceTable: makeTable("guest_preapplication_evidence"),
       guestPreapplicationRevisionsTable: makeTable("guest_preapplication_revisions"),
+      applicantAccessCodeAttemptsTable: makeTable("applicant_access_code_attempts"),
       enrollmentApplicationsTable: makeTable("enrollment_applications"),
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
@@ -120,6 +121,7 @@ function newRow(tableName: string, values: Record<string, unknown>) {
       referenceCode: null,
       phone: null,
       updatedByUserId: null,
+      applicantAccessCodeHash: null,
       createdAt: now,
       updatedAt: now,
       ...values,
@@ -219,21 +221,42 @@ function makeDatabase() {
           staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
         };
-        const conflict = (uniqueFields[tableName] ?? []).some((field) =>
+        const compoundConflict = tableName === "applicant_access_code_attempts" &&
+          rows.some((row) =>
+            row.referenceKey === values.referenceKey && row.ipKey === values.ipKey,
+          );
+        const conflict = compoundConflict || (uniqueFields[tableName] ?? []).some((field) =>
           values[field] != null && rows.some((row) => row[field] === values[field]),
         );
         if (conflict) {
           if (ignoreConflict) return [];
           if (upsert) {
-            const targetName = upsert.target?.name;
+            const targetNames = Array.isArray(upsert.target)
+              ? upsert.target.map((target: any) => target.name)
+              : upsert.target?.name ? [upsert.target.name] : [];
+            const targetName = targetNames.length === 1 ? targetNames[0] : undefined;
             const field = targetName ?? uniqueFields[tableName]?.find((name) =>
               values[name] != null && rows.some((row) => row[name] === values[name]),
             );
             const existing = field
               ? rows.find((row) => row[field] === values[field])
+              : targetNames.length > 1
+                ? rows.find((row) => targetNames.every((name: string) => row[name] === values[name]))
               : undefined;
             if (existing) {
-              Object.assign(existing, upsert.set);
+              if (tableName === "applicant_access_code_attempts") {
+                const now = new Date();
+                const withinWindow = now.getTime() - (existing.windowStartedAt as Date).getTime() < 15 * 60 * 1000;
+                const failedAttempts = withinWindow ? Number(existing.failedAttempts) + 1 : 1;
+                Object.assign(existing, {
+                  failedAttempts,
+                  windowStartedAt: withinWindow ? existing.windowStartedAt : now,
+                  lockedUntil: failedAttempts >= 5 ? new Date(now.getTime() + 15 * 60 * 1000) : null,
+                  updatedAt: now,
+                });
+              } else {
+                Object.assign(existing, upsert.set);
+              }
               return [existing];
             }
           }
@@ -349,6 +372,7 @@ vi.mock("drizzle-orm", () => ({
   lt: (left: unknown, right: unknown) => ({ type: "lt", left, right }),
   ne: (left: unknown, right: unknown) => ({ type: "ne", left, right }),
   or: (...expressions: any[]) => ({ type: "or", expressions }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ type: "sql", strings, values }),
 }));
 
 vi.mock("@workspace/db", () => ({
@@ -497,7 +521,7 @@ import router from "./enrollment";
 import { cleanupExpiredGuestEvidence } from "../lib/guestEvidenceCleanup";
 import { resetWorkspaceEmailDeliverySyncCache } from "../lib/staffEmail";
 
-const accessKey = "a".repeat(43);
+const accessCode = "314159";
 const contactEmail = "applicant@example.test";
 const privatePng = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const privateMp4 = Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
@@ -547,6 +571,7 @@ describe("guest application verification and persistence", () => {
       "guest_preapplications",
       "guest_preapplication_evidence",
       "guest_preapplication_revisions",
+      "applicant_access_code_attempts",
       "enrollment_applications",
       "application_events",
       "portal_settings",
@@ -816,7 +841,7 @@ describe("guest application verification and persistence", () => {
         method: "POST",
         body: JSON.stringify({
           reference,
-          accessKey,
+          accessCode,
           evidenceType: evidenceSlot === "verification_video" ? "verification_video" : "identity_document",
           evidenceSlot,
           fileName,
@@ -833,7 +858,7 @@ describe("guest application verification and persistence", () => {
       `/guest/preapplications/${applicationId}/evidence/${evidenceId}/complete`,
       {
         method: "POST",
-        body: JSON.stringify({ reference, accessKey }),
+        body: JSON.stringify({ reference, accessCode }),
       },
     );
     expect(completed.response.status).toBe(200);
@@ -846,7 +871,8 @@ describe("guest application verification and persistence", () => {
       method: "POST",
       body: JSON.stringify({
         submissionId: crypto.randomUUID(),
-        accessKey,
+        accessCode,
+        confirmAccessCode: accessCode,
         categoryId: "category-1",
         fullName: "Test Applicant",
         email,
@@ -884,6 +910,215 @@ describe("guest application verification and persistence", () => {
     expect(html).toContain(created.body.reference);
     expect(html).not.toContain(contactEmail);
     expect(mime).toMatch(/Message-ID: <[a-f0-9]{64}@vu-gov\.cc>/);
+  });
+
+  it("creates an applicant access code without returning or exposing its hash", async () => {
+    const created = await createGuestDraft();
+    const stored = mockState.rows.get("guest_preapplications")?.[0];
+
+    expect(created.response.status).toBe(201);
+    expect(created.body).toMatchObject({ accessCodeConfigured: true });
+    expect(created.body).not.toHaveProperty("accessCode");
+    expect(created.body).not.toHaveProperty("applicantAccessCodeHash");
+    expect(stored?.applicantAccessCodeHash).toMatch(/^scrypt\$32768\$8\$1\$/);
+    expect(stored?.applicantAccessCodeHash).not.toContain(accessCode);
+    if (stored) {
+      stored.answers = {
+        personalInformation: {
+          firstName: "Test",
+          pin: "legacy-secret",
+          pinEncrypted: "legacy-ciphertext",
+          accessCode,
+        },
+      };
+    }
+
+    const found = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+    });
+    expect(found.response.status).toBe(200);
+    expect(found.body).toMatchObject({
+      reference: created.body.reference,
+      applicationType: "guest_preapplication",
+    });
+    expect(found.body).not.toHaveProperty("answers");
+    expect(found.body).not.toHaveProperty("applicantAccessCodeHash");
+
+    const reviewers = await request("/admin/guest-preapplications", {}, "reviewer");
+    expect(reviewers.response.status).toBe(200);
+    expect(reviewers.body[0]).not.toHaveProperty("applicantAccessCodeHash");
+    expect(reviewers.body[0]).not.toHaveProperty("accessKeyHash");
+    expect(JSON.stringify(reviewers.body)).not.toContain("legacy-secret");
+    expect(JSON.stringify(reviewers.body)).not.toContain("legacy-ciphertext");
+    expect(JSON.stringify(reviewers.body)).not.toContain(accessCode);
+  });
+
+  it("rejects mismatched access-code confirmation before saving a guest record", async () => {
+    const response = await request("/guest/preapplications", {
+      method: "POST",
+      body: JSON.stringify({
+        submissionId: crypto.randomUUID(),
+        categoryId: "category-1",
+        fullName: "Test Applicant",
+        email: contactEmail,
+        accessCode,
+        confirmAccessCode: "000000",
+      }),
+    });
+    expect(response.response.status).toBe(400);
+    expect(mockState.rows.get("guest_preapplications")).toHaveLength(0);
+  });
+
+  it("creates, verifies, and explicitly recovers authenticated applicant access codes", async () => {
+    const created = await request("/applications/drafts", {
+      method: "POST",
+      body: JSON.stringify({
+        categoryId: "category-1",
+        accessCode,
+        confirmAccessCode: accessCode,
+      }),
+    }, "applicant-verified");
+    expect(created.response.status).toBe(201);
+    expect(created.body.accessCodeConfigured).toBe(true);
+    expect(created.body).not.toHaveProperty("applicantAccessCodeHash");
+    const stored = mockState.rows.get("enrollment_applications")?.[0];
+    expect(stored?.applicantAccessCodeHash).toMatch(/^scrypt\$32768\$8\$1\$/);
+    expect(stored?.applicantAccessCodeHash).not.toContain(accessCode);
+
+    const oldCodeLookup = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode: "000000" }),
+    });
+    expect(oldCodeLookup.response.status).toBe(404);
+    const correctCodeLookup = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+    });
+    expect(correctCodeLookup.response.status).toBe(200);
+    expect(correctCodeLookup.body).not.toHaveProperty("answers");
+    expect(correctCodeLookup.body).not.toHaveProperty("applicantAccessCodeHash");
+
+    const silentReset = await request(`/applications/${created.body.id}/access-code`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        accessCode: "987654",
+        confirmAccessCode: "987654",
+      }),
+    }, "applicant-verified");
+    expect(silentReset.response.status).toBe(409);
+    expect(stored?.applicantAccessCodeHash).toMatch(/^scrypt\$32768\$8\$1\$/);
+
+    const explicitRecovery = await request(`/applications/${created.body.id}/access-code`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        accessCode: "987654",
+        confirmAccessCode: "987654",
+        recovery: true,
+      }),
+    }, "applicant-verified");
+    expect(explicitRecovery.response.status).toBe(200);
+    const previousCode = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+    });
+    const recoveredCode = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode: "987654" }),
+    });
+    expect(previousCode.response.status).toBe(404);
+    expect(recoveredCode.response.status).toBe(200);
+
+    const reviewerRecord = await request(`/admin/applications/${created.body.id}`, {}, "reviewer");
+    expect(reviewerRecord.response.status).toBe(200);
+    expect(reviewerRecord.body).not.toHaveProperty("applicantAccessCodeHash");
+  });
+
+  it("explicitly upgrades a legacy guest key once without resetting it silently", async () => {
+    const legacyAccessKey = "z".repeat(43);
+    const reference = "PRE-LEGACY01";
+    mockState.rows.get("guest_preapplications")!.push(newRow("guest_preapplications", {
+      id: crypto.randomUUID(),
+      submissionId: crypto.randomUUID(),
+      reference,
+      accessKeyHash: createHash("sha256").update(legacyAccessKey).digest("hex"),
+      applicantAccessCodeHash: null,
+      categoryId: "category-1",
+      fullName: "Legacy Applicant",
+      email: contactEmail,
+    }));
+
+    const upgraded = await request("/guest/preapplications/access-code/upgrade", {
+      method: "POST",
+      body: JSON.stringify({
+        reference,
+        legacyAccessKey,
+        accessCode,
+        confirmAccessCode: accessCode,
+      }),
+    });
+    expect(upgraded.response.status).toBe(200);
+    expect(upgraded.body.accessCodeConfigured).toBe(true);
+    expect(upgraded.body).not.toHaveProperty("accessCode");
+    expect(upgraded.body).not.toHaveProperty("applicantAccessCodeHash");
+    expect(mockState.rows.get("guest_preapplications")?.[0]?.applicantAccessCodeHash)
+      .toMatch(/^scrypt\$32768\$8\$1\$/);
+
+    const secondUpgrade = await request("/guest/preapplications/access-code/upgrade", {
+      method: "POST",
+      body: JSON.stringify({
+        reference,
+        legacyAccessKey,
+        accessCode: "987654",
+        confirmAccessCode: "987654",
+      }),
+    });
+    expect(secondUpgrade.response.status).toBe(404);
+    expect(secondUpgrade.body.error).toBe("The application reference and access code could not be verified.");
+
+    const oldCode = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, accessCode: "000000" }),
+    });
+    expect(oldCode.response.status).toBe(404);
+    const currentCode = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, accessCode }),
+    });
+    expect(currentCode.response.status).toBe(200);
+  });
+
+  it("uses one generic response and locks access after repeated failures", async () => {
+    const created = await createGuestDraft();
+    const incorrect = {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode: "000000" }),
+    };
+    const unknown = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: "PRE-UNKNOWN001", accessCode: "000000" }),
+    });
+    const firstFailure = await request("/applications/access/lookup", incorrect);
+    expect(firstFailure.response.status).toBe(404);
+    expect(firstFailure.body).toEqual(unknown.body);
+
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      const failed = await request("/applications/access/lookup", incorrect);
+      expect(failed.response.status).toBe(404);
+      expect(failed.body).toEqual(firstFailure.body);
+    }
+    const lockedCorrectCode = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+    });
+    expect(lockedCorrectCode.response.status).toBe(404);
+    expect(lockedCorrectCode.body).toEqual(firstFailure.body);
+    const throttles = mockState.rows.get("applicant_access_code_attempts") ?? [];
+    const lockedAttempt = throttles.find((attempt) => attempt.failedAttempts === 5);
+    expect(lockedAttempt).toBeDefined();
+    expect(throttles.every((attempt) => Number(attempt.failedAttempts) <= 5)).toBe(true);
+    expect(JSON.stringify(throttles)).not.toContain(created.body.reference);
+    expect(JSON.stringify(throttles)).not.toContain("127.0.0.1");
   });
 
   it("uses the connected Workspace account as the sender", async () => {
@@ -1905,7 +2140,7 @@ describe("guest application verification and persistence", () => {
 
     const progress = {
       reference: created.body.reference,
-      accessKey,
+      accessCode,
       currentStep: 1,
       answers: {},
       complete: false,
@@ -1935,7 +2170,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference: created.body.reference,
-        accessKey,
+        accessCode,
         email: "Corrected.Applicant@Example.Test",
       }),
     });
@@ -1956,13 +2191,13 @@ describe("guest application verification and persistence", () => {
     });
   });
 
-  it("rejects contact email changes when the private tracking key is incorrect", async () => {
+  it("rejects contact email changes when the application access code is incorrect", async () => {
     const created = await createGuestDraft();
     const response = await request(`/guest/preapplications/${created.body.id}/email`, {
       method: "PATCH",
       body: JSON.stringify({
         reference: created.body.reference,
-        accessKey: "b".repeat(43),
+        accessCode: "000000",
         email: "corrected@example.test",
       }),
     });
@@ -1986,7 +2221,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference: created.body.reference,
-        accessKey,
+        accessCode,
         email: "corrected@example.test",
       }),
     });
@@ -2052,7 +2287,8 @@ describe("guest application verification and persistence", () => {
       method: "POST",
       body: JSON.stringify({
         submissionId: crypto.randomUUID(),
-        accessKey,
+        accessCode,
+        confirmAccessCode: accessCode,
         categoryId: "category-1",
         fullName: "  Test Applicant  ",
         email: contactEmail,
@@ -2069,7 +2305,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessKey,
+        accessCode,
         currentStep: 3,
         answers: { name: "Test Applicant", nickname: "TA" },
         complete: false,
@@ -2139,7 +2375,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessKey,
+        accessCode,
         currentStep: 7,
         answers,
         complete: true,
@@ -2218,7 +2454,7 @@ describe("guest application verification and persistence", () => {
 
     const correctedEmail = await request(`/guest/preapplications/${applicationId}/email`, {
       method: "PATCH",
-      body: JSON.stringify({ reference, accessKey, email: "corrected@example.test" }),
+      body: JSON.stringify({ reference, accessCode, email: "corrected@example.test" }),
     });
     expect(correctedEmail.response.status).toBe(200);
     expect(correctedEmail.body.email).toBe("corrected@example.test");
@@ -2233,7 +2469,7 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedSubmit = await request(
       `/guest/preapplications/${applicationId}/submit`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
     );
     expect(unverifiedSubmit.response.status).toBe(200);
     expect(unverifiedSubmit.body).toMatchObject({
@@ -2245,7 +2481,7 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedStatus = await request(
       "/guest/preapplications/lookup",
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
     );
     expect(unverifiedStatus.response.status).toBe(200);
     expect(unverifiedStatus.body).toMatchObject({
@@ -2261,7 +2497,7 @@ describe("guest application verification and persistence", () => {
     if (guestRecord) guestRecord.status = "contacted";
     const inReviewStatus = await request(
       "/guest/preapplications/lookup",
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
     );
     if (guestRecord && priorReviewStatus) guestRecord.status = priorReviewStatus;
     expect(inReviewStatus.response.status).toBe(200);
@@ -2272,13 +2508,13 @@ describe("guest application verification and persistence", () => {
 
     const mismatchedSubmit = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
       "applicant-mismatch",
     );
     expect(mismatchedSubmit.response.status).toBe(403);
     const originalEmailSubmit = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
       "applicant-verified",
     );
     expect(originalEmailSubmit.response.status).toBe(403);
@@ -2294,21 +2530,21 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedStatusLink = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
       "applicant-unverified",
     );
     expect(unverifiedStatusLink.response.status).toBe(403);
 
     const successfulLink = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
       "applicant-corrected-verified",
     );
     expect(successfulLink.response.status).toBe(200);
     expect(successfulLink.body.status).toBe("submitted");
     const retry = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessKey }) },
+      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
       "applicant-corrected-verified",
     );
     expect(retry.response.status).toBe(200);
@@ -2322,6 +2558,9 @@ describe("guest application verification and persistence", () => {
       clerkUserId: "applicant-corrected-verified",
       linkedApplicationId: successfulLink.body.id,
     });
+    const linkedRecord = mockState.rows.get("enrollment_applications")?.[0];
+    expect(linkedRecord?.applicantAccessCodeHash).toBe(storedDraft?.applicantAccessCodeHash);
+    expect(successfulLink.body).not.toHaveProperty("applicantAccessCodeHash");
     expect(storedDraft).toMatchObject({ referenceCode: "CASE-4826" });
     expect(storedDraft).not.toHaveProperty("pinHash");
     expect(storedDraft).not.toHaveProperty("pinEncrypted");
@@ -2399,12 +2638,13 @@ describe("guest application verification and persistence", () => {
     expect(JSON.stringify(finalReviewerRecord.body)).toContain("CASE-4826");
   });
 
-  it("accepts optional non-secret Reference Codes and submits incomplete guest applications without PIN factors", async () => {
+  it("stores a one-way applicant access-code hash and submits incomplete guest applications", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",
       body: JSON.stringify({
         submissionId: crypto.randomUUID(),
-        accessKey,
+        accessCode,
+        confirmAccessCode: accessCode,
         categoryId: "category-2",
         fullName: "Partial Applicant",
         email: contactEmail,
@@ -2412,13 +2652,13 @@ describe("guest application verification and persistence", () => {
     });
     expect(created.response.status).toBe(201);
     const { id: applicationId, reference } = created.body as { id: string; reference: string };
-    const submitBody = JSON.stringify({ reference, accessKey });
+    const submitBody = JSON.stringify({ reference, accessCode });
 
     const numericSecretLikeCode = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessKey,
+        accessCode,
         currentStep: 1,
         complete: false,
         answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
@@ -2432,7 +2672,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessKey,
+        accessCode,
         currentStep: 1,
         complete: false,
         referenceCode: "PIN-739102",
@@ -2444,7 +2684,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessKey,
+        accessCode,
         currentStep: 1,
         complete: false,
         answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
@@ -2454,11 +2694,24 @@ describe("guest application verification and persistence", () => {
     expect(legacyPinInput.response.status).toBe(400);
     expect(legacyPinInput.body.error).toContain("Legacy PIN inputs");
 
+    const plaintextCodeAnswer = await request(`/guest/preapplications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference,
+        accessCode,
+        currentStep: 1,
+        complete: false,
+        answers: { personalInformation: { firstName: "Initial", accessCode } },
+      }),
+    });
+    expect(plaintextCodeAnswer.response.status).toBe(400);
+    expect(JSON.stringify(mockState.rows.get("guest_preapplications"))).not.toContain(accessCode);
+
     const savedPartial = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessKey,
+        accessCode,
         currentStep: 1,
         complete: false,
         answers: {
@@ -2500,6 +2753,10 @@ describe("guest application verification and persistence", () => {
     expect(savedRevisionRows.length).toBeGreaterThan(0);
     expect(JSON.stringify(savedRevisionRows)).toContain("CASE-739102");
     expect(JSON.stringify(savedRevisionRows)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
+    (savedRevisionRows[0].changes as any[]).push(
+      { field: "personalInformation.pin", before: "legacy-secret", after: "739102" },
+      { field: "personalInformation.accessCode", before: "old-code", after: accessCode },
+    );
     const reviewerHistory = await request(
       `/admin/applications/${linked.body.id}/guest-history`,
       {},
@@ -2508,6 +2765,9 @@ describe("guest application verification and persistence", () => {
     expect(reviewerHistory.response.status).toBe(200);
     expect(JSON.stringify(reviewerHistory.body)).toContain("CASE-739102");
     expect(JSON.stringify(reviewerHistory.body)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
+    expect(JSON.stringify(reviewerHistory.body)).not.toContain("legacy-secret");
+    expect(JSON.stringify(reviewerHistory.body)).not.toContain("old-code");
+    expect(JSON.stringify(reviewerHistory.body)).not.toContain(accessCode);
     expect(JSON.stringify(reviewerHistory.body)).toContain('"field":"Saved progress step"');
     expect(reviewerHistory.body.some((revision: any) =>
       revision.changes.some((change: any) => change.after === "Partial"),
@@ -2553,7 +2813,7 @@ describe("guest application verification and persistence", () => {
 
     const tracked = await request("/guest/preapplications/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference, accessKey }),
+      body: JSON.stringify({ reference, accessCode }),
     });
     expect(tracked.response.status).toBe(200);
     expect(tracked.body).toMatchObject({
@@ -2564,7 +2824,7 @@ describe("guest application verification and persistence", () => {
     expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
     const codeIsNotAnAccessFactor = await request("/guest/preapplications/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: "CASE-739102", accessKey }),
+      body: JSON.stringify({ reference: "CASE-739102", accessCode }),
     });
     expect(codeIsNotAnAccessFactor.response.status).toBe(404);
     const removedPinRoute = await request(`/admin/applications/${linked.body.id}/pin`, {}, "reviewer");

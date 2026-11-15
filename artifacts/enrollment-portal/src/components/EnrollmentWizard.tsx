@@ -30,6 +30,7 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   guestMode?: boolean;
+  onRecoverAccessCode?: () => void;
   uploadEvidence?: (
     file: File,
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
@@ -234,7 +235,7 @@ type LocalImage = { file: File; url: string };
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit,
-  onBackToCategoryEntry, pageThemes, evidenceLater = false, guestMode = false, uploadEvidence, updateContactEmail,
+  onBackToCategoryEntry, pageThemes, evidenceLater = false, guestMode = false, onRecoverAccessCode, uploadEvidence, updateContactEmail,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -708,15 +709,6 @@ export function EnrollmentWizard({
 
   const uploadProgress = Math.min(100, Math.round((recordingSeconds / 12) * 100));
   const activeStepPosition = Math.max(0, activeSteps.indexOf(step));
-  const copyPrivateKey = async () => {
-    if (!privateTrackingKey) return;
-    try {
-      await navigator.clipboard.writeText(privateTrackingKey);
-      setKeyCopied(true);
-    } catch {
-      setKeyCopied(false);
-    }
-  };
 
   return <main className="ew-shell" style={stageBackground ? { background: stageBackground } : undefined} data-testid="enrollment-wizard">
     <header className="ew-topbar">
@@ -725,9 +717,7 @@ export function EnrollmentWizard({
       </Link>
       <div className="ew-top-meta"><span className={`ew-draft-status ${status === 'draft' ? '' : 'submitted'}`} data-testid="status-application">{evidenceLater ? 'details in progress' : status.replaceAll('_', ' ')}</span>
         <span className="ew-reference" data-testid="text-application-reference">{application.reference}</span>
-        {evidenceLater && privateTrackingKey && <button type="button" className="ew-copy-tracking-key" onClick={() => void copyPrivateKey()} data-testid="button-copy-guest-key">
-          {keyCopied ? 'Key copied' : 'Copy tracking key'}
-        </button>}</div>
+        {onRecoverAccessCode && <button type="button" className="ew-access-code-reset" onClick={onRecoverAccessCode} data-testid="button-reset-access-code">Forgot access code?</button>}</div>
     </header>
     <div className="ew-layout">
       <aside className="ew-rail">
@@ -892,7 +882,7 @@ export function EnrollmentWizard({
           <div className="ew-preview" data-testid="enrollment-preview">
             <div className="ew-content-scroll">
               <div className="ew-progress-line"><span style={{ width: '100%' }} /></div>
-              {heading(7, titleForStep(7), copyForStep(7).description || (privateTrackingKey
+              {heading(7, titleForStep(7), copyForStep(7).description || (guestMode
                 ? 'Review your details and uploaded evidence. You can submit now; an email code afterward unlocks the applicant status page. Reviewers can access the submitted record even if verification is delayed.'
                 : evidenceLater
                 ? "Review your details. Staff will arrange the required identity files and verification video later."
@@ -939,7 +929,7 @@ export function EnrollmentWizard({
                   [fieldLabel(6, 'bankDetails.accountType', 'Account type'), answer(answers, 'bankDetails', 'accountType'), 'accountType'],
                 ])}
               </div>
-              {privateTrackingKey && updateContactEmail && <section className="ew-email-correction" data-testid="section-correct-contact-email">
+              {guestMode && updateContactEmail && <section className="ew-email-correction" data-testid="section-correct-contact-email">
                 <div><b>Need to correct your contact email?</b><p>Use an address the enrollment team can reach if follow-up is needed.</p></div>
                 <label className="ew-field" htmlFor="guest-contact-email">
                   <span className="ew-label">Contact email</span>
@@ -951,7 +941,7 @@ export function EnrollmentWizard({
                     }} data-testid="input-correct-contact-email" />
                 </label>
                 {emailCorrectionError && <p className="ew-field-error" role="alert" data-testid="error-correct-contact-email">{emailCorrectionError}</p>}
-                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Status access uses your reference and private tracking key.</p>}
+                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Status access uses your reference and six-digit application access code.</p>}
                 <button type="button" className="ew-button ew-button-quiet" onClick={() => void correctContactEmail()}
                   disabled={isSaving || contactEmailInput.trim().toLowerCase() === (application.applicantEmail ?? '').trim().toLowerCase()}
                   data-testid="button-save-contact-email">Save contact email</button>
@@ -959,7 +949,7 @@ export function EnrollmentWizard({
               <div className="ew-submit-gate" data-testid="state-submit-readiness">
                 <span className="ew-gate-icon">{readyToSubmit ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}</span>
                   <div><b>{readyToSubmit ? 'Ready to submit' : 'A few required items are still missing'}</b>
-                  <p>{privateTrackingKey
+                  <p>{guestMode
                     ? 'You can submit these saved details now. Any incomplete details or evidence remain visible to authorized reviewers.'
                     : evidenceLater
                     ? 'Submitting saves your application details. Identity documents and the verification video will be collected later, before review.'

@@ -9,6 +9,7 @@ import {
   isNull,
   ne,
   or,
+  sql,
 } from "drizzle-orm";
 import {
   createCipheriv,
@@ -475,7 +476,8 @@ function hashGuestAccessKey(accessKey: string): string {
   return createHash("sha256").update(accessKey, "utf8").digest("hex");
 }
 
-function matchesGuestAccessKey(storedHash: string, accessKey: string): boolean {
+function matchesGuestAccessKey(storedHash: string | null | undefined, accessKey: string): boolean {
+  if (!storedHash) return false;
   const stored = Buffer.from(storedHash, "hex");
   const candidate = Buffer.from(hashGuestAccessKey(accessKey), "hex");
   return stored.length === candidate.length && timingSafeEqual(stored, candidate);
@@ -498,6 +500,7 @@ async function accessCodeIsLocked(
   reference: string,
 ): Promise<boolean> {
   const keys = applicantAccessKeys(req, reference);
+  const now = new Date();
   const [attempt] = await db
     .select()
     .from(applicantAccessCodeAttemptsTable)
@@ -506,7 +509,16 @@ async function accessCodeIsLocked(
       eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
     ))
     .limit(1);
-  return Boolean(attempt?.lockedUntil && attempt.lockedUntil > new Date());
+  if (attempt && now.getTime() - attempt.windowStartedAt.getTime() >= ACCESS_CODE_WINDOW_MS) {
+    await db
+      .delete(applicantAccessCodeAttemptsTable)
+      .where(and(
+        eq(applicantAccessCodeAttemptsTable.referenceKey, keys.referenceKey),
+        eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
+      ));
+    return false;
+  }
+  return Boolean(attempt?.lockedUntil && attempt.lockedUntil > now);
 }
 
 async function recordApplicantAccessCodeFailure(
@@ -548,10 +560,38 @@ async function recordApplicantAccessCodeFailure(
         ));
       return;
     }
+    const windowStart = new Date(now.getTime() - ACCESS_CODE_WINDOW_MS);
+    const limitReached = sql`CASE
+      WHEN ${applicantAccessCodeAttemptsTable.windowStartedAt} >= ${windowStart}
+        THEN ${applicantAccessCodeAttemptsTable.failedAttempts} + 1 >= ${ACCESS_CODE_FAILURE_LIMIT}
+      ELSE 1 >= ${ACCESS_CODE_FAILURE_LIMIT}
+    END`;
     await transaction
       .insert(applicantAccessCodeAttemptsTable)
       .values(values)
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [
+          applicantAccessCodeAttemptsTable.referenceKey,
+          applicantAccessCodeAttemptsTable.ipKey,
+        ],
+        set: {
+          failedAttempts: sql`CASE
+            WHEN ${applicantAccessCodeAttemptsTable.windowStartedAt} >= ${windowStart}
+              THEN ${applicantAccessCodeAttemptsTable.failedAttempts} + 1
+            ELSE 1
+          END`,
+          windowStartedAt: sql`CASE
+            WHEN ${applicantAccessCodeAttemptsTable.windowStartedAt} >= ${windowStart}
+              THEN ${applicantAccessCodeAttemptsTable.windowStartedAt}
+            ELSE ${now}
+          END`,
+          lockedUntil: sql`CASE
+            WHEN ${limitReached} THEN ${new Date(now.getTime() + ACCESS_CODE_LOCKOUT_MS)}
+            ELSE NULL
+          END`,
+          updatedAt: now,
+        },
+      });
   });
 }
 
@@ -703,7 +743,7 @@ function serializeGuestAccessStatus(
     submissionStatus: application.submissionStatus,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
-    updatedAt: application.updatedAt.toISOString(),
+    updatedAt: application.updatedAt,
     reviewStatus,
     applicantFollowup: null,
     outstandingRequirements: outstandingApplicationRequirements(
@@ -737,7 +777,7 @@ function serializeAdminGuestPreapplication(
     history: history.map((revision) => ({
       id: revision.id,
       currentStep: revision.currentStep,
-      changes: revision.changes,
+      changes: sanitizeStoredRevisionChanges(revision.changes),
       createdAt: revision.createdAt.toISOString(),
     })),
   };
@@ -760,7 +800,7 @@ async function serializeAdminGuestPreapplicationWithEvidence(
 }
 
 function revisionValue(value: unknown, field: string): string {
-  if (/pin|password|accountNumber|routingNumber|sortCode|iban|swift/i.test(field)) {
+  if (/pin|password|passcode|access.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(field)) {
     return "Private value not stored";
   }
   if (field.toLowerCase().endsWith("objectpath")) {
@@ -788,7 +828,7 @@ function collectGuestRevisionChanges(
     for (const key of keys) {
       if (
         key.startsWith("__") ||
-        /pin|password|accountNumber|routingNumber|sortCode|iban|swift/i.test(key)
+        /pin|password|passcode|access.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(key)
       ) continue;
       collectGuestRevisionChanges(
         previous[key],
@@ -807,6 +847,19 @@ function collectGuestRevisionChanges(
     });
   }
   return changes;
+}
+
+function sanitizeStoredRevisionChanges(changes: unknown) {
+  if (!Array.isArray(changes)) return [];
+  return changes.map((entry) => {
+    const change = asRecord(entry);
+    const field = typeof change.field === "string" ? change.field : "Application";
+    return {
+      field,
+      before: revisionValue(change.before, field),
+      after: revisionValue(change.after, field),
+    };
+  });
 }
 
 function guestRevisionChanges(
@@ -921,23 +974,46 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+const forbiddenCredentialAnswerKeys = new Set([
+  "pin",
+  "pinconfirmation",
+  "pinhash",
+  "pinencrypted",
+  "pincode",
+  "pinvalue",
+  "password",
+  "passwordconfirmation",
+  "passwordhash",
+  "passcode",
+  "passcodeconfirmation",
+  "accesscode",
+  "accesscodeconfirmation",
+  "applicantaccesscode",
+  "applicantaccesscodehash",
+  "otp",
+  "onetimecode",
+  "verificationcode",
+]);
+
 function containsCredentialAnswerKey(value: unknown): boolean {
-  const forbidden = new Set([
-    "pin",
-    "pinconfirmation",
-    "pinhash",
-    "pincode",
-    "pinvalue",
-    "password",
-    "passwordconfirmation",
-    "passwordhash",
-  ]);
   if (Array.isArray(value)) return value.some(containsCredentialAnswerKey);
   if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => {
     const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, "");
-    return forbidden.has(normalizedKey) || containsCredentialAnswerKey(child);
+    return forbiddenCredentialAnswerKeys.has(normalizedKey) || containsCredentialAnswerKey(child);
   });
+}
+
+function stripApplicantAccessCodes(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripApplicantAccessCodes);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !forbiddenCredentialAnswerKeys.has(
+        key.toLowerCase().replace(/[_\s-]/g, ""),
+      ))
+      .map(([key, child]) => [key, stripApplicantAccessCodes(child)]),
+  );
 }
 
 function containsLegacyPinInput(value: unknown): boolean {
@@ -1130,7 +1206,7 @@ function prepareApplicantAnswers(
 }
 
 function applicantSafeAnswers(answers: Record<string, unknown>) {
-  const safeAnswers = structuredClone(answers);
+  const safeAnswers = stripApplicantAccessCodes(structuredClone(answers)) as Record<string, unknown>;
   const bank = asRecord(safeAnswers.bankDetails);
   if (Object.keys(bank).length > 0) {
     delete bank.accountNumber;
@@ -1645,7 +1721,6 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       .values({
         submissionId: input.submissionId,
         reference: `PRE-${randomBytes(6).toString("hex").toUpperCase()}`,
-        accessKeyHash: hashGuestAccessKey(randomBytes(32).toString("base64url")),
         applicantAccessCodeHash,
         categoryId: input.categoryId,
         fullName: input.fullName,
@@ -1938,6 +2013,7 @@ router.post("/guest/preapplications/access-code/upgrade", async (req, res): Prom
     const legacyKeyMatches = Boolean(
       !locked &&
       application &&
+      application.accessKeyHash &&
       !application.applicantAccessCodeHash &&
       matchesGuestAccessKey(application.accessKeyHash, parsed.data.legacyAccessKey),
     );
@@ -2745,6 +2821,10 @@ router.patch(
         .limit(1);
       if (!application) {
         res.status(404).json({ error: "Application not found." });
+        return;
+      }
+      if (application.applicantAccessCodeHash && parsedBody.data.recovery !== true) {
+        res.status(409).json({ error: "Use the explicit access-code recovery action to replace this code." });
         return;
       }
       const applicantAccessCodeHash = await hashApplicantAccessCode(parsedBody.data.accessCode);
@@ -3740,7 +3820,7 @@ router.get(
       res.json(GetAdminGuestApplicationHistoryResponse.parse(history.map((revision) => ({
         id: revision.id,
         currentStep: revision.currentStep,
-        changes: revision.changes,
+        changes: sanitizeStoredRevisionChanges(revision.changes),
         createdAt: revision.createdAt.toISOString(),
       }))));
     } catch (error) {

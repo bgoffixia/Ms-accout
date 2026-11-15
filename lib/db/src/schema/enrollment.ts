@@ -53,7 +53,7 @@ export const guestPreapplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     submissionId: uuid("submission_id").notNull().unique(),
     reference: text("reference").notNull().unique(),
-    accessKeyHash: text("access_key_hash").notNull().unique(),
+    accessKeyHash: text("access_key_hash").unique(),
     applicantAccessCodeHash: text("applicant_access_code_hash"),
     categoryId: text("category_id").notNull(),
     fullName: text("full_name").notNull(),

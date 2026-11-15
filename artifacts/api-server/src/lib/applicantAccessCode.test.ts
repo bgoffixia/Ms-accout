@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   applicantAccessAttemptKeys,
@@ -33,5 +34,17 @@ describe("applicant-owned access codes", () => {
     expect(otherIp.ipKey).not.toBe(first.ipKey);
     expect(first.referenceKey).not.toContain("CASE-1042");
     expect(first.ipKey).not.toContain("192.0.2.4");
+  });
+
+  it("keeps the forward migration additive and retains legacy guest-key data", () => {
+    const migration = readFileSync(
+      new URL("../../../../lib/db/migrations/0002_applicant_access_codes.sql", import.meta.url),
+      "utf8",
+    );
+    expect(migration).toMatch(/ADD COLUMN IF NOT EXISTS applicant_access_code_hash text/i);
+    expect(migration).toMatch(/ALTER COLUMN access_key_hash DROP NOT NULL/i);
+    expect(migration).toMatch(/CREATE TABLE IF NOT EXISTS applicant_access_code_attempts/i);
+    expect(migration).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
+    expect(migration).not.toMatch(/UPDATE\s+(guest_preapplications|enrollment_applications)\b/i);
   });
 });

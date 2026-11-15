@@ -6,6 +6,11 @@ BEGIN;
 ALTER TABLE guest_preapplications
   ADD COLUMN IF NOT EXISTS applicant_access_code_hash text;
 
+-- Keep historical guest keys available only for the explicit upgrade flow.
+-- New guest records no longer receive legacy tracking-key hashes.
+ALTER TABLE guest_preapplications
+  ALTER COLUMN access_key_hash DROP NOT NULL;
+
 ALTER TABLE enrollment_applications
   ADD COLUMN IF NOT EXISTS applicant_access_code_hash text;
 

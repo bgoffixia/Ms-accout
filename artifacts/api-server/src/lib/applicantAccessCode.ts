@@ -74,7 +74,8 @@ export async function verifyApplicantAccessCode(
   if (!parsed) {
     const dummyHash = await dummyHashPromise;
     const candidate = await scrypt(isValidApplicantAccessCode(code) ? code : "invalid", dummySalt);
-    return candidate.length === dummyHash.length && timingSafeEqual(candidate, dummyHash) && false;
+    timingSafeEqual(candidate, dummyHash);
+    return false;
   }
   const candidate = await scrypt(isValidApplicantAccessCode(code) ? code : "invalid", parsed.salt, parsed.n);
   return candidate.length === parsed.key.length && timingSafeEqual(candidate, parsed.key);
