@@ -30,7 +30,7 @@ app.use(
   clerkMiddleware((req: any) => ({
     publishableKey: publishableKeyFromHost(
       getClerkProxyHost(req as { headers: Record<string, string | string[] | undefined> }) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
+      (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env?.CLERK_PUBLISHABLE_KEY,
     ),
   })),
 );
