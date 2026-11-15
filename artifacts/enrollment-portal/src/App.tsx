@@ -398,17 +398,18 @@ function staffReviewReturnPath(value: string | null): string | null {
   return null;
 }
 
-function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; allowlistedEmail?: string }) {
+function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff' | 'admin'; allowlistedEmail?: string }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
-  const directStaffRegistration = mode === 'staff' && !!allowlistedEmail;
+  const directStaffRegistration = (mode === 'staff' || mode === 'admin') && !!allowlistedEmail;
+  const adminRegistrationIntent = mode === 'admin' || new URLSearchParams(window.location.search).get('adminRegistration') === '1';
   const staffSignInRegistration = mode === 'in' && new URLSearchParams(window.location.search).get('staffRegistration') === '1';
-  const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration;
+  const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration || adminRegistrationIntent;
   const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
   const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
   const guestAuthContext = guestSubmissionIntent ? readGuestAuthContext() : null;
   const completionUrl = staffRegistrationIntent
-    ? `${basePath}/auth/complete?staffRegistration=1`
+    ? `${basePath}/auth/complete?${adminRegistrationIntent ? 'adminRegistration=1' : 'staffRegistration=1'}`
     : guestSubmissionIntent
       ? `${basePath}/auth/complete?guestApplication=1`
       : reviewReturnPath
@@ -417,7 +418,7 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       setLocation(staffRegistrationIntent
-        ? '/auth/complete?staffRegistration=1'
+        ? (adminRegistrationIntent ? '/auth/complete?adminRegistration=1' : '/auth/complete?staffRegistration=1')
         : guestSubmissionIntent
           ? '/auth/complete?guestApplication=1'
           : reviewReturnPath
@@ -429,12 +430,12 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
   return <main className="auth-page portal-frame">
     <div className="auth-brand"><PortalWordmark /><span>SECURE ACCESS</span></div>
     <div className="auth-canvas">
-      <div className="auth-intro"><div className="eyebrow">{mode === 'staff' ? directStaffRegistration ? 'AUTHORIZED STAFF ACCESS' : 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'staff' ? directStaffRegistration ? 'Your staff account.' : 'Your team account.' : 'Let’s get started.'}</h1>
-        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
+      <div className="auth-intro"><div className="eyebrow">{mode === 'admin' ? 'AUTHORIZED ADMINISTRATOR ACCESS' : mode === 'staff' ? directStaffRegistration ? 'AUTHORIZED STAFF ACCESS' : 'INVITED STAFF ACCESS' : 'A thoughtful process starts here'}</div><h1>{mode === 'in' ? 'Welcome back.' : mode === 'admin' ? 'Administrator account.' : mode === 'staff' ? directStaffRegistration ? 'Your staff account.' : 'Your team account.' : 'Let’s get started.'}</h1>
+        <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'admin' ? 'Create your administrator account using the pre-authorized email address. Administrator access activates only after email verification.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} initialValues={guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} /> :
-          <SignUp routing="path" path={`${basePath}${mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}/sign-in?staffRegistration=1` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} />}
+        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} initialValues={guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} /> :
+          <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} />}
       </div>
     </div>
   </main>;
@@ -443,10 +444,12 @@ function AuthPage({ mode, allowlistedEmail }: { mode: 'in' | 'up' | 'staff'; all
 function StaffSignUpPage() {
   const invitationTicket = new URLSearchParams(window.location.search).get('__clerk_ticket');
   if (invitationTicket) return <AuthPage mode="staff" />;
-  return <AllowlistedStaffSignUp />;
+  return <AllowlistedStaffSignUp requiredRole="sub_admin" />;
 }
 
-function AllowlistedStaffSignUp() {
+function AdminSignUpPage() { return <AllowlistedStaffSignUp requiredRole="admin" />; }
+
+function AllowlistedStaffSignUp({ requiredRole = 'sub_admin' }: { requiredRole?: 'admin' | 'sub_admin' }) {
   const checkEmail = useCheckStaffRegistrationEmail();
   const [email, setEmail] = useState('');
   const [allowlistedEmail, setAllowlistedEmail] = useState('');
@@ -458,25 +461,25 @@ function AllowlistedStaffSignUp() {
     const normalizedEmail = email.trim();
     checkEmail.mutate({ data: { email: normalizedEmail } }, {
       onSuccess: (result) => {
-        if (result.allowed) {
+        if (result.allowed && result.role === requiredRole) {
           setAllowlistedEmail(normalizedEmail);
         } else {
-          setError('This email is not authorized for staff registration.');
+          setError(requiredRole === 'admin' ? 'This email is not authorized for administrator registration.' : 'This email is not authorized for staff registration.');
         }
       },
       onError: () => setError('Staff registration could not be checked. Please try again.'),
     });
   };
 
-  if (allowlistedEmail) return <AuthPage mode="staff" allowlistedEmail={allowlistedEmail} />;
+  if (allowlistedEmail) return <AuthPage mode={requiredRole === 'admin' ? 'admin' : 'staff'} allowlistedEmail={allowlistedEmail} />;
 
-  return <main className="signedout-page portal-frame" data-testid="staff-allowlist-check">
+  return <main className="signedout-page portal-frame" data-testid={requiredRole === 'admin' ? 'admin-allowlist-check' : 'staff-allowlist-check'}>
     <PortalWordmark />
     <div className="signedout-card">
       <span className="state-icon"><LockKeyhole size={21} /></span>
       <div className="eyebrow">AUTHORIZED STAFF ACCESS</div>
       <h1>Staff registration</h1>
-      <p>Enter an approved email address to continue. Your role is assigned only after that email is verified.</p>
+      <p>Enter the approved {requiredRole === 'admin' ? 'administrator' : 'staff'} email address to continue. Your role is assigned only after that email is verified.</p>
       <form className="staff-registration-form" onSubmit={submit}>
         <label className="field-label" htmlFor="staff-registration-email">Email address</label>
         <input
@@ -488,10 +491,10 @@ function AllowlistedStaffSignUp() {
           maxLength={320}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          data-testid="input-staff-registration-email"
+          data-testid={requiredRole === 'admin' ? 'input-admin-registration-email' : 'input-staff-registration-email'}
         />
         {error && <p className="inline-error" role="alert" data-testid="text-staff-registration-error">{error}</p>}
-        <button className="button button-primary" type="submit" disabled={checkEmail.isPending} data-testid="button-check-staff-registration">
+        <button className="button button-primary" type="submit" disabled={checkEmail.isPending} data-testid={requiredRole === 'admin' ? 'button-check-admin-registration' : 'button-check-staff-registration'}>
           {checkEmail.isPending ? 'Checking…' : 'Continue to sign up'} <ArrowRight size={15} />
         </button>
       </form>
@@ -509,6 +512,7 @@ function AuthComplete() {
   const claimStarted = useRef(false);
   const [claimError, setClaimError] = useState('');
   const isStaffRegistration = new URLSearchParams(window.location.search).get('staffRegistration') === '1';
+  const isAdminRegistration = new URLSearchParams(window.location.search).get('adminRegistration') === '1';
   const isGuestSubmission = new URLSearchParams(window.location.search).get('guestApplication') === '1';
   const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
 
@@ -529,7 +533,7 @@ function AuthComplete() {
       setLocation('/guest/apply?resume=1', { replace: true });
       return;
     }
-    if (isStaffRegistration) {
+    if (isStaffRegistration || isAdminRegistration) {
       if (claimStarted.current) return;
       claimStarted.current = true;
       claimStaffAccess.mutate(undefined, {
@@ -539,7 +543,7 @@ function AuthComplete() {
       return;
     }
     setLocation(reviewReturnPath ?? (['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard'), { replace: true });
-  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isGuestSubmission, reviewReturnPath, claimStaffAccess.mutate]);
+  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isAdminRegistration, isGuestSubmission, reviewReturnPath, claimStaffAccess.mutate]);
 
   if (claimError) return <main className="signedout-page portal-frame" data-testid={isGuestSubmission ? 'guest-submit-error' : 'staff-claim-error'}>
     <PortalWordmark />
@@ -5087,6 +5091,9 @@ function RoutedPages() {
     <Route path="/guest/apply" component={GuestApplicationRoute} />
     <Route path="/guest/track" component={GuestTrackingPage} />
     <Route path="/staff/sign-up/*?" component={StaffSignUpPage} />
+    <Route path="/staff/sign-in/*?" component={() => <AuthPage mode="in" />} />
+    <Route path="/admin/sign-up/*?" component={AdminSignUpPage} />
+    <Route path="/admin/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-in/*?" component={() => <AuthPage mode="in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage mode="up" />} />
     <Route path="/auth/complete" component={AuthComplete} />
