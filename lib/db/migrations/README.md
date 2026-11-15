@@ -39,3 +39,10 @@ not alter or remove provider-PIN columns/data. Review and apply it only to the
 intended application database after confirming its actual schema. Do not run
 `drizzle-kit push` against production; this request does not authorize any
 database mutation.
+
+The lockout table has row-level security enabled, with no policies for ordinary
+roles, and explicit privileges revoked from `PUBLIC` and, when present,
+`anon` and `authenticated`. RLS is not forced: the trusted server connection
+must use the table owner or a role with `BYPASSRLS`. Verify that role on the
+intended database before applying the migration; the current Replit runtime
+role is not evidence of the separate Railway production role.

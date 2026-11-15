@@ -1,6 +1,8 @@
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -66,7 +68,9 @@ export const guestPreapplicationsTable = pgTable(
       .default({}),
     detailsComplete: boolean("details_complete").notNull().default(false),
     status: guestPreapplicationStatus("status").notNull().default("received"),
-    submissionStatus: guestSubmissionStatus("submission_status").notNull().default("draft"),
+    submissionStatus: guestSubmissionStatus("submission_status")
+      .notNull()
+      .default("draft"),
     emailVerified: boolean("email_verified").notNull().default(false),
     clerkUserId: text("clerk_user_id"),
     linkedApplicationId: uuid("linked_application_id"),
@@ -81,14 +85,18 @@ export const guestPreapplicationsTable = pgTable(
   },
   (table) => [
     index("guest_preapplications_status_idx").on(table.status),
-    index("guest_preapplications_submission_status_idx").on(table.submissionStatus),
+    index("guest_preapplications_submission_status_idx").on(
+      table.submissionStatus,
+    ),
     index("guest_preapplications_created_idx").on(table.createdAt),
     index("guest_preapplications_evidence_cleanup_idx").on(
       table.submissionStatus,
       table.linkedApplicationId,
       table.updatedAt,
     ),
-    uniqueIndex("guest_preapplications_linked_application_idx").on(table.linkedApplicationId),
+    uniqueIndex("guest_preapplications_linked_application_idx").on(
+      table.linkedApplicationId,
+    ),
   ],
 );
 
@@ -156,8 +164,9 @@ export const enrollmentApplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     reference: text("reference").notNull().unique(),
     clerkUserId: text("clerk_user_id").notNull(),
-    sourceGuestPreapplicationId: uuid("source_guest_preapplication_id")
-      .references(() => guestPreapplicationsTable.id, { onDelete: "set null" }),
+    sourceGuestPreapplicationId: uuid(
+      "source_guest_preapplication_id",
+    ).references(() => guestPreapplicationsTable.id, { onDelete: "set null" }),
     categoryId: text("category_id").notNull(),
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
@@ -181,7 +190,9 @@ export const enrollmentApplicationsTable = pgTable(
     index("enrollment_applications_owner_idx").on(table.clerkUserId),
     index("enrollment_applications_status_idx").on(table.status),
     index("enrollment_applications_category_idx").on(table.categoryId),
-    uniqueIndex("enrollment_applications_guest_source_idx").on(table.sourceGuestPreapplicationId),
+    uniqueIndex("enrollment_applications_guest_source_idx").on(
+      table.sourceGuestPreapplicationId,
+    ),
   ],
 );
 
@@ -205,8 +216,12 @@ export const applicantAccessCodeAttemptsTable = pgTable(
       columns: [table.referenceKey, table.ipKey],
     }),
     index("applicant_access_code_attempts_updated_idx").on(table.updatedAt),
+    check(
+      "applicant_access_code_attempts_failed_attempts_check",
+      sql`${table.failedAttempts} >= 0`,
+    ),
   ],
-);
+).enableRLS();
 
 export const applicationEventsTable = pgTable(
   "application_events",
