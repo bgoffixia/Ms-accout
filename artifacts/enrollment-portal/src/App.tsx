@@ -519,7 +519,7 @@ function AuthComplete() {
   useEffect(() => {
     if (!isLoaded || !userLoaded) return;
     if (!isSignedIn) {
-      setLocation(isGuestSubmission ? '/sign-in?guestApplication=1' : '/sign-in', { replace: true });
+      setLocation(isGuestSubmission ? '/sign-in?guestApplication=1' : isAdminRegistration ? '/admin/sign-in' : isStaffRegistration ? '/staff/sign-in' : '/sign-in', { replace: true });
       return;
     }
     if (isGuestSubmission) {
@@ -549,8 +549,8 @@ function AuthComplete() {
     <PortalWordmark />
     <div className="signedout-card">
       <span className="state-icon"><LockKeyhole size={21} /></span>
-      <div className="eyebrow">{isGuestSubmission ? 'APPLICATION SUBMISSION' : 'STAFF ACCESS CHECK'}</div>
-      <h1>{isGuestSubmission ? 'Your application is still saved.' : 'Staff access wasn’t activated.'}</h1>
+      <div className="eyebrow">{isGuestSubmission ? 'APPLICATION SUBMISSION' : isAdminRegistration ? 'ADMINISTRATOR ACCESS CHECK' : 'STAFF ACCESS CHECK'}</div>
+      <h1>{isGuestSubmission ? 'Your application is still saved.' : isAdminRegistration ? 'Administrator access wasn’t activated.' : 'Staff access wasn’t activated.'}</h1>
       <p>{claimError}</p>
       {isGuestSubmission
         ? <>
