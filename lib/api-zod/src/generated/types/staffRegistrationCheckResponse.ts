@@ -8,4 +8,5 @@
 
 export interface StaffRegistrationCheckResponse {
   allowed: boolean;
+  role?: 'admin' | 'sub_admin';
 }
