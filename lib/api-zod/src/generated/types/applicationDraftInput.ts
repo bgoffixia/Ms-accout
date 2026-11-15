@@ -9,4 +9,8 @@ import type { ApplicationDraftInputCategoryId } from './applicationDraftInputCat
 
 export interface ApplicationDraftInput {
   categoryId: ApplicationDraftInputCategoryId;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
 }

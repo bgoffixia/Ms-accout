@@ -47,8 +47,10 @@ export const GuestPreapplicationInputCategoryId = {
 
 export interface GuestPreapplicationInput {
   submissionId: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
   categoryId: GuestPreapplicationInputCategoryId;
   /**
      * @minLength 2
@@ -67,8 +69,123 @@ export interface GuestPreapplicationLookupInput {
      * @maxLength 32
      */
   reference: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+}
+
+export interface ApplicationAccessLookupInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+}
+
+export interface ApplicantAccessCodeInput {
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
+  /** Must be true to explicitly recover a previously configured code from the verified Clerk account. */
+  recovery?: boolean;
+}
+
+export interface LegacyGuestAccessUpgradeInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  legacyAccessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
+}
+
+export interface AccessCodeConfiguredResponse {
+  accessCodeConfigured: boolean;
+}
+
+export type ApplicationAccessStatusApplicationType = typeof ApplicationAccessStatusApplicationType[keyof typeof ApplicationAccessStatusApplicationType];
+
+
+export const ApplicationAccessStatusApplicationType = {
+  guest_preapplication: 'guest_preapplication',
+  enrollment_application: 'enrollment_application',
+} as const;
+
+export type ApplicationAccessStatusCategoryId = typeof ApplicationAccessStatusCategoryId[keyof typeof ApplicationAccessStatusCategoryId];
+
+
+export const ApplicationAccessStatusCategoryId = {
+  'category-1': 'category-1',
+  'category-2': 'category-2',
+  'category-3': 'category-3',
+  'category-4': 'category-4',
+} as const;
+
+export type ApplicationAccessStatusStatus = typeof ApplicationAccessStatusStatus[keyof typeof ApplicationAccessStatusStatus];
+
+
+export const ApplicationAccessStatusStatus = {
+  received: 'received',
+  contacted: 'contacted',
+  closed: 'closed',
+  draft: 'draft',
+  submitted: 'submitted',
+  under_review: 'under_review',
+  needs_information: 'needs_information',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type ApplicationAccessStatusSubmissionStatus = typeof ApplicationAccessStatusSubmissionStatus[keyof typeof ApplicationAccessStatusSubmissionStatus];
+
+
+export const ApplicationAccessStatusSubmissionStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ApplicationAccessStatusReviewStatus = typeof ApplicationAccessStatusReviewStatus[keyof typeof ApplicationAccessStatusReviewStatus] | null;
+
+
+export const ApplicationAccessStatusReviewStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
+  under_review: 'under_review',
+  needs_information: 'needs_information',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface ApplicationAccessStatus {
+  applicationId: string;
+  reference: string;
+  applicationType: ApplicationAccessStatusApplicationType;
+  categoryId: ApplicationAccessStatusCategoryId;
+  categoryName: string;
+  status: ApplicationAccessStatusStatus;
+  submissionStatus: ApplicationAccessStatusSubmissionStatus;
+  /**
+     * @minimum 0
+     * @maximum 7
+     */
+  currentStep: number;
+  detailsComplete: boolean;
+  updatedAt: string;
+  /** @nullable */
+  reviewStatus: ApplicationAccessStatusReviewStatus;
+  /** @nullable */
+  applicantFollowup: string | null;
+  outstandingRequirements: string[];
 }
 
 export type GuestPreapplicationCreatedCategoryId = typeof GuestPreapplicationCreatedCategoryId[keyof typeof GuestPreapplicationCreatedCategoryId];
@@ -104,6 +221,7 @@ export interface GuestPreapplicationCreated {
      * @nullable
      */
   referenceCode: string | null;
+  accessCodeConfigured: boolean;
   linkedApplicationId: string | null;
   /**
      * @minimum 0
@@ -166,6 +284,7 @@ export interface GuestPreapplicationStatus {
      * @nullable
      */
   referenceCode: string | null;
+  accessCodeConfigured: boolean;
   /** @nullable */
   linkedApplicationId: string | null;
   /**
@@ -209,8 +328,8 @@ export interface GuestPreapplicationProgressInput {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
   /**
      * @minimum 0
      * @maximum 7
@@ -228,8 +347,8 @@ export interface GuestApplicationAccessInput {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
 }
 
 export interface GuestPreapplicationEmailUpdate {
@@ -238,8 +357,8 @@ export interface GuestPreapplicationEmailUpdate {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
   /** @maxLength 320 */
   email: string;
 }
@@ -340,8 +459,8 @@ export type GuestApplicantEvidenceUploadInput = GuestEvidenceUploadInput & {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
   evidenceSlot: GuestApplicantEvidenceUploadInputEvidenceSlot;
 };
 
@@ -426,6 +545,7 @@ export interface EnrollmentApplication {
      * @nullable
      */
   referenceCode: string | null;
+  accessCodeConfigured: boolean;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;
@@ -476,6 +596,10 @@ export interface NewApplicationSubmissionInput {
   answers: NewApplicationSubmissionInputAnswers;
   /** @maxLength 80 */
   referenceCode?: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
 }
 
 export type ExistingApplicationSubmissionInputCategoryId = typeof ExistingApplicationSubmissionInputCategoryId[keyof typeof ExistingApplicationSubmissionInputCategoryId];
@@ -564,6 +688,10 @@ export const ApplicationDraftInputCategoryId = {
 
 export interface ApplicationDraftInput {
   categoryId: ApplicationDraftInputCategoryId;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
 }
 
 export type ApplicationDecisionDecision = typeof ApplicationDecisionDecision[keyof typeof ApplicationDecisionDecision];
@@ -694,9 +822,17 @@ export interface StaffRegistrationCheckInput {
   email: string;
 }
 
+export type StaffRegistrationCheckResponseRole = typeof StaffRegistrationCheckResponseRole[keyof typeof StaffRegistrationCheckResponseRole];
+
+
+export const StaffRegistrationCheckResponseRole = {
+  admin: 'admin',
+  sub_admin: 'sub_admin',
+} as const;
+
 export interface StaffRegistrationCheckResponse {
   allowed: boolean;
-  role?: 'admin' | 'sub_admin';
+  role?: StaffRegistrationCheckResponseRole;
 }
 
 export type StaffAccessClaimResponseRole = typeof StaffAccessClaimResponseRole[keyof typeof StaffAccessClaimResponseRole];

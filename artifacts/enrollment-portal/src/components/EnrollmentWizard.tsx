@@ -29,7 +29,7 @@ export type EnrollmentWizardProps = {
   categoryCards?: PortalSettingsCardsItem[];
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
-  privateTrackingKey?: string;
+  guestMode?: boolean;
   uploadEvidence?: (
     file: File,
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
@@ -234,7 +234,7 @@ type LocalImage = { file: File; url: string };
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit,
-  onBackToCategoryEntry, pageThemes, evidenceLater = false, privateTrackingKey, uploadEvidence, updateContactEmail,
+  onBackToCategoryEntry, pageThemes, evidenceLater = false, guestMode = false, uploadEvidence, updateContactEmail,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -276,7 +276,6 @@ export function EnrollmentWizard({
   const [emailCorrectionError, setEmailCorrectionError] = useState('');
   const [emailCorrectionSaved, setEmailCorrectionSaved] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
-  const [keyCopied, setKeyCopied] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -286,7 +285,7 @@ export function EnrollmentWizard({
   const imageUrlsRef = useRef<string[]>([]);
   const reopenedSignature = reopenedSections.join(',');
   const allowedSections = reopenedSections.length > 0 ? new Set(reopenedSections) : null;
-  const readOnly = !evidenceLater && !privateTrackingKey && status !== 'draft' && reopenedSections.length === 0;
+  const readOnly = !evidenceLater && !guestMode && status !== 'draft' && reopenedSections.length === 0;
   const canEditSection = (sectionIndex: number) => !readOnly && (!allowedSections || allowedSections.has(sectionIndex));
   const category = categories.find((item) => item.id === application.categoryId);
   const categoryCard = categoryCards.find((card) => card.id === application.categoryId);
@@ -639,7 +638,7 @@ export function EnrollmentWizard({
     if (!storageAvailable) missing.push('storage-backed references (secure storage unavailable)');
     return missing;
   }, [answers, evidenceLater, isBackRequired, storageAvailable]);
-  const readyToSubmit = privateTrackingKey
+  const readyToSubmit = guestMode
     ? true
     : activeSteps.filter((index) => index < 7).every((index) => sectionComplete(index)) && missingUploads.length === 0;
 

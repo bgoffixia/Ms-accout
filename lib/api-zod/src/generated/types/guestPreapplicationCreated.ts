@@ -24,6 +24,7 @@ export interface GuestPreapplicationCreated {
      * @nullable
      */
   referenceCode: string | null;
+  accessCodeConfigured: boolean;
   linkedApplicationId: string | null;
   /**
      * @minimum 0

@@ -14,4 +14,8 @@ export interface NewApplicationSubmissionInput {
   answers: NewApplicationSubmissionInputAnswers;
   /** @maxLength 80 */
   referenceCode?: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
 }

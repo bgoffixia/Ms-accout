@@ -27,3 +27,12 @@ they may contain configuration or applicant metadata by then. Any later schema
 cleanup requires a fresh backup, confirmation that no active build reads the
 new columns, and a separately reviewed migration. No legacy PIN values are
 read, returned, or changed by this migration or the current application.
+
+`0002_applicant_access_codes.sql` is a separate, forward-only additive
+migration. It adds nullable applicant access-code hash columns to the existing
+guest and authenticated application tables and creates the persistent,
+reference/IP-keyed temporary-lockout table. It stores no raw code or IP
+address, and it does not alter or remove legacy tracking-key or provider-PIN
+columns/data. Review and apply it only to the intended application database
+after confirming its actual schema. Do not run `drizzle-kit push` against
+production; this request does not authorize any database mutation.

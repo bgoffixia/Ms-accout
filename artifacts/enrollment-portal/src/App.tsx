@@ -25,7 +25,8 @@ import {
   getListAdminGuestPreapplicationsQueryKey,
   getListAdminUsersQueryKey, getListMySupportTicketsQueryKey, getListSupportTicketsForAdminQueryKey,
   useAddAdminApplicationNote, useAddApplicantSupportMessage, useAssignSupportTicket,
-  useCreateGuestPreapplication, useLookupGuestPreapplication, useListAdminGuestPreapplications,
+  useCreateGuestPreapplication, useLookupGuestPreapplication, useLookupApplicationWithAccessCode,
+  useUpgradeLegacyGuestAccessKey, useUpdateMyApplicationAccessCode, useListAdminGuestPreapplications,
   useUpdateGuestPreapplicationProgress,
   useUpdateGuestPreapplicationEmail,
   useRequestGuestApplicantEvidenceUpload, useCompleteGuestApplicantEvidenceUpload,
@@ -52,7 +53,7 @@ import {
 } from '@workspace/api-client-react';
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
-  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, AdminEmailTemplate, AdminSmsSettings, AdminSmsSendResponse, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
+  AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, AdminEmailTemplate, AdminSmsSettings, AdminSmsSendResponse, ApplicationAccessStatus, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -405,7 +406,6 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
   const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration || adminRegistrationIntent;
   const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
   const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
-  const guestAuthContext = guestSubmissionIntent ? readGuestAuthContext() : null;
   const completionUrl = staffRegistrationIntent
     ? `${basePath}/auth/complete?${adminRegistrationIntent ? 'adminRegistration=1' : 'staffRegistration=1'}`
     : guestSubmissionIntent
@@ -432,8 +432,8 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
         <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'admin' ? 'Create your administrator account using the pre-authorized email address. Administrator access activates only after email verification.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} initialValues={guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} /> :
-          <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : guestAuthContext ? { emailAddress: guestAuthContext.email } : undefined} />}
+        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
+          <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
       </div>
     </div>
   </main>;
@@ -521,14 +521,7 @@ function AuthComplete() {
       return;
     }
     if (isGuestSubmission) {
-      if (claimStarted.current) return;
-      const guestContext = readGuestAuthContext();
-      if (!guestContext) {
-        setClaimError('The saved guest application context is unavailable. Your draft can still be restored with its reference and private key.');
-        return;
-      }
-      claimStarted.current = true;
-      setLocation('/guest/apply?resume=1', { replace: true });
+      setLocation('/guest/track', { replace: true });
       return;
     }
     if (isStaffRegistration || isAdminRegistration) {
@@ -590,6 +583,8 @@ function Dashboard() {
   const [sessionRevision, setSessionRevision] = useState(0);
   const [startingCategoryId, setStartingCategoryId] = useState<string | null>(null);
   const [draftFeedback, setDraftFeedback] = useState('');
+  const [accessCode, setAccessCode] = useState('');
+  const [confirmAccessCode, setConfirmAccessCode] = useState('');
   const sessionRecords = useMemo(
     () => user?.id ? listSessionDrafts(user.id) : [],
     [user?.id, sessionRevision],
@@ -626,17 +621,35 @@ function Dashboard() {
     });
   }, [categories.data, portalSettings.data?.cards]);
 
-  const begin = async (category: EnrollmentCategory) => {
+  const begin = (category: EnrollmentCategory) => {
     if (!user?.id || startingCategoryId) return;
     setStartingCategoryId(category.id);
+    setAccessCode('');
+    setConfirmAccessCode('');
     setDraftFeedback('');
+  };
+  const createApplication = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!startingCategoryId || !user?.id || createDraft.isPending) return;
+    if (!/^\d{6}$/.test(accessCode) || !/^\d{6}$/.test(confirmAccessCode)) {
+      setDraftFeedback('Enter a six-digit code in both fields.');
+      return;
+    }
+    if (accessCode !== confirmAccessCode) {
+      setDraftFeedback('The access codes do not match.');
+      return;
+    }
     try {
-      const draft = await createDraft.mutateAsync({ data: { categoryId: category.id } });
+      const draft = await createDraft.mutateAsync({
+        data: { categoryId: startingCategoryId, accessCode, confirmAccessCode },
+      });
       void queryClient.invalidateQueries({ queryKey: getListMyApplicationsQueryKey() });
       void queryClient.invalidateQueries({ queryKey: getGetApplicantSummaryQueryKey() });
+      setAccessCode('');
+      setConfirmAccessCode('');
+      setStartingCategoryId(null);
       setLocation(`/apply/${draft.id}`);
     } catch {
-      setStartingCategoryId(null);
       setDraftFeedback('A secure application draft could not be opened. Please try again.');
     }
   };
@@ -658,6 +671,44 @@ function Dashboard() {
   const busy = !userLoaded || summary.isLoading || applications.isLoading || categories.isLoading;
   const failure = summary.isError || applications.isError || categories.isError;
   return <AppFrame active="dashboard" fitDashboard>
+    {startingCategoryId && <div className="access-code-modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !createDraft.isPending) {
+        setStartingCategoryId(null);
+        setAccessCode('');
+        setConfirmAccessCode('');
+      }
+    }}>
+      <section className="access-code-modal" role="dialog" aria-modal="true" aria-labelledby="access-code-title" data-testid="applicant-access-code-setup">
+        <button type="button" className="access-code-modal-close" aria-label="Close access code setup" onClick={() => {
+          setStartingCategoryId(null);
+          setAccessCode('');
+          setConfirmAccessCode('');
+          setDraftFeedback('');
+        }} disabled={createDraft.isPending}><X size={18} /></button>
+        <span className="state-icon"><LockKeyhole size={20} /></span>
+        <div className="eyebrow">APPLICATION ACCESS</div>
+        <h2 id="access-code-title">Create a private access code</h2>
+        <p>This six-digit code is for this application only. It is not your bank PIN or account password. Staff cannot view it.</p>
+        <form className="access-code-form" onSubmit={(event) => void createApplication(event)}>
+          <label htmlFor="new-application-access-code">Six-digit access code</label>
+          <input id="new-application-access-code" type="password" inputMode="numeric" autoComplete="new-password" maxLength={6} pattern="[0-9]{6}" required value={accessCode} onChange={(event) => setAccessCode(event.target.value.replace(/\D/g, '').slice(0, 6))} data-testid="input-new-access-code" />
+          <label htmlFor="confirm-application-access-code">Confirm access code</label>
+          <input id="confirm-application-access-code" type="password" inputMode="numeric" autoComplete="new-password" maxLength={6} pattern="[0-9]{6}" required value={confirmAccessCode} onChange={(event) => setConfirmAccessCode(event.target.value.replace(/\D/g, '').slice(0, 6))} data-testid="input-confirm-access-code" />
+          {draftFeedback && <p className="inline-error" role="alert" data-testid="text-access-code-error">{draftFeedback}</p>}
+          <div className="access-code-actions">
+            <button type="button" className="button button-quiet" onClick={() => {
+              setStartingCategoryId(null);
+              setAccessCode('');
+              setConfirmAccessCode('');
+              setDraftFeedback('');
+            }} disabled={createDraft.isPending}>Cancel</button>
+            <button type="submit" className="button button-primary" disabled={createDraft.isPending} data-testid="button-create-application">
+              {createDraft.isPending ? 'Opening application…' : 'Create application'} <ArrowRight size={15} />
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>}
     <div className="dashboard-layout">
       <div className="dashboard-main">
         <PageHeading eyebrow="YOUR ENROLLMENT" title={copyText(portalSettings.data, 'dashboard', 'title', 'A good place to begin.')} detail={copyText(portalSettings.data, 'dashboard', 'description', `Signed in as ${user?.fullName || user?.primaryEmailAddress?.emailAddress || 'your account'}. Start a separate application for each account provider.`)} />
@@ -3427,49 +3478,18 @@ const GUEST_DASHBOARD_CONTACT_KEY = 'guest-dashboard-contact';
 const GUEST_DASHBOARD_START_KEY = 'guest-dashboard-start';
 const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = 'guest-dashboard-pending-category';
 const GUEST_CONTACT_STEP_PASSED_KEY = 'guest-contact-step-passed';
-const GUEST_APPLICATION_RESUME_KEY = 'guest-application-resume';
-const GUEST_APPLICATION_AUTH_CONTEXT_KEY = 'guest-application-auth-context';
-const guestAuthContextSchema = z.object({
-  applicationId: z.string().uuid(),
-  reference: z.string().min(8).max(32),
-  accessKey: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-  email: z.string().email(),
-});
+let transientGuestResume: { reference: string; accessCode: string } | null = null;
 
-function readGuestAuthContext() {
-  try {
-    const stored = window.sessionStorage.getItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY);
-    if (!stored) return null;
-    const context = guestAuthContextSchema.safeParse(JSON.parse(stored));
-    return context.success ? context.data : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveGuestResume(reference: string, accessKey: string) {
-  window.sessionStorage.setItem(GUEST_APPLICATION_RESUME_KEY, JSON.stringify({ reference, accessKey }));
+function saveGuestResume(reference: string, accessCode: string) {
+  transientGuestResume = { reference, accessCode };
 }
 
 function readGuestResume() {
-  try {
-    const stored = window.sessionStorage.getItem(GUEST_APPLICATION_RESUME_KEY);
-    if (!stored) return null;
-    const credentials = JSON.parse(stored) as { reference?: unknown; accessKey?: unknown };
-    return typeof credentials.reference === 'string' && typeof credentials.accessKey === 'string'
-      ? { reference: credentials.reference, accessKey: credentials.accessKey }
-      : null;
-  } catch {
-    return null;
-  }
+  return transientGuestResume;
 }
 
-function saveGuestAuthContext(context: z.infer<typeof guestAuthContextSchema>) {
-  window.sessionStorage.setItem(GUEST_APPLICATION_RESUME_KEY, JSON.stringify({
-    reference: context.reference,
-    accessKey: context.accessKey,
-  }));
-  window.sessionStorage.setItem(GUEST_APPLICATION_AUTH_CONTEXT_KEY, JSON.stringify(context));
+function clearGuestResume() {
+  transientGuestResume = null;
 }
 
 function readGuestDashboardContact() {
@@ -3493,7 +3513,7 @@ function guestContactStepPassed() {
 
 const guestLookupSchema = z.object({
   reference: z.string().trim().min(8, 'Enter the reference from your confirmation.').max(32),
-  accessKey: z.string().min(1, 'Enter your private tracking key.'),
+  accessCode: z.string().regex(/^\d{6}$/, 'Enter your six-digit application access code.'),
 });
 type GuestLookupValues = z.infer<typeof guestLookupSchema>;
 
@@ -3826,15 +3846,16 @@ function GuestApplicationPage() {
   const submitGuest = useSubmitGuestPreapplication();
   const { user } = useUser();
   const [, setLocation] = useLocation();
-  const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessKey: string } | null>(null);
+  const [created, setCreated] = useState<{ application: GuestPreapplicationCreated; accessCode: string } | null>(null);
   const categoryEntryScreenId = created ? `category-entry-${created.application.categoryId.replace('category-', '')}` : '';
   const categoryEntryCopy = categoryEntryScreenId ? portalSettings.data?.screenCopy?.[categoryEntryScreenId] ?? {} : {};
   const categoryEntryCard = created
     ? portalSettings.data?.cards.find((card) => card.id === created.application.categoryId)
     : undefined;
   const [applicationAnswers, setApplicationAnswers] = useState<Record<string, unknown>>({});
-  const [copied, setCopied] = useState(false);
-  const [stage, setStage] = useState<'contact' | 'category' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
+  const [stage, setStage] = useState<'contact' | 'category' | 'accessCode' | 'categoryEntry' | 'application' | 'complete' | 'closed'>('contact');
+  const [accessCode, setAccessCode] = useState('');
+  const [confirmAccessCode, setConfirmAccessCode] = useState('');
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState('');
   const [progressError, setProgressError] = useState('');
@@ -3862,29 +3883,18 @@ function GuestApplicationPage() {
     if (new URLSearchParams(window.location.search).get('resume') !== '1') return;
     resumeStarted.current = true;
     setResumeLoading(true);
-    const stored = window.sessionStorage.getItem('guest-application-resume');
-    if (!stored) {
-      setResumeError('To continue a saved application, return to status lookup and enter your reference and private key.');
-      setResumeLoading(false);
-      return;
-    }
-    let credentials: { reference?: unknown; accessKey?: unknown };
-    try {
-      credentials = JSON.parse(stored) as { reference?: unknown; accessKey?: unknown };
-    } catch {
-      credentials = {};
-    }
-    if (typeof credentials.reference !== 'string' || typeof credentials.accessKey !== 'string') {
-      setResumeError('The saved application details could not be restored. Return to status lookup and try again.');
+    const credentials = readGuestResume();
+    if (!credentials) {
+      setResumeError('To resume a saved application after leaving this session, enter your reference and six-digit access code on the status page.');
       setResumeLoading(false);
       return;
     }
     void lookupGuest.mutateAsync({
-      data: { reference: credentials.reference, accessKey: credentials.accessKey },
+      data: { reference: credentials.reference, accessCode: credentials.accessCode },
     }).then((application) => {
-      setCreated({ application, accessKey: credentials.accessKey as string });
+      setCreated({ application, accessCode: credentials.accessCode });
       setApplicationAnswers(application.answers);
-      saveGuestResume(application.reference, credentials.accessKey as string);
+      saveGuestResume(application.reference, credentials.accessCode);
       setStage(application.submissionStatus === 'submitted'
         ? 'complete'
         : application.status === 'closed'
@@ -3895,7 +3905,7 @@ function GuestApplicationPage() {
             ? 'application'
             : 'categoryEntry');
     }).catch(() => {
-      setResumeError('The reference and private key could not be verified. Return to status lookup and try again.');
+      setResumeError('The reference and access code could not be verified. Return to status lookup and try again.');
     }).finally(() => setResumeLoading(false));
   }, []);
 
@@ -3912,7 +3922,7 @@ function GuestApplicationPage() {
         applicationId: created.application.id,
         data: {
           reference: created.application.reference,
-          accessKey: created.accessKey,
+          accessCode: created.accessCode,
           currentStep,
           answers,
           complete,
@@ -3949,7 +3959,7 @@ function GuestApplicationPage() {
         applicationId: created.application.id,
         data: {
           reference: created.application.reference,
-          accessKey: created.accessKey,
+          accessCode: created.accessCode,
           email,
         },
       });
@@ -4026,15 +4036,19 @@ function GuestApplicationPage() {
     };
     const fingerprint = JSON.stringify(details);
     let input = pendingSubmission?.input;
-    let accessKey = input?.accessKey;
-    if (!input || !accessKey) {
-      const bytes = new Uint8Array(32);
-      window.crypto.getRandomValues(bytes);
-      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
-      accessKey = window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    if (!input || pendingSubmission?.fingerprint !== fingerprint) {
+      if (!/^\d{6}$/.test(accessCode) || !/^\d{6}$/.test(confirmAccessCode)) {
+        setProgressError('Enter a six-digit access code in both fields.');
+        return;
+      }
+      if (accessCode !== confirmAccessCode) {
+        setProgressError('The access codes do not match.');
+        return;
+      }
       input = {
         submissionId: window.crypto.randomUUID(),
-        accessKey,
+        accessCode,
+        confirmAccessCode,
         categoryId: details.categoryId,
         fullName: details.fullName,
         email: details.email,
@@ -4051,12 +4065,9 @@ function GuestApplicationPage() {
       } catch {
         // Keep the successful application visible even if browser storage cleanup fails.
       }
-      setCreated({ application, accessKey });
-      try {
-        saveGuestResume(application.reference, accessKey);
-      } catch {
-        setProgressError('Your private key could not be saved for this session. Copy it before continuing.');
-      }
+      const submittedAccessCode = input.accessCode;
+      setCreated({ application, accessCode: submittedAccessCode });
+      saveGuestResume(application.reference, submittedAccessCode);
       setApplicationAnswers({});
       setStage('categoryEntry');
       setPendingSubmission(null);
@@ -4087,8 +4098,7 @@ function GuestApplicationPage() {
   useEffect(() => {
     if (!dashboardStartValues || dashboardStartStarted.current) return;
     dashboardStartStarted.current = true;
-    setStage('category');
-    void onSubmit(dashboardStartValues);
+    setStage('accessCode');
   }, [dashboardStartValues]);
 
   const uploadGuestEvidence = async (
@@ -4107,7 +4117,7 @@ function GuestApplicationPage() {
       applicationId: created.application.id,
       data: {
         reference: created.application.reference,
-        accessKey: created.accessKey,
+        accessCode: created.accessCode,
         evidenceType,
         evidenceSlot,
         fileName: file.name,
@@ -4124,7 +4134,7 @@ function GuestApplicationPage() {
     const uploaded = await completeEvidenceUpload.mutateAsync({
       applicationId: created.application.id,
       evidenceId,
-      data: { reference: created.application.reference, accessKey: created.accessKey },
+      data: { reference: created.application.reference, accessCode: created.accessCode },
     });
     return { objectPath: uploaded.objectPath, fileName: uploaded.fileName };
   };
@@ -4137,7 +4147,7 @@ function GuestApplicationPage() {
     try {
       await submitGuest.mutateAsync({
         applicationId: created.application.id,
-        data: { reference: created.application.reference, accessKey: created.accessKey },
+        data: { reference: created.application.reference, accessCode: created.accessCode },
       });
       setStage('complete');
       return true;
@@ -4146,16 +4156,6 @@ function GuestApplicationPage() {
         ? error.message
         : 'The application could not be submitted. Your saved details remain available.');
       return false;
-    }
-  };
-
-  const copyKey = async () => {
-    if (!created) return;
-    try {
-      await navigator.clipboard.writeText(created.accessKey);
-      setCopied(true);
-    } catch {
-      setCopied(false);
     }
   };
 
@@ -4169,16 +4169,13 @@ function GuestApplicationPage() {
           <div className="success-dialog-icon"><ShieldCheck size={25} /></div>
           <span className="eyebrow">APPLICATION SUBMITTED</span>
           <h2 id="guest-submission-title">Enrollment submitted</h2>
-          <p>Your enrollment details have been saved and are available to authorized reviewers. Use your application reference and private tracking key to view status.</p>
+          <p>Your enrollment details have been saved and are available to authorized reviewers. Use your application reference and the six-digit access code you created to view status.</p>
           <div className="review-field"><span>Application reference</span><b className="mono">{created.application.reference}</b></div>
           <div className="guest-key-box">
-            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
-            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
-            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
-              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
-            </button>
+            <div className="guest-key-heading"><span>APPLICATION ACCESS CODE</span><LockKeyhole size={15} /></div>
+            <p>The code is not shown or sent to staff. Keep the code you created private.</p>
           </div>
-          <p className="guest-key-warning">Keep this key private. It is required with your reference to access status and cannot be recovered if lost.</p>
+          <p className="guest-key-warning">If you forget this code, it cannot be reset for a guest application. No plaintext copy is saved.</p>
           <Link href="/guest/track" className="button button-primary guest-submit" data-testid="link-track-created-application">
             Track Security Verification Status <ArrowRight size={16} />
           </Link>
@@ -4221,7 +4218,7 @@ function GuestApplicationPage() {
       isSubmitting={updateGuest.isPending || submitGuest.isPending}
       error={progressError}
       reopenedSections={[]}
-      privateTrackingKey={created.accessKey}
+      guestMode
       updateContactEmail={saveGuestContactEmail}
       uploadEvidence={uploadGuestEvidence}
       saveStep={(answers, currentStep) => saveGuestProgress(answers, currentStep)}
@@ -4247,20 +4244,17 @@ function GuestApplicationPage() {
           <div className="eyebrow">{created.application.submissionStatus === 'submitted' ? 'APPLICATION SUBMITTED' : 'APPLICATION DRAFT SAVED'}</div>
           <h2 id="guest-apply-heading">{created.application.submissionStatus === 'submitted' ? 'Your application was submitted.' : 'Your details are saved.'}</h2>
           <p>{created.application.submissionStatus === 'submitted'
-            ? 'Your application has been submitted. Use your reference and private tracking key to view its status.'
+            ? 'Your application has been submitted. Use your reference and the six-digit access code you created to view its status.'
             : 'Your saved draft is available to authorized reviewers. Resume it later to complete your details and evidence.'}</p>
           <div className="guest-reference-box">
             <span>APPLICATION REFERENCE</span>
             <strong data-testid="text-guest-reference">{created.application.reference}</strong>
           </div>
           <div className="guest-key-box">
-            <div className="guest-key-heading"><span>PRIVATE TRACKING KEY</span><LockKeyhole size={15} /></div>
-            <code data-testid="text-guest-tracking-key">{created.accessKey}</code>
-            <button type="button" className="button button-quiet guest-copy-button" onClick={() => void copyKey()} data-testid="button-copy-tracking-key">
-              {copied ? <><Check size={15} /> Copied</> : <><FileText size={15} /> Copy key</>}
-            </button>
+            <div className="guest-key-heading"><span>APPLICATION ACCESS CODE</span><LockKeyhole size={15} /></div>
+            <p>The code you created is private and is never shown to staff or reviewers.</p>
           </div>
-          <p className="guest-key-warning">Save this key now. It is not emailed and cannot be recovered if lost. Keep it separate from your reference.</p>
+          <p className="guest-key-warning">Forgotten guest codes cannot be reset. The code is never saved in this browser after the session ends.</p>
           <Link href="/guest/track" className="button button-primary guest-success-track" data-testid="link-track-created-application">Track or resume application <ArrowRight size={16} /></Link>
         </div> : stage === 'closed' && created ? <div className="guest-success" data-testid="guest-application-closed">
           <span className="guest-success-mark"><LockKeyhole size={20} /></span>
@@ -4268,7 +4262,26 @@ function GuestApplicationPage() {
           <h2 id="guest-apply-heading">This application is closed.</h2>
           <p>Contact the enrollment team if you believe this was closed in error.</p>
           <Link href="/guest/track" className="button button-primary guest-success-track">Return to status lookup <ArrowRight size={16} /></Link>
-        </div> : stage === 'categoryEntry' && created ? <>
+        </div> : stage === 'accessCode' ? <>
+          <div className="guest-form-topline"><span>APPLICATION ACCESS</span><span>STEP 2 OF 4</span></div>
+          <span className="state-icon"><LockKeyhole size={20} /></span>
+          <h2 id="guest-apply-heading">Create your application access code</h2>
+          <p className="guest-form-subtitle">This private six-digit code works only with your application reference. It is not an account PIN or a general sign-in method. Staff and reviewers cannot view it.</p>
+          <form className="guest-form access-code-form" onSubmit={(event) => {
+            event.preventDefault();
+            if (dashboardStartValues) void onSubmit(dashboardStartValues);
+          }}>
+            <label className="field-label" htmlFor="guest-new-access-code">Six-digit access code</label>
+            <Input id="guest-new-access-code" type="password" inputMode="numeric" autoComplete="new-password" maxLength={6} pattern="[0-9]{6}" required value={accessCode} onChange={(event) => setAccessCode(event.target.value.replace(/\D/g, '').slice(0, 6))} data-testid="input-guest-new-access-code" />
+            <label className="field-label" htmlFor="guest-confirm-access-code">Confirm access code</label>
+            <Input id="guest-confirm-access-code" type="password" inputMode="numeric" autoComplete="new-password" maxLength={6} pattern="[0-9]{6}" required value={confirmAccessCode} onChange={(event) => setConfirmAccessCode(event.target.value.replace(/\D/g, '').slice(0, 6))} data-testid="input-guest-confirm-access-code" />
+            {progressError && <p className="guest-inline-error" role="alert" data-testid="guest-access-code-error">{progressError}</p>}
+            {createGuest.isError && <p className="guest-inline-error" role="alert">The application could not be started. Retry with the same details and code.</p>}
+            <button type="submit" className="button button-primary guest-submit" disabled={createGuest.isPending} data-testid="button-create-guest-application">
+              {createGuest.isPending ? 'Creating application…' : 'Create code and continue'} <ArrowRight size={16} />
+            </button>
+          </form>
+        </> : stage === 'categoryEntry' && created ? <>
           <div className="guest-form-topline"><span>ACCOUNT PROVIDER DETAILS</span><span>STEP 3 OF 4</span></div>
           {progressError && <p className="guest-inline-error" role="alert">{progressError}</p>}
           <CategoryEntryForm

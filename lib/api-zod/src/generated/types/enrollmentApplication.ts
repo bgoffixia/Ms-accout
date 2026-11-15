@@ -22,6 +22,7 @@ export interface EnrollmentApplication {
      * @nullable
      */
   referenceCode: string | null;
+  accessCodeConfigured: boolean;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;

@@ -9,8 +9,10 @@ import type { GuestPreapplicationInputCategoryId } from './guestPreapplicationIn
 
 export interface GuestPreapplicationInput {
   submissionId: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
   categoryId: GuestPreapplicationInputCategoryId;
   /**
      * @minLength 2

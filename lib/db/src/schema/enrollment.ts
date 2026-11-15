@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -53,6 +54,7 @@ export const guestPreapplicationsTable = pgTable(
     submissionId: uuid("submission_id").notNull().unique(),
     reference: text("reference").notNull().unique(),
     accessKeyHash: text("access_key_hash").notNull().unique(),
+    applicantAccessCodeHash: text("applicant_access_code_hash"),
     categoryId: text("category_id").notNull(),
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
@@ -160,6 +162,7 @@ export const enrollmentApplicationsTable = pgTable(
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
     referenceCode: text("reference_code"),
+    applicantAccessCodeHash: text("applicant_access_code_hash"),
     answers: jsonb("answers")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -179,6 +182,29 @@ export const enrollmentApplicationsTable = pgTable(
     index("enrollment_applications_status_idx").on(table.status),
     index("enrollment_applications_category_idx").on(table.categoryId),
     uniqueIndex("enrollment_applications_guest_source_idx").on(table.sourceGuestPreapplicationId),
+  ],
+);
+
+export const applicantAccessCodeAttemptsTable = pgTable(
+  "applicant_access_code_attempts",
+  {
+    referenceKey: text("reference_key").notNull(),
+    ipKey: text("ip_key").notNull(),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "applicant_access_code_attempts_pk",
+      columns: [table.referenceKey, table.ipKey],
+    }),
+    index("applicant_access_code_attempts_updated_idx").on(table.updatedAt),
   ],
 );
 

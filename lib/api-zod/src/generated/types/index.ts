@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accessCodeConfiguredResponse';
 export * from './adminEmailAlertEvents';
 export * from './adminEmailBranding';
 export * from './adminEmailLogoUploadCompleteInput';
@@ -49,10 +50,18 @@ export * from './adminUserRoleUpdate';
 export * from './adminUserRoleUpdateRole';
 export * from './adminUserStatusUpdate';
 export * from './adminUserStatusUpdateAccountStatus';
+export * from './applicantAccessCodeInput';
 export * from './applicantRecordIdentifier';
 export * from './applicantRecordIdentifierType';
 export * from './applicantRecordsClearResult';
 export * from './applicantSummary';
+export * from './applicationAccessLookupInput';
+export * from './applicationAccessStatus';
+export * from './applicationAccessStatusApplicationType';
+export * from './applicationAccessStatusCategoryId';
+export * from './applicationAccessStatusReviewStatus';
+export * from './applicationAccessStatusStatus';
+export * from './applicationAccessStatusSubmissionStatus';
 export * from './applicationDecision';
 export * from './applicationDecisionDecision';
 export * from './applicationDraftInput';
@@ -106,6 +115,7 @@ export * from './healthStatus';
 export * from './infobipSmsDeliveryReport';
 export * from './infobipSmsDeliveryReportResultsItem';
 export * from './infobipSmsDeliveryReportResultsItemStatus';
+export * from './legacyGuestAccessUpgradeInput';
 export * from './listAdminUsersAccountStatus';
 export * from './listAdminUsersParams';
 export * from './listApplicationsForReviewParams';
@@ -132,6 +142,7 @@ export * from './staffAccessClaimResponse';
 export * from './staffAccessClaimResponseRole';
 export * from './staffRegistrationCheckInput';
 export * from './staffRegistrationCheckResponse';
+export * from './staffRegistrationCheckResponseRole';
 export * from './supportAssignmentInput';
 export * from './supportMessage';
 export * from './supportMessageActorRole';
