@@ -153,7 +153,7 @@ export function CategoryEntryForm({
       return false;
     }
     onComplete({
-      ...(showName ? { name: name.trim() } : {}),
+      name: showName ? name.trim() : "",
       ...(showNickname ? { nickname: nickname.trim() } : {}),
       ...(showSurname ? { surname: surname.trim() } : {}),
     }, pinRequired && pinPattern.test(pin) ? pin : "");
