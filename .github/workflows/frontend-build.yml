@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - "artifacts/enrollment-portal/**"
+      - "artifacts/api-server/**"
+      - "Dockerfile"
+      - "railway.json"
+      - "RAILWAY_DEPLOYMENT.md"
       - "lib/api-client-react/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
