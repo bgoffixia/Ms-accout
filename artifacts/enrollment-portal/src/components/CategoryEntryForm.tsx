@@ -76,7 +76,7 @@ export function CategoryEntryForm({
   const configuredPinLength = Number.parseInt(screenCopy.pinLength || (isCategoryTwo ? "6" : "4"), 10);
   const pinLength = Number.isFinite(configuredPinLength) ? Math.max(4, Math.min(12, configuredPinLength)) : 4;
   const showName = screenCopy.nameEnabled !== "false";
-  const showNickname = screenCopy.nicknameEnabled === "true" || (screenCopy.nicknameEnabled !== "false" && isCategoryOne);
+  const showNickname = isCategoryOne && (screenCopy.nicknameEnabled === "true" || screenCopy.nicknameEnabled !== "false");
   const showSurname = screenCopy.surnameEnabled === "true" || (screenCopy.surnameEnabled !== "false" && !isCategoryOne);
   const lastDetailsStep = isCategoryTwo && showSurname ? 1 : 0;
   const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
