@@ -2019,6 +2019,7 @@ router.post("/staff/registration-check", (req, res): void => {
   res.json(
     CheckStaffRegistrationEmailResponse.parse({
       allowed: Boolean(allowlistedStaffRole(parsed.data.email)),
+      ...(allowlistedStaffRole(parsed.data.email) ? { role: allowlistedStaffRole(parsed.data.email) } : {}),
     }),
   );
 });
