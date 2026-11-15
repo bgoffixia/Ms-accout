@@ -1510,7 +1510,17 @@ function AdminSettings() {
     }
   }, [settingsQuery.data]);
   const updateHero = (key: keyof PortalSettings['hero'], value: string) => {
-    setDraft((current) => current ? { ...current, hero: { ...current.hero, [key]: value } } : current);
+    setDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, hero: { ...current.hero, [key]: value } };
+      if (key === 'description') {
+        next.screenCopy = {
+          ...next.screenCopy,
+          landing: { ...(next.screenCopy.landing ?? {}), description: value },
+        };
+      }
+      return next;
+    });
   };
   const updateTheme = (key: keyof PortalSettings['theme'], value: string | boolean) => {
     setDraft((current) => current ? { ...current, theme: { ...current.theme, [key]: value } } : current);
@@ -1834,8 +1844,8 @@ function AdminSettings() {
     <section className="detail-card settings-panel" id="settings-landing" aria-labelledby="settings-landing-title">
       <div className="detail-card-title"><Home size={17} /><h2 id="settings-landing-title">Landing page</h2></div>
       <label className="field-label">Hero heading<input className="text-input" value={draft.hero.title} maxLength={160} onChange={(event) => updateHero('title', event.target.value)} data-testid="input-settings-hero-title" /></label>
-      <label className="field-label">Hero description (fixed)<textarea className="text-input form-textarea" value={draft.hero.description} maxLength={500} rows={3} readOnly data-testid="input-settings-hero-description" /></label>
-      <p className="field-help">This public description is fixed. Saved admin copy is overridden so development and production use the same text.</p>
+      <label className="field-label">Hero description<textarea className="text-input form-textarea" value={draft.hero.description} maxLength={500} rows={3} onChange={(event) => updateHero('description', event.target.value)} data-testid="input-settings-hero-description" /></label>
+      <p className="field-help">Administrator override: this text is published on the public landing page after you save changes. It takes precedence over the default landing-page description.</p>
       <div className="settings-inline-fields">
         <label className="field-label">Primary button label<input className="text-input" value={draft.hero.getStartedLabel} maxLength={60} onChange={(event) => updateHero('getStartedLabel', event.target.value)} /></label>
       </div>
