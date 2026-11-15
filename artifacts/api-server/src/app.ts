@@ -1,4 +1,10 @@
-import express, { type Request, type Response } from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
+import { Buffer } from "node:buffer";
+import process from "node:process";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes/index.js";
@@ -12,8 +18,8 @@ import {
 const app = express();
 
 // Keep structured request logging without relying on pino-http's CommonJS
-// callable export, which is not typed consistently across ESM/NodeNext builds.
-app.use((req, res, next) => {
+// callable export, which is not typed consistently across ESM builds.
+app.use((req: Request, res: Response, next: NextFunction) => {
   const startedAt = Date.now();
   res.on("finish", () => {
     logger.info(
@@ -34,7 +40,7 @@ app.use(
   express.json({
     limit: "4mb",
     verify(request: Request, _response: Response, body: Buffer) {
-      if (request.url?.split("?")[0] === "/api/webhooks/infobip/sms") {
+      if (request.originalUrl.split("?")[0] === "/api/webhooks/infobip/sms") {
         (request as Request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
       }
     },
@@ -43,7 +49,7 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
-  clerkMiddleware((req) => ({
+  clerkMiddleware((req: Request) => ({
     publishableKey: publishableKeyFromHost(
       getClerkProxyHost(req) ?? "",
       process.env.CLERK_PUBLISHABLE_KEY,
