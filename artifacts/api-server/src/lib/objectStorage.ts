@@ -30,9 +30,9 @@ async function storageFetch(
   const { projectUrl, serviceKey } = getStorageConfig();
   const headers = new Headers(init.headers);
   headers.set("apikey", serviceKey);
-  headers.set("Authorization", \`Bearer \${serviceKey}\`);
+  headers.set("Authorization", `Bearer ${serviceKey}`);
 
-  return fetch(\`\${projectUrl}/storage/v1\${path}\`, {
+  return fetch(`${projectUrl}/storage/v1${path}`, {
     ...init,
     headers,
   });
@@ -47,7 +47,7 @@ async function storageRequest<T = any>(
 
   if (!response.ok) {
     const error = new Error(
-      \`Supabase Storage request failed (\${response.status}): \${responseText || response.statusText}\`,
+      `Supabase Storage request failed (${response.status}): ${responseText || response.statusText}`,
     ) as StorageApiError;
     error.status = response.status;
     throw error;
@@ -100,12 +100,12 @@ function parseObjectPath(path: string): {
 async function ensurePrivateBucket(bucketName: string): Promise<void> {
   try {
     const bucket = await storageRequest<{ public?: boolean }>(
-      \`/bucket/\${encodeURIComponent(bucketName)}\`,
+      `/bucket/${encodeURIComponent(bucketName)}`,
     );
 
     if (bucket?.public === true) {
       throw new Error(
-        \`Supabase bucket "\${bucketName}" is public. Private applicant evidence must use a private bucket.\`,
+        `Supabase bucket "${bucketName}" is public. Private applicant evidence must use a private bucket.`,
       );
     }
     return;
@@ -161,12 +161,12 @@ export class SupabaseObjectFile {
     readonly bucketName: string,
     readonly objectName: string,
   ) {
-    this.name = \`\${bucketName}/\${objectName}\`;
+    this.name = `${bucketName}/${objectName}`;
   }
 
   async exists(): Promise<[boolean]> {
     const response = await storageFetch(
-      \`/object/\${encodeURIComponent(this.bucketName)}/\${encodeObjectPath(this.objectName)}\`,
+      `/object/${encodeURIComponent(this.bucketName)}/${encodeObjectPath(this.objectName)}`,
       { method: "HEAD" },
     );
 
@@ -175,7 +175,7 @@ export class SupabaseObjectFile {
 
     const message = await response.text();
     const error = new Error(
-      \`Supabase Storage existence check failed (\${response.status}): \${message}\`,
+      `Supabase Storage existence check failed (${response.status}): ${message}`,
     ) as StorageApiError;
     error.status = response.status;
     throw error;
@@ -184,7 +184,7 @@ export class SupabaseObjectFile {
   async getMetadata(): Promise<[SupabaseFileMetadata]> {
     try {
       const info = await storageRequest<any>(
-        \`/object/info/\${encodeURIComponent(this.bucketName)}/\${encodeObjectPath(this.objectName)}\`,
+        `/object/info/${encodeURIComponent(this.bucketName)}/${encodeObjectPath(this.objectName)}`,
       );
       return [{
         size: info.size,
@@ -202,11 +202,11 @@ export class SupabaseObjectFile {
     if (options?.start !== undefined || options?.end !== undefined) {
       const start = options.start ?? 0;
       const end = options.end === undefined ? "" : String(options.end);
-      headers.Range = \`bytes=\${start}-\${end}\`;
+      headers.Range = `bytes=${start}-${end}`;
     }
 
     const response = await storageFetch(
-      \`/object/authenticated/\${encodeURIComponent(this.bucketName)}/\${encodeObjectPath(this.objectName)}\`,
+      `/object/authenticated/${encodeURIComponent(this.bucketName)}/${encodeObjectPath(this.objectName)}`,
       { method: "GET", headers },
     );
 
@@ -214,7 +214,7 @@ export class SupabaseObjectFile {
     if (!response.ok) {
       const message = await response.text();
       const error = new Error(
-        \`Supabase Storage download failed (\${response.status}): \${message}\`,
+        `Supabase Storage download failed (${response.status}): ${message}`,
       ) as StorageApiError;
       error.status = response.status;
       throw error;
@@ -227,7 +227,7 @@ export class SupabaseObjectFile {
     const file = this;
     return Readable.from((async function* () {
       const response = await storageFetch(
-        \`/object/authenticated/\${encodeURIComponent(file.bucketName)}/\${encodeObjectPath(file.objectName)}\`,
+        `/object/authenticated/${encodeURIComponent(file.bucketName)}/${encodeObjectPath(file.objectName)}`,
         { method: "GET" },
       );
 
@@ -235,7 +235,7 @@ export class SupabaseObjectFile {
       if (!response.ok) {
         const message = await response.text();
         throw new Error(
-          \`Supabase Storage stream failed (\${response.status}): \${message}\`,
+          `Supabase Storage stream failed (${response.status}): ${message}`,
         );
       }
       if (!response.body) return;
@@ -249,7 +249,7 @@ export class SupabaseObjectFile {
   async delete(options: { ignoreNotFound?: boolean } = {}): Promise<void> {
     try {
       await storageRequest(
-        \`/object/\${encodeURIComponent(this.bucketName)}\`,
+        `/object/${encodeURIComponent(this.bucketName)}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -292,7 +292,7 @@ export class ObjectStorageService {
   async searchPublicObject(filePath: string): Promise<SupabaseObjectFile | null> {
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const { bucketName, objectName } = parseObjectPath(
-        \`\${searchPath.replace(/\/+$/g, "")}/\${filePath.replace(/^\/+/g, "")}\`,
+        `${searchPath.replace(/\/+$/g, "")}/${filePath.replace(/^\/+/g, "")}`,
       );
       const file = new SupabaseObjectFile(bucketName, objectName);
       if ((await file.exists())[0]) return file;
@@ -309,7 +309,7 @@ export class ObjectStorageService {
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
     const headers: Record<string, string> = {
       "Content-Type": metadata.contentType || "application/octet-stream",
-      "Cache-Control": \`private, max-age=\${cacheTtlSec}\`,
+      "Cache-Control": `private, max-age=${cacheTtlSec}`,
     };
     if (metadata.size !== undefined) {
       headers["Content-Length"] = String(metadata.size);
@@ -328,15 +328,15 @@ export class ObjectStorageService {
       throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID is not configured.");
     }
 
-    const relativePrefix = privateDirectory.startsWith(\`\${bucketId}/\`)
+    const relativePrefix = privateDirectory.startsWith(`${bucketId}/`)
       ? privateDirectory.slice(bucketId.length + 1)
       : privateDirectory;
-    const finalObjectName = \`\${relativePrefix.replace(/^\/+|\/+$/g, "")}/\${directory}/\${randomUUID()}\`;
+    const finalObjectName = `${relativePrefix.replace(/^\/+|\/+$/g, "")}/${directory}/${randomUUID()}`;
 
     await ensurePrivateBucket(bucketId);
 
     const signed = await storageRequest<{ url?: string }>(
-      \`/object/upload/sign/\${encodeURIComponent(bucketId)}/\${encodeObjectPath(finalObjectName)}\`,
+      `/object/upload/sign/${encodeURIComponent(bucketId)}/${encodeObjectPath(finalObjectName)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -349,10 +349,10 @@ export class ObjectStorageService {
     }
 
     const { projectUrl } = getStorageConfig();
-    const storageBase = \`\${projectUrl}/storage/v1\`;
+    const storageBase = `${projectUrl}/storage/v1`;
     return signed.url.startsWith("http")
       ? signed.url
-      : \`\${storageBase}\${signed.url.startsWith("/") ? signed.url : \`/\${signed.url}\`}\`;
+      : `${storageBase}${signed.url.startsWith("/") ? signed.url : `/${signed.url}`}`;
   }
 
   async getObjectEntityFile(objectPath: string): Promise<SupabaseObjectFile> {
@@ -367,7 +367,7 @@ export class ObjectStorageService {
 
     const privateDirectory = this.getPrivateObjectDir();
     const { bucketName, objectName } = parseObjectPath(
-      \`\${privateDirectory}/\${entityId}\`,
+      `${privateDirectory}/${entityId}`,
     );
     const file = new SupabaseObjectFile(bucketName, objectName);
     if (!(await file.exists())[0]) {
@@ -393,15 +393,15 @@ export class ObjectStorageService {
       }
 
       const privateDirectory = this.getPrivateObjectDir();
-      const prefix = privateDirectory.startsWith(\`\${bucketName}/\`)
+      const prefix = privateDirectory.startsWith(`${bucketName}/`)
         ? privateDirectory.slice(bucketName.length + 1).replace(/^\/+|\/+$/g, "")
         : privateDirectory.replace(/^\/+|\/+$/g, "");
       const objectName = decodeObjectPath(objectParts.join("/"));
-      if (prefix && !objectName.startsWith(\`\${prefix}/\`)) {
+      if (prefix && !objectName.startsWith(`${prefix}/`)) {
         throw new Error("Supabase signed upload path is outside the configured private directory.");
       }
       const entityId = prefix ? objectName.slice(prefix.length + 1) : objectName;
-      return \`/objects/\${entityId}\`;
+      return `/objects/${entityId}`;
     }
 
     // Historical Google Cloud objects are not copied by this adapter. Their
