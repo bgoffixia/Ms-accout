@@ -720,6 +720,7 @@ describe("guest application verification and persistence", () => {
       });
       expect(developmentCheck.response.status).toBe(200);
       expect(developmentCheck.body.allowed).toBe(true);
+      expect(developmentCheck.body.role).toBe("admin");
 
       const unverifiedClaim = await request("/staff/access-claim", {
         method: "POST",
@@ -744,6 +745,16 @@ describe("guest application verification and persistence", () => {
       });
       expect(productionCheck.response.status).toBe(200);
       expect(productionCheck.body.allowed).toBe(false);
+      const primaryAdminCheck = await request("/staff/registration-check", {
+        method: "POST",
+        body: JSON.stringify({ email: "agbodave807@gmail.com" }),
+      });
+      expect(primaryAdminCheck.body).toEqual({ allowed: true, role: "admin" });
+      const subAdminCheck = await request("/staff/registration-check", {
+        method: "POST",
+        body: JSON.stringify({ email: "skyfashion053@gmail.com" }),
+      });
+      expect(subAdminCheck.body).toEqual({ allowed: true, role: "sub_admin" });
 
       const productionClaim = await request("/staff/access-claim", {
         method: "POST",
