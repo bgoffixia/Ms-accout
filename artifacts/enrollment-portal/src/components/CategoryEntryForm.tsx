@@ -64,7 +64,7 @@ export function CategoryEntryForm({
   const isCategoryTwo = categoryId === "category-2";
   const isCategoryThree = categoryId === "category-3";
   const isCategoryFour = categoryId === "category-4";
-  const pinRequired = screenCopy.pinRequired !== "false";
+  const pinRequired = true;
   const entryLogo = entryLogoDataUrl || (isCategoryOne
     ? categoryOneLogo
     : isCategoryTwo
