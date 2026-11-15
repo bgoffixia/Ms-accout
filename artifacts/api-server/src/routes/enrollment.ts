@@ -5239,6 +5239,112 @@ router.post(
   },
 );
 
+router.get("/admin/review/queue", requireReviewer, async (req, res): Promise<void> => {
+  const rawStatus = typeof req.query.status === "string" ? req.query.status.trim() : "";
+  const search = typeof req.query.search === "string"
+    ? req.query.search.trim().toLowerCase().slice(0, 200)
+    : "";
+  const allowedStatuses = new Set([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+    "received",
+    "contacted",
+    "closed",
+  ]);
+  if (rawStatus && !allowedStatuses.has(rawStatus)) {
+    res.status(400).json({ error: "Unsupported review status." });
+    return;
+  }
+
+  try {
+    const [applications, guestApplications] = await Promise.all([
+      db.select()
+        .from(enrollmentApplicationsTable)
+        .orderBy(desc(enrollmentApplicationsTable.updatedAt))
+        .limit(500),
+      db.select()
+        .from(guestPreapplicationsTable)
+        .where(isNull(guestPreapplicationsTable.linkedApplicationId))
+        .orderBy(desc(guestPreapplicationsTable.updatedAt))
+        .limit(500),
+    ]);
+
+    const applicationItems = applications
+      .filter((application) => !rawStatus || application.status === rawStatus)
+      .map((application) => ({
+        recordType: "enrollment_application" as const,
+        id: application.id,
+        reference: application.reference,
+        status: application.status,
+        categoryId: application.categoryId,
+        categoryName: categoryName(application.categoryId),
+        applicantName: nestedString(application.answers ?? {}, "contactDetails", "fullName") || null,
+        applicantEmail: nestedString(application.answers ?? {}, "contactDetails", "email") || null,
+        submittedAt: application.submittedAt?.toISOString() ?? null,
+        createdAt: application.createdAt.toISOString(),
+        updatedAt: application.updatedAt.toISOString(),
+        reviewUrl: `/admin/applications/${application.id}`,
+      }));
+
+    const guestItems = guestApplications
+      .filter((application) =>
+        !rawStatus ||
+        application.status === rawStatus ||
+        application.submissionStatus === rawStatus,
+      )
+      .map((application) => ({
+        recordType: "guest_preapplication" as const,
+        id: application.id,
+        reference: application.reference,
+        status: application.status,
+        submissionStatus: application.submissionStatus,
+        categoryId: application.categoryId,
+        categoryName: categoryName(application.categoryId),
+        applicantName: application.fullName,
+        applicantEmail: application.email,
+        emailVerified: application.emailVerified,
+        detailsComplete: application.detailsComplete,
+        currentStep: application.currentStep,
+        createdAt: application.createdAt.toISOString(),
+        updatedAt: application.updatedAt.toISOString(),
+        reviewUrl: `/admin/guest-preapplications/${application.id}`,
+      }));
+
+    const items = [...applicationItems, ...guestItems]
+      .filter((item) => {
+        if (!search) return true;
+        return [
+          item.reference,
+          item.categoryName,
+          item.applicantName ?? "",
+          item.applicantEmail ?? "",
+          item.status,
+          item.recordType,
+          "submissionStatus" in item ? item.submissionStatus : "",
+        ].join(" ").toLowerCase().includes(search);
+      })
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+      .slice(0, 500);
+
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.json({
+      items,
+      total: items.length,
+      counts: {
+        enrollmentApplications: applicationItems.length,
+        guestPreapplications: guestItems.length,
+      },
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load unified staff review queue");
+    res.status(503).json({ error: "The review queue is temporarily unavailable." });
+  }
+});
+
 router.get("/admin/applications", requireReviewer, async (req, res): Promise<void> => {
   const parsed = ListApplicationsForReviewQueryParams.safeParse(req.query);
   if (!parsed.success) {
