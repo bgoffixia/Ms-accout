@@ -1,5 +1,4 @@
 import express from "express";
-import process from "process";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes/index.js";
