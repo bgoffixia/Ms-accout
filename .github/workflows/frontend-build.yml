@@ -55,6 +55,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared TypeScript declarations
+        run: pnpm run typecheck:libs
+
       - name: Type-check frontend
         run: pnpm --filter @workspace/enrollment-portal typecheck
 
