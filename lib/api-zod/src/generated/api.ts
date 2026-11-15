@@ -673,7 +673,8 @@ export const CheckStaffRegistrationEmailBody = zod.object({
 })
 
 export const CheckStaffRegistrationEmailResponse = zod.object({
-  "allowed": zod.boolean()
+  "allowed": zod.boolean(),
+  "role": zod.enum(['admin', 'sub_admin']).optional()
 })
 
 
