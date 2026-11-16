@@ -94,7 +94,6 @@ function stripBase(path: string) {
 
 const clerkAppearance = {
   theme: shadcn,
-  cssLayerName: 'clerk',
   variables: {
     colorPrimary: '#174d80',
     colorForeground: '#19324d',
