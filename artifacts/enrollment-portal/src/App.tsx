@@ -1429,8 +1429,9 @@ function GuestInviteLinkCard() {
 }
 
 function AdminLanding() {
-  const { user } = useUser();
-  return user?.publicMetadata?.role === 'admin' ? <AdminManagementHome /> : <AdminOverview />;
+  // The overview is the single dashboard for all staff roles. Admin-only
+  // controls remain gated inside AdminOverview and AdminGate.
+  return <AdminOverview />;
 }
 
 function draftProgressLabel(application: {
