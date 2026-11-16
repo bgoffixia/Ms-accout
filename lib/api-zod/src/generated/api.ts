@@ -32,6 +32,10 @@ export const ListEnrollmentCategoriesResponse = zod.array(ListEnrollmentCategori
 /**
  * @summary List the signed-in applicant's applications
  */
+export const listMyApplicationsResponseReferenceCodeMax = 80;
+
+
+
 export const ListMyApplicationsResponseItem = zod.object({
   "id": zod.string(),
   "reference": zod.string(),
@@ -39,7 +43,8 @@ export const ListMyApplicationsResponseItem = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(listMyApplicationsResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -78,17 +83,24 @@ export const DeleteMyDraftsResponse = zod.object({
 /**
  * @summary Validate and submit a completed application without storing a draft
  */
-export const submitNewApplicationBodyPinRegExp = new RegExp('^[0-9]{4,6}$');
-export const submitNewApplicationBodyPinConfirmationRegExp = new RegExp('^[0-9]{4,6}$');
+export const submitNewApplicationBodyReferenceCodeMax = 80;
+
+export const submitNewApplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const submitNewApplicationBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const SubmitNewApplicationBody = zod.object({
   "submissionId": zod.string().uuid(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "answers": zod.record(zod.string(), zod.unknown()),
-  "pin": zod.string().regex(submitNewApplicationBodyPinRegExp),
-  "pinConfirmation": zod.string().regex(submitNewApplicationBodyPinConfirmationRegExp).optional()
+  "referenceCode": zod.string().max(submitNewApplicationBodyReferenceCodeMax).optional(),
+  "accessCode": zod.string().regex(submitNewApplicationBodyAccessCodeRegExp),
+  "confirmAccessCode": zod.string().regex(submitNewApplicationBodyConfirmAccessCodeRegExp)
 })
+
+export const submitNewApplicationResponseReferenceCodeMax = 80;
+
+
 
 export const SubmitNewApplicationResponse = zod.object({
   "id": zod.string(),
@@ -97,7 +109,8 @@ export const SubmitNewApplicationResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(submitNewApplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -121,11 +134,57 @@ export const SubmitNewApplicationResponse = zod.object({
 
 
 /**
+ * @summary Look up an applicant-owned application with its reference and access code
+ */
+export const lookupApplicationWithAccessCodeBodyReferenceMin = 8;
+export const lookupApplicationWithAccessCodeBodyReferenceMax = 32;
+
+export const lookupApplicationWithAccessCodeBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
+export const LookupApplicationWithAccessCodeBody = zod.object({
+  "reference": zod.string().min(lookupApplicationWithAccessCodeBodyReferenceMin).max(lookupApplicationWithAccessCodeBodyReferenceMax),
+  "accessCode": zod.string().regex(lookupApplicationWithAccessCodeBodyAccessCodeRegExp)
+})
+
+export const lookupApplicationWithAccessCodeResponseCurrentStepMin = 0;
+export const lookupApplicationWithAccessCodeResponseCurrentStepMax = 7;
+
+
+
+export const LookupApplicationWithAccessCodeResponse = zod.object({
+  "applicationId": zod.string().uuid(),
+  "reference": zod.string(),
+  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "status": zod.enum(['received', 'contacted', 'closed', 'draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "currentStep": zod.number().int().min(lookupApplicationWithAccessCodeResponseCurrentStepMin).max(lookupApplicationWithAccessCodeResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
+})
+
+
+/**
  * @summary Create a server-saved draft for the signed-in applicant
  */
+export const createApplicationDraftBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const createApplicationDraftBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
 export const CreateApplicationDraftBody = zod.object({
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4'])
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "accessCode": zod.string().regex(createApplicationDraftBodyAccessCodeRegExp),
+  "confirmAccessCode": zod.string().regex(createApplicationDraftBodyConfirmAccessCodeRegExp)
 })
+
+export const createApplicationDraftResponseReferenceCodeMax = 80;
+
+
 
 export const CreateApplicationDraftResponse = zod.object({
   "id": zod.string(),
@@ -134,7 +193,8 @@ export const CreateApplicationDraftResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(createApplicationDraftResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -164,6 +224,10 @@ export const GetApplicationParams = zod.object({
   "applicationId": zod.coerce.string()
 })
 
+export const getApplicationResponseReferenceCodeMax = 80;
+
+
+
 export const GetApplicationResponse = zod.object({
   "id": zod.string(),
   "reference": zod.string(),
@@ -171,7 +235,8 @@ export const GetApplicationResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(getApplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -204,17 +269,20 @@ export const UpdateApplicationParams = zod.object({
 export const updateApplicationBodyCurrentStepMin = 0;
 export const updateApplicationBodyCurrentStepMax = 7;
 
-export const updateApplicationBodyPinRegExp = new RegExp('^[0-9]{4,6}$');
-export const updateApplicationBodyPinConfirmationRegExp = new RegExp('^[0-9]{4,6}$');
+export const updateApplicationBodyReferenceCodeMax = 80;
+
 
 
 export const UpdateApplicationBody = zod.object({
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']).optional(),
   "currentStep": zod.number().int().min(updateApplicationBodyCurrentStepMin).max(updateApplicationBodyCurrentStepMax).optional(),
   "answers": zod.record(zod.string(), zod.unknown()).optional(),
-  "pin": zod.string().regex(updateApplicationBodyPinRegExp).optional(),
-  "pinConfirmation": zod.string().regex(updateApplicationBodyPinConfirmationRegExp).optional()
+  "referenceCode": zod.string().max(updateApplicationBodyReferenceCodeMax).optional()
 })
+
+export const updateApplicationResponseReferenceCodeMax = 80;
+
+
 
 export const UpdateApplicationResponse = zod.object({
   "id": zod.string(),
@@ -223,7 +291,8 @@ export const UpdateApplicationResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(updateApplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -247,22 +316,47 @@ export const UpdateApplicationResponse = zod.object({
 
 
 /**
+ * @summary Set or explicitly recover the signed-in owner's application access code
+ */
+export const UpdateMyApplicationAccessCodeParams = zod.object({
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const updateMyApplicationAccessCodeBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const updateMyApplicationAccessCodeBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
+export const UpdateMyApplicationAccessCodeBody = zod.object({
+  "accessCode": zod.string().regex(updateMyApplicationAccessCodeBodyAccessCodeRegExp),
+  "confirmAccessCode": zod.string().regex(updateMyApplicationAccessCodeBodyConfirmAccessCodeRegExp),
+  "recovery": zod.boolean().optional().describe('Must be true to explicitly recover a previously configured code from the verified Clerk account.')
+})
+
+export const UpdateMyApplicationAccessCodeResponse = zod.object({
+  "accessCodeConfigured": zod.boolean()
+})
+
+
+/**
  * @summary Submit a completed application for review
  */
 export const SubmitApplicationParams = zod.object({
   "applicationId": zod.coerce.string()
 })
 
-export const submitApplicationBodyPinRegExp = new RegExp('^[0-9]{4,6}$');
-export const submitApplicationBodyPinConfirmationRegExp = new RegExp('^[0-9]{4,6}$');
+export const submitApplicationBodyReferenceCodeMax = 80;
+
 
 
 export const SubmitApplicationBody = zod.object({
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']).optional(),
   "answers": zod.record(zod.string(), zod.unknown()).optional(),
-  "pin": zod.string().regex(submitApplicationBodyPinRegExp).optional(),
-  "pinConfirmation": zod.string().regex(submitApplicationBodyPinConfirmationRegExp).optional()
+  "referenceCode": zod.string().max(submitApplicationBodyReferenceCodeMax).optional()
 })
+
+export const submitApplicationResponseReferenceCodeMax = 80;
+
+
 
 export const SubmitApplicationResponse = zod.object({
   "id": zod.string(),
@@ -271,7 +365,8 @@ export const SubmitApplicationResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(submitApplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -309,7 +404,8 @@ export const GetApplicantSummaryResponse = zod.object({
 /**
  * @summary Create a guest pre-application
  */
-export const createGuestPreapplicationBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const createGuestPreapplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const createGuestPreapplicationBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 export const createGuestPreapplicationBodyFullNameMin = 2;
 export const createGuestPreapplicationBodyFullNameMax = 160;
 
@@ -321,12 +417,15 @@ export const createGuestPreapplicationBodyPhoneMax = 40;
 
 export const CreateGuestPreapplicationBody = zod.object({
   "submissionId": zod.string().uuid(),
-  "accessKey": zod.string().regex(createGuestPreapplicationBodyAccessKeyRegExp),
+  "accessCode": zod.string().regex(createGuestPreapplicationBodyAccessCodeRegExp),
+  "confirmAccessCode": zod.string().regex(createGuestPreapplicationBodyConfirmAccessCodeRegExp),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "fullName": zod.string().min(createGuestPreapplicationBodyFullNameMin).max(createGuestPreapplicationBodyFullNameMax),
   "email": zod.string().email().max(createGuestPreapplicationBodyEmailMax),
   "phone": zod.string().max(createGuestPreapplicationBodyPhoneMax).optional()
 })
+
+export const createGuestPreapplicationResponseReferenceCodeMax = 80;
 
 export const createGuestPreapplicationResponseCurrentStepMin = 0;
 export const createGuestPreapplicationResponseCurrentStepMax = 7;
@@ -343,7 +442,8 @@ export const CreateGuestPreapplicationResponse = zod.object({
   "status": zod.enum(['received', 'contacted', 'closed']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(createGuestPreapplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(createGuestPreapplicationResponseCurrentStepMin).max(createGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -353,18 +453,70 @@ export const CreateGuestPreapplicationResponse = zod.object({
 
 
 /**
- * @summary Look up guest pre-application status with a private access key
+ * @summary Explicitly replace a legacy guest tracking key with an applicant access code
+ */
+export const upgradeLegacyGuestAccessKeyBodyReferenceMin = 8;
+export const upgradeLegacyGuestAccessKeyBodyReferenceMax = 32;
+
+export const upgradeLegacyGuestAccessKeyBodyLegacyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const upgradeLegacyGuestAccessKeyBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const upgradeLegacyGuestAccessKeyBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
+export const UpgradeLegacyGuestAccessKeyBody = zod.object({
+  "reference": zod.string().min(upgradeLegacyGuestAccessKeyBodyReferenceMin).max(upgradeLegacyGuestAccessKeyBodyReferenceMax),
+  "legacyAccessKey": zod.string().regex(upgradeLegacyGuestAccessKeyBodyLegacyAccessKeyRegExp),
+  "accessCode": zod.string().regex(upgradeLegacyGuestAccessKeyBodyAccessCodeRegExp),
+  "confirmAccessCode": zod.string().regex(upgradeLegacyGuestAccessKeyBodyConfirmAccessCodeRegExp)
+})
+
+export const upgradeLegacyGuestAccessKeyResponseReferenceCodeMax = 80;
+
+export const upgradeLegacyGuestAccessKeyResponseCurrentStepMin = 0;
+export const upgradeLegacyGuestAccessKeyResponseCurrentStepMax = 7;
+
+
+
+export const UpgradeLegacyGuestAccessKeyResponse = zod.object({
+  "id": zod.string().uuid(),
+  "reference": zod.string(),
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
+  "categoryName": zod.string(),
+  "fullName": zod.string(),
+  "email": zod.string().email(),
+  "status": zod.enum(['received', 'contacted', 'closed']),
+  "submissionStatus": zod.enum(['draft', 'submitted']),
+  "emailVerified": zod.boolean(),
+  "emailVerificationRequired": zod.boolean(),
+  "referenceCode": zod.string().max(upgradeLegacyGuestAccessKeyResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
+  "linkedApplicationId": zod.string().uuid().nullable(),
+  "currentStep": zod.number().int().min(upgradeLegacyGuestAccessKeyResponseCurrentStepMin).max(upgradeLegacyGuestAccessKeyResponseCurrentStepMax),
+  "detailsComplete": zod.boolean(),
+  "answers": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
+  "applicantFollowup": zod.string().nullable(),
+  "outstandingRequirements": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Look up guest pre-application status with its applicant-owned access code
  */
 export const lookupGuestPreapplicationBodyReferenceMin = 8;
 export const lookupGuestPreapplicationBodyReferenceMax = 32;
 
-export const lookupGuestPreapplicationBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const lookupGuestPreapplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const LookupGuestPreapplicationBody = zod.object({
   "reference": zod.string().min(lookupGuestPreapplicationBodyReferenceMin).max(lookupGuestPreapplicationBodyReferenceMax),
-  "accessKey": zod.string().regex(lookupGuestPreapplicationBodyAccessKeyRegExp)
+  "accessCode": zod.string().regex(lookupGuestPreapplicationBodyAccessCodeRegExp)
 })
+
+export const lookupGuestPreapplicationResponseReferenceCodeMax = 80;
 
 export const lookupGuestPreapplicationResponseCurrentStepMin = 0;
 export const lookupGuestPreapplicationResponseCurrentStepMax = 7;
@@ -382,7 +534,8 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(lookupGuestPreapplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(lookupGuestPreapplicationResponseCurrentStepMin).max(lookupGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -396,7 +549,7 @@ export const LookupGuestPreapplicationResponse = zod.object({
 
 
 /**
- * @summary Save guest application progress using its private key
+ * @summary Save guest application progress using its access code
  */
 export const UpdateGuestPreapplicationProgressParams = zod.object({
   "applicationId": zod.coerce.string().uuid()
@@ -405,21 +558,24 @@ export const UpdateGuestPreapplicationProgressParams = zod.object({
 export const updateGuestPreapplicationProgressBodyReferenceMin = 8;
 export const updateGuestPreapplicationProgressBodyReferenceMax = 32;
 
-export const updateGuestPreapplicationProgressBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const updateGuestPreapplicationProgressBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 export const updateGuestPreapplicationProgressBodyCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressBodyCurrentStepMax = 7;
 
-export const updateGuestPreapplicationProgressBodyPinRegExp = new RegExp('^[0-9]{4,6}$');
+export const updateGuestPreapplicationProgressBodyReferenceCodeMax = 80;
+
 
 
 export const UpdateGuestPreapplicationProgressBody = zod.object({
   "reference": zod.string().min(updateGuestPreapplicationProgressBodyReferenceMin).max(updateGuestPreapplicationProgressBodyReferenceMax),
-  "accessKey": zod.string().regex(updateGuestPreapplicationProgressBodyAccessKeyRegExp),
+  "accessCode": zod.string().regex(updateGuestPreapplicationProgressBodyAccessCodeRegExp),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressBodyCurrentStepMin).max(updateGuestPreapplicationProgressBodyCurrentStepMax),
   "answers": zod.record(zod.string(), zod.unknown()),
   "complete": zod.boolean(),
-  "pin": zod.string().regex(updateGuestPreapplicationProgressBodyPinRegExp).optional()
+  "referenceCode": zod.string().max(updateGuestPreapplicationProgressBodyReferenceCodeMax).optional()
 })
+
+export const updateGuestPreapplicationProgressResponseReferenceCodeMax = 80;
 
 export const updateGuestPreapplicationProgressResponseCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressResponseCurrentStepMax = 7;
@@ -437,7 +593,8 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(updateGuestPreapplicationProgressResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressResponseCurrentStepMin).max(updateGuestPreapplicationProgressResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -451,7 +608,7 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
 
 
 /**
- * @summary Correct a guest applicant email using its private tracking key
+ * @summary Correct a guest applicant email using its access code
  */
 export const UpdateGuestPreapplicationEmailParams = zod.object({
   "applicationId": zod.coerce.string().uuid()
@@ -460,16 +617,18 @@ export const UpdateGuestPreapplicationEmailParams = zod.object({
 export const updateGuestPreapplicationEmailBodyReferenceMin = 8;
 export const updateGuestPreapplicationEmailBodyReferenceMax = 32;
 
-export const updateGuestPreapplicationEmailBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const updateGuestPreapplicationEmailBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 export const updateGuestPreapplicationEmailBodyEmailMax = 320;
 
 
 
 export const UpdateGuestPreapplicationEmailBody = zod.object({
   "reference": zod.string().min(updateGuestPreapplicationEmailBodyReferenceMin).max(updateGuestPreapplicationEmailBodyReferenceMax),
-  "accessKey": zod.string().regex(updateGuestPreapplicationEmailBodyAccessKeyRegExp),
+  "accessCode": zod.string().regex(updateGuestPreapplicationEmailBodyAccessCodeRegExp),
   "email": zod.string().email().max(updateGuestPreapplicationEmailBodyEmailMax)
 })
+
+export const updateGuestPreapplicationEmailResponseReferenceCodeMax = 80;
 
 export const updateGuestPreapplicationEmailResponseCurrentStepMin = 0;
 export const updateGuestPreapplicationEmailResponseCurrentStepMax = 7;
@@ -487,7 +646,8 @@ export const UpdateGuestPreapplicationEmailResponse = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(updateGuestPreapplicationEmailResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationEmailResponseCurrentStepMin).max(updateGuestPreapplicationEmailResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -516,7 +676,7 @@ export const requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax = 209715200;
 export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMin = 8;
 export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMax = 32;
 
-export const requestGuestApplicantEvidenceUploadBodyTwoAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const requestGuestApplicantEvidenceUploadBodyTwoAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const RequestGuestApplicantEvidenceUploadBody = zod.object({
@@ -527,7 +687,7 @@ export const RequestGuestApplicantEvidenceUploadBody = zod.object({
   "sizeBytes": zod.number().int().min(1).max(requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax)
 }).and(zod.object({
   "reference": zod.string().min(requestGuestApplicantEvidenceUploadBodyTwoReferenceMin).max(requestGuestApplicantEvidenceUploadBodyTwoReferenceMax),
-  "accessKey": zod.string().regex(requestGuestApplicantEvidenceUploadBodyTwoAccessKeyRegExp),
+  "accessCode": zod.string().regex(requestGuestApplicantEvidenceUploadBodyTwoAccessCodeRegExp),
   "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate'])
 }))
 
@@ -548,12 +708,12 @@ export const CompleteGuestApplicantEvidenceUploadParams = zod.object({
 export const completeGuestApplicantEvidenceUploadBodyReferenceMin = 8;
 export const completeGuestApplicantEvidenceUploadBodyReferenceMax = 32;
 
-export const completeGuestApplicantEvidenceUploadBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const completeGuestApplicantEvidenceUploadBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const CompleteGuestApplicantEvidenceUploadBody = zod.object({
   "reference": zod.string().min(completeGuestApplicantEvidenceUploadBodyReferenceMin).max(completeGuestApplicantEvidenceUploadBodyReferenceMax),
-  "accessKey": zod.string().regex(completeGuestApplicantEvidenceUploadBodyAccessKeyRegExp)
+  "accessCode": zod.string().regex(completeGuestApplicantEvidenceUploadBodyAccessCodeRegExp)
 })
 
 export const CompleteGuestApplicantEvidenceUploadResponse = zod.object({
@@ -576,13 +736,15 @@ export const SubmitGuestPreapplicationParams = zod.object({
 export const submitGuestPreapplicationBodyReferenceMin = 8;
 export const submitGuestPreapplicationBodyReferenceMax = 32;
 
-export const submitGuestPreapplicationBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const submitGuestPreapplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const SubmitGuestPreapplicationBody = zod.object({
   "reference": zod.string().min(submitGuestPreapplicationBodyReferenceMin).max(submitGuestPreapplicationBodyReferenceMax),
-  "accessKey": zod.string().regex(submitGuestPreapplicationBodyAccessKeyRegExp)
+  "accessCode": zod.string().regex(submitGuestPreapplicationBodyAccessCodeRegExp)
 })
+
+export const submitGuestPreapplicationResponseReferenceCodeMax = 80;
 
 export const submitGuestPreapplicationResponseCurrentStepMin = 0;
 export const submitGuestPreapplicationResponseCurrentStepMax = 7;
@@ -600,7 +762,8 @@ export const SubmitGuestPreapplicationResponse = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(submitGuestPreapplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(submitGuestPreapplicationResponseCurrentStepMin).max(submitGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -623,13 +786,17 @@ export const LinkGuestPreapplicationAccountParams = zod.object({
 export const linkGuestPreapplicationAccountBodyReferenceMin = 8;
 export const linkGuestPreapplicationAccountBodyReferenceMax = 32;
 
-export const linkGuestPreapplicationAccountBodyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const linkGuestPreapplicationAccountBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const LinkGuestPreapplicationAccountBody = zod.object({
   "reference": zod.string().min(linkGuestPreapplicationAccountBodyReferenceMin).max(linkGuestPreapplicationAccountBodyReferenceMax),
-  "accessKey": zod.string().regex(linkGuestPreapplicationAccountBodyAccessKeyRegExp)
+  "accessCode": zod.string().regex(linkGuestPreapplicationAccountBodyAccessCodeRegExp)
 })
+
+export const linkGuestPreapplicationAccountResponseReferenceCodeMax = 80;
+
+
 
 export const LinkGuestPreapplicationAccountResponse = zod.object({
   "id": zod.string(),
@@ -638,7 +805,8 @@ export const LinkGuestPreapplicationAccountResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(linkGuestPreapplicationAccountResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -690,6 +858,8 @@ export const ClaimAllowlistedStaffAccessResponse = zod.object({
 /**
  * @summary List guest pre-applications for authorized reviewers
  */
+export const listAdminGuestPreapplicationsResponseOneReferenceCodeMax = 80;
+
 export const listAdminGuestPreapplicationsResponseOneCurrentStepMin = 0;
 export const listAdminGuestPreapplicationsResponseOneCurrentStepMax = 7;
 
@@ -709,7 +879,8 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(listAdminGuestPreapplicationsResponseOneReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseOneCurrentStepMin).max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -776,19 +947,6 @@ export const ClearApplicantRecordsResponse = zod.object({
 
 
 /**
- * @summary Reveal a guest applicant PIN to an authorized reviewer
- */
-export const GetAdminGuestPreapplicationPinParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
-
-export const GetAdminGuestPreapplicationPinResponse = zod.object({
-  "pin": zod.string().nullable(),
-  "available": zod.boolean()
-})
-
-
-/**
  * @summary Update guest pre-application follow-up status
  */
 export const UpdateAdminGuestPreapplicationParams = zod.object({
@@ -798,6 +956,8 @@ export const UpdateAdminGuestPreapplicationParams = zod.object({
 export const UpdateAdminGuestPreapplicationBody = zod.object({
   "status": zod.enum(['contacted', 'closed'])
 })
+
+export const updateAdminGuestPreapplicationResponseOneReferenceCodeMax = 80;
 
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMin = 0;
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMax = 7;
@@ -818,7 +978,8 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(updateAdminGuestPreapplicationResponseOneReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseOneCurrentStepMin).max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -924,6 +1085,10 @@ export const ListApplicationsForReviewQueryParams = zod.object({
   "search": zod.coerce.string().optional()
 })
 
+export const listApplicationsForReviewResponseReferenceCodeMax = 80;
+
+
+
 export const ListApplicationsForReviewResponseItem = zod.object({
   "id": zod.string(),
   "reference": zod.string(),
@@ -931,7 +1096,8 @@ export const ListApplicationsForReviewResponseItem = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(listApplicationsForReviewResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -959,6 +1125,10 @@ export const GetAdminApplicationParams = zod.object({
   "applicationId": zod.coerce.string()
 })
 
+export const getAdminApplicationResponseReferenceCodeMax = 80;
+
+
+
 export const GetAdminApplicationResponse = zod.object({
   "id": zod.string(),
   "reference": zod.string(),
@@ -966,7 +1136,8 @@ export const GetAdminApplicationResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(getAdminApplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -986,19 +1157,6 @@ export const GetAdminApplicationResponse = zod.object({
   "uploadedAt": zod.coerce.date().nullable(),
   "downloadUrl": zod.string().nullable()
 })).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
-
-/**
- * @summary Reveal an applicant PIN to an authorized reviewer
- */
-export const GetAdminApplicationPinParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
-
-export const GetAdminApplicationPinResponse = zod.object({
-  "pin": zod.string().nullable(),
-  "available": zod.boolean()
 })
 
 
@@ -1145,8 +1303,6 @@ export const getPortalSettingsResponseCardsItemLogoDataUrlMax = 6000000;
 
 export const getPortalSettingsResponseCardsItemEntryLogoDataUrlMax = 6000000;
 
-export const getPortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
-
 export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -48;
 export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 48;
 
@@ -1171,13 +1327,9 @@ export const getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax 
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
-export const getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin = -120;
-export const getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax = 120;
-
 export const getPortalSettingsResponseCardsMin = 4;
 export const getPortalSettingsResponseCardsMax = 4;
 
-export const getPortalSettingsResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const getPortalSettingsResponseScreenCopyMaxTwo = 500;
 
 export const getPortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -1202,7 +1354,6 @@ export const GetPortalSettingsResponse = zod.object({
   "backgroundColor": zod.string().regex(getPortalSettingsResponseCardsItemBackgroundColorRegExp),
   "logoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemLogoDataUrlMax).nullable(),
   "entryLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
   "cardTitleFontSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleFontSizeMin).max(getPortalSettingsResponseCardsItemCardTitleFontSizeMax).optional(),
@@ -1212,12 +1363,9 @@ export const GetPortalSettingsResponse = zod.object({
   "cardDescriptionHorizontalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin).max(getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax).optional(),
   "cardDescriptionVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional()
+  "entryLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional()
 })).min(getPortalSettingsResponseCardsMin).max(getPortalSettingsResponseCardsMax),
   "theme": zod.object({
-  "pinScreenBackground": zod.string().regex(getPortalSettingsResponseThemePinScreenBackgroundRegExp),
   "buttonSize": zod.enum(['compact', 'standard', 'large']),
   "buttonPlacement": zod.enum(['left', 'center', 'right']),
   "categoryInputTransparent": zod.boolean()
@@ -1251,8 +1399,6 @@ export const updatePortalSettingsBodyCardsItemLogoDataUrlMax = 6000000;
 
 export const updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax = 6000000;
 
-export const updatePortalSettingsBodyCardsItemPinLogoDataUrlMax = 6000000;
-
 export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin = -48;
 export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax = 48;
 
@@ -1277,13 +1423,9 @@ export const updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax =
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax = 120;
 
-export const updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin = -120;
-export const updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax = 120;
-
 export const updatePortalSettingsBodyCardsMin = 4;
 export const updatePortalSettingsBodyCardsMax = 4;
 
-export const updatePortalSettingsBodyThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsBodyScreenCopyMaxTwo = 500;
 
 export const updatePortalSettingsBodyPageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -1308,7 +1450,6 @@ export const UpdatePortalSettingsBody = zod.object({
   "backgroundColor": zod.string().regex(updatePortalSettingsBodyCardsItemBackgroundColorRegExp),
   "logoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemLogoDataUrlMax).nullable(),
   "entryLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax).optional(),
   "cardTitleFontSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleFontSizeMin).max(updatePortalSettingsBodyCardsItemCardTitleFontSizeMax).optional(),
@@ -1318,12 +1459,9 @@ export const UpdatePortalSettingsBody = zod.object({
   "cardDescriptionHorizontalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin).max(updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMax).optional(),
   "cardDescriptionVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemPinLogoVerticalOffsetMax).optional()
+  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax).optional()
 })).min(updatePortalSettingsBodyCardsMin).max(updatePortalSettingsBodyCardsMax),
   "theme": zod.object({
-  "pinScreenBackground": zod.string().regex(updatePortalSettingsBodyThemePinScreenBackgroundRegExp),
   "buttonSize": zod.enum(['compact', 'standard', 'large']),
   "buttonPlacement": zod.enum(['left', 'center', 'right']),
   "categoryInputTransparent": zod.boolean()
@@ -1356,8 +1494,6 @@ export const updatePortalSettingsResponseCardsItemLogoDataUrlMax = 6000000;
 
 export const updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax = 6000000;
 
-export const updatePortalSettingsResponseCardsItemPinLogoDataUrlMax = 6000000;
-
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -48;
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 48;
 
@@ -1382,13 +1518,9 @@ export const updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetM
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
-export const updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin = -120;
-export const updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax = 120;
-
 export const updatePortalSettingsResponseCardsMin = 4;
 export const updatePortalSettingsResponseCardsMax = 4;
 
-export const updatePortalSettingsResponseThemePinScreenBackgroundRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
 export const updatePortalSettingsResponseScreenCopyMaxTwo = 500;
 
 export const updatePortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
@@ -1413,7 +1545,6 @@ export const UpdatePortalSettingsResponse = zod.object({
   "backgroundColor": zod.string().regex(updatePortalSettingsResponseCardsItemBackgroundColorRegExp),
   "logoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemLogoDataUrlMax).nullable(),
   "entryLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "pinLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemPinLogoDataUrlMax).nullish(),
   "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
   "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
   "cardTitleFontSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleFontSizeMin).max(updatePortalSettingsResponseCardsItemCardTitleFontSizeMax).optional(),
@@ -1423,12 +1554,9 @@ export const UpdatePortalSettingsResponse = zod.object({
   "cardDescriptionHorizontalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin).max(updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax).optional(),
   "cardDescriptionVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax).optional(),
   "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional(),
-  "pinLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "pinLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemPinLogoVerticalOffsetMax).optional()
+  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional()
 })).min(updatePortalSettingsResponseCardsMin).max(updatePortalSettingsResponseCardsMax),
   "theme": zod.object({
-  "pinScreenBackground": zod.string().regex(updatePortalSettingsResponseThemePinScreenBackgroundRegExp),
   "buttonSize": zod.enum(['compact', 'standard', 'large']),
   "buttonPlacement": zod.enum(['left', 'center', 'right']),
   "categoryInputTransparent": zod.boolean()
@@ -2170,6 +2298,10 @@ export const DecideApplicationBody = zod.object({
   "reopenSections": zod.array(zod.number().int().min(decideApplicationBodyReopenSectionsItemMin).max(decideApplicationBodyReopenSectionsItemMax)).min(1).max(decideApplicationBodyReopenSectionsMax).optional()
 })
 
+export const decideApplicationResponseReferenceCodeMax = 80;
+
+
+
 export const DecideApplicationResponse = zod.object({
   "id": zod.string(),
   "reference": zod.string(),
@@ -2177,7 +2309,8 @@ export const DecideApplicationResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
-  "hasPin": zod.boolean(),
+  "referenceCode": zod.string().max(decideApplicationResponseReferenceCodeMax).nullable(),
+  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),

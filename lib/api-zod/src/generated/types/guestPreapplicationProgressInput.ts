@@ -13,8 +13,8 @@ export interface GuestPreapplicationProgressInput {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
   /**
      * @minimum 0
      * @maximum 7
@@ -22,6 +22,6 @@ export interface GuestPreapplicationProgressInput {
   currentStep: number;
   answers: GuestPreapplicationProgressInputAnswers;
   complete: boolean;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
 }

@@ -1,11 +1,14 @@
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -52,7 +55,8 @@ export const guestPreapplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     submissionId: uuid("submission_id").notNull().unique(),
     reference: text("reference").notNull().unique(),
-    accessKeyHash: text("access_key_hash").notNull().unique(),
+    accessKeyHash: text("access_key_hash").unique(),
+    applicantAccessCodeHash: text("applicant_access_code_hash"),
     categoryId: text("category_id").notNull(),
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
@@ -64,12 +68,13 @@ export const guestPreapplicationsTable = pgTable(
       .default({}),
     detailsComplete: boolean("details_complete").notNull().default(false),
     status: guestPreapplicationStatus("status").notNull().default("received"),
-    submissionStatus: guestSubmissionStatus("submission_status").notNull().default("draft"),
+    submissionStatus: guestSubmissionStatus("submission_status")
+      .notNull()
+      .default("draft"),
     emailVerified: boolean("email_verified").notNull().default(false),
     clerkUserId: text("clerk_user_id"),
     linkedApplicationId: uuid("linked_application_id"),
-    pinHash: text("pin_hash"),
-    pinEncrypted: text("pin_encrypted"),
+    referenceCode: text("reference_code"),
     updatedByUserId: text("updated_by_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -80,14 +85,18 @@ export const guestPreapplicationsTable = pgTable(
   },
   (table) => [
     index("guest_preapplications_status_idx").on(table.status),
-    index("guest_preapplications_submission_status_idx").on(table.submissionStatus),
+    index("guest_preapplications_submission_status_idx").on(
+      table.submissionStatus,
+    ),
     index("guest_preapplications_created_idx").on(table.createdAt),
     index("guest_preapplications_evidence_cleanup_idx").on(
       table.submissionStatus,
       table.linkedApplicationId,
       table.updatedAt,
     ),
-    uniqueIndex("guest_preapplications_linked_application_idx").on(table.linkedApplicationId),
+    uniqueIndex("guest_preapplications_linked_application_idx").on(
+      table.linkedApplicationId,
+    ),
   ],
 );
 
@@ -155,13 +164,14 @@ export const enrollmentApplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     reference: text("reference").notNull().unique(),
     clerkUserId: text("clerk_user_id").notNull(),
-    sourceGuestPreapplicationId: uuid("source_guest_preapplication_id")
-      .references(() => guestPreapplicationsTable.id, { onDelete: "set null" }),
+    sourceGuestPreapplicationId: uuid(
+      "source_guest_preapplication_id",
+    ).references(() => guestPreapplicationsTable.id, { onDelete: "set null" }),
     categoryId: text("category_id").notNull(),
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
-    pinHash: text("pin_hash"),
-    pinEncrypted: text("pin_encrypted"),
+    referenceCode: text("reference_code"),
+    applicantAccessCodeHash: text("applicant_access_code_hash"),
     answers: jsonb("answers")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -180,9 +190,38 @@ export const enrollmentApplicationsTable = pgTable(
     index("enrollment_applications_owner_idx").on(table.clerkUserId),
     index("enrollment_applications_status_idx").on(table.status),
     index("enrollment_applications_category_idx").on(table.categoryId),
-    uniqueIndex("enrollment_applications_guest_source_idx").on(table.sourceGuestPreapplicationId),
+    uniqueIndex("enrollment_applications_guest_source_idx").on(
+      table.sourceGuestPreapplicationId,
+    ),
   ],
 );
+
+export const applicantAccessCodeAttemptsTable = pgTable(
+  "applicant_access_code_attempts",
+  {
+    referenceKey: text("reference_key").notNull(),
+    ipKey: text("ip_key").notNull(),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "applicant_access_code_attempts_pk",
+      columns: [table.referenceKey, table.ipKey],
+    }),
+    index("applicant_access_code_attempts_updated_idx").on(table.updatedAt),
+    check(
+      "applicant_access_code_attempts_failed_attempts_check",
+      sql`${table.failedAttempts} >= 0`,
+    ),
+  ],
+).enableRLS();
 
 export const applicationEventsTable = pgTable(
   "application_events",

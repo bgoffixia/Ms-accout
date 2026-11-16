@@ -4,7 +4,6 @@ export type SessionEnrollmentDraft = {
   ownerId: string;
   application: EnrollmentApplication;
   submissionId: string;
-  pin?: string;
 };
 
 const sessionDrafts = new Map<string, SessionEnrollmentDraft>();
@@ -26,7 +25,8 @@ export function createSessionDraft(
     categoryName: category.name,
     status: "draft",
     currentStep: 0,
-    hasPin: false,
+    referenceCode: null,
+    accessCodeConfigured: false,
     answers: {},
     applicantName: null,
     applicantEmail: null,
@@ -72,7 +72,6 @@ export function updateSessionDraft(
   id: string,
   ownerId: string,
   update: Partial<EnrollmentApplication>,
-  pin?: string,
 ): SessionEnrollmentDraft | undefined {
   const draft = getSessionDraft(id, ownerId);
   if (!draft) return undefined;
@@ -83,9 +82,7 @@ export function updateSessionDraft(
       ...update,
       updatedAt: new Date().toISOString(),
     },
-    ...(pin !== undefined ? { pin } : {}),
-  } as SessionEnrollmentDraft & { pinConfirmation?: string };
-  delete updated.pinConfirmation;
+  };
   sessionDrafts.set(id, updated);
   return updated;
 }
@@ -106,7 +103,7 @@ export function changeSessionDraftCategory(
       categoryName: category.name,
       answers: {},
       currentStep: 0,
-      hasPin: false,
+      referenceCode: null,
       updatedAt: new Date().toISOString(),
     },
   };

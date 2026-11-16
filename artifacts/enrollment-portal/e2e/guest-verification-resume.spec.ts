@@ -13,9 +13,10 @@ type GuestDraft = {
   email: string;
   status: "received";
   submissionStatus: "draft" | "submitted";
+  accessCodeConfigured?: boolean;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
-  hasPin: boolean;
+  referenceCode: string | null;
   linkedApplicationId: string | null;
   currentStep: number;
   detailsComplete: boolean;
@@ -26,7 +27,7 @@ type GuestDraft = {
 
 class GuestApiFixture {
   draft: GuestDraft | null = null;
-  accessKey = "";
+  accessCode = "";
   createCount = 0;
   lookupCount = 0;
   categoryOneTitle = "Account Provider One";
@@ -61,7 +62,6 @@ class GuestApiFixture {
           backgroundColor: "#F5F8FA",
           logoDataUrl: null,
           entryLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='5' fill='green'/%3E%3C/svg%3E" : null,
-          pinLogoDataUrl: id === "category-1" ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect width='10' height='10' fill='blue'/%3E%3C/svg%3E" : null,
           cardLogoAlignment: "center",
           cardLogoVerticalOffset: 0,
           cardTitleFontSize: id === "category-1" ? 18 : 14,
@@ -72,11 +72,8 @@ class GuestApiFixture {
           cardDescriptionVerticalOffset: id === "category-1" ? 5 : 0,
           entryLogoAlignment: "left",
           entryLogoVerticalOffset: 14,
-          pinLogoAlignment: "right",
-          pinLogoVerticalOffset: -14,
         })),
         theme: {
-          pinScreenBackground: "#FFFFFF",
           buttonSize: "standard",
           buttonPlacement: "right",
           categoryInputTransparent: true,
@@ -87,6 +84,7 @@ class GuestApiFixture {
             description: "This dashboard introduction should appear once.",
             sectionIdLabel: "START ENROLLMENT",
           },
+          "category-entry-1": { referenceCodeVisible: "true", referenceCodeLabel: "Reference Code" },
           ...this.screenCopyOverrides,
         },
         pageThemes: {},
@@ -95,7 +93,7 @@ class GuestApiFixture {
     if (method === "POST" && path === "/api/guest/preapplications") {
       const body = request.postDataJSON();
       this.createCount += 1;
-      this.accessKey = body.accessKey;
+      this.accessCode = body.accessCode;
       const categoryId = typeof body.categoryId === "string" ? body.categoryId : "category-1";
       this.draft = {
         id: applicationId,
@@ -107,8 +105,9 @@ class GuestApiFixture {
         status: "received",
         submissionStatus: "draft",
         emailVerified: false,
+        accessCodeConfigured: true,
         emailVerificationRequired: false,
-        hasPin: false,
+        referenceCode: null,
         linkedApplicationId: null,
         currentStep: 0,
         detailsComplete: false,
@@ -118,16 +117,45 @@ class GuestApiFixture {
       };
       return json(this.createdResponse(), 201);
     }
+    if (method === "POST" && path === "/api/applications/access/lookup") {
+      this.lookupCount += 1;
+      const body = request.postDataJSON();
+      if (!this.draft || body.reference !== this.draft.reference || body.accessCode !== this.accessCode) {
+        return json({ error: "The application reference and access code could not be verified." }, 404);
+      }
+      const status = this.statusResponse();
+      const { answers: _answers, reviewNote: _reviewNote, privateReviewerDetails: _privateReviewerDetails, ...safe } = status;
+      return json({
+        applicationId: safe.id,
+        reference: safe.reference,
+        applicationType: "guest_preapplication",
+        categoryId: safe.categoryId,
+        categoryName: safe.categoryName,
+        status: safe.status,
+        submissionStatus: safe.submissionStatus,
+        currentStep: safe.currentStep,
+        detailsComplete: safe.detailsComplete,
+        updatedAt: safe.updatedAt,
+        reviewStatus: safe.reviewStatus,
+        applicantFollowup: null,
+        outstandingRequirements: [],
+      });
+    }
     if (method === "POST" && path === "/api/guest/preapplications/lookup") {
       this.lookupCount += 1;
-      return this.draft ? json(this.statusResponse()) : json({ message: "Not found" }, 404);
+      const body = request.postDataJSON();
+      return this.draft && body.reference === this.draft.reference && body.accessCode === this.accessCode
+        ? json(this.statusResponse())
+        : json({ error: "The application reference and access code could not be verified." }, 404);
     }
     if (method === "PATCH" && path === `/api/guest/preapplications/${applicationId}`) {
       if (!this.draft) return json({ message: "Not found" }, 404);
       const body = request.postDataJSON();
       this.draft.answers = body.answers;
       this.draft.currentStep = body.currentStep;
-      this.draft.hasPin ||= Boolean(body.pin);
+      if (typeof body.referenceCode === "string") {
+        this.draft.referenceCode = body.referenceCode.trim() || null;
+      }
       this.draft.detailsComplete = this.detailsAreComplete();
       this.draft.updatedAt = new Date().toISOString();
       return json(this.statusResponse());
@@ -234,6 +262,13 @@ async function fillStage(page: Page, fields: Record<string, string>) {
   await page.locator("form.ew-form button[type=submit]").click();
 }
 
+async function createGuestAccessCode(page: Page) {
+  await expect(page.getByTestId("input-guest-new-access-code")).toBeVisible();
+  await page.getByTestId("input-guest-new-access-code").fill("314159");
+  await page.getByTestId("input-guest-confirm-access-code").fill("314159");
+  await page.getByTestId("button-create-guest-application").click();
+}
+
 async function expectNoDocumentOverflow(page: Page) {
   const dimensions = await page.evaluate(() => {
     const documentScroller = document.scrollingElement ?? document.documentElement;
@@ -318,7 +353,6 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
             hero: { title: "Enrollment", description: "Complete your enrollment.", getStartedLabel: "Get started", loginLabel: "Sign in" },
             cards: [],
             theme: {
-              pinScreenBackground: "#FFFFFF",
               buttonSize: "standard",
               buttonPlacement: "right",
               categoryInputTransparent: true,
@@ -410,6 +444,7 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
 
+  await createGuestAccessCode(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
@@ -420,9 +455,11 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
-  await expect(page.locator(".category-one-pin-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
-  await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-right/);
-  await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "-14px");
+  await expect(page.locator(".entry-reference-code-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
+  await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-reference-code-stage/);
+  await expect(page.getByTestId("input-reference-code")).toBeVisible();
+  await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+  await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
   expect(api.createCount).toBe(1);
   expect(api.draft?.categoryId).toBe("category-1");
@@ -460,7 +497,7 @@ test("keeps contact details out of same-session back navigation and returns relo
   await expect(page.getByTestId("link-get-started")).toBeVisible();
 });
 
-test("keeps every guest category entry and PIN screen within one phone viewport", async ({ browser }) => {
+test("keeps every guest category entry and Reference Code screen within one phone viewport", async ({ browser }) => {
   for (const categoryId of ["category-1", "category-2", "category-3", "category-4"]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 568 } });
     const page = await context.newPage();
@@ -472,26 +509,29 @@ test("keeps every guest category entry and PIN screen within one phone viewport"
     await page.getByTestId("input-guest-email").fill("jordan@example.test");
     await page.getByTestId("button-continue-guest-contact").click();
 
+    await createGuestAccessCode(page);
     await expect(page.locator(".category-entry-screen")).toBeVisible();
     await expectNoDocumentOverflow(page);
     const nextButton = page.locator("form button[type=submit]").first();
     await nextButton.click();
     if (categoryId === "category-2") {
-      await expect(page.locator(".category-entry-screen")).not.toHaveClass(/entry-pin-stage/);
+      await expect(page.locator(".category-entry-screen")).not.toHaveClass(/entry-reference-code-stage/);
       await expectNoDocumentOverflow(page);
       await page.locator("form button[type=submit]").first().click();
     }
-    await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-pin-stage/);
+    await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-reference-code-stage/);
     await expectNoDocumentOverflow(page);
-    const pinKeys = page.locator(".pin-entry-key");
-    for (let index = 0; index < await pinKeys.count(); index += 1) {
-      const box = await pinKeys.nth(index).boundingBox();
-      expect(box, `${categoryId} keypad key ${index} should be visible`).not.toBeNull();
-      expect(box!.x).toBeGreaterThanOrEqual(0);
-      expect(box!.y).toBeGreaterThanOrEqual(0);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(390);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(568);
-    }
+    const field = page.getByTestId("input-reference-code");
+    await expect(field).toBeVisible();
+    expect(await field.getAttribute("type")).toBe("text");
+    await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+    await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
+    const box = await field.boundingBox();
+    expect(box, `${categoryId} Reference Code field should be visible`).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(568);
     await context.close();
   }
 });
@@ -507,7 +547,7 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
   }
 });
 
-test("submits without email OTP and opens status with the private tracking key", async ({ page }) => {
+test("submits without email OTP and opens status with the private access code", async ({ page }) => {
   const api = new GuestApiFixture();
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -545,6 +585,7 @@ test("submits without email OTP and opens status with the private tracking key",
   await page.getByTestId("button-continue-guest-contact").click();
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
+  await createGuestAccessCode(page);
   await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
@@ -553,31 +594,16 @@ test("submits without email OTP and opens status with the private tracking key",
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await page.setViewportSize({ width: 390, height: 568 });
   await page.locator("form button[type=submit]").click();
-  const pinInput = page.getByTestId("input-entry-pin");
+  const referenceCodeInput = page.getByTestId("input-reference-code");
   await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
-  await expect(page.locator("#pin-entry-heading")).toHaveCSS("font-size", "12px");
+  await expect(referenceCodeInput).toBeVisible();
+  await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+  await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
+  await referenceCodeInput.fill("CASE-4826");
   await expectNoDocumentOverflow(page);
-  const keypadButtons = await page.locator(".pin-entry-key").all();
-  for (const button of keypadButtons) {
-    const bounds = await button.boundingBox();
-    expect(bounds, "every PIN key should have a visible bounding box").not.toBeNull();
-    expect(bounds!.y).toBeGreaterThanOrEqual(0);
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(568);
-  }
-  await page.getByTestId("button-pin-key-4").click();
-  await page.getByTestId("button-pin-key-8").click();
-  await expect(pinInput).toHaveValue("48");
-  await page.getByTestId("button-pin-key-confirm").click();
-  await expect(page.getByTestId("text-entry-error")).toContainText("Enter exactly 4 digits.");
-  await page.getByTestId("button-pin-key-clear").click();
-  await expect(pinInput).toHaveValue("");
-  for (const digit of ["4", "8", "2", "6"]) {
-    await page.getByTestId(`button-pin-key-${digit}`).click();
-  }
-  await expect(pinInput).toHaveValue("4826");
   await expect(page.getByTestId("enrollment-wizard")).toHaveCount(0);
-  await page.getByTestId("button-pin-key-confirm").click();
+  await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoDocumentOverflow(page);
@@ -653,33 +679,45 @@ test("submits without email OTP and opens status with the private tracking key",
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
   expect(api.draft?.emailVerified).toBe(false);
   expect(api.draft?.submissionStatus).toBe("submitted");
+  expect(api.draft?.referenceCode).toBe("CASE-4826");
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
   expect(api.draft?.linkedApplicationId).toBeNull();
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText(api.accessKey);
+  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(api.accessCode);
   await expect(page.getByTestId("guest-submission-confirmation")).toHaveAttribute("role", "dialog");
   await expect(page.getByTestId("link-track-created-application")).toContainText("Track Security Verification Status");
 
   await page.getByTestId("link-track-created-application").click();
   await expect(page.getByTestId("input-track-reference")).toHaveValue(reference);
-  await expect(page.getByTestId("input-track-key")).toHaveValue(api.accessKey);
+  await expect(page.getByTestId("input-track-access-code")).toHaveValue("");
+  await page.getByTestId("input-track-access-code").fill(api.accessCode);
   await page.getByTestId("button-lookup-guest-status").click();
   await expect(page.getByTestId("guest-public-status")).toBeVisible();
   await expect(page.getByTestId("status-guest-application")).toContainText("Pending Review");
   await expect(page.getByTestId("guest-public-status")).not.toContainText(reviewerOnlyNote);
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
 
-  // Reloading preserves the submission and the private key in this browser session.
-  await page.goto("/guest/apply?resume=1");
-  await expect(page.getByTestId("guest-submission-confirmation")).toBeVisible();
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
-  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(reviewerOnlyNote);
-  await expect(page.getByTestId("guest-submission-confirmation")).toContainText(api.accessKey);
+  // The code is not persisted in browser storage; a reload requires re-entry.
+  const savedCode = await page.evaluate(() => ({
+    local: Object.entries(localStorage).map(([key, value]) => `${key}:${value}`).join("\n"),
+    session: Object.entries(sessionStorage).map(([key, value]) => `${key}:${value}`).join("\n"),
+  }));
+  expect(savedCode.local).not.toContain(api.accessCode);
+  expect(savedCode.session).not.toContain(api.accessCode);
+  await page.reload();
+  await expect(page.getByTestId("link-get-started")).toBeVisible();
+  await page.goto("/guest/track");
+  await expect(page.getByTestId("input-track-access-code")).toHaveValue("");
+  await page.getByTestId("input-track-reference").fill(reference);
+  await page.getByTestId("input-track-access-code").fill(api.accessCode);
+  await page.getByTestId("button-lookup-guest-status").click();
+  await expect(page.getByTestId("guest-public-status")).toBeVisible();
+  await expect(page.getByTestId("guest-public-status")).not.toContainText(api.accessCode);
   expect(api.lookupCount).toBeGreaterThanOrEqual(2);
   expect(api.createCount).toBe(1);
 });
 
-test("lets guests skip incomplete fields but requires a PIN before enrollment details", async ({ page }) => {
+test("lets guests continue with incomplete details and an optional Reference Code", async ({ page }) => {
   const api = new GuestApiFixture();
   api.categoryOneTitle = "Configured Account Provider One";
   api.screenCopyOverrides = {
@@ -687,6 +725,7 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
       sectionIdLabel: "CONFIGURED ACCOUNT PROVIDER LABEL",
       nameLabel: "Configured entry name",
       nicknameLabel: "Configured entry nickname",
+      referenceCodeLabel: "Configured tracking reference",
     },
     "workflow-step-1": {
       title: "Configured personal details",
@@ -707,6 +746,7 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
   await page.getByTestId("guest-dashboard-category-category-1").click();
+  await createGuestAccessCode(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expect(page.getByTestId("input-entry-name")).not.toHaveAttribute("placeholder");
@@ -714,13 +754,11 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await expectNoDocumentOverflow(page);
 
   await page.locator("form button[type=submit]").click();
-  await expect(page.getByTestId("input-entry-pin")).toBeVisible();
-  await expect(page.getByText("Continue without a PIN")).toHaveCount(0);
-  await expect(page.getByTestId("button-pin-continue")).toHaveCount(0);
-  const pinInput = page.getByTestId("input-entry-pin");
-  const pinLength = Number(await pinInput.getAttribute("maxlength"));
-  await pinInput.fill("1".repeat(pinLength));
-  await page.getByTestId("button-pin-key-confirm").click();
+  await expect(page.getByTestId("input-reference-code")).toBeVisible();
+  await expect(page.getByTestId("input-reference-code")).toHaveAttribute("type", "text");
+  await expect(page.locator(".reference-code-entry-screen")).toContainText("non-secret tracking metadata");
+  await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
+  await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   await expectNoDocumentOverflow(page);
 
@@ -738,12 +776,14 @@ test("lets guests skip incomplete fields but requires a PIN before enrollment de
   await expect(page.getByTestId("review-category-name")).toContainText("Not provided");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Configured entry nickname");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Not provided");
+  await expect(page.getByTestId("review-category")).toContainText("Configured tracking reference");
+  await expect(page.getByTestId("review-category")).toContainText("Not provided");
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("button-submit-enrollment")).toBeEnabled();
   await expectNoDocumentOverflow(page);
 
   expect(api.draft?.currentStep).toBe(7);
   expect(api.draft?.detailsComplete).toBe(false);
-  expect(api.draft?.hasPin).toBe(true);
+  expect(api.draft?.referenceCode).toBeNull();
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
 });

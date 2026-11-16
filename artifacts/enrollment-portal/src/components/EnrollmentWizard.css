@@ -30,6 +30,8 @@
 .ew-home-link { display: inline-flex; align-items: center; border-radius: 5px; color: inherit; text-decoration: none; }
 .ew-home-link:focus-visible { outline: 3px solid #a7d6bd; outline-offset: 4px; }
 .ew-top-meta { display: flex; align-items: center; gap: 15px; }
+.ew-access-code-reset { border: 0; padding: 5px 0; color: #526f82; background: transparent; font: 10px var(--app-font-sans); cursor: pointer; }
+.ew-access-code-reset:hover { color: #174d80; text-decoration: underline; }
 .ew-copy-tracking-key { min-height: 29px; padding: 0 9px; border: 1px solid #cbdcd4; border-radius: 7px; color: #2d6f58; background: #f4faf6; font: 600 9px var(--app-font-sans, sans-serif); cursor: pointer; }
 .ew-copy-tracking-key:hover { background: #e9f5ee; }
 .ew-draft-status { padding: 5px 9px; border: 1px solid #e8dcbf; border-radius: 99px; color: #8a692d; background: #fff9ed; font: 9px var(--app-font-mono, monospace); text-transform: capitalize; }
@@ -219,6 +221,7 @@
   .ew-topbar .portal-wordmark-primary { font-size: 12px; }
   .ew-topbar .portal-wordmark-secondary { font-size: 7px; }
   .ew-top-meta { gap: 8px; }
+  .ew-access-code-reset { font-size: 9px; }
   .ew-reference { font-size: 8px; }
   .ew-copy-tracking-key { min-height: 26px; padding-inline: 7px; font-size: 8px; }
   .ew-layout { display: flex; flex-direction: column; }

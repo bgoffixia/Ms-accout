@@ -12,6 +12,6 @@ export interface GuestApplicationAccessInput {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  accessKey: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
 }

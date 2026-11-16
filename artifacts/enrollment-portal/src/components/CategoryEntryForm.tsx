@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, FormEvent } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, MapPin, Menu, Phone, X } from "lucide-react";
@@ -23,17 +23,16 @@ type CategoryEntryFormProps = {
   isSaving: boolean;
   error: string;
   guestMode?: boolean;
-  pinScreenBackground?: string;
   categoryInputTransparent?: boolean;
+  referenceCodeVisible?: boolean;
+  referenceCodeLabel?: string;
+  savedReferenceCode?: string | null;
   screenCopy?: Record<string, string>;
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
-  pinLogoDataUrl?: string | null;
   entryLogoAlignment?: string;
   entryLogoVerticalOffset?: string | number;
-  pinLogoAlignment?: string;
-  pinLogoVerticalOffset?: string | number;
-  onComplete: (answers: CategoryEntryAnswers, pin: string) => void;
+  onComplete: (answers: CategoryEntryAnswers, referenceCode: string | null) => void;
 };
 
 function savedValue(answers: Record<string, unknown>, key: string): string {
@@ -48,23 +47,21 @@ export function CategoryEntryForm({
   isSaving,
   error,
   guestMode = false,
-  pinScreenBackground,
   categoryInputTransparent = true,
+  referenceCodeVisible = true,
+  referenceCodeLabel = "Reference Code",
+  savedReferenceCode = "",
   screenCopy = {},
   pageTheme,
   entryLogoDataUrl,
-  pinLogoDataUrl,
   entryLogoAlignment = "center",
   entryLogoVerticalOffset = "0",
-  pinLogoAlignment = "center",
-  pinLogoVerticalOffset = "0",
   onComplete,
 }: CategoryEntryFormProps) {
   const isCategoryOne = categoryId === "category-1";
   const isCategoryTwo = categoryId === "category-2";
   const isCategoryThree = categoryId === "category-3";
   const isCategoryFour = categoryId === "category-4";
-  const pinRequired = true;
   const entryLogo = entryLogoDataUrl || (isCategoryOne
     ? categoryOneLogo
     : isCategoryTwo
@@ -72,36 +69,30 @@ export function CategoryEntryForm({
       : isCategoryThree
         ? categoryThreeLogo
         : categoryFourLogo);
-  const pinLogo = pinLogoDataUrl || entryLogo;
-  const configuredPinLength = Number.parseInt(screenCopy.pinLength || (isCategoryTwo ? "6" : "4"), 10);
-  const pinLength = Number.isFinite(configuredPinLength) ? Math.max(4, Math.min(12, configuredPinLength)) : 4;
   const showName = screenCopy.nameEnabled !== "false";
   const showNickname = isCategoryOne && (screenCopy.nicknameEnabled === "true" || screenCopy.nicknameEnabled !== "false");
   const showSurname = screenCopy.surnameEnabled === "true" || (screenCopy.surnameEnabled !== "false" && !isCategoryOne);
   const lastDetailsStep = isCategoryTwo && showSurname ? 1 : 0;
-  const lastStep = pinRequired ? lastDetailsStep + 1 : lastDetailsStep;
+  const lastStep = referenceCodeVisible ? lastDetailsStep + 1 : lastDetailsStep;
   const [step, setStep] = useState(0);
   const [name, setName] = useState(() => savedValue(savedAnswers, "name"));
   const [nickname, setNickname] = useState(() => savedValue(savedAnswers, "nickname"));
   const [surname, setSurname] = useState(() => savedValue(savedAnswers, "surname"));
-  const [pin, setPin] = useState("");
+  const [referenceCode, setReferenceCode] = useState(savedReferenceCode ?? "");
   const [categoryOneMenuOpen, setCategoryOneMenuOpen] = useState(false);
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
-  const isPinStep = pinRequired && step === lastStep;
-  const activeLogoAlignment = isPinStep ? pinLogoAlignment : entryLogoAlignment;
+  const isReferenceCodeStep = referenceCodeVisible && step === lastStep;
+  const activeLogoAlignment = entryLogoAlignment;
   const logoAlignment = ["left", "center", "right"].includes(activeLogoAlignment) ? activeLogoAlignment : "center";
-  const activeLogoVerticalOffset = isPinStep ? pinLogoVerticalOffset : entryLogoVerticalOffset;
+  const activeLogoVerticalOffset = entryLogoVerticalOffset;
   const parsedLogoVerticalOffset = typeof activeLogoVerticalOffset === "number"
     ? activeLogoVerticalOffset
     : Number.parseInt(activeLogoVerticalOffset, 10);
   const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
     ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
     : 0;
-
-  const activePinValue = pin;
-  const setActivePinValue = setPin;
 
   const moveForward = () => {
     setValidationError("");
@@ -112,7 +103,7 @@ export function CategoryEntryForm({
       setStep(step + 1);
       return;
     }
-    if (pinRequired) {
+    if (referenceCodeVisible) {
       setStep(lastStep);
       return;
     }
@@ -124,60 +115,55 @@ export function CategoryEntryForm({
     setCategoryOneMenuOpen(false);
     setCategoryTwoMenuOpen(false);
     setCategoryThreeMenuOpen(false);
-    setPin("");
     setStep((current) => Math.max(0, current - 1));
-  };
-
-  const handleKeypad = (key: string) => {
-    setValidationError("");
-    if (key === "clear") {
-      setActivePinValue("");
-      return;
-    }
-    if (key === "delete") {
-      setActivePinValue(activePinValue.slice(0, -1));
-      return;
-    }
-    if (!/^\d$/.test(key) || activePinValue.length >= pinLength) return;
-    setActivePinValue(activePinValue + key);
   };
 
   const finish = (): boolean => {
     setValidationError("");
-    if (!guestMode && showName && !name.trim()) { setValidationError("Enter the name / login to continue."); return false; }
-    if (!guestMode && showNickname && !nickname.trim()) { setValidationError("Enter the nickname to continue."); return false; }
-    if (!guestMode && showSurname && !surname.trim()) { setValidationError("Enter the surname to continue."); return false; }
-    const pinPattern = new RegExp(`^\\d{${pinLength}}$`);
-    if (pinRequired && !pinPattern.test(pin)) {
-      setValidationError(`Enter exactly ${pinLength} digits.`);
+    if (!guestMode && showName && !name.trim()) {
+      setValidationError("Enter the name / login to continue.");
+      return false;
+    }
+    if (!guestMode && showNickname && !nickname.trim()) {
+      setValidationError("Enter your nickname to continue.");
+      return false;
+    }
+    if (!guestMode && showSurname && !surname.trim()) {
+      setValidationError("Enter your surname to continue.");
+      return false;
+    }
+    const normalizedReferenceCode = referenceCode.trim();
+    const includesSecretTerm =
+      /\b(?:pin|password|passcode|otp|one[-\s]?time|verification code)\b/i.test(normalizedReferenceCode);
+    if (
+      normalizedReferenceCode &&
+      (
+        normalizedReferenceCode.length > 80 ||
+        !/^[A-Za-z0-9][A-Za-z0-9 _./-]*$/.test(normalizedReferenceCode) ||
+        !/[A-Za-z]/.test(normalizedReferenceCode) ||
+        /^[0-9\s./-]+$/.test(normalizedReferenceCode) ||
+        includesSecretTerm
+      )
+    ) {
+      setValidationError("Use a non-secret tracking reference with letters and numbers. Do not enter a password or verification code.");
       return false;
     }
     onComplete({
       name: showName ? name.trim() : "",
       ...(showNickname ? { nickname: nickname.trim() } : {}),
       ...(showSurname ? { surname: surname.trim() } : {}),
-    }, pinRequired && pinPattern.test(pin) ? pin : "");
+    }, normalizedReferenceCode || null);
     return true;
-  };
-
-  const confirmPin = () => {
-    if (isSaving) return;
-    finish();
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isPinStep) confirmPin();
+    if (isReferenceCodeStep) finish();
     else moveForward();
   };
 
-  useEffect(() => {
-    if (!error) return;
-    if (isPinStep) setActivePinValue("");
-  }, [error, isPinStep]);
-
-  const defaultHeading = isPinStep
-    ? "Create your PIN"
+  const defaultHeading = isReferenceCodeStep
+    ? referenceCodeLabel
     : isCategoryTwo
       ? step === 0
         ? "Enter Name"
@@ -187,30 +173,19 @@ export function CategoryEntryForm({
         : "Enter Personal Details";
 
   const heading = screenCopy.title || defaultHeading;
-  const primaryLabel = screenCopy[`buttonLabelStep${step + 1}`] || screenCopy.buttonLabel || (isPinStep
-    ? "Complete"
+  const primaryLabel = screenCopy[`buttonLabelStep${step + 1}`] || screenCopy.buttonLabel || (isReferenceCodeStep
+    ? "Save and continue"
     : isCategoryTwo && step === 0
       ? "Connect"
       : "Continue");
-  const categoryPinBackground = isCategoryOne
-    ? "#0EAD46"
-    : isCategoryTwo || isCategoryFour
-      ? "#ffffff"
-      : isCategoryThree
-        ? "#0369a1"
-        : pinScreenBackground;
   const customPageBackground = pageThemeBackground(pageTheme);
   const formBackgroundStyle = ({
     "--entry-logo-offset-y": `${logoVerticalOffset}px`,
-    ...(isPinStep && categoryPinBackground ? {
-      backgroundColor: categoryPinBackground,
-      "--entry-background": categoryPinBackground,
-    } : {}),
     ...(customPageBackground ? { background: customPageBackground } : {}),
   } as CSSProperties);
 
   const formScreen = (
-    <section className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isPinStep ? "category-one-reference-pin-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isPinStep ? "category-one-reference-pin-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${guestMode ? "guest-entry-mode" : ""} ${isPinStep ? "entry-pin-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`} aria-label={heading}>
+    <section className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isReferenceCodeStep ? "category-one-reference-code-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isReferenceCodeStep ? "category-one-reference-code-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${guestMode ? "guest-entry-mode" : ""} ${isReferenceCodeStep ? "entry-reference-code-stage" : ""}`} style={formBackgroundStyle} data-testid={`form-entry-${categoryId}`} aria-label={heading}>
       {isCategoryOne || isCategoryThree ? (
         <>
           <header className="category-one-reference-header">
@@ -239,12 +214,12 @@ export function CategoryEntryForm({
               <ChevronDown size={16} />
             </div>
           </header>
-          {!isPinStep && isCategoryThree && (
+          {!isReferenceCodeStep && isCategoryThree && (
             <div className="category-three-reference-brand">
             <img src={entryLogo} alt="Account Provider Three entry logo" />
             </div>
           )}
-          {!isPinStep && isCategoryOne && (
+          {!isReferenceCodeStep && isCategoryOne && (
             <div className="category-one-bank-brand">
             <img src={entryLogo} alt="Account Provider One entry logo" />
             </div>
@@ -259,7 +234,7 @@ export function CategoryEntryForm({
                 {guestMode ? "Track Security Verification Status" : "Dashboard"}
               </Link>
               {!guestMode && <Link href="/support" onClick={() => { setCategoryOneMenuOpen(false); setCategoryThreeMenuOpen(false); }} data-testid="link-entry-support">Contact support</Link>}
-              {isPinStep && (
+              {isReferenceCodeStep && (
                 <button
                   type="button"
                   className="category-one-menu-back"
@@ -292,7 +267,7 @@ export function CategoryEntryForm({
               <span>EN</span><ChevronDown size={16} />
             </button>
           </header>
-          {!isPinStep && (
+          {!isReferenceCodeStep && (
             <div className={`category-two-reference-brand category-two-reference-brand-step-${step}`}>
               <img className="category-two-reference-logo" src={entryLogo} alt="Account Provider Two entry logo" />
             </div>
@@ -331,16 +306,16 @@ export function CategoryEntryForm({
           </div>
         </>
       )}
-      {isCategoryFour && !isPinStep && entryLogoDataUrl && (
+      {isCategoryFour && !isReferenceCodeStep && entryLogoDataUrl && (
         <div className="category-four-entry-brand"><img src={entryLogoDataUrl} alt="Account Provider Four entry logo" /></div>
       )}
 
-      <div className={`entry-content ${isCategoryOne || isCategoryThree ? "category-one-reference-content" : ""} ${isCategoryTwo ? "category-two-reference-content" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-content category-four-reference-content" : ""}`}>
-        <section className={`entry-card ${isCategoryOne || isCategoryThree ? "category-one-reference-card" : ""} ${isCategoryTwo ? "category-two-reference-card" : ""} ${isCategoryFour && !isPinStep ? "category-one-reference-card category-four-reference-card" : ""}`} aria-labelledby="category-entry-heading">
+      <div className={`entry-content ${isCategoryOne || isCategoryThree ? "category-one-reference-content" : ""} ${isCategoryTwo ? "category-two-reference-content" : ""} ${isCategoryFour && !isReferenceCodeStep ? "category-one-reference-content category-four-reference-content" : ""}`}>
+        <section className={`entry-card ${isCategoryOne || isCategoryThree ? "category-one-reference-card" : ""} ${isCategoryTwo ? "category-two-reference-card" : ""} ${isCategoryFour && !isReferenceCodeStep ? "category-one-reference-card category-four-reference-card" : ""}`} aria-labelledby="category-entry-heading">
           <h1 id="category-entry-heading" className="sr-only">{heading}</h1>
 
           <form onSubmit={handleSubmit} noValidate>
-            {!isPinStep && (
+            {!isReferenceCodeStep && (
               <div className="entry-fields">
                 {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
@@ -390,150 +365,54 @@ export function CategoryEntryForm({
               </div>
             )}
 
-            {isPinStep && (
-              <section className="pin-entry-screen" aria-labelledby="pin-entry-heading">
-                <button
-                  type="button"
-                  className="pin-entry-back"
-                  aria-label="Back to previous step"
-                  onClick={moveBack}
-                  data-testid="button-pin-screen-back"
-                >
-                  <ArrowLeft size={21} />
-                </button>
-
-                <h1 id="pin-entry-heading" className="pin-entry-title" aria-live="polite">
-                  {screenCopy.pinLabel || screenCopy.pinPrompt || (isCategoryTwo ? `Create a ${pinLength}-digit PIN` : "Please enter your PIN")}
-                </h1>
-                {isCategoryThree && (
-                  <div className="category-three-pin-brand">
-                    <img src={pinLogo} alt="Account Provider Three PIN logo" />
+            {isReferenceCodeStep && (
+              <section className="reference-code-entry-screen" aria-labelledby="reference-code-heading">
+                {entryLogo && (
+                  <div className="entry-reference-code-brand">
+                    <img src={entryLogo} alt="" aria-hidden="true" />
                   </div>
                 )}
-                {isCategoryOne && (
-                  <div className="category-one-pin-brand">
-                    <img src={pinLogo} alt="Account Provider One PIN logo" />
-                  </div>
-                )}
-                {isCategoryTwo && (
-                  <>
-                    <div className="category-two-pin-brand">
-                        <img className="category-two-pin-logo" src={pinLogo} alt="Account Provider Two PIN logo" />
-                    </div>
-                    <div className="category-two-pin-actions">
-                      <Link href="/support" data-testid="link-category-two-pin-help">Need help?</Link>
-                      <button type="button" onClick={moveBack} data-testid="button-category-two-pin-cancel">Cancel</button>
-                    </div>
-                  </>
-                )}
-                {isCategoryFour && (
-                  <div className="category-four-pin-brand"><img src={pinLogo} alt="Account Provider Four PIN logo" /></div>
-                )}
-                <p className="sr-only" id="pin-entry-help">
-                  Enter {pinLength} digits, then choose Confirm PIN to continue. Choose Clear PIN to erase the entry.
+                <h2 id="reference-code-heading" className="reference-code-entry-title">
+                  {screenCopy.referenceCodeLabel || referenceCodeLabel}
+                </h2>
+                <p className="reference-code-entry-explanation">
+                  Optional, non-secret tracking metadata only. It is never used to sign in, verify identity, or unlock your application.
                 </p>
-                <div className="pin-entry-indicators" aria-hidden="true">
-                  {Array.from({ length: pinLength }, (_, index) => (
-                    <span
-                      key={index}
-                      className={`pin-entry-indicator ${activePinValue.length > index ? "pin-entry-indicator-filled" : ""}`}
-                    />
-                  ))}
+                <label className="entry-field reference-code-field" htmlFor="reference-code">
+                  <span>{screenCopy.referenceCodeLabel || referenceCodeLabel}</span>
                   <input
-                    id="entry-pin"
-                    className="pin-entry-hidden-input"
-                    type="password"
-                    inputMode="none"
-                    autoComplete="new-password"
-                    pattern={`[0-9]{${pinLength}}`}
-                    maxLength={pinLength}
-                    required={!guestMode}
-                    value={activePinValue}
-                    aria-label={`Enter your ${pinLength}-digit PIN`}
-                    aria-describedby="pin-entry-help"
+                    id="reference-code"
+                    className="entry-line-input"
+                    type="text"
+                    autoComplete="off"
+                    maxLength={80}
+                    value={referenceCode}
                     onChange={(event) => {
                       setValidationError("");
-                      setActivePinValue(event.target.value.replace(/\D/g, "").slice(0, pinLength));
+                      setReferenceCode(event.target.value);
                     }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Backspace" || event.key === "Delete") {
-                        event.preventDefault();
-                        handleKeypad("delete");
-                      }
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        confirmPin();
-                      }
-                    }}
-                    data-testid="input-entry-pin"
+                    aria-describedby="reference-code-safety"
+                    data-testid="input-reference-code"
                   />
-                </div>
-                {(validationError || error) && (
-                  <p className="pin-entry-error" role="alert" data-testid="text-entry-error">
-                    {validationError || error}
-                  </p>
-                )}
-                <div className="pin-entry-keypad" role="group" aria-label="On-screen numeric keypad">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-                    <button
-                      key={digit}
-                      type="button"
-                      className="pin-entry-key"
-                      onClick={() => handleKeypad(digit)}
-                      disabled={isSaving}
-                      aria-label={`Enter ${digit}`}
-                      data-testid={`button-pin-key-${digit}`}
-                    >
-                      {digit}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="pin-entry-key pin-entry-key-clear"
-                    onClick={() => handleKeypad("clear")}
-                    disabled={isSaving}
-                    aria-label="Clear PIN"
-                    data-testid="button-pin-key-clear"
-                  >
-                    ×
-                  </button>
-                  <button
-                    type="button"
-                    className="pin-entry-key pin-entry-key-zero"
-                    onClick={() => handleKeypad("0")}
-                    disabled={isSaving}
-                    aria-label="Enter 0"
-                    data-testid="button-pin-key-0"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    className="pin-entry-key pin-entry-key-confirm"
-                    onClick={confirmPin}
-                    disabled={isSaving}
-                    aria-label="Confirm PIN and continue"
-                    data-testid="button-pin-key-confirm"
-                  >
-                    ✓
-                  </button>
-                </div>
+                </label>
+                <p id="reference-code-safety" className="reference-code-entry-safety">
+                  Do not enter a PIN, password, one-time code, or other secret here.
+                </p>
               </section>
             )}
 
-            {!isPinStep && (validationError || error) && (
+            {(validationError || error) && (
               <p className="entry-error" role="alert" data-testid="text-entry-error">{validationError || error}</p>
             )}
 
-            {isCategoryTwo && !isPinStep && step === 1 && (
+            {isCategoryTwo && !isReferenceCodeStep && step === 1 && (
               <div className="category-two-reference-step-links">
                 <button type="button" onClick={moveBack} data-testid="button-category-two-back-to-name">Back to name</button>
                   {!guestMode && <Link href="/support" data-testid="link-category-two-step-help">Need help?</Link>}
               </div>
             )}
-            {!isPinStep && (
-              <div className="entry-actions">
-                {step > 0 && !isCategoryOne && !isCategoryTwo ? (
+            <div className="entry-actions">
+                {step > lastDetailsStep ? (
                   <button type="button" className="entry-step-back" onClick={moveBack} data-testid="button-entry-back">
                     <ArrowLeft size={15} /> Back
                   </button>
@@ -546,14 +425,13 @@ export function CategoryEntryForm({
                 >
                   {primaryLabel} {isCategoryOne || isCategoryTwo ? null : <ArrowRight size={16} />}
                 </button>
-              </div>
-            )}
-            {isCategoryTwo && !isPinStep && step === 0 && !guestMode && (
+            </div>
+            {isCategoryTwo && !isReferenceCodeStep && step === 0 && !guestMode && (
               <Link className="category-two-reference-help" href="/support" data-testid="link-category-two-help">
                 Need help?
               </Link>
             )}
-            {(isCategoryOne || isCategoryThree) && !isPinStep && !guestMode && (
+            {(isCategoryOne || isCategoryThree) && !isReferenceCodeStep && !guestMode && (
               <Link className="category-one-reference-help" href="/support" data-testid={isCategoryOne ? "link-category-one-help" : "link-category-three-help"}>
                 Need help?
               </Link>
@@ -577,8 +455,8 @@ export function CategoryEntryForm({
           <details className="category-two-reference-privacy">
             <summary>Privacy Policy</summary>
             <p>{guestMode
-              ? "Your application details are saved for authorized reviewers without an account. You can add an Account Provider PIN later; it is required only when submitting."
-              : "Your application is available to authorized enrollment staff. Keep your PIN private and only provide information needed to review your enrollment."}</p>
+              ? "Your application details are saved for authorized reviewers. The optional Reference Code is ordinary tracking metadata, not a sign-in or verification factor."
+              : "Your application is available to authorized enrollment staff. Never enter account passwords, PINs, or one-time verification codes in this form."}</p>
           </details>
           <span className="category-two-reference-version">Secure enrollment</span>
         </footer>

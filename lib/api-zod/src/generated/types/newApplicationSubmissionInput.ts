@@ -12,8 +12,10 @@ export interface NewApplicationSubmissionInput {
   submissionId: string;
   categoryId: NewApplicationSubmissionInputCategoryId;
   answers: NewApplicationSubmissionInputAnswers;
-  /** @pattern ^[0-9]{4,6}$ */
-  pin: string;
-  /** @pattern ^[0-9]{4,6}$ */
-  pinConfirmation?: string;
+  /** @maxLength 80 */
+  referenceCode?: string;
+  /** @pattern ^[0-9]{6}$ */
+  accessCode: string;
+  /** @pattern ^[0-9]{6}$ */
+  confirmAccessCode: string;
 }

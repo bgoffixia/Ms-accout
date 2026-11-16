@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ReviewerPin {
-  /** @nullable */
-  pin: string | null;
-  available: boolean;
+export interface AccessCodeConfiguredResponse {
+  accessCodeConfigured: boolean;
 }

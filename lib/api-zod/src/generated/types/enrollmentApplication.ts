@@ -17,7 +17,12 @@ export interface EnrollmentApplication {
   categoryName: string;
   status: ApplicationStatus;
   currentStep: number;
-  hasPin: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  referenceCode: string | null;
+  accessCodeConfigured: boolean;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;
