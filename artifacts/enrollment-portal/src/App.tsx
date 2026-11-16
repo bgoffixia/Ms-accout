@@ -3,8 +3,6 @@ import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { useSignIn, useSignUp } from '@clerk/react/legacy';
-import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
 import {
   Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, Check, CheckCircle2,
   ChevronDown, CircleHelp, Copy, FileCheck2, FileText, Headphones, Home, LifeBuoy, Mail,
@@ -81,10 +79,7 @@ import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } f
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim();
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -93,7 +88,6 @@ function stripBase(path: string) {
 }
 
 const clerkAppearance = {
-  theme: shadcn,
   variables: {
     colorPrimary: '#174d80',
     colorForeground: '#19324d',
@@ -434,8 +428,8 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
         <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'admin' ? 'Create your administrator account using the pre-authorized email address. Administrator access activates only after email verification.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}${signInRoute}`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
-          <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
+        {mode === 'in' ? <SignIn routing="path" path={`${basePath}${signInRoute}`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} fallback={<div className="clerk-loading-fallback" role="status">Loading secure sign-in…</div>} /> :
+          <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} fallback={<div className="clerk-loading-fallback" role="status">Loading secure account setup…</div>} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
       </div>
     </div>
   </main>;
@@ -5271,6 +5265,8 @@ function ClerkRoutes() {
     appearance={clerkAppearance}
     signInUrl={`${basePath}/sign-in`}
     signUpUrl={`${basePath}/sign-up`}
+    signInFallbackRedirectUrl={`${basePath}/auth/complete`}
+    signUpFallbackRedirectUrl={`${basePath}/auth/complete`}
     localization={{
       signIn: { start: { title: 'Welcome back', subtitle: 'Sign in to access your account' } },
       signUp: { start: { title: 'Create your account', subtitle: 'Begin your enrollment securely' } },
