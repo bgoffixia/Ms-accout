@@ -406,6 +406,7 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
   const adminRegistrationIntent = mode === 'admin' || authContext === 'admin' || new URLSearchParams(window.location.search).get('adminRegistration') === '1';
   const staffSignInRegistration = mode === 'in' && (authContext === 'staff' || new URLSearchParams(window.location.search).get('staffRegistration') === '1');
   const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration || adminRegistrationIntent;
+  const signInRoute = authContext === 'admin' ? '/admin/sign-in' : authContext === 'staff' ? '/staff/sign-in' : '/sign-in';
   const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
   const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
   const completionUrl = staffRegistrationIntent
@@ -434,7 +435,7 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
         <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'admin' ? 'Create your administrator account using the pre-authorized email address. Administrator access activates only after email verification.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
+        {mode === 'in' ? <SignIn routing="path" path={`${basePath}${signInRoute}`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
           <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
       </div>
     </div>
