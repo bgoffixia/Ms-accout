@@ -28,21 +28,20 @@ cleanup requires a fresh backup, confirmation that no active build reads the
 new columns, and a separately reviewed migration. No legacy PIN values are
 read, returned, or changed by this migration or the current application.
 
-`0002_applicant_access_codes.sql` is a separate, forward-only additive
-migration. It adds nullable applicant access-code hash columns to the existing
-guest and authenticated application tables and creates the persistent,
-reference/IP-keyed temporary-lockout table. It also relaxes the legacy guest
-tracking-key hash column's `NOT NULL` constraint so new records can use only
-the applicant access-code hash; existing key hashes remain unchanged for the
-explicit one-time upgrade path. It stores no raw code or IP address, and does
-not alter or remove provider-PIN columns/data. Review and apply it only to the
-intended application database after confirming its actual schema. Do not run
-`drizzle-kit push` against production; this request does not authorize any
-database mutation.
+`0002_applicant_access_codes.sql` is a historical, additive migration. Its
+columns and lockout table remain represented in the Drizzle schema solely to
+avoid destructive drift against databases where that migration was applied.
+The current application no longer reads or writes applicant access-code hashes
+or the lockout table; neither this migration nor a schema push should be run
+again for the private tracking-key implementation. Existing guest
+`access_key_hash` values remain intact and continue to authorize guest access.
+For old guest records without a tracking-key hash, recovery requires the
+applicant to sign in with the same verified Clerk email; recovery adds a new
+tracking-key hash without exposing or changing the legacy access-code hash.
 
-The lockout table has row-level security enabled, with no policies for ordinary
-roles, and explicit privileges revoked from `PUBLIC` and, when present,
-`anon` and `authenticated`. RLS is not forced: the trusted server connection
-must use the table owner or a role with `BYPASSRLS`. Verify that role on the
-intended database before applying the migration; the current Replit runtime
-role is not evidence of the separate Railway production role.
+The historical lockout table has row-level security enabled, with no policies
+for ordinary roles, and explicit privileges revoked from `PUBLIC` and, when
+present, `anon` and `authenticated`. Do not remove this table or its columns
+until a separate, reviewed migration confirms no deployed version or rollback
+path needs them. No database migration or production mutation is authorized by
+the tracking-key implementation request.

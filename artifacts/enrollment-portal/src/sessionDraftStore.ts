@@ -26,7 +26,6 @@ export function createSessionDraft(
     status: "draft",
     currentStep: 0,
     referenceCode: null,
-    accessCodeConfigured: false,
     answers: {},
     applicantName: null,
     applicantEmail: null,

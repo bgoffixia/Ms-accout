@@ -55,6 +55,8 @@ export const guestPreapplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     submissionId: uuid("submission_id").notNull().unique(),
     reference: text("reference").notNull().unique(),
+    // Legacy hash columns/table are retained for deployed-schema compatibility.
+    // Runtime routes must not read, write, expose, or derive applicant credentials from them.
     accessKeyHash: text("access_key_hash").unique(),
     applicantAccessCodeHash: text("applicant_access_code_hash"),
     categoryId: text("category_id").notNull(),
@@ -171,6 +173,7 @@ export const enrollmentApplicationsTable = pgTable(
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
     referenceCode: text("reference_code"),
+    // Legacy only; Clerk ownership and guest tracking keys now authorize applicants.
     applicantAccessCodeHash: text("applicant_access_code_hash"),
     answers: jsonb("answers")
       .$type<Record<string, unknown>>()
@@ -196,6 +199,8 @@ export const enrollmentApplicationsTable = pgTable(
   ],
 );
 
+// Historical access-code throttling artifact. Retained so schema tooling does not
+// drop deployed data; no applicant request path uses this table.
 export const applicantAccessCodeAttemptsTable = pgTable(
   "applicant_access_code_attempts",
   {

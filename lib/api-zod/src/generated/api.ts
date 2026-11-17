@@ -44,7 +44,6 @@ export const ListMyApplicationsResponseItem = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(listMyApplicationsResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -85,17 +84,13 @@ export const DeleteMyDraftsResponse = zod.object({
  */
 export const submitNewApplicationBodyReferenceCodeMax = 80;
 
-export const submitNewApplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-export const submitNewApplicationBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
 
 
 export const SubmitNewApplicationBody = zod.object({
   "submissionId": zod.string().uuid(),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "answers": zod.record(zod.string(), zod.unknown()),
-  "referenceCode": zod.string().max(submitNewApplicationBodyReferenceCodeMax).optional(),
-  "accessCode": zod.string().regex(submitNewApplicationBodyAccessCodeRegExp),
-  "confirmAccessCode": zod.string().regex(submitNewApplicationBodyConfirmAccessCodeRegExp)
+  "referenceCode": zod.string().max(submitNewApplicationBodyReferenceCodeMax).optional()
 })
 
 export const submitNewApplicationResponseReferenceCodeMax = 80;
@@ -110,7 +105,6 @@ export const SubmitNewApplicationResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(submitNewApplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -134,25 +128,25 @@ export const SubmitNewApplicationResponse = zod.object({
 
 
 /**
- * @summary Look up an applicant-owned application with its reference and access code
+ * @summary Look up an applicant-owned application with its reference and private tracking key
  */
-export const lookupApplicationWithAccessCodeBodyReferenceMin = 8;
-export const lookupApplicationWithAccessCodeBodyReferenceMax = 32;
+export const lookupApplicationByTrackingKeyBodyReferenceMin = 8;
+export const lookupApplicationByTrackingKeyBodyReferenceMax = 32;
 
-export const lookupApplicationWithAccessCodeBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const lookupApplicationByTrackingKeyBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
-export const LookupApplicationWithAccessCodeBody = zod.object({
-  "reference": zod.string().min(lookupApplicationWithAccessCodeBodyReferenceMin).max(lookupApplicationWithAccessCodeBodyReferenceMax),
-  "accessCode": zod.string().regex(lookupApplicationWithAccessCodeBodyAccessCodeRegExp)
+export const LookupApplicationByTrackingKeyBody = zod.object({
+  "reference": zod.string().min(lookupApplicationByTrackingKeyBodyReferenceMin).max(lookupApplicationByTrackingKeyBodyReferenceMax),
+  "trackingKey": zod.string().regex(lookupApplicationByTrackingKeyBodyTrackingKeyRegExp)
 })
 
-export const lookupApplicationWithAccessCodeResponseCurrentStepMin = 0;
-export const lookupApplicationWithAccessCodeResponseCurrentStepMax = 7;
+export const lookupApplicationByTrackingKeyResponseCurrentStepMin = 0;
+export const lookupApplicationByTrackingKeyResponseCurrentStepMax = 7;
 
 
 
-export const LookupApplicationWithAccessCodeResponse = zod.object({
+export const LookupApplicationByTrackingKeyResponse = zod.object({
   "applicationId": zod.string().uuid(),
   "reference": zod.string(),
   "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
@@ -160,7 +154,7 @@ export const LookupApplicationWithAccessCodeResponse = zod.object({
   "categoryName": zod.string(),
   "status": zod.enum(['received', 'contacted', 'closed', 'draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "submissionStatus": zod.enum(['draft', 'submitted']),
-  "currentStep": zod.number().int().min(lookupApplicationWithAccessCodeResponseCurrentStepMin).max(lookupApplicationWithAccessCodeResponseCurrentStepMax),
+  "currentStep": zod.number().int().min(lookupApplicationByTrackingKeyResponseCurrentStepMin).max(lookupApplicationByTrackingKeyResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
   "updatedAt": zod.coerce.date(),
   "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
@@ -172,14 +166,8 @@ export const LookupApplicationWithAccessCodeResponse = zod.object({
 /**
  * @summary Create a server-saved draft for the signed-in applicant
  */
-export const createApplicationDraftBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-export const createApplicationDraftBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-
-
 export const CreateApplicationDraftBody = zod.object({
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "accessCode": zod.string().regex(createApplicationDraftBodyAccessCodeRegExp),
-  "confirmAccessCode": zod.string().regex(createApplicationDraftBodyConfirmAccessCodeRegExp)
+  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4'])
 })
 
 export const createApplicationDraftResponseReferenceCodeMax = 80;
@@ -194,7 +182,6 @@ export const CreateApplicationDraftResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(createApplicationDraftResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -236,7 +223,6 @@ export const GetApplicationResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(getApplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -292,7 +278,6 @@ export const UpdateApplicationResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(updateApplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -312,28 +297,6 @@ export const UpdateApplicationResponse = zod.object({
   "uploadedAt": zod.coerce.date().nullable(),
   "downloadUrl": zod.string().nullable()
 })).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
-
-/**
- * @summary Set or explicitly recover the signed-in owner's application access code
- */
-export const UpdateMyApplicationAccessCodeParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
-
-export const updateMyApplicationAccessCodeBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-export const updateMyApplicationAccessCodeBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-
-
-export const UpdateMyApplicationAccessCodeBody = zod.object({
-  "accessCode": zod.string().regex(updateMyApplicationAccessCodeBodyAccessCodeRegExp),
-  "confirmAccessCode": zod.string().regex(updateMyApplicationAccessCodeBodyConfirmAccessCodeRegExp),
-  "recovery": zod.boolean().optional().describe('Must be true to explicitly recover a previously configured code from the verified Clerk account.')
-})
-
-export const UpdateMyApplicationAccessCodeResponse = zod.object({
-  "accessCodeConfigured": zod.boolean()
 })
 
 
@@ -366,7 +329,6 @@ export const SubmitApplicationResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(submitApplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -404,8 +366,7 @@ export const GetApplicantSummaryResponse = zod.object({
 /**
  * @summary Create a guest pre-application
  */
-export const createGuestPreapplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-export const createGuestPreapplicationBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const createGuestPreapplicationBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 export const createGuestPreapplicationBodyFullNameMin = 2;
 export const createGuestPreapplicationBodyFullNameMax = 160;
 
@@ -417,8 +378,7 @@ export const createGuestPreapplicationBodyPhoneMax = 40;
 
 export const CreateGuestPreapplicationBody = zod.object({
   "submissionId": zod.string().uuid(),
-  "accessCode": zod.string().regex(createGuestPreapplicationBodyAccessCodeRegExp),
-  "confirmAccessCode": zod.string().regex(createGuestPreapplicationBodyConfirmAccessCodeRegExp),
+  "trackingKey": zod.string().regex(createGuestPreapplicationBodyTrackingKeyRegExp),
   "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
   "fullName": zod.string().min(createGuestPreapplicationBodyFullNameMin).max(createGuestPreapplicationBodyFullNameMax),
   "email": zod.string().email().max(createGuestPreapplicationBodyEmailMax),
@@ -427,6 +387,7 @@ export const CreateGuestPreapplicationBody = zod.object({
 
 export const createGuestPreapplicationResponseReferenceCodeMax = 80;
 
+export const createGuestPreapplicationResponseTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 export const createGuestPreapplicationResponseCurrentStepMin = 0;
 export const createGuestPreapplicationResponseCurrentStepMax = 7;
 
@@ -443,7 +404,7 @@ export const CreateGuestPreapplicationResponse = zod.object({
   "submissionStatus": zod.enum(['draft', 'submitted']),
   "emailVerified": zod.boolean(),
   "referenceCode": zod.string().max(createGuestPreapplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
+  "trackingKey": zod.string().regex(createGuestPreapplicationResponseTrackingKeyRegExp),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(createGuestPreapplicationResponseCurrentStepMin).max(createGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -453,67 +414,37 @@ export const CreateGuestPreapplicationResponse = zod.object({
 
 
 /**
- * @summary Explicitly replace a legacy guest tracking key with an applicant access code
+ * @summary Replace a guest tracking key using its verified Clerk email
  */
-export const upgradeLegacyGuestAccessKeyBodyReferenceMin = 8;
-export const upgradeLegacyGuestAccessKeyBodyReferenceMax = 32;
-
-export const upgradeLegacyGuestAccessKeyBodyLegacyAccessKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-export const upgradeLegacyGuestAccessKeyBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
-export const upgradeLegacyGuestAccessKeyBodyConfirmAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const recoverGuestTrackingKeyBodyReferenceMin = 8;
+export const recoverGuestTrackingKeyBodyReferenceMax = 32;
 
 
-export const UpgradeLegacyGuestAccessKeyBody = zod.object({
-  "reference": zod.string().min(upgradeLegacyGuestAccessKeyBodyReferenceMin).max(upgradeLegacyGuestAccessKeyBodyReferenceMax),
-  "legacyAccessKey": zod.string().regex(upgradeLegacyGuestAccessKeyBodyLegacyAccessKeyRegExp),
-  "accessCode": zod.string().regex(upgradeLegacyGuestAccessKeyBodyAccessCodeRegExp),
-  "confirmAccessCode": zod.string().regex(upgradeLegacyGuestAccessKeyBodyConfirmAccessCodeRegExp)
+
+export const RecoverGuestTrackingKeyBody = zod.object({
+  "reference": zod.string().min(recoverGuestTrackingKeyBodyReferenceMin).max(recoverGuestTrackingKeyBodyReferenceMax)
 })
 
-export const upgradeLegacyGuestAccessKeyResponseReferenceCodeMax = 80;
-
-export const upgradeLegacyGuestAccessKeyResponseCurrentStepMin = 0;
-export const upgradeLegacyGuestAccessKeyResponseCurrentStepMax = 7;
+export const recoverGuestTrackingKeyResponseTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
-
-export const UpgradeLegacyGuestAccessKeyResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "referenceCode": zod.string().max(upgradeLegacyGuestAccessKeyResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(upgradeLegacyGuestAccessKeyResponseCurrentStepMin).max(upgradeLegacyGuestAccessKeyResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
+export const RecoverGuestTrackingKeyResponse = zod.object({
+  "trackingKey": zod.string().regex(recoverGuestTrackingKeyResponseTrackingKeyRegExp)
 })
 
 
 /**
- * @summary Look up guest pre-application status with its applicant-owned access code
+ * @summary Restore a guest pre-application using its reference and private tracking key
  */
 export const lookupGuestPreapplicationBodyReferenceMin = 8;
 export const lookupGuestPreapplicationBodyReferenceMax = 32;
 
-export const lookupGuestPreapplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const lookupGuestPreapplicationBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
 export const LookupGuestPreapplicationBody = zod.object({
   "reference": zod.string().min(lookupGuestPreapplicationBodyReferenceMin).max(lookupGuestPreapplicationBodyReferenceMax),
-  "accessCode": zod.string().regex(lookupGuestPreapplicationBodyAccessCodeRegExp)
+  "trackingKey": zod.string().regex(lookupGuestPreapplicationBodyTrackingKeyRegExp)
 })
 
 export const lookupGuestPreapplicationResponseReferenceCodeMax = 80;
@@ -535,7 +466,6 @@ export const LookupGuestPreapplicationResponse = zod.object({
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
   "referenceCode": zod.string().max(lookupGuestPreapplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(lookupGuestPreapplicationResponseCurrentStepMin).max(lookupGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -549,7 +479,7 @@ export const LookupGuestPreapplicationResponse = zod.object({
 
 
 /**
- * @summary Save guest application progress using its access code
+ * @summary Save guest application progress using its reference and private tracking key
  */
 export const UpdateGuestPreapplicationProgressParams = zod.object({
   "applicationId": zod.coerce.string().uuid()
@@ -558,7 +488,7 @@ export const UpdateGuestPreapplicationProgressParams = zod.object({
 export const updateGuestPreapplicationProgressBodyReferenceMin = 8;
 export const updateGuestPreapplicationProgressBodyReferenceMax = 32;
 
-export const updateGuestPreapplicationProgressBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const updateGuestPreapplicationProgressBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 export const updateGuestPreapplicationProgressBodyCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressBodyCurrentStepMax = 7;
 
@@ -568,7 +498,7 @@ export const updateGuestPreapplicationProgressBodyReferenceCodeMax = 80;
 
 export const UpdateGuestPreapplicationProgressBody = zod.object({
   "reference": zod.string().min(updateGuestPreapplicationProgressBodyReferenceMin).max(updateGuestPreapplicationProgressBodyReferenceMax),
-  "accessCode": zod.string().regex(updateGuestPreapplicationProgressBodyAccessCodeRegExp),
+  "trackingKey": zod.string().regex(updateGuestPreapplicationProgressBodyTrackingKeyRegExp),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressBodyCurrentStepMin).max(updateGuestPreapplicationProgressBodyCurrentStepMax),
   "answers": zod.record(zod.string(), zod.unknown()),
   "complete": zod.boolean(),
@@ -594,7 +524,6 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
   "referenceCode": zod.string().max(updateGuestPreapplicationProgressResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationProgressResponseCurrentStepMin).max(updateGuestPreapplicationProgressResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -608,7 +537,7 @@ export const UpdateGuestPreapplicationProgressResponse = zod.object({
 
 
 /**
- * @summary Correct a guest applicant email using its access code
+ * @summary Correct a guest applicant email using its reference and private tracking key
  */
 export const UpdateGuestPreapplicationEmailParams = zod.object({
   "applicationId": zod.coerce.string().uuid()
@@ -617,14 +546,14 @@ export const UpdateGuestPreapplicationEmailParams = zod.object({
 export const updateGuestPreapplicationEmailBodyReferenceMin = 8;
 export const updateGuestPreapplicationEmailBodyReferenceMax = 32;
 
-export const updateGuestPreapplicationEmailBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const updateGuestPreapplicationEmailBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 export const updateGuestPreapplicationEmailBodyEmailMax = 320;
 
 
 
 export const UpdateGuestPreapplicationEmailBody = zod.object({
   "reference": zod.string().min(updateGuestPreapplicationEmailBodyReferenceMin).max(updateGuestPreapplicationEmailBodyReferenceMax),
-  "accessCode": zod.string().regex(updateGuestPreapplicationEmailBodyAccessCodeRegExp),
+  "trackingKey": zod.string().regex(updateGuestPreapplicationEmailBodyTrackingKeyRegExp),
   "email": zod.string().email().max(updateGuestPreapplicationEmailBodyEmailMax)
 })
 
@@ -647,7 +576,6 @@ export const UpdateGuestPreapplicationEmailResponse = zod.object({
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
   "referenceCode": zod.string().max(updateGuestPreapplicationEmailResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateGuestPreapplicationEmailResponseCurrentStepMin).max(updateGuestPreapplicationEmailResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -676,7 +604,7 @@ export const requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax = 209715200;
 export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMin = 8;
 export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMax = 32;
 
-export const requestGuestApplicantEvidenceUploadBodyTwoAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const requestGuestApplicantEvidenceUploadBodyTwoTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
 export const RequestGuestApplicantEvidenceUploadBody = zod.object({
@@ -687,7 +615,7 @@ export const RequestGuestApplicantEvidenceUploadBody = zod.object({
   "sizeBytes": zod.number().int().min(1).max(requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax)
 }).and(zod.object({
   "reference": zod.string().min(requestGuestApplicantEvidenceUploadBodyTwoReferenceMin).max(requestGuestApplicantEvidenceUploadBodyTwoReferenceMax),
-  "accessCode": zod.string().regex(requestGuestApplicantEvidenceUploadBodyTwoAccessCodeRegExp),
+  "trackingKey": zod.string().regex(requestGuestApplicantEvidenceUploadBodyTwoTrackingKeyRegExp),
   "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate'])
 }))
 
@@ -708,12 +636,12 @@ export const CompleteGuestApplicantEvidenceUploadParams = zod.object({
 export const completeGuestApplicantEvidenceUploadBodyReferenceMin = 8;
 export const completeGuestApplicantEvidenceUploadBodyReferenceMax = 32;
 
-export const completeGuestApplicantEvidenceUploadBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const completeGuestApplicantEvidenceUploadBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
 export const CompleteGuestApplicantEvidenceUploadBody = zod.object({
   "reference": zod.string().min(completeGuestApplicantEvidenceUploadBodyReferenceMin).max(completeGuestApplicantEvidenceUploadBodyReferenceMax),
-  "accessCode": zod.string().regex(completeGuestApplicantEvidenceUploadBodyAccessCodeRegExp)
+  "trackingKey": zod.string().regex(completeGuestApplicantEvidenceUploadBodyTrackingKeyRegExp)
 })
 
 export const CompleteGuestApplicantEvidenceUploadResponse = zod.object({
@@ -736,12 +664,12 @@ export const SubmitGuestPreapplicationParams = zod.object({
 export const submitGuestPreapplicationBodyReferenceMin = 8;
 export const submitGuestPreapplicationBodyReferenceMax = 32;
 
-export const submitGuestPreapplicationBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const submitGuestPreapplicationBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
 export const SubmitGuestPreapplicationBody = zod.object({
   "reference": zod.string().min(submitGuestPreapplicationBodyReferenceMin).max(submitGuestPreapplicationBodyReferenceMax),
-  "accessCode": zod.string().regex(submitGuestPreapplicationBodyAccessCodeRegExp)
+  "trackingKey": zod.string().regex(submitGuestPreapplicationBodyTrackingKeyRegExp)
 })
 
 export const submitGuestPreapplicationResponseReferenceCodeMax = 80;
@@ -763,7 +691,6 @@ export const SubmitGuestPreapplicationResponse = zod.object({
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
   "referenceCode": zod.string().max(submitGuestPreapplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(submitGuestPreapplicationResponseCurrentStepMin).max(submitGuestPreapplicationResponseCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -786,12 +713,12 @@ export const LinkGuestPreapplicationAccountParams = zod.object({
 export const linkGuestPreapplicationAccountBodyReferenceMin = 8;
 export const linkGuestPreapplicationAccountBodyReferenceMax = 32;
 
-export const linkGuestPreapplicationAccountBodyAccessCodeRegExp = new RegExp('^[0-9]{6}$');
+export const linkGuestPreapplicationAccountBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
 
 
 export const LinkGuestPreapplicationAccountBody = zod.object({
   "reference": zod.string().min(linkGuestPreapplicationAccountBodyReferenceMin).max(linkGuestPreapplicationAccountBodyReferenceMax),
-  "accessCode": zod.string().regex(linkGuestPreapplicationAccountBodyAccessCodeRegExp)
+  "trackingKey": zod.string().regex(linkGuestPreapplicationAccountBodyTrackingKeyRegExp)
 })
 
 export const linkGuestPreapplicationAccountResponseReferenceCodeMax = 80;
@@ -806,7 +733,6 @@ export const LinkGuestPreapplicationAccountResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(linkGuestPreapplicationAccountResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -880,7 +806,6 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
   "referenceCode": zod.string().max(listAdminGuestPreapplicationsResponseOneReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseOneCurrentStepMin).max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -979,7 +904,6 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "emailVerified": zod.boolean(),
   "emailVerificationRequired": zod.boolean(),
   "referenceCode": zod.string().max(updateAdminGuestPreapplicationResponseOneReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "linkedApplicationId": zod.string().uuid().nullable(),
   "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseOneCurrentStepMin).max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
   "detailsComplete": zod.boolean(),
@@ -1097,7 +1021,6 @@ export const ListApplicationsForReviewResponseItem = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(listApplicationsForReviewResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -1137,7 +1060,6 @@ export const GetAdminApplicationResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(getAdminApplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),
@@ -2310,7 +2232,6 @@ export const DecideApplicationResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
   "currentStep": zod.number().int(),
   "referenceCode": zod.string().max(decideApplicationResponseReferenceCodeMax).nullable(),
-  "accessCodeConfigured": zod.boolean(),
   "answers": zod.record(zod.string(), zod.unknown()),
   "applicantName": zod.string().nullish(),
   "applicantEmail": zod.string().nullish(),

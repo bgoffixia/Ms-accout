@@ -20,7 +20,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AccessCodeConfiguredResponse,
   AdminEmailLogoUploadCompleteInput,
   AdminEmailLogoUploadCompleteResponse,
   AdminEmailLogoUploadInput,
@@ -46,15 +45,14 @@ import type {
   AdminUserList,
   AdminUserRoleUpdate,
   AdminUserStatusUpdate,
-  ApplicantAccessCodeInput,
   ApplicantRecordsClearResult,
   ApplicantSummary,
-  ApplicationAccessLookupInput,
   ApplicationAccessStatus,
   ApplicationDecision,
   ApplicationDraftInput,
   ApplicationEvent,
   ApplicationNoteInput,
+  ApplicationTrackingLookupInput,
   ApplicationUpdate,
   ClearApplicantRecordsInput,
   DeleteMyApplicationDraftsResponse,
@@ -73,9 +71,10 @@ import type {
   GuestPreapplicationProgressInput,
   GuestPreapplicationRevision,
   GuestPreapplicationStatus,
+  GuestTrackingKeyRecoveryInput,
+  GuestTrackingKeyRecoveryResponse,
   HealthStatus,
   InfobipSmsDeliveryReport,
-  LegacyGuestAccessUpgradeInput,
   ListAdminUsersParams,
   ListApplicationsForReviewParams,
   ListSupportTicketsForAdminParams,
@@ -512,18 +511,18 @@ export const useSubmitNewApplication = <TError = ErrorType<unknown>,
       return useMutation(getSubmitNewApplicationMutationOptions(options));
     }
 
-export const getLookupApplicationWithAccessCodeUrl = () => {
+export const getLookupApplicationByTrackingKeyUrl = () => {
 
 
 
 
-  return `/api/applications/access/lookup`
+  return `/api/applications/tracking/lookup`
 }
 
 /**
- * @summary Look up an applicant-owned application with its reference and access code
+ * @summary Look up an applicant-owned application with its reference and private tracking key
  */
-export const lookupApplicationWithAccessCode = async (applicationAccessLookupInput: ApplicationAccessLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicationAccessStatus> => {
+export const lookupApplicationByTrackingKey = async (applicationTrackingLookupInput: ApplicationTrackingLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicationAccessStatus> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -539,12 +538,12 @@ export const lookupApplicationWithAccessCode = async (applicationAccessLookupInp
     }
     return headers;
   };
-return customFetch<ApplicationAccessStatus>(getLookupApplicationWithAccessCodeUrl(),
+return customFetch<ApplicationAccessStatus>(getLookupApplicationByTrackingKeyUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(applicationAccessLookupInput)
+    body: JSON.stringify(applicationTrackingLookupInput)
   }
 );}
 
@@ -552,13 +551,13 @@ return customFetch<ApplicationAccessStatus>(getLookupApplicationWithAccessCodeUr
 
 
 
-export const getLookupApplicationWithAccessCodeMutationKey = () => ['lookupApplicationWithAccessCode'] as const;
+export const getLookupApplicationByTrackingKeyMutationKey = () => ['lookupApplicationByTrackingKey'] as const;
 
-export const getLookupApplicationWithAccessCodeMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, TError,LookupApplicationWithAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, TError,LookupApplicationWithAccessCodeMutationVariables, TContext> => {
+export const getLookupApplicationByTrackingKeyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, TError,LookupApplicationByTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, TError,LookupApplicationByTrackingKeyMutationVariables, TContext> => {
 
-const mutationKey = getLookupApplicationWithAccessCodeMutationKey();
+const mutationKey = getLookupApplicationByTrackingKeyMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -568,10 +567,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, LookupApplicationWithAccessCodeMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, LookupApplicationByTrackingKeyMutationVariables> = (props) => {
           const {data} = props ?? {};
 
-          return  lookupApplicationWithAccessCode(data,requestOptions)
+          return  lookupApplicationByTrackingKey(data,requestOptions)
         }
 
 
@@ -581,23 +580,23 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type LookupApplicationWithAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>>
-    export type LookupApplicationWithAccessCodeMutationBody = BodyType<ApplicationAccessLookupInput>
-    export type LookupApplicationWithAccessCodeMutationError = ErrorType<void>
-    export type LookupApplicationWithAccessCodeMutationVariables = {data: BodyType<ApplicationAccessLookupInput>}
+    export type LookupApplicationByTrackingKeyMutationResult = NonNullable<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>>
+    export type LookupApplicationByTrackingKeyMutationBody = BodyType<ApplicationTrackingLookupInput>
+    export type LookupApplicationByTrackingKeyMutationError = ErrorType<void>
+    export type LookupApplicationByTrackingKeyMutationVariables = {data: BodyType<ApplicationTrackingLookupInput>}
 
     /**
- * @summary Look up an applicant-owned application with its reference and access code
+ * @summary Look up an applicant-owned application with its reference and private tracking key
  */
-export const useLookupApplicationWithAccessCode = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, TError,LookupApplicationWithAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useLookupApplicationByTrackingKey = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, TError,LookupApplicationByTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>,
+        Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>,
         TError,
-        LookupApplicationWithAccessCodeMutationVariables,
+        LookupApplicationByTrackingKeyMutationVariables,
         TContext
       > => {
-      return useMutation(getLookupApplicationWithAccessCodeMutationOptions(options));
+      return useMutation(getLookupApplicationByTrackingKeyMutationOptions(options));
     }
 
 export const getCreateApplicationDraftUrl = () => {
@@ -854,95 +853,6 @@ export const useUpdateApplication = <TError = ErrorType<unknown>,
       return useMutation(getUpdateApplicationMutationOptions(options));
     }
 
-export const getUpdateMyApplicationAccessCodeUrl = (applicationId: string,) => {
-
-
-
-
-  return `/api/applications/${applicationId}/access-code`
-}
-
-/**
- * @summary Set or explicitly recover the signed-in owner's application access code
- */
-export const updateMyApplicationAccessCode = async (applicationId: string,
-    applicantAccessCodeInput: ApplicantAccessCodeInput, options?: Parameters<typeof customFetch>[1]): Promise<AccessCodeConfiguredResponse> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return customFetch<AccessCodeConfiguredResponse>(getUpdateMyApplicationAccessCodeUrl(applicationId),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(applicantAccessCodeInput)
-  }
-);}
-
-
-
-
-
-export const getUpdateMyApplicationAccessCodeMutationKey = () => ['updateMyApplicationAccessCode'] as const;
-
-export const getUpdateMyApplicationAccessCodeMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, TError,UpdateMyApplicationAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, TError,UpdateMyApplicationAccessCodeMutationVariables, TContext> => {
-
-const mutationKey = getUpdateMyApplicationAccessCodeMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, UpdateMyApplicationAccessCodeMutationVariables> = (props) => {
-          const {applicationId,data} = props ?? {};
-
-          return  updateMyApplicationAccessCode(applicationId,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateMyApplicationAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>>
-    export type UpdateMyApplicationAccessCodeMutationBody = BodyType<ApplicantAccessCodeInput>
-    export type UpdateMyApplicationAccessCodeMutationError = ErrorType<void>
-    export type UpdateMyApplicationAccessCodeMutationVariables = {applicationId: string;data: BodyType<ApplicantAccessCodeInput>}
-
-    /**
- * @summary Set or explicitly recover the signed-in owner's application access code
- */
-export const useUpdateMyApplicationAccessCode = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, TError,UpdateMyApplicationAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof updateMyApplicationAccessCode>>,
-        TError,
-        UpdateMyApplicationAccessCodeMutationVariables,
-        TContext
-      > => {
-      return useMutation(getUpdateMyApplicationAccessCodeMutationOptions(options));
-    }
-
 export const getSubmitApplicationUrl = (applicationId: string,) => {
 
 
@@ -1197,18 +1107,18 @@ export const useCreateGuestPreapplication = <TError = ErrorType<unknown>,
       return useMutation(getCreateGuestPreapplicationMutationOptions(options));
     }
 
-export const getUpgradeLegacyGuestAccessKeyUrl = () => {
+export const getRecoverGuestTrackingKeyUrl = () => {
 
 
 
 
-  return `/api/guest/preapplications/access-code/upgrade`
+  return `/api/guest/preapplications/tracking-key/recover`
 }
 
 /**
- * @summary Explicitly replace a legacy guest tracking key with an applicant access code
+ * @summary Replace a guest tracking key using its verified Clerk email
  */
-export const upgradeLegacyGuestAccessKey = async (legacyGuestAccessUpgradeInput: LegacyGuestAccessUpgradeInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
+export const recoverGuestTrackingKey = async (guestTrackingKeyRecoveryInput: GuestTrackingKeyRecoveryInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestTrackingKeyRecoveryResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1224,12 +1134,12 @@ export const upgradeLegacyGuestAccessKey = async (legacyGuestAccessUpgradeInput:
     }
     return headers;
   };
-return customFetch<GuestPreapplicationStatus>(getUpgradeLegacyGuestAccessKeyUrl(),
+return customFetch<GuestTrackingKeyRecoveryResponse>(getRecoverGuestTrackingKeyUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(legacyGuestAccessUpgradeInput)
+    body: JSON.stringify(guestTrackingKeyRecoveryInput)
   }
 );}
 
@@ -1237,13 +1147,13 @@ return customFetch<GuestPreapplicationStatus>(getUpgradeLegacyGuestAccessKeyUrl(
 
 
 
-export const getUpgradeLegacyGuestAccessKeyMutationKey = () => ['upgradeLegacyGuestAccessKey'] as const;
+export const getRecoverGuestTrackingKeyMutationKey = () => ['recoverGuestTrackingKey'] as const;
 
-export const getUpgradeLegacyGuestAccessKeyMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, TError,UpgradeLegacyGuestAccessKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, TError,UpgradeLegacyGuestAccessKeyMutationVariables, TContext> => {
+export const getRecoverGuestTrackingKeyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, TError,RecoverGuestTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, TError,RecoverGuestTrackingKeyMutationVariables, TContext> => {
 
-const mutationKey = getUpgradeLegacyGuestAccessKeyMutationKey();
+const mutationKey = getRecoverGuestTrackingKeyMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1253,10 +1163,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, UpgradeLegacyGuestAccessKeyMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, RecoverGuestTrackingKeyMutationVariables> = (props) => {
           const {data} = props ?? {};
 
-          return  upgradeLegacyGuestAccessKey(data,requestOptions)
+          return  recoverGuestTrackingKey(data,requestOptions)
         }
 
 
@@ -1266,23 +1176,23 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type UpgradeLegacyGuestAccessKeyMutationResult = NonNullable<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>>
-    export type UpgradeLegacyGuestAccessKeyMutationBody = BodyType<LegacyGuestAccessUpgradeInput>
-    export type UpgradeLegacyGuestAccessKeyMutationError = ErrorType<void>
-    export type UpgradeLegacyGuestAccessKeyMutationVariables = {data: BodyType<LegacyGuestAccessUpgradeInput>}
+    export type RecoverGuestTrackingKeyMutationResult = NonNullable<Awaited<ReturnType<typeof recoverGuestTrackingKey>>>
+    export type RecoverGuestTrackingKeyMutationBody = BodyType<GuestTrackingKeyRecoveryInput>
+    export type RecoverGuestTrackingKeyMutationError = ErrorType<void>
+    export type RecoverGuestTrackingKeyMutationVariables = {data: BodyType<GuestTrackingKeyRecoveryInput>}
 
     /**
- * @summary Explicitly replace a legacy guest tracking key with an applicant access code
+ * @summary Replace a guest tracking key using its verified Clerk email
  */
-export const useUpgradeLegacyGuestAccessKey = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, TError,UpgradeLegacyGuestAccessKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useRecoverGuestTrackingKey = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, TError,RecoverGuestTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>,
+        Awaited<ReturnType<typeof recoverGuestTrackingKey>>,
         TError,
-        UpgradeLegacyGuestAccessKeyMutationVariables,
+        RecoverGuestTrackingKeyMutationVariables,
         TContext
       > => {
-      return useMutation(getUpgradeLegacyGuestAccessKeyMutationOptions(options));
+      return useMutation(getRecoverGuestTrackingKeyMutationOptions(options));
     }
 
 export const getLookupGuestPreapplicationUrl = () => {
@@ -1294,7 +1204,7 @@ export const getLookupGuestPreapplicationUrl = () => {
 }
 
 /**
- * @summary Look up guest pre-application status with its applicant-owned access code
+ * @summary Restore a guest pre-application using its reference and private tracking key
  */
 export const lookupGuestPreapplication = async (guestPreapplicationLookupInput: GuestPreapplicationLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
 
@@ -1360,7 +1270,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type LookupGuestPreapplicationMutationVariables = {data: BodyType<GuestPreapplicationLookupInput>}
 
     /**
- * @summary Look up guest pre-application status with its applicant-owned access code
+ * @summary Restore a guest pre-application using its reference and private tracking key
  */
 export const useLookupGuestPreapplication = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupGuestPreapplication>>, TError,LookupGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1382,7 +1292,7 @@ export const getUpdateGuestPreapplicationProgressUrl = (applicationId: string,) 
 }
 
 /**
- * @summary Save guest application progress using its access code
+ * @summary Save guest application progress using its reference and private tracking key
  */
 export const updateGuestPreapplicationProgress = async (applicationId: string,
     guestPreapplicationProgressInput: GuestPreapplicationProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
@@ -1449,7 +1359,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateGuestPreapplicationProgressMutationVariables = {applicationId: string;data: BodyType<GuestPreapplicationProgressInput>}
 
     /**
- * @summary Save guest application progress using its access code
+ * @summary Save guest application progress using its reference and private tracking key
  */
 export const useUpdateGuestPreapplicationProgress = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, TError,UpdateGuestPreapplicationProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1471,7 +1381,7 @@ export const getUpdateGuestPreapplicationEmailUrl = (applicationId: string,) => 
 }
 
 /**
- * @summary Correct a guest applicant email using its access code
+ * @summary Correct a guest applicant email using its reference and private tracking key
  */
 export const updateGuestPreapplicationEmail = async (applicationId: string,
     guestPreapplicationEmailUpdate: GuestPreapplicationEmailUpdate, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
@@ -1538,7 +1448,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateGuestPreapplicationEmailMutationVariables = {applicationId: string;data: BodyType<GuestPreapplicationEmailUpdate>}
 
     /**
- * @summary Correct a guest applicant email using its access code
+ * @summary Correct a guest applicant email using its reference and private tracking key
  */
 export const useUpdateGuestPreapplicationEmail = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>, TError,UpdateGuestPreapplicationEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

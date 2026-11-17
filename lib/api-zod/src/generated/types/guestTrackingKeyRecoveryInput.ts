@@ -6,12 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ApplicationAccessLookupInput {
+export interface GuestTrackingKeyRecoveryInput {
   /**
      * @minLength 8
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
 }

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AccessCodeConfiguredResponse {
-  accessCodeConfigured: boolean;
+export interface GuestTrackingKeyRecoveryResponse {
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
 }

@@ -86,17 +86,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrollmentApplication"
-  /applications/access/lookup:
+  /applications/tracking/lookup:
     post:
-      operationId: lookupApplicationWithAccessCode
+      operationId: lookupApplicationByTrackingKey
       tags: [enrollment]
-      summary: Look up an applicant-owned application with its reference and access code
+      summary: Look up an applicant-owned application with its reference and private tracking key
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ApplicationAccessLookupInput"
+              $ref: "#/components/schemas/ApplicationTrackingLookupInput"
       responses:
         "200":
           description: Safe application status for the matching applicant
@@ -105,7 +105,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApplicationAccessStatus"
         "404":
-          description: Application reference and access code could not be verified
+          description: Application reference and private tracking key could not be verified
   /applications/drafts:
     post:
       operationId: createApplicationDraft
@@ -159,33 +159,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrollmentApplication"
-  /applications/{applicationId}/access-code:
-    patch:
-      operationId: updateMyApplicationAccessCode
-      tags: [enrollment]
-      summary: Set or explicitly recover the signed-in owner's application access code
-      parameters:
-        - name: applicationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApplicantAccessCodeInput"
-      responses:
-        "200":
-          description: Application access code saved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccessCodeConfiguredResponse"
-        "404":
-          description: Application not found
   /applications/{applicationId}/submit:
     post:
       operationId: submitApplication
@@ -246,31 +219,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GuestPreapplicationCreated"
-  /guest/preapplications/access-code/upgrade:
+  /guest/preapplications/tracking-key/recover:
     post:
-      operationId: upgradeLegacyGuestAccessKey
+      operationId: recoverGuestTrackingKey
       tags: [enrollment]
-      summary: Explicitly replace a legacy guest tracking key with an applicant access code
+      summary: Replace a guest tracking key using its verified Clerk email
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LegacyGuestAccessUpgradeInput"
+              $ref: "#/components/schemas/GuestTrackingKeyRecoveryInput"
       responses:
         "200":
-          description: Legacy application access was upgraded
+          description: One-time replacement key; the previous key is invalidated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GuestPreapplicationStatus"
+                $ref: "#/components/schemas/GuestTrackingKeyRecoveryResponse"
         "404":
-          description: Application reference and existing tracking key could not be verified
+          description: Application reference and verified email could not be matched
   /guest/preapplications/lookup:
     post:
       operationId: lookupGuestPreapplication
       tags: [enrollment]
-      summary: Look up guest pre-application status with its applicant-owned access code
+      summary: Restore a guest pre-application using its reference and private tracking key
       requestBody:
         required: true
         content:
@@ -279,18 +252,18 @@ paths:
               $ref: "#/components/schemas/GuestPreapplicationLookupInput"
       responses:
         "200":
-          description: Guest pre-application status
+          description: Full guest application state for the matching applicant
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GuestPreapplicationStatus"
         "404":
-          description: Reference and access code could not be verified
+          description: Application reference and private tracking key could not be verified
   /guest/preapplications/{applicationId}:
     patch:
       operationId: updateGuestPreapplicationProgress
       tags: [enrollment]
-      summary: Save guest application progress using its access code
+      summary: Save guest application progress using its reference and private tracking key
       parameters:
         - name: applicationId
           in: path
@@ -312,14 +285,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/GuestPreapplicationStatus"
         "404":
-          description: Application reference and access code could not be verified
+          description: Application reference and private tracking key could not be verified
         "409":
           description: Application is closed
   /guest/preapplications/{applicationId}/email:
     patch:
       operationId: updateGuestPreapplicationEmail
       tags: [enrollment]
-      summary: Correct a guest applicant email using its access code
+      summary: Correct a guest applicant email using its reference and private tracking key
       parameters:
         - name: applicationId
           in: path
@@ -341,7 +314,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GuestPreapplicationStatus"
         "404":
-          description: Application reference and access code could not be verified
+          description: Application reference and private tracking key could not be verified
         "409":
           description: Application is already submitted or closed
   /guest/preapplications/{applicationId}/evidence/upload-url:
@@ -370,7 +343,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GuestEvidenceUploadUrl"
         "404":
-          description: Application reference and access code could not be verified
+          description: Application reference and private tracking key could not be verified
   /guest/preapplications/{applicationId}/evidence/{evidenceId}/complete:
     post:
       operationId: completeGuestApplicantEvidenceUpload
@@ -403,7 +376,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GuestApplicantEvidenceUploaded"
         "404":
-          description: Application reference and access code could not be verified
+          description: Application reference and private tracking key could not be verified
   /guest/preapplications/{applicationId}/submit:
     post:
       operationId: submitGuestPreapplication
@@ -1402,17 +1375,14 @@ components:
       enum: [received, contacted, closed]
     GuestPreapplicationInput:
       type: object
-      required: [submissionId, accessCode, confirmAccessCode, categoryId, fullName, email]
+      required: [submissionId, trackingKey, categoryId, fullName, email]
       properties:
         submissionId:
           type: string
           format: uuid
-        accessCode:
+        trackingKey:
           type: string
-          pattern: "^[0-9]{6}$"
-        confirmAccessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
+          pattern: "^[A-Za-z0-9_-]{43}$"
         categoryId:
           type: string
           enum: [category-1, category-2, category-3, category-4]
@@ -1427,64 +1397,43 @@ components:
         phone:
           type: string
           maxLength: 40
-    GuestPreapplicationLookupInput:
+    ApplicationTrackingLookupInput:
       type: object
-      required: [reference, accessCode]
+      required: [reference, trackingKey]
       properties:
         reference:
           type: string
           minLength: 8
           maxLength: 32
-        accessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-    ApplicationAccessLookupInput:
-      type: object
-      required: [reference, accessCode]
-      properties:
-        reference:
-          type: string
-          minLength: 8
-          maxLength: 32
-        accessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-    ApplicantAccessCodeInput:
-      type: object
-      required: [accessCode, confirmAccessCode]
-      properties:
-        accessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-        confirmAccessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-        recovery:
-          type: boolean
-          description: Must be true to explicitly recover a previously configured code from the verified Clerk account.
-    LegacyGuestAccessUpgradeInput:
-      type: object
-      required: [reference, legacyAccessKey, accessCode, confirmAccessCode]
-      properties:
-        reference:
-          type: string
-          minLength: 8
-          maxLength: 32
-        legacyAccessKey:
+        trackingKey:
           type: string
           pattern: "^[A-Za-z0-9_-]{43}$"
-        accessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-        confirmAccessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-    AccessCodeConfiguredResponse:
+    GuestPreapplicationLookupInput:
       type: object
-      required: [accessCodeConfigured]
+      required: [reference, trackingKey]
       properties:
-        accessCodeConfigured:
-          type: boolean
+        reference:
+          type: string
+          minLength: 8
+          maxLength: 32
+        trackingKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+    GuestTrackingKeyRecoveryInput:
+      type: object
+      required: [reference]
+      properties:
+        reference:
+          type: string
+          minLength: 8
+          maxLength: 32
+    GuestTrackingKeyRecoveryResponse:
+      type: object
+      required: [trackingKey]
+      properties:
+        trackingKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
     ApplicationAccessStatus:
       type: object
       required: [applicationId, reference, applicationType, categoryId, categoryName, status, submissionStatus, currentStep, detailsComplete, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
@@ -1528,7 +1477,7 @@ components:
             type: string
     GuestPreapplicationCreated:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, referenceCode, accessCodeConfigured, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, referenceCode, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt, trackingKey]
       properties:
         id:
           type: string
@@ -1555,8 +1504,9 @@ components:
         referenceCode:
           type: ["string", "null"]
           maxLength: 80
-        accessCodeConfigured:
-          type: boolean
+        trackingKey:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
         linkedApplicationId:
           type: string
           format: uuid
@@ -1575,7 +1525,7 @@ components:
           format: date-time
     GuestPreapplicationStatus:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, referenceCode, accessCodeConfigured, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, referenceCode, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
       properties:
         id:
           type: string
@@ -1604,8 +1554,6 @@ components:
         referenceCode:
           type: ["string", "null"]
           maxLength: 80
-        accessCodeConfigured:
-          type: boolean
         linkedApplicationId:
           type: ["string", "null"]
           format: uuid
@@ -1661,15 +1609,15 @@ components:
           format: date-time
     GuestPreapplicationProgressInput:
       type: object
-      required: [reference, accessCode, currentStep, answers, complete]
+      required: [reference, trackingKey, currentStep, answers, complete]
       properties:
         reference:
           type: string
           minLength: 8
           maxLength: 32
-        accessCode:
+        trackingKey:
           type: string
-          pattern: "^[0-9]{6}$"
+          pattern: "^[A-Za-z0-9_-]{43}$"
         currentStep:
           type: integer
           minimum: 0
@@ -1684,26 +1632,26 @@ components:
           maxLength: 80
     GuestApplicationAccessInput:
       type: object
-      required: [reference, accessCode]
+      required: [reference, trackingKey]
       properties:
         reference:
           type: string
           minLength: 8
           maxLength: 32
-        accessCode:
+        trackingKey:
           type: string
-          pattern: "^[0-9]{6}$"
+          pattern: "^[A-Za-z0-9_-]{43}$"
     GuestPreapplicationEmailUpdate:
       type: object
-      required: [reference, accessCode, email]
+      required: [reference, trackingKey, email]
       properties:
         reference:
           type: string
           minLength: 8
           maxLength: 32
-        accessCode:
+        trackingKey:
           type: string
-          pattern: "^[0-9]{6}$"
+          pattern: "^[A-Za-z0-9_-]{43}$"
         email:
           type: string
           format: email
@@ -1756,15 +1704,15 @@ components:
       allOf:
         - $ref: "#/components/schemas/GuestEvidenceUploadInput"
         - type: object
-          required: [reference, accessCode, evidenceSlot]
+          required: [reference, trackingKey, evidenceSlot]
           properties:
             reference:
               type: string
               minLength: 8
               maxLength: 32
-            accessCode:
+            trackingKey:
               type: string
-              pattern: "^[0-9]{6}$"
+              pattern: "^[A-Za-z0-9_-]{43}$"
             evidenceSlot:
               type: string
               enum: [identity_front, identity_back, verification_video, education_certificate]
@@ -1834,7 +1782,7 @@ components:
       enum: [draft, submitted, under_review, needs_information, approved, rejected]
     EnrollmentApplication:
       type: object
-      required: [id, reference, categoryId, categoryName, status, currentStep, referenceCode, accessCodeConfigured, answers, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, status, currentStep, referenceCode, answers, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1852,8 +1800,6 @@ components:
         referenceCode:
           type: ["string", "null"]
           maxLength: 80
-        accessCodeConfigured:
-          type: boolean
         answers:
           type: object
           additionalProperties: true
@@ -1892,7 +1838,7 @@ components:
           enum: [category-1, category-2, category-3, category-4]
     NewApplicationSubmissionInput:
       type: object
-      required: [submissionId, categoryId, answers, accessCode, confirmAccessCode]
+      required: [submissionId, categoryId, answers]
       properties:
         submissionId:
           type: string
@@ -1906,12 +1852,6 @@ components:
         referenceCode:
           type: string
           maxLength: 80
-        accessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-        confirmAccessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
     ExistingApplicationSubmissionInput:
       type: object
       properties:
@@ -1986,17 +1926,11 @@ components:
           maxLength: 80
     ApplicationDraftInput:
       type: object
-      required: [categoryId, accessCode, confirmAccessCode]
+      required: [categoryId]
       properties:
         categoryId:
           type: string
           enum: [category-1, category-2, category-3, category-4]
-        accessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
-        confirmAccessCode:
-          type: string
-          pattern: "^[0-9]{6}$"
     ApplicationDecision:
       type: object
       required: [decision]

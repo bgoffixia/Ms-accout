@@ -47,10 +47,8 @@ export const GuestPreapplicationInputCategoryId = {
 
 export interface GuestPreapplicationInput {
   submissionId: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-  /** @pattern ^[0-9]{6}$ */
-  confirmAccessCode: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   categoryId: GuestPreapplicationInputCategoryId;
   /**
      * @minLength 2
@@ -63,51 +61,37 @@ export interface GuestPreapplicationInput {
   phone?: string;
 }
 
-export interface GuestPreapplicationLookupInput {
-  /**
-     * @minLength 8
-     * @maxLength 32
-     */
-  reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-}
-
-export interface ApplicationAccessLookupInput {
-  /**
-     * @minLength 8
-     * @maxLength 32
-     */
-  reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-}
-
-export interface ApplicantAccessCodeInput {
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-  /** @pattern ^[0-9]{6}$ */
-  confirmAccessCode: string;
-  /** Must be true to explicitly recover a previously configured code from the verified Clerk account. */
-  recovery?: boolean;
-}
-
-export interface LegacyGuestAccessUpgradeInput {
+export interface ApplicationTrackingLookupInput {
   /**
      * @minLength 8
      * @maxLength 32
      */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  legacyAccessKey: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-  /** @pattern ^[0-9]{6}$ */
-  confirmAccessCode: string;
+  trackingKey: string;
 }
 
-export interface AccessCodeConfiguredResponse {
-  accessCodeConfigured: boolean;
+export interface GuestPreapplicationLookupInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
+}
+
+export interface GuestTrackingKeyRecoveryInput {
+  /**
+     * @minLength 8
+     * @maxLength 32
+     */
+  reference: string;
+}
+
+export interface GuestTrackingKeyRecoveryResponse {
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
 }
 
 export type ApplicationAccessStatusApplicationType = typeof ApplicationAccessStatusApplicationType[keyof typeof ApplicationAccessStatusApplicationType];
@@ -221,7 +205,8 @@ export interface GuestPreapplicationCreated {
      * @nullable
      */
   referenceCode: string | null;
-  accessCodeConfigured: boolean;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   linkedApplicationId: string | null;
   /**
      * @minimum 0
@@ -284,7 +269,6 @@ export interface GuestPreapplicationStatus {
      * @nullable
      */
   referenceCode: string | null;
-  accessCodeConfigured: boolean;
   /** @nullable */
   linkedApplicationId: string | null;
   /**
@@ -328,8 +312,8 @@ export interface GuestPreapplicationProgressInput {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   /**
      * @minimum 0
      * @maximum 7
@@ -347,8 +331,8 @@ export interface GuestApplicationAccessInput {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
 }
 
 export interface GuestPreapplicationEmailUpdate {
@@ -357,8 +341,8 @@ export interface GuestPreapplicationEmailUpdate {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   /** @maxLength 320 */
   email: string;
 }
@@ -459,8 +443,8 @@ export type GuestApplicantEvidenceUploadInput = GuestEvidenceUploadInput & {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   evidenceSlot: GuestApplicantEvidenceUploadInputEvidenceSlot;
 };
 
@@ -545,7 +529,6 @@ export interface EnrollmentApplication {
      * @nullable
      */
   referenceCode: string | null;
-  accessCodeConfigured: boolean;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;
@@ -596,10 +579,6 @@ export interface NewApplicationSubmissionInput {
   answers: NewApplicationSubmissionInputAnswers;
   /** @maxLength 80 */
   referenceCode?: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-  /** @pattern ^[0-9]{6}$ */
-  confirmAccessCode: string;
 }
 
 export type ExistingApplicationSubmissionInputCategoryId = typeof ExistingApplicationSubmissionInputCategoryId[keyof typeof ExistingApplicationSubmissionInputCategoryId];
@@ -688,10 +667,6 @@ export const ApplicationDraftInputCategoryId = {
 
 export interface ApplicationDraftInput {
   categoryId: ApplicationDraftInputCategoryId;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-  /** @pattern ^[0-9]{6}$ */
-  confirmAccessCode: string;
 }
 
 export type ApplicationDecisionDecision = typeof ApplicationDecisionDecision[keyof typeof ApplicationDecisionDecision];

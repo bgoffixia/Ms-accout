@@ -31,7 +31,6 @@ const mockState = vi.hoisted(() => ({
       guestPreapplicationsTable: makeTable("guest_preapplications"),
       guestPreapplicationEvidenceTable: makeTable("guest_preapplication_evidence"),
       guestPreapplicationRevisionsTable: makeTable("guest_preapplication_revisions"),
-      applicantAccessCodeAttemptsTable: makeTable("applicant_access_code_attempts"),
       enrollmentApplicationsTable: makeTable("enrollment_applications"),
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
@@ -121,7 +120,7 @@ function newRow(tableName: string, values: Record<string, unknown>) {
       referenceCode: null,
       phone: null,
       updatedByUserId: null,
-      applicantAccessCodeHash: null,
+      accessKeyHash: null,
       createdAt: now,
       updatedAt: now,
       ...values,
@@ -221,11 +220,7 @@ function makeDatabase() {
           staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
         };
-        const compoundConflict = tableName === "applicant_access_code_attempts" &&
-          rows.some((row) =>
-            row.referenceKey === values.referenceKey && row.ipKey === values.ipKey,
-          );
-        const conflict = compoundConflict || (uniqueFields[tableName] ?? []).some((field) =>
+        const conflict = (uniqueFields[tableName] ?? []).some((field) =>
           values[field] != null && rows.some((row) => row[field] === values[field]),
         );
         if (conflict) {
@@ -244,19 +239,7 @@ function makeDatabase() {
                 ? rows.find((row) => targetNames.every((name: string) => row[name] === values[name]))
               : undefined;
             if (existing) {
-              if (tableName === "applicant_access_code_attempts") {
-                const now = new Date();
-                const withinWindow = now.getTime() - (existing.windowStartedAt as Date).getTime() < 15 * 60 * 1000;
-                const failedAttempts = withinWindow ? Number(existing.failedAttempts) + 1 : 1;
-                Object.assign(existing, {
-                  failedAttempts,
-                  windowStartedAt: withinWindow ? existing.windowStartedAt : now,
-                  lockedUntil: failedAttempts >= 5 ? new Date(now.getTime() + 15 * 60 * 1000) : null,
-                  updatedAt: now,
-                });
-              } else {
-                Object.assign(existing, upsert.set);
-              }
+              Object.assign(existing, upsert.set);
               return [existing];
             }
           }
@@ -521,7 +504,7 @@ import router from "./enrollment";
 import { cleanupExpiredGuestEvidence } from "../lib/guestEvidenceCleanup";
 import { resetWorkspaceEmailDeliverySyncCache } from "../lib/staffEmail";
 
-const accessCode = "314159";
+const trackingKey = "A".repeat(43);
 const contactEmail = "applicant@example.test";
 const privatePng = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const privateMp4 = Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
@@ -571,7 +554,6 @@ describe("guest application verification and persistence", () => {
       "guest_preapplications",
       "guest_preapplication_evidence",
       "guest_preapplication_revisions",
-      "applicant_access_code_attempts",
       "enrollment_applications",
       "application_events",
       "portal_settings",
@@ -841,7 +823,7 @@ describe("guest application verification and persistence", () => {
         method: "POST",
         body: JSON.stringify({
           reference,
-          accessCode,
+          trackingKey,
           evidenceType: evidenceSlot === "verification_video" ? "verification_video" : "identity_document",
           evidenceSlot,
           fileName,
@@ -858,7 +840,7 @@ describe("guest application verification and persistence", () => {
       `/guest/preapplications/${applicationId}/evidence/${evidenceId}/complete`,
       {
         method: "POST",
-        body: JSON.stringify({ reference, accessCode }),
+        body: JSON.stringify({ reference, trackingKey }),
       },
     );
     expect(completed.response.status).toBe(200);
@@ -866,13 +848,12 @@ describe("guest application verification and persistence", () => {
     return objectPath;
   }
 
-  async function createGuestDraft(email = contactEmail) {
+  async function createGuestDraft(email = contactEmail, key = trackingKey) {
     return request("/guest/preapplications", {
       method: "POST",
       body: JSON.stringify({
         submissionId: crypto.randomUUID(),
-        accessCode,
-        confirmAccessCode: accessCode,
+        trackingKey: key,
         categoryId: "category-1",
         fullName: "Test Applicant",
         email,
@@ -912,30 +893,29 @@ describe("guest application verification and persistence", () => {
     expect(mime).toMatch(/Message-ID: <[a-f0-9]{64}@vu-gov\.cc>/);
   });
 
-  it("creates an applicant access code without returning or exposing its hash", async () => {
+  it("creates a high-entropy tracking key, stores only its hash, and never exposes it to reviewers", async () => {
     const created = await createGuestDraft();
     const stored = mockState.rows.get("guest_preapplications")?.[0];
 
     expect(created.response.status).toBe(201);
-    expect(created.body).toMatchObject({ accessCodeConfigured: true });
-    expect(created.body).not.toHaveProperty("accessCode");
-    expect(created.body).not.toHaveProperty("applicantAccessCodeHash");
-    expect(stored?.applicantAccessCodeHash).toMatch(/^scrypt\$32768\$8\$1\$/);
-    expect(stored?.applicantAccessCodeHash).not.toContain(accessCode);
+    expect(created.body.trackingKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(created.body.trackingKey).toBe(trackingKey);
+    expect(created.body).not.toHaveProperty("accessKeyHash");
+    expect(stored?.accessKeyHash).toBe(createHash("sha256").update(trackingKey).digest("hex"));
+    expect(stored?.accessKeyHash).not.toContain(trackingKey);
     if (stored) {
       stored.answers = {
         personalInformation: {
           firstName: "Test",
           pin: "legacy-secret",
           pinEncrypted: "legacy-ciphertext",
-          accessCode,
         },
       };
     }
 
-    const found = await request("/applications/access/lookup", {
+    const found = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+      body: JSON.stringify({ reference: created.body.reference, trackingKey }),
     });
     expect(found.response.status).toBe(200);
     expect(found.body).toMatchObject({
@@ -943,182 +923,110 @@ describe("guest application verification and persistence", () => {
       applicationType: "guest_preapplication",
     });
     expect(found.body).not.toHaveProperty("answers");
-    expect(found.body).not.toHaveProperty("applicantAccessCodeHash");
 
     const reviewers = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(reviewers.response.status).toBe(200);
-    expect(reviewers.body[0]).not.toHaveProperty("applicantAccessCodeHash");
     expect(reviewers.body[0]).not.toHaveProperty("accessKeyHash");
     expect(JSON.stringify(reviewers.body)).not.toContain("legacy-secret");
     expect(JSON.stringify(reviewers.body)).not.toContain("legacy-ciphertext");
-    expect(JSON.stringify(reviewers.body)).not.toContain(accessCode);
+    expect(JSON.stringify(reviewers.body)).not.toContain(trackingKey);
   });
 
-  it("rejects mismatched access-code confirmation before saving a guest record", async () => {
-    const response = await request("/guest/preapplications", {
+  it("requires both reference and tracking key and returns generic failures", async () => {
+    const created = await createGuestDraft();
+    const withoutKey = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({
-        submissionId: crypto.randomUUID(),
-        categoryId: "category-1",
-        fullName: "Test Applicant",
-        email: contactEmail,
-        accessCode,
-        confirmAccessCode: "000000",
-      }),
+      body: JSON.stringify({ reference: created.body.reference }),
     });
-    expect(response.response.status).toBe(400);
-    expect(mockState.rows.get("guest_preapplications")).toHaveLength(0);
-  });
-
-  it("creates, verifies, and explicitly recovers authenticated applicant access codes", async () => {
-    const created = await request("/applications/drafts", {
+    const wrongKey = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({
-        categoryId: "category-1",
-        accessCode,
-        confirmAccessCode: accessCode,
-      }),
-    }, "applicant-verified");
-    expect(created.response.status).toBe(201);
-    expect(created.body.accessCodeConfigured).toBe(true);
-    expect(created.body).not.toHaveProperty("applicantAccessCodeHash");
-    const stored = mockState.rows.get("enrollment_applications")?.[0];
-    expect(stored?.applicantAccessCodeHash).toMatch(/^scrypt\$32768\$8\$1\$/);
-    expect(stored?.applicantAccessCodeHash).not.toContain(accessCode);
-
-    const oldCodeLookup = await request("/applications/access/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode: "000000" }),
+      body: JSON.stringify({ reference: created.body.reference, trackingKey: "B".repeat(43) }),
     });
-    expect(oldCodeLookup.response.status).toBe(404);
-    const correctCodeLookup = await request("/applications/access/lookup", {
+    const unknownReference = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+      body: JSON.stringify({ reference: "PRE-UNKNOWN001", trackingKey }),
     });
-    expect(correctCodeLookup.response.status).toBe(200);
-    expect(correctCodeLookup.body).not.toHaveProperty("answers");
-    expect(correctCodeLookup.body).not.toHaveProperty("applicantAccessCodeHash");
+    expect(withoutKey.response.status).toBe(404);
+    expect(wrongKey.response.status).toBe(404);
+    expect(wrongKey.body).toEqual(unknownReference.body);
+    expect(wrongKey.body.error).toContain("reference and private tracking key");
 
-    const silentReset = await request(`/applications/${created.body.id}/access-code`, {
+    const oldAccessLookup = await request("/applications/access/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference: created.body.reference, accessCode: "314159" }),
+    });
+    const removedResetRoute = await request(`/applications/${crypto.randomUUID()}/access-code`, {
       method: "PATCH",
-      body: JSON.stringify({
-        accessCode: "987654",
-        confirmAccessCode: "987654",
-      }),
+      body: JSON.stringify({ accessCode: "314159", confirmAccessCode: "314159" }),
     }, "applicant-verified");
-    expect(silentReset.response.status).toBe(409);
-    expect(stored?.applicantAccessCodeHash).toMatch(/^scrypt\$32768\$8\$1\$/);
-
-    const explicitRecovery = await request(`/applications/${created.body.id}/access-code`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        accessCode: "987654",
-        confirmAccessCode: "987654",
-        recovery: true,
-      }),
-    }, "applicant-verified");
-    expect(explicitRecovery.response.status).toBe(200);
-    const previousCode = await request("/applications/access/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode }),
-    });
-    const recoveredCode = await request("/applications/access/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode: "987654" }),
-    });
-    expect(previousCode.response.status).toBe(404);
-    expect(recoveredCode.response.status).toBe(200);
-
-    const reviewerRecord = await request(`/admin/applications/${created.body.id}`, {}, "reviewer");
-    expect(reviewerRecord.response.status).toBe(200);
-    expect(reviewerRecord.body).not.toHaveProperty("applicantAccessCodeHash");
+    expect([401, 404]).toContain(oldAccessLookup.response.status);
+    expect(removedResetRoute.response.status).toBe(404);
   });
 
-  it("explicitly upgrades a legacy guest key once without resetting it silently", async () => {
-    const legacyAccessKey = "z".repeat(43);
+  it("recovers or explicitly replaces guest keys only through the matching verified Clerk email", async () => {
     const reference = "PRE-LEGACY01";
-    mockState.rows.get("guest_preapplications")!.push(newRow("guest_preapplications", {
-      id: crypto.randomUUID(),
+    const oldHash = "legacy-code-hash-retained";
+    const legacyRow = newRow("guest_preapplications", {
       submissionId: crypto.randomUUID(),
       reference,
-      accessKeyHash: createHash("sha256").update(legacyAccessKey).digest("hex"),
-      applicantAccessCodeHash: null,
+      accessKeyHash: null,
+      applicantAccessCodeHash: oldHash,
       categoryId: "category-1",
       fullName: "Legacy Applicant",
       email: contactEmail,
-    }));
+    });
+    mockState.rows.get("guest_preapplications")!.push(legacyRow);
 
-    const upgraded = await request("/guest/preapplications/access-code/upgrade", {
+    const denied = await request("/guest/preapplications/tracking-key/recover", {
       method: "POST",
-      body: JSON.stringify({
-        reference,
-        legacyAccessKey,
-        accessCode,
-        confirmAccessCode: accessCode,
-      }),
+      body: JSON.stringify({ reference }),
     });
-    expect(upgraded.response.status).toBe(200);
-    expect(upgraded.body.accessCodeConfigured).toBe(true);
-    expect(upgraded.body).not.toHaveProperty("accessCode");
-    expect(upgraded.body).not.toHaveProperty("applicantAccessCodeHash");
-    expect(mockState.rows.get("guest_preapplications")?.[0]?.applicantAccessCodeHash)
-      .toMatch(/^scrypt\$32768\$8\$1\$/);
+    expect(denied.response.status).toBe(401);
 
-    const secondUpgrade = await request("/guest/preapplications/access-code/upgrade", {
+    const mismatchedEmail = await request("/guest/preapplications/tracking-key/recover", {
       method: "POST",
-      body: JSON.stringify({
-        reference,
-        legacyAccessKey,
-        accessCode: "987654",
-        confirmAccessCode: "987654",
-      }),
-    });
-    expect(secondUpgrade.response.status).toBe(404);
-    expect(secondUpgrade.body.error).toBe("The application reference and access code could not be verified.");
+      body: JSON.stringify({ reference }),
+    }, "applicant-mismatch");
+    expect(mismatchedEmail.response.status).toBe(404);
+    expect((legacyRow as any).accessKeyHash).toBeNull();
 
-    const oldCode = await request("/guest/preapplications/lookup", {
+    const recovered = await request("/guest/preapplications/tracking-key/recover", {
       method: "POST",
-      body: JSON.stringify({ reference, accessCode: "000000" }),
-    });
-    expect(oldCode.response.status).toBe(404);
-    const currentCode = await request("/guest/preapplications/lookup", {
+      body: JSON.stringify({ reference }),
+    }, "applicant-verified");
+    expect(recovered.response.status).toBe(200);
+    expect(recovered.body.trackingKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((legacyRow as any).accessKeyHash).toBe(
+      createHash("sha256").update(recovered.body.trackingKey).digest("hex"),
+    );
+    expect((legacyRow as any).applicantAccessCodeHash).toBe(oldHash);
+    const lookup = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference, accessCode }),
+      body: JSON.stringify({ reference, trackingKey: recovered.body.trackingKey }),
     });
-    expect(currentCode.response.status).toBe(200);
-  });
+    expect(lookup.response.status).toBe(200);
 
-  it("uses one generic response and locks access after repeated failures", async () => {
-    const created = await createGuestDraft();
-    const incorrect = {
+    const replaced = await request("/guest/preapplications/tracking-key/recover", {
       method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode: "000000" }),
-    };
-    const unknown = await request("/applications/access/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference: "PRE-UNKNOWN001", accessCode: "000000" }),
-    });
-    const firstFailure = await request("/applications/access/lookup", incorrect);
-    expect(firstFailure.response.status).toBe(404);
-    expect(firstFailure.body).toEqual(unknown.body);
+      body: JSON.stringify({ reference }),
+    }, "applicant-verified");
+    expect(replaced.response.status).toBe(200);
+    expect(replaced.body.trackingKey).not.toBe(recovered.body.trackingKey);
+    expect((legacyRow as any).accessKeyHash).toBe(
+      createHash("sha256").update(replaced.body.trackingKey).digest("hex"),
+    );
+    expect((legacyRow as any).applicantAccessCodeHash).toBe(oldHash);
 
-    for (let attempt = 1; attempt < 5; attempt += 1) {
-      const failed = await request("/applications/access/lookup", incorrect);
-      expect(failed.response.status).toBe(404);
-      expect(failed.body).toEqual(firstFailure.body);
-    }
-    const lockedCorrectCode = await request("/applications/access/lookup", {
+    const invalidatedKey = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode }),
+      body: JSON.stringify({ reference, trackingKey: recovered.body.trackingKey }),
     });
-    expect(lockedCorrectCode.response.status).toBe(404);
-    expect(lockedCorrectCode.body).toEqual(firstFailure.body);
-    const throttles = mockState.rows.get("applicant_access_code_attempts") ?? [];
-    const lockedAttempt = throttles.find((attempt) => attempt.failedAttempts === 5);
-    expect(lockedAttempt).toBeDefined();
-    expect(throttles.every((attempt) => Number(attempt.failedAttempts) <= 5)).toBe(true);
-    expect(JSON.stringify(throttles)).not.toContain(created.body.reference);
-    expect(JSON.stringify(throttles)).not.toContain("127.0.0.1");
+    const replacementKeyWorks = await request("/applications/tracking/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, trackingKey: replaced.body.trackingKey }),
+    });
+    expect(invalidatedKey.response.status).toBe(404);
+    expect(replacementKeyWorks.response.status).toBe(200);
   });
 
   it("uses the connected Workspace account as the sender", async () => {
@@ -2140,7 +2048,7 @@ describe("guest application verification and persistence", () => {
 
     const progress = {
       reference: created.body.reference,
-      accessCode,
+      trackingKey,
       currentStep: 1,
       answers: {},
       complete: false,
@@ -2170,7 +2078,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference: created.body.reference,
-        accessCode,
+        trackingKey,
         email: "Corrected.Applicant@Example.Test",
       }),
     });
@@ -2191,13 +2099,13 @@ describe("guest application verification and persistence", () => {
     });
   });
 
-  it("rejects contact email changes when the application access code is incorrect", async () => {
+  it("rejects contact email changes when the private tracking key is incorrect", async () => {
     const created = await createGuestDraft();
     const response = await request(`/guest/preapplications/${created.body.id}/email`, {
       method: "PATCH",
       body: JSON.stringify({
         reference: created.body.reference,
-        accessCode: "000000",
+        trackingKey: "B".repeat(43),
         email: "corrected@example.test",
       }),
     });
@@ -2221,7 +2129,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference: created.body.reference,
-        accessCode,
+        trackingKey,
         email: "corrected@example.test",
       }),
     });
@@ -2287,8 +2195,7 @@ describe("guest application verification and persistence", () => {
       method: "POST",
       body: JSON.stringify({
         submissionId: crypto.randomUUID(),
-        accessCode,
-        confirmAccessCode: accessCode,
+        trackingKey,
         categoryId: "category-1",
         fullName: "  Test Applicant  ",
         email: contactEmail,
@@ -2305,7 +2212,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 3,
         answers: { name: "Test Applicant", nickname: "TA" },
         complete: false,
@@ -2375,7 +2282,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 7,
         answers,
         complete: true,
@@ -2454,7 +2361,7 @@ describe("guest application verification and persistence", () => {
 
     const correctedEmail = await request(`/guest/preapplications/${applicationId}/email`, {
       method: "PATCH",
-      body: JSON.stringify({ reference, accessCode, email: "corrected@example.test" }),
+        body: JSON.stringify({ reference, trackingKey, email: "corrected@example.test" }),
     });
     expect(correctedEmail.response.status).toBe(200);
     expect(correctedEmail.body.email).toBe("corrected@example.test");
@@ -2469,7 +2376,7 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedSubmit = await request(
       `/guest/preapplications/${applicationId}/submit`,
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
     );
     expect(unverifiedSubmit.response.status).toBe(200);
     expect(unverifiedSubmit.body).toMatchObject({
@@ -2481,7 +2388,7 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedStatus = await request(
       "/guest/preapplications/lookup",
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
     );
     expect(unverifiedStatus.response.status).toBe(200);
     expect(unverifiedStatus.body).toMatchObject({
@@ -2497,7 +2404,7 @@ describe("guest application verification and persistence", () => {
     if (guestRecord) guestRecord.status = "contacted";
     const inReviewStatus = await request(
       "/guest/preapplications/lookup",
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
     );
     if (guestRecord && priorReviewStatus) guestRecord.status = priorReviewStatus;
     expect(inReviewStatus.response.status).toBe(200);
@@ -2508,13 +2415,13 @@ describe("guest application verification and persistence", () => {
 
     const mismatchedSubmit = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
       "applicant-mismatch",
     );
     expect(mismatchedSubmit.response.status).toBe(403);
     const originalEmailSubmit = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
       "applicant-verified",
     );
     expect(originalEmailSubmit.response.status).toBe(403);
@@ -2530,21 +2437,21 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedStatusLink = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
       "applicant-unverified",
     );
     expect(unverifiedStatusLink.response.status).toBe(403);
 
     const successfulLink = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
       "applicant-corrected-verified",
     );
     expect(successfulLink.response.status).toBe(200);
     expect(successfulLink.body.status).toBe("submitted");
     const retry = await request(
       `/guest/preapplications/${applicationId}/link`,
-      { method: "POST", body: JSON.stringify({ reference, accessCode }) },
+      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
       "applicant-corrected-verified",
     );
     expect(retry.response.status).toBe(200);
@@ -2559,7 +2466,7 @@ describe("guest application verification and persistence", () => {
       linkedApplicationId: successfulLink.body.id,
     });
     const linkedRecord = mockState.rows.get("enrollment_applications")?.[0];
-    expect(linkedRecord?.applicantAccessCodeHash).toBe(storedDraft?.applicantAccessCodeHash);
+    expect(linkedRecord).not.toHaveProperty("applicantAccessCodeHash");
     expect(successfulLink.body).not.toHaveProperty("applicantAccessCodeHash");
     expect(storedDraft).toMatchObject({ referenceCode: "CASE-4826" });
     expect(storedDraft).not.toHaveProperty("pinHash");
@@ -2638,13 +2545,12 @@ describe("guest application verification and persistence", () => {
     expect(JSON.stringify(finalReviewerRecord.body)).toContain("CASE-4826");
   });
 
-  it("stores a one-way applicant access-code hash and submits incomplete guest applications", async () => {
+  it("stores only a tracking-key hash and submits incomplete guest applications", async () => {
     const created = await request("/guest/preapplications", {
       method: "POST",
       body: JSON.stringify({
         submissionId: crypto.randomUUID(),
-        accessCode,
-        confirmAccessCode: accessCode,
+        trackingKey,
         categoryId: "category-2",
         fullName: "Partial Applicant",
         email: contactEmail,
@@ -2652,13 +2558,13 @@ describe("guest application verification and persistence", () => {
     });
     expect(created.response.status).toBe(201);
     const { id: applicationId, reference } = created.body as { id: string; reference: string };
-    const submitBody = JSON.stringify({ reference, accessCode });
+    const submitBody = JSON.stringify({ reference, trackingKey });
 
     const numericSecretLikeCode = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 1,
         complete: false,
         answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
@@ -2672,7 +2578,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 1,
         complete: false,
         referenceCode: "PIN-739102",
@@ -2684,7 +2590,7 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 1,
         complete: false,
         answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
@@ -2698,20 +2604,20 @@ describe("guest application verification and persistence", () => {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 1,
         complete: false,
-        answers: { personalInformation: { firstName: "Initial", accessCode } },
+        answers: { personalInformation: { firstName: "Initial", accessCode: trackingKey } },
       }),
     });
     expect(plaintextCodeAnswer.response.status).toBe(400);
-    expect(JSON.stringify(mockState.rows.get("guest_preapplications"))).not.toContain(accessCode);
+    expect(JSON.stringify(mockState.rows.get("guest_preapplications"))).not.toContain(trackingKey);
 
     const savedPartial = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({
         reference,
-        accessCode,
+        trackingKey,
         currentStep: 1,
         complete: false,
         answers: {
@@ -2755,7 +2661,7 @@ describe("guest application verification and persistence", () => {
     expect(JSON.stringify(savedRevisionRows)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
     (savedRevisionRows[0].changes as any[]).push(
       { field: "personalInformation.pin", before: "legacy-secret", after: "739102" },
-      { field: "personalInformation.accessCode", before: "old-code", after: accessCode },
+      { field: "personalInformation.accessCode", before: "old-code", after: trackingKey },
     );
     const reviewerHistory = await request(
       `/admin/applications/${linked.body.id}/guest-history`,
@@ -2767,7 +2673,7 @@ describe("guest application verification and persistence", () => {
     expect(JSON.stringify(reviewerHistory.body)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("legacy-secret");
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("old-code");
-    expect(JSON.stringify(reviewerHistory.body)).not.toContain(accessCode);
+    expect(JSON.stringify(reviewerHistory.body)).not.toContain(trackingKey);
     expect(JSON.stringify(reviewerHistory.body)).toContain('"field":"Saved progress step"');
     expect(reviewerHistory.body.some((revision: any) =>
       revision.changes.some((change: any) => change.after === "Partial"),
@@ -2813,7 +2719,7 @@ describe("guest application verification and persistence", () => {
 
     const tracked = await request("/guest/preapplications/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference, accessCode }),
+      body: JSON.stringify({ reference, trackingKey }),
     });
     expect(tracked.response.status).toBe(200);
     expect(tracked.body).toMatchObject({
@@ -2822,11 +2728,11 @@ describe("guest application verification and persistence", () => {
       reviewStatus: "submitted",
     });
     expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
-    const codeIsNotAnAccessFactor = await request("/guest/preapplications/lookup", {
+    const referenceOnlyOrWrongKey = await request("/guest/preapplications/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: "CASE-739102", accessCode }),
+      body: JSON.stringify({ reference: "CASE-739102", trackingKey }),
     });
-    expect(codeIsNotAnAccessFactor.response.status).toBe(404);
+    expect(referenceOnlyOrWrongKey.response.status).toBe(404);
     const removedPinRoute = await request(`/admin/applications/${linked.body.id}/pin`, {}, "reviewer");
     expect(removedPinRoute.response.status).toBe(404);
   });

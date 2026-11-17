@@ -27,7 +27,6 @@ export interface GuestPreapplicationStatus {
      * @nullable
      */
   referenceCode: string | null;
-  accessCodeConfigured: boolean;
   /** @nullable */
   linkedApplicationId: string | null;
   /**

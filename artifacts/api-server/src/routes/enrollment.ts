@@ -18,7 +18,6 @@ import {
   createHmac,
   randomBytes,
   randomUUID,
-  timingSafeEqual,
 } from "node:crypto";
 import {
   type NextFunction,
@@ -32,6 +31,8 @@ import {
   CreateSupportTicketResponse,
   CreateGuestPreapplicationBody,
   CreateGuestPreapplicationResponse,
+  LookupGuestPreapplicationBody,
+  LookupGuestPreapplicationResponse,
   AddAdminApplicationNoteBody,
   AddAdminApplicationNoteParams,
   AddAdminApplicationNoteResponse,
@@ -100,12 +101,10 @@ import {
   SubmitApplicationBody,
   SubmitNewApplicationBody,
   SubmitNewApplicationResponse,
-  LookupGuestPreapplicationBody,
-  LookupGuestPreapplicationResponse,
-  LookupApplicationWithAccessCodeBody,
-  LookupApplicationWithAccessCodeResponse,
-  UpgradeLegacyGuestAccessKeyBody,
-  UpgradeLegacyGuestAccessKeyResponse,
+  LookupApplicationByTrackingKeyBody,
+  LookupApplicationByTrackingKeyResponse,
+  RecoverGuestTrackingKeyBody,
+  RecoverGuestTrackingKeyResponse,
   RequestGuestApplicantEvidenceUploadBody,
   RequestGuestApplicantEvidenceUploadParams,
   RequestGuestApplicantEvidenceUploadResponse,
@@ -146,9 +145,6 @@ import {
   UpdateAdminUserRoleResponse,
   CreateApplicationDraftBody,
   CreateApplicationDraftResponse,
-  UpdateMyApplicationAccessCodeBody,
-  UpdateMyApplicationAccessCodeParams,
-  UpdateMyApplicationAccessCodeResponse,
   CreateAdminUserInvitationBody,
   CreateAdminUserInvitationResponse,
   CheckStaffRegistrationEmailBody,
@@ -164,7 +160,6 @@ import {
   guestPreapplicationEvidenceTable,
   guestPreapplicationsTable,
   guestPreapplicationRevisionsTable,
-  applicantAccessCodeAttemptsTable,
   portalSettingsTable,
   supportTicketsTable,
   type StaffSmsOutboxRecord,
@@ -178,11 +173,10 @@ import {
   ObjectStorageService,
 } from "../lib/objectStorage";
 import {
-  applicantAccessAttemptKeys,
-  hashApplicantAccessCode,
-  isValidApplicantAccessCode,
-  verifyApplicantAccessCode,
-} from "../lib/applicantAccessCode";
+  generatePrivateTrackingKey,
+  hashPrivateTrackingKey,
+  verifyPrivateTrackingKey,
+} from "../lib/privateTrackingKey";
 import {
   applyInfobipDeliveryReport,
   createStaffSmsAttempt,
@@ -472,168 +466,21 @@ function categoryName(categoryId: string): string {
   return categories.find((category) => category.id === categoryId)?.name ?? "Enrollment";
 }
 
-function hashGuestAccessKey(accessKey: string): string {
-  return createHash("sha256").update(accessKey, "utf8").digest("hex");
-}
+const TRACKING_KEY_GENERIC_ERROR =
+  "The application reference and private tracking key could not be verified.";
 
-function matchesGuestAccessKey(storedHash: string | null | undefined, accessKey: string): boolean {
-  if (!storedHash) return false;
-  const stored = Buffer.from(storedHash, "hex");
-  const candidate = Buffer.from(hashGuestAccessKey(accessKey), "hex");
-  return stored.length === candidate.length && timingSafeEqual(stored, candidate);
-}
-
-const ACCESS_CODE_FAILURE_LIMIT = 5;
-const ACCESS_CODE_WINDOW_MS = 15 * 60 * 1000;
-const ACCESS_CODE_LOCKOUT_MS = 15 * 60 * 1000;
-const ACCESS_CODE_GENERIC_ERROR = "The application reference and access code could not be verified.";
-
-function applicantAccessKeys(req: Request, reference: string) {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is required for applicant access-code throttling.");
-  const ipAddress = req.ip || req.socket.remoteAddress || "unknown";
-  return applicantAccessAttemptKeys(reference, ipAddress, secret);
-}
-
-async function accessCodeIsLocked(
-  req: Request,
+function guestTrackingCredentialsMatch(
+  application: typeof guestPreapplicationsTable.$inferSelect | undefined,
   reference: string,
-): Promise<boolean> {
-  const keys = applicantAccessKeys(req, reference);
-  const now = new Date();
-  const [attempt] = await db
-    .select()
-    .from(applicantAccessCodeAttemptsTable)
-    .where(and(
-      eq(applicantAccessCodeAttemptsTable.referenceKey, keys.referenceKey),
-      eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
-    ))
-    .limit(1);
-  if (attempt && now.getTime() - attempt.windowStartedAt.getTime() >= ACCESS_CODE_WINDOW_MS) {
-    await db
-      .delete(applicantAccessCodeAttemptsTable)
-      .where(and(
-        eq(applicantAccessCodeAttemptsTable.referenceKey, keys.referenceKey),
-        eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
-      ));
-    return false;
-  }
-  return Boolean(attempt?.lockedUntil && attempt.lockedUntil > now);
-}
-
-async function recordApplicantAccessCodeFailure(
-  req: Request,
-  reference: string,
-): Promise<void> {
-  const keys = applicantAccessKeys(req, reference);
-  const now = new Date();
-  await db.transaction(async (transaction) => {
-    const [existing] = await transaction
-      .select()
-      .from(applicantAccessCodeAttemptsTable)
-      .where(and(
-        eq(applicantAccessCodeAttemptsTable.referenceKey, keys.referenceKey),
-        eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
-      ))
-      .for("update")
-      .limit(1);
-    const withinWindow = existing &&
-      now.getTime() - existing.windowStartedAt.getTime() < ACCESS_CODE_WINDOW_MS;
-    const failedAttempts = withinWindow ? existing.failedAttempts + 1 : 1;
-    const values = {
-      referenceKey: keys.referenceKey,
-      ipKey: keys.ipKey,
-      failedAttempts,
-      windowStartedAt: withinWindow ? existing.windowStartedAt : now,
-      lockedUntil: failedAttempts >= ACCESS_CODE_FAILURE_LIMIT
-        ? new Date(now.getTime() + ACCESS_CODE_LOCKOUT_MS)
-        : null,
-      updatedAt: now,
-    };
-    if (existing) {
-      await transaction
-        .update(applicantAccessCodeAttemptsTable)
-        .set(values)
-        .where(and(
-          eq(applicantAccessCodeAttemptsTable.referenceKey, keys.referenceKey),
-          eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
-        ));
-      return;
-    }
-    const windowStart = new Date(now.getTime() - ACCESS_CODE_WINDOW_MS);
-    const limitReached = sql`CASE
-      WHEN ${applicantAccessCodeAttemptsTable.windowStartedAt} >= ${windowStart}
-        THEN ${applicantAccessCodeAttemptsTable.failedAttempts} + 1 >= ${ACCESS_CODE_FAILURE_LIMIT}
-      ELSE 1 >= ${ACCESS_CODE_FAILURE_LIMIT}
-    END`;
-    await transaction
-      .insert(applicantAccessCodeAttemptsTable)
-      .values(values)
-      .onConflictDoUpdate({
-        target: [
-          applicantAccessCodeAttemptsTable.referenceKey,
-          applicantAccessCodeAttemptsTable.ipKey,
-        ],
-        set: {
-          failedAttempts: sql`CASE
-            WHEN ${applicantAccessCodeAttemptsTable.windowStartedAt} >= ${windowStart}
-              THEN ${applicantAccessCodeAttemptsTable.failedAttempts} + 1
-            ELSE 1
-          END`,
-          windowStartedAt: sql`CASE
-            WHEN ${applicantAccessCodeAttemptsTable.windowStartedAt} >= ${windowStart}
-              THEN ${applicantAccessCodeAttemptsTable.windowStartedAt}
-            ELSE ${now}
-          END`,
-          lockedUntil: sql`CASE
-            WHEN ${limitReached} THEN ${new Date(now.getTime() + ACCESS_CODE_LOCKOUT_MS)}
-            ELSE NULL
-          END`,
-          updatedAt: now,
-        },
-      });
-  });
-}
-
-async function clearApplicantAccessCodeFailures(
-  req: Request,
-  reference: string,
-): Promise<void> {
-  const keys = applicantAccessKeys(req, reference);
-  await db
-    .delete(applicantAccessCodeAttemptsTable)
-    .where(and(
-      eq(applicantAccessCodeAttemptsTable.referenceKey, keys.referenceKey),
-      eq(applicantAccessCodeAttemptsTable.ipKey, keys.ipKey),
-    ));
-}
-
-async function verifyApplicantAccess(
-  req: Request,
-  reference: string,
-  storedHash: string | null | undefined,
-  code: string,
-): Promise<boolean> {
-  const locked = await accessCodeIsLocked(req, reference);
-  if (locked) {
-    await verifyApplicantAccessCode(null, code);
-    return false;
-  }
-  const matched = await verifyApplicantAccessCode(storedHash, code);
-  if (storedHash && matched) {
-    await clearApplicantAccessCodeFailures(req, reference);
-    return true;
-  }
-  await recordApplicantAccessCodeFailure(req, reference);
-  return false;
-}
-
-function accessCodeConfirmed(accessCode: string, confirmation: string): boolean {
-  return (
-    isValidApplicantAccessCode(accessCode) &&
-    isValidApplicantAccessCode(confirmation) &&
-    accessCode === confirmation
+  trackingKey: string,
+): application is typeof guestPreapplicationsTable.$inferSelect {
+  const referenceMatches =
+    application?.reference === reference.trim().toUpperCase();
+  const keyMatches = verifyPrivateTrackingKey(
+    referenceMatches ? application?.accessKeyHash : null,
+    trackingKey,
   );
+  return Boolean(application && referenceMatches && keyMatches);
 }
 
 function serializeGuestPreapplicationStatus(
@@ -652,7 +499,6 @@ function serializeGuestPreapplicationStatus(
     emailVerified: application.emailVerified,
     emailVerificationRequired: false,
     referenceCode: application.referenceCode ?? null,
-    accessCodeConfigured: Boolean(application.applicantAccessCodeHash),
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
@@ -1004,15 +850,15 @@ function containsCredentialAnswerKey(value: unknown): boolean {
   });
 }
 
-function stripApplicantAccessCodes(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripApplicantAccessCodes);
+function stripLegacyCredentialAnswers(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripLegacyCredentialAnswers);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
       .filter(([key]) => !forbiddenCredentialAnswerKeys.has(
         key.toLowerCase().replace(/[_\s-]/g, ""),
       ))
-      .map(([key, child]) => [key, stripApplicantAccessCodes(child)]),
+      .map(([key, child]) => [key, stripLegacyCredentialAnswers(child)]),
   );
 }
 
@@ -1206,7 +1052,7 @@ function prepareApplicantAnswers(
 }
 
 function applicantSafeAnswers(answers: Record<string, unknown>) {
-  const safeAnswers = stripApplicantAccessCodes(structuredClone(answers)) as Record<string, unknown>;
+  const safeAnswers = stripLegacyCredentialAnswers(structuredClone(answers)) as Record<string, unknown>;
   const bank = asRecord(safeAnswers.bankDetails);
   if (Object.keys(bank).length > 0) {
     delete bank.accountNumber;
@@ -1496,7 +1342,6 @@ function serializeApplication(
     status: application.status,
     currentStep: application.currentStep,
     referenceCode: application.referenceCode ?? null,
-    accessCodeConfigured: Boolean(application.applicantAccessCodeHash),
     answers: hideEvidenceObjectPaths
       ? answersWithoutEvidencePaths(applicantAnswers)
       : applicantAnswers,
@@ -1671,11 +1516,6 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Check the application details and try again." });
     return;
   }
-  if (!accessCodeConfirmed(parsed.data.accessCode, parsed.data.confirmAccessCode)) {
-    res.status(400).json({ error: "Enter and confirm the same six-digit access code." });
-    return;
-  }
-
   const input = {
     ...parsed.data,
     fullName: parsed.data.fullName.trim(),
@@ -1687,15 +1527,13 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
     return;
   }
 
-  const applicantAccessCodeHash = await hashApplicantAccessCode(input.accessCode);
   const matchesRequest = (
     existing: typeof guestPreapplicationsTable.$inferSelect,
-  ) => verifyApplicantAccessCode(existing.applicantAccessCodeHash, input.accessCode)
-    .then((matchesCode) => matchesCode &&
+  ) => verifyPrivateTrackingKey(existing.accessKeyHash, input.trackingKey) &&
     existing.categoryId === input.categoryId &&
     existing.fullName === input.fullName &&
     existing.email === input.email &&
-    existing.phone === input.phone);
+    existing.phone === input.phone;
 
   try {
     const [existing] = await db
@@ -1710,7 +1548,10 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       }
       res.status(200).json(
         CreateGuestPreapplicationResponse.parse(
-          serializeGuestPreapplicationStatus(existing),
+          {
+            ...serializeGuestPreapplicationStatus(existing),
+            trackingKey: input.trackingKey,
+          },
         ),
       );
       return;
@@ -1721,7 +1562,7 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       .values({
         submissionId: input.submissionId,
         reference: `PRE-${randomBytes(6).toString("hex").toUpperCase()}`,
-        applicantAccessCodeHash,
+        accessKeyHash: hashPrivateTrackingKey(input.trackingKey),
         categoryId: input.categoryId,
         fullName: input.fullName,
         email: input.email,
@@ -1736,10 +1577,13 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
         .from(guestPreapplicationsTable)
         .where(eq(guestPreapplicationsTable.submissionId, input.submissionId))
         .limit(1);
-      if (concurrentSubmission && await matchesRequest(concurrentSubmission)) {
+      if (concurrentSubmission && matchesRequest(concurrentSubmission)) {
         res.status(200).json(
           CreateGuestPreapplicationResponse.parse(
-            serializeGuestPreapplicationStatus(concurrentSubmission),
+            {
+              ...serializeGuestPreapplicationStatus(concurrentSubmission),
+              trackingKey: input.trackingKey,
+            },
           ),
         );
         return;
@@ -1757,7 +1601,10 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
     });
     res.status(201).json(
       CreateGuestPreapplicationResponse.parse(
-        serializeGuestPreapplicationStatus(created),
+        {
+          ...serializeGuestPreapplicationStatus(created),
+          trackingKey: input.trackingKey,
+        },
       ),
     );
   } catch (error) {
@@ -1785,18 +1632,15 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
       .limit(1);
     const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
-    const codeMatches = await verifyApplicantAccess(
-      req,
-      parsedBody.data.reference,
-      referenceMatches ? application?.applicantAccessCodeHash : null,
-      parsedBody.data.accessCode,
-    );
     if (
       !application ||
       !referenceMatches ||
-      !codeMatches
+      !verifyPrivateTrackingKey(
+        referenceMatches ? application.accessKeyHash : null,
+        parsedBody.data.trackingKey,
+      )
     ) {
-      res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
       return;
     }
     if (application.status === "closed" || application.submissionStatus === "submitted") {
@@ -1885,166 +1729,88 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
 router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => {
   const parsed = LookupGuestPreapplicationBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+    res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
     return;
   }
-
   try {
     const [application] = await db
       .select()
       .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.reference, parsed.data.reference.trim().toUpperCase()))
+      .where(eq(
+        guestPreapplicationsTable.reference,
+        parsed.data.reference.trim().toUpperCase(),
+      ))
       .limit(1);
-    const codeMatches = await verifyApplicantAccess(
-      req,
+    if (!guestTrackingCredentialsMatch(
+      application,
       parsed.data.reference,
-      application?.applicantAccessCodeHash,
-      parsed.data.accessCode,
-    );
-    if (!application || !codeMatches) {
-      res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+      parsed.data.trackingKey,
+    )) {
+      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
       return;
     }
-
     res.json(
       LookupGuestPreapplicationResponse.parse(
         await serializeGuestPreapplicationStatusWithReview(application),
       ),
     );
   } catch (error) {
-    req.log.error({ err: error }, "Failed to look up guest pre-application");
-    res.status(503).json({ error: "Guest status is temporarily unavailable." });
+    req.log.error({ err: error }, "Failed to restore a guest application");
+    res.status(503).json({ error: "Guest application is temporarily unavailable." });
   }
 });
 
-router.post("/applications/access/lookup", async (req, res): Promise<void> => {
-  const parsed = LookupApplicationWithAccessCodeBody.safeParse(req.body);
+router.post("/applications/tracking/lookup", async (req, res): Promise<void> => {
+  const parsed = LookupApplicationByTrackingKeyBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+    res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
     return;
   }
-  const normalizedReference = parsed.data.reference.trim().toUpperCase();
 
   try {
-    const [guestApplication] = await db
+    const [application] = await db
       .select()
       .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.reference, normalizedReference))
+      .where(eq(
+        guestPreapplicationsTable.reference,
+        parsed.data.reference.trim().toUpperCase(),
+      ))
       .limit(1);
-    if (guestApplication) {
-      const matched = await verifyApplicantAccess(
-        req,
-        parsed.data.reference,
-        guestApplication.applicantAccessCodeHash,
-        parsed.data.accessCode,
-      );
-      if (!matched) {
-        res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+    if (!guestTrackingCredentialsMatch(
+      application,
+      parsed.data.reference,
+      parsed.data.trackingKey,
+    )) {
+      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+      return;
+    }
+
+    if (application.linkedApplicationId) {
+      const [linkedApplication] = await db
+        .select()
+        .from(enrollmentApplicationsTable)
+        .where(eq(
+          enrollmentApplicationsTable.id,
+          application.linkedApplicationId,
+        ))
+        .limit(1);
+      if (linkedApplication) {
+        res.json(
+          LookupApplicationByTrackingKeyResponse.parse(
+            serializeApplicationAccessStatus(linkedApplication),
+          ),
+        );
         return;
       }
-      if (guestApplication.linkedApplicationId) {
-        const [linkedApplication] = await db
-          .select()
-          .from(enrollmentApplicationsTable)
-          .where(eq(enrollmentApplicationsTable.id, guestApplication.linkedApplicationId))
-          .limit(1);
-        if (linkedApplication) {
-          res.json(
-            LookupApplicationWithAccessCodeResponse.parse(
-              serializeApplicationAccessStatus(linkedApplication),
-            ),
-          );
-          return;
-        }
-      }
-      res.json(
-        LookupApplicationWithAccessCodeResponse.parse(
-          serializeGuestAccessStatus(guestApplication),
-        ),
-      );
-      return;
-    }
-
-    const [application] = await db
-      .select()
-      .from(enrollmentApplicationsTable)
-      .where(eq(enrollmentApplicationsTable.reference, normalizedReference))
-      .limit(1);
-    const matched = await verifyApplicantAccess(
-      req,
-      parsed.data.reference,
-      application?.applicantAccessCodeHash,
-      parsed.data.accessCode,
-    );
-    if (!application || !matched) {
-      res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
-      return;
     }
     res.json(
-      LookupApplicationWithAccessCodeResponse.parse(
-        serializeApplicationAccessStatus(application),
+      LookupApplicationByTrackingKeyResponse.parse(
+        serializeGuestAccessStatus(application),
       ),
     );
   } catch (error) {
-    req.log.error({ err: error }, "Failed to look up application using an access code");
+    req.log.error({ err: error }, "Failed to look up application with its private tracking key");
     res.status(503).json({ error: "Application status is temporarily unavailable." });
-  }
-});
-
-router.post("/guest/preapplications/access-code/upgrade", async (req, res): Promise<void> => {
-  const parsed = UpgradeLegacyGuestAccessKeyBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
-    return;
-  }
-  if (!accessCodeConfirmed(parsed.data.accessCode, parsed.data.confirmAccessCode)) {
-    res.status(400).json({ error: "Enter and confirm the same six-digit access code." });
-    return;
-  }
-  const normalizedReference = parsed.data.reference.trim().toUpperCase();
-
-  try {
-    const locked = await accessCodeIsLocked(req, parsed.data.reference);
-    const [application] = await db
-      .select()
-      .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.reference, normalizedReference))
-      .limit(1);
-    const legacyKeyMatches = Boolean(
-      !locked &&
-      application &&
-      application.accessKeyHash &&
-      !application.applicantAccessCodeHash &&
-      matchesGuestAccessKey(application.accessKeyHash, parsed.data.legacyAccessKey),
-    );
-    if (!application || !legacyKeyMatches) {
-      await recordApplicantAccessCodeFailure(req, parsed.data.reference);
-      res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
-      return;
-    }
-
-    const applicantAccessCodeHash = await hashApplicantAccessCode(parsed.data.accessCode);
-    const [updated] = await db
-      .update(guestPreapplicationsTable)
-      .set({ applicantAccessCodeHash, updatedAt: new Date() })
-      .where(and(
-        eq(guestPreapplicationsTable.id, application.id),
-        isNull(guestPreapplicationsTable.applicantAccessCodeHash),
-      ))
-      .returning();
-    if (!updated) {
-      res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
-      return;
-    }
-    await clearApplicantAccessCodeFailures(req, parsed.data.reference);
-    res.json(
-      UpgradeLegacyGuestAccessKeyResponse.parse(
-        serializeGuestPreapplicationStatus(updated),
-      ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to upgrade a legacy guest access key");
-    res.status(503).json({ error: "Application access could not be upgraded." });
   }
 });
 
@@ -2065,18 +1831,15 @@ router.patch(
         .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
         .limit(1);
       const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
-      const codeMatches = await verifyApplicantAccess(
-        req,
-        parsedBody.data.reference,
-        referenceMatches ? application?.applicantAccessCodeHash : null,
-        parsedBody.data.accessCode,
-      );
       if (
         !application ||
         !referenceMatches ||
-        !codeMatches
+        !verifyPrivateTrackingKey(
+          referenceMatches ? application.accessKeyHash : null,
+          parsedBody.data.trackingKey,
+        )
       ) {
-        res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
       if (application.status === "closed" || application.submissionStatus === "submitted") {
@@ -2171,18 +1934,15 @@ router.post(
         .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
         .limit(1);
       const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
-      const codeMatches = await verifyApplicantAccess(
-        req,
-        parsedBody.data.reference,
-        referenceMatches ? application?.applicantAccessCodeHash : null,
-        parsedBody.data.accessCode,
-      );
       if (
         !application ||
         !referenceMatches ||
-        !codeMatches
+        !verifyPrivateTrackingKey(
+          referenceMatches ? application.accessKeyHash : null,
+          parsedBody.data.trackingKey,
+        )
       ) {
-        res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
       if (application.status === "closed" || application.submissionStatus === "submitted") {
@@ -2255,18 +2015,15 @@ router.post(
         .where(eq(guestPreapplicationsTable.id, applicationId))
         .limit(1);
       const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
-      const codeMatches = await verifyApplicantAccess(
-        req,
-        parsedBody.data.reference,
-        referenceMatches ? application?.applicantAccessCodeHash : null,
-        parsedBody.data.accessCode,
-      );
       if (
         !application ||
         !referenceMatches ||
-        !codeMatches
+        !verifyPrivateTrackingKey(
+          referenceMatches ? application.accessKeyHash : null,
+          parsedBody.data.trackingKey,
+        )
       ) {
-        res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
       if (application.status === "closed" || application.submissionStatus === "submitted") {
@@ -2417,18 +2174,15 @@ router.post(
         .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
         .limit(1);
       const referenceMatches = preapplication?.reference === parsedBody.data.reference.trim().toUpperCase();
-      const codeMatches = await verifyApplicantAccess(
-        req,
-        parsedBody.data.reference,
-        referenceMatches ? preapplication?.applicantAccessCodeHash : null,
-        parsedBody.data.accessCode,
-      );
       if (
         !preapplication ||
         !referenceMatches ||
-        !codeMatches
+        !verifyPrivateTrackingKey(
+          referenceMatches ? preapplication.accessKeyHash : null,
+          parsedBody.data.trackingKey,
+        )
       ) {
-        res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
       if (preapplication.status === "closed") {
@@ -2511,6 +2265,77 @@ router.post(
 router.use(authenticate);
 
 router.post(
+  "/guest/preapplications/tracking-key/recover",
+  async (req, res): Promise<void> => {
+    const parsed = RecoverGuestTrackingKeyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+      return;
+    }
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({
+        error: "Sign in with the verified email used for the application to recover its tracking key.",
+      });
+      return;
+    }
+
+    try {
+      const user = res.locals.clerkUser ?? await clerkClient.users.getUser(userId);
+      const primaryEmail = user.primaryEmailAddress;
+      const normalizedEmail = primaryEmail?.emailAddress
+        ? normalizeEmail(primaryEmail.emailAddress)
+        : "";
+      if (!normalizedEmail || primaryEmail?.verification?.status !== "verified") {
+        res.status(403).json({
+          error: "Verify the email address used for the application before recovering its tracking key.",
+        });
+        return;
+      }
+
+      const normalizedReference = parsed.data.reference.trim().toUpperCase();
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.reference, normalizedReference))
+        .limit(1);
+      if (
+        !application ||
+        application.email !== normalizedEmail
+      ) {
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+        return;
+      }
+
+      const trackingKey = generatePrivateTrackingKey();
+      const [updated] = await db
+        .update(guestPreapplicationsTable)
+        .set({
+          // This explicit, verified-email action replaces the previous key;
+          // no plaintext or recoverable copy of either key is retained.
+          accessKeyHash: hashPrivateTrackingKey(trackingKey),
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(guestPreapplicationsTable.id, application.id),
+          application.accessKeyHash
+            ? eq(guestPreapplicationsTable.accessKeyHash, application.accessKeyHash)
+            : isNull(guestPreapplicationsTable.accessKeyHash),
+        ))
+        .returning({ id: guestPreapplicationsTable.id });
+      if (!updated) {
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+        return;
+      }
+      res.json(RecoverGuestTrackingKeyResponse.parse({ trackingKey }));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to replace a guest tracking key");
+      res.status(503).json({ error: "The tracking key could not be recovered right now." });
+    }
+  },
+);
+
+router.post(
   "/guest/preapplications/:applicationId/link",
   async (req, res): Promise<void> => {
     if (containsLegacyPinInput(req.body)) {
@@ -2546,18 +2371,15 @@ router.post(
         .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
         .limit(1);
       const referenceMatches = preapplication?.reference === parsedBody.data.reference.trim().toUpperCase();
-      const codeMatches = await verifyApplicantAccess(
-        req,
-        parsedBody.data.reference,
-        referenceMatches ? preapplication?.applicantAccessCodeHash : null,
-        parsedBody.data.accessCode,
-      );
       if (
         !preapplication ||
         !referenceMatches ||
-        !codeMatches
+        !verifyPrivateTrackingKey(
+          referenceMatches ? preapplication.accessKeyHash : null,
+          parsedBody.data.trackingKey,
+        )
       ) {
-        res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
       if (preapplication.email !== normalizedEmail) {
@@ -2648,7 +2470,6 @@ router.post(
             status: "submitted",
             currentStep: 7,
             referenceCode: preapplication.referenceCode,
-            applicantAccessCodeHash: preapplication.applicantAccessCodeHash,
             answers: reviewAnswers,
             submittedAt: now,
             updatedAt: now,
@@ -2754,14 +2575,8 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  if (!accessCodeConfirmed(parsed.data.accessCode, parsed.data.confirmAccessCode)) {
-    res.status(400).json({ error: "Enter and confirm the same six-digit access code." });
-    return;
-  }
-
   const reference = `ENR-${randomBytes(8).toString("hex").toUpperCase()}`;
   try {
-    const applicantAccessCodeHash = await hashApplicantAccessCode(parsed.data.accessCode);
     const created = await db.transaction(async (transaction) => {
       const [application] = await transaction
         .insert(enrollmentApplicationsTable)
@@ -2771,7 +2586,6 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
           reference,
           status: "draft",
           currentStep: 0,
-          applicantAccessCodeHash,
           answers: {},
         })
         .returning();
@@ -2796,69 +2610,6 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
     res.status(503).json({ error: "The application draft could not be created." });
   }
 });
-
-router.patch(
-  "/applications/:applicationId/access-code",
-  async (req, res): Promise<void> => {
-    const parsedParams = UpdateMyApplicationAccessCodeParams.safeParse(req.params);
-    const parsedBody = UpdateMyApplicationAccessCodeBody.safeParse(req.body);
-    if (!parsedParams.success || !parsedBody.success) {
-      res.status(400).json({ error: "Enter and confirm a valid six-digit access code." });
-      return;
-    }
-    if (!accessCodeConfirmed(parsedBody.data.accessCode, parsedBody.data.confirmAccessCode)) {
-      res.status(400).json({ error: "Enter and confirm the same six-digit access code." });
-      return;
-    }
-    try {
-      const [application] = await db
-        .select()
-        .from(enrollmentApplicationsTable)
-        .where(and(
-          eq(enrollmentApplicationsTable.id, parsedParams.data.applicationId),
-          eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
-        ))
-        .limit(1);
-      if (!application) {
-        res.status(404).json({ error: "Application not found." });
-        return;
-      }
-      if (application.applicantAccessCodeHash && parsedBody.data.recovery !== true) {
-        res.status(409).json({ error: "Use the explicit access-code recovery action to replace this code." });
-        return;
-      }
-      const applicantAccessCodeHash = await hashApplicantAccessCode(parsedBody.data.accessCode);
-      const [updated] = await db
-        .update(enrollmentApplicationsTable)
-        .set({ applicantAccessCodeHash, updatedAt: new Date() })
-        .where(and(
-          eq(enrollmentApplicationsTable.id, application.id),
-          eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
-        ))
-        .returning();
-      if (!updated) {
-        res.status(404).json({ error: "Application not found." });
-        return;
-      }
-      await db.insert(applicationEventsTable).values({
-        applicationId: updated.id,
-        actorUserId: res.locals.userId,
-        eventType: application.applicantAccessCodeHash
-          ? "applicant_access_code_reset"
-          : "applicant_access_code_created",
-        note: application.applicantAccessCodeHash
-          ? "Applicant reset their access code from their authenticated account."
-          : "Applicant created an application access code.",
-      });
-      res.json(
-        UpdateMyApplicationAccessCodeResponse.parse({ accessCodeConfigured: true }),
-      );
-    } catch (error) {
-      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to update applicant access code");
-      res.status(503).json({ error: "The application access code could not be updated." });
-    }
-  },
-);
 
 router.get("/me/applications", async (req, res): Promise<void> => {
   const applications = await db
@@ -2892,10 +2643,6 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  if (!accessCodeConfirmed(parsed.data.accessCode, parsed.data.confirmAccessCode)) {
-    res.status(400).json({ error: "Enter and confirm the same six-digit access code." });
-    return;
-  }
   const categoryId = parsed.data.categoryId as CategoryId;
   const reference = `ENR-${parsed.data.submissionId.toUpperCase()}`;
   const [existing] = await db
@@ -2906,16 +2653,6 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   if (existing) {
     if (existing.clerkUserId !== res.locals.userId || existing.status !== "submitted") {
       res.status(409).json({ error: "This submission request has already been used." });
-      return;
-    }
-    const codeMatches = await verifyApplicantAccess(
-      req,
-      reference,
-      existing.applicantAccessCodeHash,
-      parsed.data.accessCode,
-    );
-    if (!codeMatches) {
-      res.status(404).json({ error: ACCESS_CODE_GENERIC_ERROR });
       return;
     }
     res.json(SubmitNewApplicationResponse.parse(serializeApplication(existing)));
@@ -2954,7 +2691,6 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   }
 
   const now = new Date();
-  const applicantAccessCodeHash = await hashApplicantAccessCode(parsed.data.accessCode);
   const outcome = await db.transaction(async (transaction) => {
     const [duplicate] = await transaction
       .select()
@@ -2972,7 +2708,6 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
         status: "submitted",
         currentStep: 7,
         referenceCode: normalizedReferenceCode.value ?? null,
-        applicantAccessCodeHash,
         answers,
         submittedAt: now,
         updatedAt: now,
@@ -3268,10 +3003,6 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
   }
   if (application.status === "submitted") {
     res.json(SubmitApplicationResponse.parse(serializeApplication(application)));
-    return;
-  }
-  if (!application.applicantAccessCodeHash) {
-    res.status(409).json({ error: "Set an applicant access code before submitting this application." });
     return;
   }
   if (!["draft", "needs_information"].includes(application.status)) {

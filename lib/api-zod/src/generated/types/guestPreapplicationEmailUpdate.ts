@@ -12,8 +12,8 @@ export interface GuestPreapplicationEmailUpdate {
      * @maxLength 32
      */
   reference: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   /** @maxLength 320 */
   email: string;
 }

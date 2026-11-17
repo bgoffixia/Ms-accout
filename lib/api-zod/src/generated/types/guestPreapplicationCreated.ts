@@ -24,7 +24,8 @@ export interface GuestPreapplicationCreated {
      * @nullable
      */
   referenceCode: string | null;
-  accessCodeConfigured: boolean;
+  /** @pattern ^[A-Za-z0-9_-]{43}$ */
+  trackingKey: string;
   linkedApplicationId: string | null;
   /**
      * @minimum 0

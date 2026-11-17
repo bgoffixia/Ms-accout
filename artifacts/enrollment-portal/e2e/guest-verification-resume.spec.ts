@@ -13,7 +13,6 @@ type GuestDraft = {
   email: string;
   status: "received";
   submissionStatus: "draft" | "submitted";
-  accessCodeConfigured?: boolean;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
   referenceCode: string | null;
@@ -27,7 +26,7 @@ type GuestDraft = {
 
 class GuestApiFixture {
   draft: GuestDraft | null = null;
-  accessCode = "";
+  trackingKey = "";
   createCount = 0;
   lookupCount = 0;
   categoryOneTitle = "Account Provider One";
@@ -93,7 +92,7 @@ class GuestApiFixture {
     if (method === "POST" && path === "/api/guest/preapplications") {
       const body = request.postDataJSON();
       this.createCount += 1;
-      this.accessCode = body.accessCode;
+      this.trackingKey = body.trackingKey;
       const categoryId = typeof body.categoryId === "string" ? body.categoryId : "category-1";
       this.draft = {
         id: applicationId,
@@ -105,7 +104,6 @@ class GuestApiFixture {
         status: "received",
         submissionStatus: "draft",
         emailVerified: false,
-        accessCodeConfigured: true,
         emailVerificationRequired: false,
         referenceCode: null,
         linkedApplicationId: null,
@@ -117,11 +115,11 @@ class GuestApiFixture {
       };
       return json(this.createdResponse(), 201);
     }
-    if (method === "POST" && path === "/api/applications/access/lookup") {
+    if (method === "POST" && path === "/api/applications/tracking/lookup") {
       this.lookupCount += 1;
       const body = request.postDataJSON();
-      if (!this.draft || body.reference !== this.draft.reference || body.accessCode !== this.accessCode) {
-        return json({ error: "The application reference and access code could not be verified." }, 404);
+      if (!this.authorized(body)) {
+        return json({ error: "The application reference and private tracking key could not be verified." }, 404);
       }
       const status = this.statusResponse();
       const { answers: _answers, reviewNote: _reviewNote, privateReviewerDetails: _privateReviewerDetails, ...safe } = status;
@@ -144,13 +142,15 @@ class GuestApiFixture {
     if (method === "POST" && path === "/api/guest/preapplications/lookup") {
       this.lookupCount += 1;
       const body = request.postDataJSON();
-      return this.draft && body.reference === this.draft.reference && body.accessCode === this.accessCode
+      return this.authorized(body)
         ? json(this.statusResponse())
-        : json({ error: "The application reference and access code could not be verified." }, 404);
+        : json({ error: "The application reference and private tracking key could not be verified." }, 404);
     }
     if (method === "PATCH" && path === `/api/guest/preapplications/${applicationId}`) {
-      if (!this.draft) return json({ message: "Not found" }, 404);
       const body = request.postDataJSON();
+      if (!this.authorized(body)) {
+        return json({ error: "The application reference and private tracking key could not be verified." }, 404);
+      }
       this.draft.answers = body.answers;
       this.draft.currentStep = body.currentStep;
       if (typeof body.referenceCode === "string") {
@@ -162,6 +162,9 @@ class GuestApiFixture {
     }
     if (method === "POST" && path === `/api/guest/preapplications/${applicationId}/evidence/upload-url`) {
       const body = request.postDataJSON();
+      if (!this.authorized(body)) {
+        return json({ error: "The application reference and private tracking key could not be verified." }, 404);
+      }
       const id = `evidence-${++this.evidenceId}`;
       const evidence = {
         id,
@@ -179,6 +182,9 @@ class GuestApiFixture {
       return route.fulfill({ status: 200, body: "stored" });
     }
     if (method === "POST" && path.match(new RegExp(`^/api/guest/preapplications/${applicationId}/evidence/[^/]+/complete$`))) {
+      if (!this.authorized(request.postDataJSON())) {
+        return json({ error: "The application reference and private tracking key could not be verified." }, 404);
+      }
       const evidenceId = path.split("/").at(-2);
       const evidence = this.uploadedEvidence.find((item) => item.id === evidenceId);
       if (!evidence) return json({ message: "Upload missing" }, 404);
@@ -194,7 +200,9 @@ class GuestApiFixture {
       });
     }
     if (method === "POST" && path === `/api/guest/preapplications/${applicationId}/submit`) {
-      if (!this.draft) return json({ message: "Not found" }, 404);
+      if (!this.authorized(request.postDataJSON())) {
+        return json({ error: "The application reference and private tracking key could not be verified." }, 404);
+      }
       this.draft.submissionStatus = "submitted";
       this.draft.emailVerified = false;
       this.draft.emailVerificationRequired = false;
@@ -234,9 +242,18 @@ class GuestApiFixture {
       && this.uploadedEvidence.some((item) => item.objectPath === video.objectPath);
   }
 
+  private authorized(body: { reference?: unknown; trackingKey?: unknown }) {
+    return Boolean(
+      this.draft &&
+      body.reference === this.draft.reference &&
+      body.trackingKey === this.trackingKey &&
+      /^[A-Za-z0-9_-]{43}$/.test(this.trackingKey),
+    );
+  }
+
   private createdResponse() {
     const { answers: _answers, ...response } = this.draft!;
-    return response;
+    return { ...response, trackingKey: this.trackingKey };
   }
 
   private statusResponse() {
@@ -262,11 +279,12 @@ async function fillStage(page: Page, fields: Record<string, string>) {
   await page.locator("form.ew-form button[type=submit]").click();
 }
 
-async function createGuestAccessCode(page: Page) {
-  await expect(page.getByTestId("input-guest-new-access-code")).toBeVisible();
-  await page.getByTestId("input-guest-new-access-code").fill("314159");
-  await page.getByTestId("input-guest-confirm-access-code").fill("314159");
-  await page.getByTestId("button-create-guest-application").click();
+async function saveOneTimeTrackingKey(page: Page) {
+  await expect(page.getByTestId("tracking-key-one-time-notice")).toBeVisible();
+  const key = await page.getByTestId("text-one-time-tracking-key").inputValue();
+  expect(key).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  await page.getByTestId("button-confirm-tracking-key-saved").click();
+  return key;
 }
 
 async function expectNoDocumentOverflow(page: Page) {
@@ -444,17 +462,13 @@ test("starts from the public shared dashboard and opens the selected category fo
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
 
-  await createGuestAccessCode(page);
+  await saveOneTimeTrackingKey(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expect(page.locator(".category-one-bank-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
   await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-logo-align-left/);
   await expect(page.locator(".category-entry-screen")).toHaveCSS("--entry-logo-offset-y", "14px");
   await page.locator("form button[type=submit]").click();
-  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
   await expect(page.locator(".entry-reference-code-brand img")).toHaveAttribute("src", /data:image\/svg\+xml/);
   await expect(page.locator(".category-entry-screen")).toHaveClass(/entry-reference-code-stage/);
   await expect(page.getByTestId("input-reference-code")).toBeVisible();
@@ -509,7 +523,7 @@ test("keeps every guest category entry and Reference Code screen within one phon
     await page.getByTestId("input-guest-email").fill("jordan@example.test");
     await page.getByTestId("button-continue-guest-contact").click();
 
-    await createGuestAccessCode(page);
+    await saveOneTimeTrackingKey(page);
     await expect(page.locator(".category-entry-screen")).toBeVisible();
     await expectNoDocumentOverflow(page);
     const nextButton = page.locator("form button[type=submit]").first();
@@ -547,7 +561,7 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
   }
 });
 
-test("submits without email OTP and opens status with the private access code", async ({ page }) => {
+test("submits without email OTP and opens status with the private tracking key", async ({ page }) => {
   const api = new GuestApiFixture();
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -585,18 +599,15 @@ test("submits without email OTP and opens status with the private access code", 
   await page.getByTestId("button-continue-guest-contact").click();
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await createGuestAccessCode(page);
+  const trackingKey = await saveOneTimeTrackingKey(page);
   await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
-  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await page.setViewportSize({ width: 390, height: 568 });
   await page.locator("form button[type=submit]").click();
   const referenceCodeInput = page.getByTestId("input-reference-code");
-  await expect(page.getByTestId("guest-tracking-key-step")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save tracking key" })).toHaveCount(0);
   await expect(referenceCodeInput).toBeVisible();
   await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
   await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
@@ -683,14 +694,14 @@ test("submits without email OTP and opens status with the private access code", 
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
   expect(api.draft?.linkedApplicationId).toBeNull();
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
-  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(api.accessCode);
+  await expect(page.getByTestId("guest-submission-confirmation")).not.toContainText(trackingKey);
   await expect(page.getByTestId("guest-submission-confirmation")).toHaveAttribute("role", "dialog");
   await expect(page.getByTestId("link-track-created-application")).toContainText("Track Security Verification Status");
 
   await page.getByTestId("link-track-created-application").click();
   await expect(page.getByTestId("input-track-reference")).toHaveValue(reference);
-  await expect(page.getByTestId("input-track-access-code")).toHaveValue("");
-  await page.getByTestId("input-track-access-code").fill(api.accessCode);
+  await expect(page.getByTestId("input-track-private-key")).toHaveValue(trackingKey);
+  await page.getByTestId("input-track-private-key").fill(trackingKey);
   await page.getByTestId("button-lookup-guest-status").click();
   await expect(page.getByTestId("guest-public-status")).toBeVisible();
   await expect(page.getByTestId("status-guest-application")).toContainText("Pending Review");
@@ -698,21 +709,21 @@ test("submits without email OTP and opens status with the private access code", 
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
 
   // The code is not persisted in browser storage; a reload requires re-entry.
-  const savedCode = await page.evaluate(() => ({
+  const savedTrackingKey = await page.evaluate(() => ({
     local: Object.entries(localStorage).map(([key, value]) => `${key}:${value}`).join("\n"),
     session: Object.entries(sessionStorage).map(([key, value]) => `${key}:${value}`).join("\n"),
   }));
-  expect(savedCode.local).not.toContain(api.accessCode);
-  expect(savedCode.session).not.toContain(api.accessCode);
+  expect(savedTrackingKey.local).not.toContain(trackingKey);
+  expect(savedTrackingKey.session).not.toContain(trackingKey);
   await page.reload();
   await expect(page.getByTestId("link-get-started")).toBeVisible();
   await page.goto("/guest/track");
-  await expect(page.getByTestId("input-track-access-code")).toHaveValue("");
+  await expect(page.getByTestId("input-track-private-key")).toHaveValue("");
   await page.getByTestId("input-track-reference").fill(reference);
-  await page.getByTestId("input-track-access-code").fill(api.accessCode);
+  await page.getByTestId("input-track-private-key").fill(trackingKey);
   await page.getByTestId("button-lookup-guest-status").click();
   await expect(page.getByTestId("guest-public-status")).toBeVisible();
-  await expect(page.getByTestId("guest-public-status")).not.toContainText(api.accessCode);
+  await expect(page.getByTestId("guest-public-status")).not.toContainText(trackingKey);
   expect(api.lookupCount).toBeGreaterThanOrEqual(2);
   expect(api.createCount).toBe(1);
 });
@@ -746,7 +757,7 @@ test("lets guests continue with incomplete details and an optional Reference Cod
   await page.getByTestId("input-guest-email").fill("jordan@example.test");
   await page.getByTestId("button-continue-guest-contact").click();
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await createGuestAccessCode(page);
+  await saveOneTimeTrackingKey(page);
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expect(page.getByTestId("input-entry-name")).not.toHaveAttribute("placeholder");
