@@ -586,8 +586,6 @@ export function EnrollmentWizard({
 
   const categoryEntryScreenId = `category-entry-${application.categoryId.replace(/^category-/, '')}`;
   const categoryEntryCopy = screenCopy[categoryEntryScreenId] ?? {};
-  const referenceCodeVisible = categoryEntryCopy.referenceCodeVisible !== 'false';
-  const referenceCodeLabel = categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code';
   const categoryEntry = (categoryEntryFieldsByCategory[application.categoryId] ?? Object.keys(categoryEntryLabels))
     .map((key) => {
       const labelKey = key === 'name' ? 'nameLabel' : key === 'nickname' ? 'nicknameLabel' : 'surnameLabel';
@@ -700,10 +698,6 @@ export function EnrollmentWizard({
       <p>{categoryDescription}</p></div>
     </div>
     {categoryEntry.length > 0 && <div className="ew-category-details">{categoryEntry.map((item) => renderReviewField(item.label, item.value, `category-${item.key}`))}</div>}
-    {referenceCodeVisible && <>
-      <div className="ew-category-details">{renderReviewField(referenceCodeLabel, application.referenceCode || 'Not provided', 'reference-code')}</div>
-      <p className="ew-reference-code-note">This is ordinary tracking metadata, not a sign-in, identity verification, or authorization factor.</p>
-    </>}
   </section>;
 
   const uploadProgress = Math.min(100, Math.round((recordingSeconds / 12) * 100));

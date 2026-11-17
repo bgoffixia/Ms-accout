@@ -45,3 +45,34 @@ present, `anon` and `authenticated`. Do not remove this table or its columns
 until a separate, reviewed migration confirms no deployed version or rollback
 path needs them. No database migration or production mutation is authorized by
 the tracking-key implementation request.
+
+`0003_provider_invitation_code_lengths.sql` adds per-provider length settings
+and a server-only audit table. It enables row-level security and revokes
+`PUBLIC`, `anon`, and `authenticated` privileges; the trusted server database
+role remains responsible for reads and writes. Apply this migration only after
+verifying the intended non-production database and approval. It does not alter
+existing Invitation Code values or apply itself.
+
+`0004_invitation_code_reveal_audit.sql` adds nullable ciphertext columns for
+Invitation Codes and a reviewer-reveal audit table. It is additive and does not
+drop legacy `reference_code` columns. New application writes use authenticated
+AES-256-GCM ciphertext; the legacy plaintext is retained only until the
+operator-run backfill is reviewed and applied. The backfill is dry-run by
+default, reports counts only, and also redacts old Invitation Code values in
+guest revision history:
+
+```sh
+pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/scripts/backfill-legacy-invitation-codes.ts
+pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/scripts/backfill-legacy-invitation-codes.ts --apply
+```
+
+Apply `0004_invitation_code_reveal_audit.sql` separately before the backfill.
+Run the `--apply` form only after confirming the database target, a restorable
+backup, `SESSION_SECRET` availability and stability, and the dry-run counts.
+The backfill encrypts values in place into the new ciphertext column, clears
+legacy plaintext, and is safe to rerun. If both a ciphertext and a different
+legacy value exist for one record, that batch aborts without overwriting either
+value. A pre-change application build cannot display migrated Invitation Codes
+because it does not understand the ciphertext column; the data remains intact
+and becomes available again only after restoring the compatible application
+build. No database migration or backfill is run automatically by the app.

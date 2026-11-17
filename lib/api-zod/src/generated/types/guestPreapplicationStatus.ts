@@ -22,11 +22,6 @@ export interface GuestPreapplicationStatus {
   submissionStatus: GuestPreapplicationStatusSubmissionStatus;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
-  /**
-     * @maxLength 80
-     * @nullable
-     */
-  referenceCode: string | null;
   /** @nullable */
   linkedApplicationId: string | null;
   /**

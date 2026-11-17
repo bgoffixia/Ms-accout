@@ -147,8 +147,17 @@ import {
   CreateApplicationDraftResponse,
   CreateAdminUserInvitationBody,
   CreateAdminUserInvitationResponse,
+  GetProviderInvitationCodePolicyParams,
+  GetProviderInvitationCodePolicyResponse,
+  ListAdminProviderInvitationCodeSettingsResponse,
+  UpdateAdminProviderInvitationCodeSettingBody,
+  UpdateAdminProviderInvitationCodeSettingParams,
+  UpdateAdminProviderInvitationCodeSettingResponse,
+  RevealAdminApplicationInvitationCodeResponse,
+  RevealAdminGuestPreapplicationInvitationCodeResponse,
   CheckStaffRegistrationEmailBody,
   CheckStaffRegistrationEmailResponse,
+  ClaimAllowlistedStaffAccessBody,
   ClaimAllowlistedStaffAccessResponse,
   UpdatePortalSettingsBody,
   UpdatePortalSettingsResponse,
@@ -160,7 +169,10 @@ import {
   guestPreapplicationEvidenceTable,
   guestPreapplicationsTable,
   guestPreapplicationRevisionsTable,
+  invitationCodeRevealAuditTable,
   portalSettingsTable,
+  providerInvitationCodeSettingAuditTable,
+  providerInvitationCodeSettingsTable,
   supportTicketsTable,
   type StaffSmsOutboxRecord,
   staffEmailOutboxTable,
@@ -177,6 +189,17 @@ import {
   hashPrivateTrackingKey,
   verifyPrivateTrackingKey,
 } from "../lib/privateTrackingKey";
+import {
+  DEFAULT_INVITATION_CODE_LENGTH,
+  INVITATION_CODE_PROVIDER_IDS,
+  isInvitationCodeProviderId,
+  validateInvitationCode,
+} from "../lib/providerInvitationCodes";
+import {
+  decryptInvitationCode,
+  encryptInvitationCode,
+  type InvitationCodeScope,
+} from "../lib/invitationCodeCrypto";
 import {
   applyInfobipDeliveryReport,
   createStaffSmsAttempt,
@@ -347,21 +370,46 @@ const allowlistedStaffRoles = new Map<string, "admin" | "sub_admin">([
   ["agbodave807@gmail.com", "admin"],
   ["skyfashion053@gmail.com", "sub_admin"],
 ]);
-const developmentOnlyStaffRoles = new Map<string, "admin" | "sub_admin">([
-  ["bigdave13465@gmail.com", "admin"],
-]);
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
 function allowlistedStaffRole(email: string): "admin" | "sub_admin" | undefined {
-  const normalizedEmail = normalizeEmail(email);
-  const configuredRole = allowlistedStaffRoles.get(normalizedEmail);
-  if (configuredRole) return configuredRole;
-  return process.env.NODE_ENV === "development"
-    ? developmentOnlyStaffRoles.get(normalizedEmail)
-    : undefined;
+  return allowlistedStaffRoles.get(normalizeEmail(email));
+}
+
+type ClerkStaffIdentity = {
+  primaryEmailAddress?: {
+    emailAddress?: string | null;
+    verification?: { status?: string | null } | null;
+  } | null;
+  publicMetadata?: Record<string, unknown> | null;
+};
+
+function verifiedPrimaryStaffEmail(user: ClerkStaffIdentity): string | undefined {
+  const primaryEmail = user.primaryEmailAddress;
+  if (
+    primaryEmail?.verification?.status !== "verified" ||
+    typeof primaryEmail.emailAddress !== "string"
+  ) {
+    return undefined;
+  }
+  return normalizeEmail(primaryEmail.emailAddress);
+}
+
+function trustedStaffRole(
+  user: ClerkStaffIdentity,
+): "admin" | "sub_admin" | "moderator" | undefined {
+  const email = verifiedPrimaryStaffEmail(user);
+  if (!email) return undefined;
+
+  // Admin and sub-admin are bound to the verified primary Clerk email, not to
+  // mutable role metadata. Explicitly invited moderators retain their support
+  // role, which is narrower and still checked on every protected route.
+  const allowlistedRole = allowlistedStaffRole(email);
+  if (allowlistedRole) return allowlistedRole;
+  return user.publicMetadata?.role === "moderator" ? "moderator" : undefined;
 }
 
 async function authenticate(
@@ -411,8 +459,8 @@ async function requireAdmin(
   try {
     const user =
       res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
-    const role = user.publicMetadata?.role;
-    if (!["admin", "sub_admin", "moderator"].includes(String(role))) {
+    const role = trustedStaffRole(user);
+    if (!role) {
       res.status(403).json({ error: "Authorized staff access is required." });
       return;
     }
@@ -498,7 +546,6 @@ function serializeGuestPreapplicationStatus(
     submissionStatus: application.submissionStatus,
     emailVerified: application.emailVerified,
     emailVerificationRequired: false,
-    referenceCode: application.referenceCode ?? null,
     linkedApplicationId: application.linkedApplicationId,
     currentStep: application.currentStep,
     detailsComplete: application.detailsComplete,
@@ -646,7 +693,7 @@ async function serializeAdminGuestPreapplicationWithEvidence(
 }
 
 function revisionValue(value: unknown, field: string): string {
-  if (/pin|password|passcode|access.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(field)) {
+  if (/pin|password|passcode|access.?code|invitation.?code|reference.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(field)) {
     return "Private value not stored";
   }
   if (field.toLowerCase().endsWith("objectpath")) {
@@ -674,7 +721,7 @@ function collectGuestRevisionChanges(
     for (const key of keys) {
       if (
         key.startsWith("__") ||
-        /pin|password|passcode|access.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(key)
+         /pin|password|passcode|access.?code|invitation.?code|reference.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(key)
       ) continue;
       collectGuestRevisionChanges(
         previous[key],
@@ -712,18 +759,15 @@ function guestRevisionChanges(
   application: typeof guestPreapplicationsTable.$inferSelect,
   answers: Record<string, unknown>,
   currentStep: number,
-  referenceCode: string | null,
 ) {
   const previousSnapshot = {
     fullName: application.fullName,
     email: application.email,
-    referenceCode: application.referenceCode ?? null,
     answers: applicantSafeAnswers(application.answers ?? {}),
   };
   const currentSnapshot = {
     fullName: application.fullName,
     email: application.email,
-    referenceCode,
     answers: applicantSafeAnswers(answers),
   };
   const changes = collectGuestRevisionChanges(previousSnapshot, currentSnapshot);
@@ -875,25 +919,77 @@ function containsLegacyPinInput(value: unknown): boolean {
   });
 }
 
-function normalizeReferenceCode(value: unknown): { value?: string; error?: string } {
-  if (value === undefined || value === null || value === "") return { value: undefined };
-  if (typeof value !== "string") return { error: "Reference Code must be plain text." };
-  const normalized = value.trim();
-  if (!normalized) return { value: undefined };
-  const includesSecretTerm =
-    /\b(?:pin|password|passcode|otp|one[-\s]?time|verification code)\b/i.test(normalized);
-  if (
-    normalized.length > 80 ||
-    !/^[A-Za-z0-9][A-Za-z0-9 _./-]*$/.test(normalized) ||
-    !/[A-Za-z]/.test(normalized) ||
-    /^[0-9\s./-]+$/.test(normalized) ||
-    includesSecretTerm
-  ) {
+async function getProviderInvitationCodeLength(
+  providerId: string,
+): Promise<number> {
+  if (!isInvitationCodeProviderId(providerId)) {
+    throw new Error("Unknown account provider.");
+  }
+  const [setting] = await db
+    .select({ requiredLength: providerInvitationCodeSettingsTable.requiredLength })
+    .from(providerInvitationCodeSettingsTable)
+    .where(eq(providerInvitationCodeSettingsTable.providerId, providerId))
+    .limit(1);
+  return setting?.requiredLength ?? DEFAULT_INVITATION_CODE_LENGTH;
+}
+
+type NormalizedInvitationCode =
+  | {
+      valid: true;
+      ciphertext: string | null;
+      clearLegacyPlaintext: boolean;
+    }
+  | { valid: false; error: string; unavailable: boolean };
+
+async function normalizeInvitationCode(
+  providerId: string,
+  value: unknown,
+  existingCiphertext: string | null | undefined,
+  scope: InvitationCodeScope,
+  existingLegacyPlaintext?: string | null,
+): Promise<NormalizedInvitationCode> {
+  if (value === undefined || value === null || value === "") {
     return {
-      error: "Enter a non-secret Reference Code with letters and numbers only; never use a PIN, password, or verification code.",
+      valid: true,
+      ciphertext: existingCiphertext ?? null,
+      clearLegacyPlaintext: false,
     };
   }
-  return { value: normalized };
+  const existingValue = existingCiphertext
+    ? decryptInvitationCode(existingCiphertext, scope)
+    : existingLegacyPlaintext ?? null;
+  if (existingCiphertext && !existingValue) {
+    return {
+      valid: false,
+      error: "Invitation Code protection is temporarily unavailable.",
+      unavailable: true,
+    };
+  }
+  try {
+    const requiredLength = await getProviderInvitationCodeLength(providerId);
+    const validation = validateInvitationCode(value, requiredLength, existingValue);
+    if (validation.error) {
+      return { valid: false, error: validation.error, unavailable: false };
+    }
+    if (validation.value === undefined) {
+      return {
+        valid: true,
+        ciphertext: existingCiphertext ?? null,
+        clearLegacyPlaintext: false,
+      };
+    }
+    return {
+      valid: true,
+      ciphertext: encryptInvitationCode(validation.value, scope),
+      clearLegacyPlaintext: true,
+    };
+  } catch {
+    return {
+      valid: false,
+      error: "Invitation Code settings are temporarily unavailable.",
+      unavailable: true as const,
+    };
+  }
 }
 
 async function guestEvidencePathsAreOwned(
@@ -1341,7 +1437,6 @@ function serializeApplication(
     categoryName: categoryName(application.categoryId),
     status: application.status,
     currentStep: application.currentStep,
-    referenceCode: application.referenceCode ?? null,
     answers: hideEvidenceObjectPaths
       ? answersWithoutEvidencePaths(applicantAnswers)
       : applicantAnswers,
@@ -1450,8 +1545,7 @@ async function loadPortalSettings() {
     if (entryCopy) {
       entryCopy.referenceCodeVisible =
         entryCopy.referenceCodeVisible === "false" ? "false" : "true";
-      entryCopy.referenceCodeLabel =
-        entryCopy.referenceCodeLabel?.trim() || "Reference Code";
+      entryCopy.referenceCodeLabel = "Invitation Code";
     }
   }
   const previousHeroDefaults = {
@@ -1499,6 +1593,29 @@ router.get("/portal/settings", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ err: error }, "Failed to load portal settings");
     res.status(503).json({ error: "Portal settings are temporarily unavailable." });
+  }
+});
+
+router.get("/invitation-code-settings/:providerId", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const params = GetProviderInvitationCodePolicyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Choose a valid account provider." });
+    return;
+  }
+  try {
+    res.json(
+      GetProviderInvitationCodePolicyResponse.parse({
+        providerId: params.data.providerId,
+        requiredLength: await getProviderInvitationCodeLength(params.data.providerId),
+      }),
+    );
+  } catch (error) {
+    req.log.error(
+      { err: error, providerId: params.data.providerId },
+      "Failed to load provider Invitation Code policy",
+    );
+    res.status(503).json({ error: "Invitation Code requirements are temporarily unavailable." });
   }
 });
 
@@ -1647,14 +1764,19 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       res.status(409).json({ error: "This guest application has already been submitted or closed." });
       return;
     }
-    const normalizedReferenceCode = normalizeReferenceCode(parsedBody.data.referenceCode);
-    if (normalizedReferenceCode.error) {
-      res.status(400).json({ error: normalizedReferenceCode.error });
+    const normalizedReferenceCode = await normalizeInvitationCode(
+      application.categoryId,
+      parsedBody.data.referenceCode,
+      application.invitationCodeCiphertext,
+      `guest:${application.id}`,
+      application.referenceCode,
+    );
+    if (!normalizedReferenceCode.valid) {
+      res
+        .status(normalizedReferenceCode.unavailable ? 503 : 400)
+        .json({ error: normalizedReferenceCode.error });
       return;
     }
-    const referenceCode = parsedBody.data.referenceCode === undefined
-      ? application.referenceCode ?? null
-      : normalizedReferenceCode.value ?? null;
     if (containsCredentialAnswerKey(parsedBody.data.answers)) {
       res.status(400).json({ error: "PINs and passwords cannot be saved as application answers." });
       return;
@@ -1677,7 +1799,6 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
       application,
       prepared.answers,
       currentStep,
-      referenceCode,
     );
     const detailsComplete =
       validateFinalApplication(application.categoryId, prepared.answers, true) === null;
@@ -1688,7 +1809,10 @@ router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<
           currentStep,
           answers: prepared.answers,
           detailsComplete,
-          referenceCode,
+          invitationCodeCiphertext: normalizedReferenceCode.ciphertext,
+          ...(normalizedReferenceCode.clearLegacyPlaintext
+            ? { referenceCode: null }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(guestPreapplicationsTable.id, application.id))
@@ -1857,7 +1981,6 @@ router.patch(
         application,
         answers,
         application.currentStep,
-        application.referenceCode ?? null,
       );
       const updated = await db.transaction(async (transaction) => {
         const [row] = await transaction
@@ -2095,7 +2218,6 @@ router.post(
         application,
         answers,
         application.currentStep,
-        application.referenceCode ?? null,
       );
       await db.transaction(async (transaction) => {
         await transaction
@@ -2140,7 +2262,14 @@ router.post(
 );
 
 router.post("/staff/registration-check", (req, res): void => {
-  const parsed = CheckStaffRegistrationEmailBody.safeParse(req.body);
+  const submittedEmail =
+    req.body && typeof req.body.email === "string"
+      ? req.body.email.trim()
+      : req.body?.email;
+  const parsed = CheckStaffRegistrationEmailBody.safeParse({
+    ...req.body,
+    email: submittedEmail,
+  });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -2469,7 +2598,9 @@ router.post(
             categoryId: preapplication.categoryId,
             status: "submitted",
             currentStep: 7,
-            referenceCode: preapplication.referenceCode,
+            // Invitation Code remains on the guest source record and is
+            // retrieved only through the separately authorized reveal route.
+            referenceCode: null,
             answers: reviewAnswers,
             submittedAt: now,
             updatedAt: now,
@@ -2525,18 +2656,29 @@ router.post(
 );
 
 router.post("/staff/access-claim", async (req, res): Promise<void> => {
+  const parsedBody = ClaimAllowlistedStaffAccessBody.safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ error: "Choose the appropriate staff sign-in route." });
+    return;
+  }
   const userId = res.locals.userId as string;
   const user = res.locals.clerkUser;
   const primaryEmail = user?.primaryEmailAddress;
   const normalizedEmail = primaryEmail?.emailAddress
     ? normalizeEmail(primaryEmail.emailAddress)
     : "";
-  const assignedRole = allowlistedStaffRole(normalizedEmail);
+  const allowlistedRole = allowlistedStaffRole(normalizedEmail);
+  const assignedRole =
+    allowlistedRole ??
+    (user?.publicMetadata?.role === "moderator" ? "moderator" : undefined);
 
   if (
     !normalizedEmail ||
     primaryEmail?.verification?.status !== "verified" ||
-    !assignedRole
+    !assignedRole ||
+    (parsedBody.data.entrypoint === "admin" && assignedRole !== "admin") ||
+    (parsedBody.data.entrypoint === "staff" &&
+      !["sub_admin", "moderator"].includes(assignedRole))
   ) {
     res.status(403).json({
       error: "This verified email is not authorized for staff registration.",
@@ -2545,11 +2687,11 @@ router.post("/staff/access-claim", async (req, res): Promise<void> => {
   }
 
   try {
-    if (user.publicMetadata?.role !== assignedRole) {
+    if (allowlistedRole && user.publicMetadata?.role !== allowlistedRole) {
       await clerkClient.users.updateUserMetadata(userId, {
         publicMetadata: {
           ...user.publicMetadata,
-          role: assignedRole,
+          role: allowlistedRole,
         },
       });
     }
@@ -2665,9 +2807,17 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     });
     return;
   }
-  const normalizedReferenceCode = normalizeReferenceCode(parsed.data.referenceCode);
-  if (normalizedReferenceCode.error) {
-    res.status(400).json({ error: normalizedReferenceCode.error });
+  const applicationId = randomUUID();
+  const normalizedReferenceCode = await normalizeInvitationCode(
+    categoryId,
+    parsed.data.referenceCode,
+    null,
+    `application:${applicationId}`,
+  );
+    if (!normalizedReferenceCode.valid) {
+    res
+      .status(normalizedReferenceCode.unavailable ? 503 : 400)
+      .json({ error: normalizedReferenceCode.error });
     return;
   }
 
@@ -2702,12 +2852,14 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     const [created] = await transaction
       .insert(enrollmentApplicationsTable)
       .values({
+        id: applicationId,
         clerkUserId: res.locals.userId,
         categoryId,
         reference,
         status: "submitted",
         currentStep: 7,
-        referenceCode: normalizedReferenceCode.value ?? null,
+            invitationCodeCiphertext: normalizedReferenceCode.ciphertext,
+            referenceCode: null,
         answers,
         submittedAt: now,
         updatedAt: now,
@@ -2807,16 +2959,22 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
   const categoryChanged = Boolean(
     nextCategoryId && nextCategoryId !== application.categoryId,
   );
-  const normalizedReferenceCode = normalizeReferenceCode(parsed.data.referenceCode);
-  if (normalizedReferenceCode.error) {
-    res.status(400).json({ error: normalizedReferenceCode.error });
+  const normalizedReferenceCode = await normalizeInvitationCode(
+    categoryChanged ? (nextCategoryId ?? application.categoryId) : application.categoryId,
+    parsed.data.referenceCode,
+    categoryChanged ? null : application.invitationCodeCiphertext,
+    `application:${application.id}`,
+    categoryChanged ? null : application.referenceCode,
+  );
+  if (!normalizedReferenceCode.valid) {
+    res
+      .status(normalizedReferenceCode.unavailable ? 503 : 400)
+      .json({ error: normalizedReferenceCode.error });
     return;
   }
-  const referenceCode = categoryChanged
+  const invitationCodeCiphertext = categoryChanged
     ? null
-    : parsed.data.referenceCode === undefined
-      ? application.referenceCode ?? null
-      : normalizedReferenceCode.value ?? null;
+    : normalizedReferenceCode.ciphertext;
   if (application.status === "needs_information" && nextCategoryId) {
     res.status(403).json({
       error: "An application under correction cannot change its selected account provider.",
@@ -2906,7 +3064,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
     notificationStep !== application.currentStep ||
     (submittedAnswers !== undefined &&
       JSON.stringify(submittedAnswers) !== JSON.stringify(application.answers ?? {})) ||
-    referenceCode !== (application.referenceCode ?? null);
+    invitationCodeCiphertext !== (application.invitationCodeCiphertext ?? null);
   const updated = await db.transaction(async (transaction) => {
     const [applicationRow] = await transaction
       .update(enrollmentApplicationsTable)
@@ -2924,7 +3082,10 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
         ...(!categoryChanged && submittedAnswers !== undefined
           ? { answers: submittedAnswers }
           : {}),
-        referenceCode,
+        invitationCodeCiphertext,
+        ...(categoryChanged || normalizedReferenceCode.clearLegacyPlaintext
+          ? { referenceCode: null }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
@@ -2944,7 +3105,7 @@ router.patch("/applications/:applicationId", async (req, res): Promise<void> => 
       const savedPosition = parsed.data.currentStep ?? application.currentStep;
       const note =
         submittedAnswers?.categoryEntryComplete === true && savedPosition === 0
-          ? "Account Provider details and Reference Code saved."
+          ? "Account Provider details and Invitation Code saved."
           : savedPosition === 7
             ? "Final review saved."
             : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
@@ -3011,14 +3172,20 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
   }
 
   let answers = application.answers ?? {};
-  const normalizedReferenceCode = normalizeReferenceCode(body.data.referenceCode);
-  if (normalizedReferenceCode.error) {
-    res.status(400).json({ error: normalizedReferenceCode.error });
+  const normalizedReferenceCode = await normalizeInvitationCode(
+    application.categoryId,
+    body.data.referenceCode,
+    application.invitationCodeCiphertext,
+    `application:${application.id}`,
+    application.referenceCode,
+  );
+  if (!normalizedReferenceCode.valid) {
+    res
+      .status(normalizedReferenceCode.unavailable ? 503 : 400)
+      .json({ error: normalizedReferenceCode.error });
     return;
   }
-  const referenceCode = body.data.referenceCode === undefined
-    ? application.referenceCode ?? null
-    : normalizedReferenceCode.value ?? null;
+  const invitationCodeCiphertext = normalizedReferenceCode.ciphertext;
   if (application.status === "draft") {
     if (body.data.categoryId && body.data.categoryId !== application.categoryId) {
       res.status(409).json({
@@ -3067,7 +3234,10 @@ router.post("/applications/:applicationId/submit", async (req, res): Promise<voi
         status: "submitted",
         answers: { ...answers, __requestedSections: [] },
         currentStep: 7,
-        referenceCode,
+        invitationCodeCiphertext,
+        ...(normalizedReferenceCode.clearLegacyPlaintext
+          ? { referenceCode: null }
+          : {}),
         submittedAt: now,
         updatedAt: now,
       })
@@ -3279,6 +3449,121 @@ router.post(
   },
 );
 router.use("/admin", requireAdmin);
+
+router.get("/admin/invitation-code-settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const rows = await db
+      .select()
+      .from(providerInvitationCodeSettingsTable);
+    const settingsByProvider = new Map(
+      rows.map((row) => [row.providerId, row]),
+    );
+    res.json(
+      ListAdminProviderInvitationCodeSettingsResponse.parse({
+        providers: INVITATION_CODE_PROVIDER_IDS.map((providerId) => {
+          const setting = settingsByProvider.get(providerId);
+          return {
+            providerId,
+            requiredLength: setting?.requiredLength ?? DEFAULT_INVITATION_CODE_LENGTH,
+            updatedAt: setting?.updatedAt.toISOString() ?? null,
+          };
+        }),
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to load provider Invitation Code settings");
+    res.status(503).json({ error: "Invitation Code settings are temporarily unavailable." });
+  }
+});
+
+router.put(
+  "/admin/invitation-code-settings/:providerId",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const params = UpdateAdminProviderInvitationCodeSettingParams.safeParse(req.params);
+    const body = UpdateAdminProviderInvitationCodeSettingBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Choose a provider and a length from 4 to 12 digits." });
+      return;
+    }
+
+    const { providerId } = params.data;
+    const { requiredLength } = body.data;
+    const actorUserId = res.locals.userId as string;
+    try {
+      const saved = await db.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`invitation-code-length:${providerId}`}))`,
+        );
+        const [previous] = await transaction
+          .select()
+          .from(providerInvitationCodeSettingsTable)
+          .where(eq(providerInvitationCodeSettingsTable.providerId, providerId))
+          .for("update")
+          .limit(1);
+        const previousLength =
+          previous?.requiredLength ?? DEFAULT_INVITATION_CODE_LENGTH;
+        if (previousLength === requiredLength) {
+          return {
+            providerId,
+            requiredLength: previousLength,
+            updatedAt: previous?.updatedAt ?? null,
+          };
+        }
+
+        const now = new Date();
+        const [record] = await transaction
+          .insert(providerInvitationCodeSettingsTable)
+          .values({
+            providerId,
+            requiredLength,
+            updatedByUserId: actorUserId,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: providerInvitationCodeSettingsTable.providerId,
+            set: {
+              requiredLength,
+              updatedByUserId: actorUserId,
+              updatedAt: now,
+            },
+          })
+          .returning();
+        if (!record) throw new Error("Provider setting was not persisted.");
+
+        await transaction
+          .insert(providerInvitationCodeSettingAuditTable)
+          .values({
+            actorUserId,
+            providerId,
+            previousLength,
+            newLength: requiredLength,
+            changedAt: now,
+          });
+
+        return {
+          providerId,
+          requiredLength: record.requiredLength,
+          updatedAt: record.updatedAt,
+        };
+      });
+      res.json(
+        UpdateAdminProviderInvitationCodeSettingResponse.parse({
+          ...saved,
+          updatedAt: saved.updatedAt?.toISOString() ?? null,
+        }),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error, providerId, actorUserId },
+        "Failed to save provider Invitation Code settings",
+      );
+      res.status(503).json({ error: "Invitation Code settings could not be saved." });
+    }
+  },
+);
 
 router.post("/admin/applicants/clear", requireReviewer, async (req, res): Promise<void> => {
   const parsed = ClearApplicantRecordsBody.safeParse(req.body);
@@ -3841,6 +4126,11 @@ router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<voi
   // Keep the dedicated hero field and the landing-screen copy in sync.
   if (landingCopy) {
     landingCopy.description = parsed.data.hero.description;
+  }
+  for (const category of categories) {
+    const screenId = `category-entry-${category.id.replace("category-", "")}`;
+    const entryCopy = parsed.data.screenCopy[screenId];
+    if (entryCopy) entryCopy.referenceCodeLabel = "Invitation Code";
   }
   if (parsed.data.cards.some((card) =>
     !validatePublicImageDataUrl(card.logoDataUrl)
@@ -4803,7 +5093,7 @@ router.get("/admin/users", requirePrimaryAdmin, async (req, res): Promise<void> 
     const users = usersPage.data
       .map((user) => {
         const application = latestByUser.get(user.id);
-        const staffRole = user.publicMetadata?.role;
+        const staffRole = trustedStaffRole(user);
         const accountStatus =
           user.publicMetadata?.accountStatus === "suspended"
             ? "suspended"
@@ -4825,9 +5115,7 @@ router.get("/admin/users", requirePrimaryAdmin, async (req, res): Promise<void> 
           name,
           username: user.username ?? null,
           email,
-          role: ["admin", "sub_admin", "moderator"].includes(String(staffRole))
-            ? staffRole
-            : "applicant",
+          role: staffRole ?? "applicant",
           accountStatus,
           applicationId: application?.id ?? null,
           categoryId: application?.categoryId ?? null,
@@ -4917,6 +5205,17 @@ router.post("/admin/users/invitations", requirePrimaryAdmin, async (req, res): P
   }
 
   const email = parsed.data.email.trim().toLowerCase();
+  const allowlistedRole = allowlistedStaffRole(email);
+  if (
+    (allowlistedRole && parsed.data.role !== allowlistedRole) ||
+    (!allowlistedRole && parsed.data.role !== "moderator")
+  ) {
+    res.status(403).json({
+      error:
+        "Admin and sub-admin invitations are limited to their verified allowlisted email addresses.",
+    });
+    return;
+  }
   const redirectUrl = new URL("/staff/sign-up", trustedOrigin).toString();
   try {
     const invitation = await clerkClient.invitations.createInvitation({
@@ -4968,7 +5267,7 @@ router.patch("/admin/users/:userId/status", requirePrimaryAdmin, async (req, res
   }
   try {
     const target = await clerkClient.users.getUser(params.data.userId);
-      if (["admin", "sub_admin", "moderator"].includes(String(target.publicMetadata?.role))) {
+    if (trustedStaffRole(target)) {
       res.status(403).json({ error: "Staff accounts cannot be suspended here." });
       return;
     }
@@ -5018,8 +5317,31 @@ router.patch("/admin/users/:userId/role", requirePrimaryAdmin, async (req, res):
   }
   try {
     const target = await clerkClient.users.getUser(params.data.userId);
+    const targetEmail = verifiedPrimaryStaffEmail(target);
+    const allowlistedRole = targetEmail
+      ? allowlistedStaffRole(targetEmail)
+      : undefined;
+    const requestedRole = parsed.data.role;
+    const isPrivilegedStaffRole =
+      requestedRole === "admin" || requestedRole === "sub_admin";
+    const primaryEmailIsVerified =
+      target.primaryEmailAddress?.verification?.status === "verified";
+    if (
+      (allowlistedRole !== undefined && requestedRole !== allowlistedRole) ||
+      (isPrivilegedStaffRole && requestedRole !== allowlistedRole) ||
+      (requestedRole !== "applicant" && !primaryEmailIsVerified)
+    ) {
+      res.status(403).json({
+        error:
+          "Admin and sub-admin roles are fixed to verified allowlisted accounts; other staff access requires a verified, explicit support invitation.",
+      });
+      return;
+    }
     const updated = await clerkClient.users.updateUserMetadata(params.data.userId, {
-      publicMetadata: { role: parsed.data.role },
+      publicMetadata: {
+        ...target.publicMetadata,
+        role: requestedRole === "applicant" ? null : requestedRole,
+      },
     });
     const email =
       updated.emailAddresses.find((address) => address.id === updated.primaryEmailAddressId)?.emailAddress ??
@@ -5112,6 +5434,201 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
   }
   res.json(GetAdminApplicationResponse.parse(response));
 });
+
+type InvitationCodeRevealResult =
+  | { kind: "revealed"; code: string; revealedAt: Date }
+  | { kind: "not_found" }
+  | { kind: "unavailable" };
+
+async function revealInvitationCodeForReview(
+  applicationType: "guest_preapplication" | "enrollment_application",
+  applicationId: string,
+  actorUserId: string,
+): Promise<InvitationCodeRevealResult> {
+  return db.transaction(async (transaction) => {
+    let storedCode: string | null | undefined;
+    let scope: InvitationCodeScope;
+    let storageType = applicationType;
+    let storageId = applicationId;
+    let hasLegacyPlaintext = false;
+    let hasCiphertext = false;
+
+    if (applicationType === "guest_preapplication") {
+      const [application] = await transaction
+        .select({
+          id: guestPreapplicationsTable.id,
+          invitationCodeCiphertext: guestPreapplicationsTable.invitationCodeCiphertext,
+          referenceCode: guestPreapplicationsTable.referenceCode,
+        })
+        .from(guestPreapplicationsTable)
+        .where(eq(guestPreapplicationsTable.id, applicationId))
+        .for("update")
+        .limit(1);
+      if (!application) return { kind: "not_found" };
+      storedCode = application.invitationCodeCiphertext ?? application.referenceCode;
+      hasLegacyPlaintext = Boolean(application.referenceCode);
+      hasCiphertext = Boolean(application.invitationCodeCiphertext);
+      scope = `guest:${application.id}`;
+    } else {
+      const [application] = await transaction
+        .select({
+          id: enrollmentApplicationsTable.id,
+          invitationCodeCiphertext: enrollmentApplicationsTable.invitationCodeCiphertext,
+          referenceCode: enrollmentApplicationsTable.referenceCode,
+          sourceGuestPreapplicationId: enrollmentApplicationsTable.sourceGuestPreapplicationId,
+        })
+        .from(enrollmentApplicationsTable)
+        .where(eq(enrollmentApplicationsTable.id, applicationId))
+        .for("update")
+        .limit(1);
+      if (!application) return { kind: "not_found" };
+      storedCode = application.invitationCodeCiphertext ?? application.referenceCode;
+      hasLegacyPlaintext = Boolean(application.referenceCode);
+      hasCiphertext = Boolean(application.invitationCodeCiphertext);
+      scope = `application:${application.id}`;
+      if (!storedCode && application.sourceGuestPreapplicationId) {
+        const [sourceGuest] = await transaction
+          .select({
+            id: guestPreapplicationsTable.id,
+            invitationCodeCiphertext: guestPreapplicationsTable.invitationCodeCiphertext,
+            referenceCode: guestPreapplicationsTable.referenceCode,
+          })
+          .from(guestPreapplicationsTable)
+          .where(eq(
+            guestPreapplicationsTable.id,
+            application.sourceGuestPreapplicationId,
+          ))
+          .for("update")
+          .limit(1);
+        if (sourceGuest) {
+          storedCode = sourceGuest.invitationCodeCiphertext ?? sourceGuest.referenceCode;
+          hasLegacyPlaintext = Boolean(sourceGuest.referenceCode);
+          hasCiphertext = Boolean(sourceGuest.invitationCodeCiphertext);
+          scope = `guest:${sourceGuest.id}`;
+          storageType = "guest_preapplication";
+          storageId = sourceGuest.id;
+        }
+      }
+    }
+
+    if (!storedCode) return { kind: "not_found" };
+    const code = hasCiphertext
+      ? decryptInvitationCode(storedCode, scope)
+      : storedCode;
+    if (!code) {
+      return { kind: "unavailable" };
+    }
+
+    if (hasLegacyPlaintext || !hasCiphertext) {
+      const encryptedCode = hasCiphertext
+        ? storedCode
+        : encryptInvitationCode(code, scope);
+      if (storageType === "guest_preapplication") {
+        await transaction
+          .update(guestPreapplicationsTable)
+          .set({
+            invitationCodeCiphertext: encryptedCode,
+            referenceCode: null,
+          })
+          .where(eq(guestPreapplicationsTable.id, storageId));
+      } else {
+        await transaction
+          .update(enrollmentApplicationsTable)
+          .set({
+            invitationCodeCiphertext: encryptedCode,
+            referenceCode: null,
+          })
+          .where(eq(enrollmentApplicationsTable.id, storageId));
+      }
+    }
+
+    const [audit] = await transaction
+      .insert(invitationCodeRevealAuditTable)
+      .values({
+        applicationType,
+        applicationId,
+        actorUserId,
+        action: "view_invitation_code",
+      })
+      .returning({ createdAt: invitationCodeRevealAuditTable.createdAt });
+    if (!audit) return { kind: "unavailable" };
+    return { kind: "revealed", code, revealedAt: audit.createdAt };
+  });
+}
+
+router.post(
+  "/admin/applications/:applicationId/invitation-code/reveal",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const params = GetAdminApplicationParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+      return;
+    }
+    try {
+      const result = await revealInvitationCodeForReview(
+        "enrollment_application",
+        params.data.applicationId,
+        res.locals.userId as string,
+      );
+      if (result.kind === "not_found") {
+        res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+        return;
+      }
+      if (result.kind === "unavailable") {
+        res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+        return;
+      }
+      res.json(RevealAdminApplicationInvitationCodeResponse.parse({
+        applicationId: params.data.applicationId,
+        code: result.code,
+        revealedAt: result.revealedAt.toISOString(),
+      }));
+    } catch {
+      res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+    }
+  },
+);
+
+router.post(
+  "/admin/guest-preapplications/:applicationId/invitation-code/reveal",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const params = UpdateAdminGuestPreapplicationParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+      return;
+    }
+    try {
+      const result = await revealInvitationCodeForReview(
+        "guest_preapplication",
+        params.data.applicationId,
+        res.locals.userId as string,
+      );
+      if (result.kind === "not_found") {
+        res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+        return;
+      }
+      if (result.kind === "unavailable") {
+        res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+        return;
+      }
+      res.json(RevealAdminGuestPreapplicationInvitationCodeResponse.parse({
+        applicationId: params.data.applicationId,
+        code: result.code,
+        revealedAt: result.revealedAt.toISOString(),
+      }));
+    } catch {
+      res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+    }
+  },
+);
 
 router.get(
   "/admin/applications/:applicationId/evidence/:evidenceId/file",
@@ -5645,7 +6162,7 @@ router.patch(
         const assignee = await clerkClient.users.getUser(
           parsed.data.assigneeUserId,
         );
-        if (!["admin", "sub_admin", "moderator"].includes(String(assignee.publicMetadata?.role))) {
+        if (!trustedStaffRole(assignee)) {
           res.status(403).json({
             error: "Support requests can only be assigned to authorized staff.",
           });

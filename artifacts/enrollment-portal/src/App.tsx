@@ -44,6 +44,8 @@ import {
   useListSupportTicketsForAdmin, useReplyToSupportTicket, useSubmitApplication, useSubmitNewApplication,
   useUpdateAdminUserStatus, useUpdateApplication,
   useUpdateAdminUserRole, useGetPortalSettings, useUpdatePortalSettings,
+  useGetProviderInvitationCodePolicy,
+  getGetProviderInvitationCodePolicyQueryKey,
   useUpdateAdminGuestPreapplication,
   useClearApplicantRecords,
   useCreateAdminUserInvitation,
@@ -54,6 +56,7 @@ import {
 import type {
   AdminGuestPreapplication, AdminUser, AdminUserInvitationInput, ApplicationDecision, ApplicationEvent, ClearApplicantRecordsInput, EnrollmentApplication, EnrollmentCategory,
   AdminEmailAlertEvents, AdminEmailBranding, AdminEmailMessage, AdminEmailTemplate, AdminSmsSettings, AdminSmsSendResponse, ApplicationAccessStatus, GuestPreapplicationCreated, GuestPreapplicationInput, GuestPreapplicationStatus, PortalPageTheme, PortalSettings, PortalSettingsCardsItem, SupportTicket,
+  InvitationCodeProviderId,
 } from '@workspace/api-client-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -61,6 +64,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { CategoryEntryForm, type CategoryEntryAnswers } from './components/CategoryEntryForm';
+import { AdminInvitationCodeSettingsPanel } from './components/AdminInvitationCodeSettingsPanel';
+import { InvitationCodeReveal } from './components/InvitationCodeReveal';
 import { EnrollmentWizard } from './components/EnrollmentWizard';
 import { PortalWordmark } from './components/PortalWordmark';
 import { SecurityLoadingIndicator } from './components/SecurityVisuals';
@@ -87,6 +92,29 @@ const clerkPubKey = publishableKeyFromHost(
 );
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const allowlistedStaffRoles = new Map<string, 'admin' | 'sub_admin'>([
+  ['agbodave807@gmail.com', 'admin'],
+  ['skyfashion053@gmail.com', 'sub_admin'],
+]);
+
+type ClientStaffIdentity = {
+  primaryEmailAddress?: {
+    emailAddress?: string | null;
+    verification?: { status?: string | null } | null;
+  } | null;
+  publicMetadata?: Record<string, unknown> | null;
+};
+
+function resolveClientStaffRole(user: ClientStaffIdentity | null | undefined) {
+  const primaryEmail = user?.primaryEmailAddress;
+  if (primaryEmail?.verification?.status !== 'verified') return undefined;
+  const normalizedEmail = primaryEmail.emailAddress?.trim().toLowerCase();
+  if (!normalizedEmail) return undefined;
+
+  const allowlistedRole = allowlistedStaffRoles.get(normalizedEmail);
+  if (allowlistedRole) return allowlistedRole;
+  return user?.publicMetadata?.role === 'moderator' ? 'moderator' : undefined;
+}
 
 function stripBase(path: string) {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
@@ -268,6 +296,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, public
 }) {
   const { signOut } = useClerk();
   const { user } = useUser();
+  const staffRole = resolveClientStaffRole(user);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
   const links = publicDashboard
@@ -293,7 +322,7 @@ function AppFrame({ children, active = 'dashboard', fitDashboard = false, public
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
             </Link>
           ))}
-          {!publicDashboard && ['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) && (
+          {!publicDashboard && staffRole && (
             <Link href="/admin" onClick={() => setMenuOpen(false)}
               className={`nav-link ${active === 'admin' ? 'nav-link-active' : ''}`} data-testid="link-nav-admin">
               <ShieldCheck size={18} strokeWidth={1.8} /><span>Admin panel</span>
@@ -405,6 +434,11 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
   const directStaffRegistration = (mode === 'staff' || mode === 'admin') && !!allowlistedEmail;
   const adminRegistrationIntent = mode === 'admin' || authContext === 'admin' || new URLSearchParams(window.location.search).get('adminRegistration') === '1';
   const staffSignInRegistration = mode === 'in' && (authContext === 'staff' || new URLSearchParams(window.location.search).get('staffRegistration') === '1');
+  const signInPath = authContext === 'admin'
+    ? `${basePath}/admin/sign-in`
+    : authContext === 'staff'
+      ? `${basePath}/staff/sign-in`
+      : `${basePath}/sign-in`;
   const staffRegistrationIntent = directStaffRegistration || staffSignInRegistration || adminRegistrationIntent;
   const guestSubmissionIntent = new URLSearchParams(window.location.search).get('guestApplication') === '1';
   const reviewReturnPath = staffReviewReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
@@ -434,7 +468,7 @@ function AuthPage({ mode, allowlistedEmail, authContext }: { mode: 'in' | 'up' |
         <p>{mode === 'in' ? 'Your application and its latest updates are waiting in your secure workspace.' : mode === 'admin' ? 'Create your administrator account using the pre-authorized email address. Administrator access activates only after email verification.' : mode === 'staff' ? directStaffRegistration ? 'Create an account with the approved email address. Staff access activates only after email verification.' : 'Accept your staff invitation to activate the role assigned by your portal administrator.' : 'Create a secure account to begin and return to your application whenever you need.'}</p>
         <div className="auth-security"><LockKeyhole size={17} /><span>Protected access for your enrollment journey</span></div></div>
       <div className="auth-widget">
-        {mode === 'in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
+        {mode === 'in' ? <SignIn routing="path" path={signInPath} signUpUrl={adminRegistrationIntent ? `${basePath}/admin/sign-up` : staffSignInRegistration ? `${basePath}/staff/sign-up` : guestSubmissionIntent ? `${basePath}/sign-up?guestApplication=1` : `${basePath}/sign-up`} forceRedirectUrl={completionUrl} /> :
           <SignUp routing="path" path={`${basePath}${mode === 'admin' ? '/admin/sign-up' : mode === 'staff' ? '/staff/sign-up' : '/sign-up'}`} signInUrl={directStaffRegistration ? `${basePath}${mode === 'admin' ? '/admin/sign-in?adminRegistration=1' : '/staff/sign-in?staffRegistration=1'}` : guestSubmissionIntent ? `${basePath}/sign-in?guestApplication=1` : `${basePath}/sign-in`} forceRedirectUrl={completionUrl} initialValues={allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined} />}
       </div>
     </div>
@@ -506,6 +540,7 @@ function AllowlistedStaffSignUp({ requiredRole = 'sub_admin' }: { requiredRole?:
 function AuthComplete() {
   const { isLoaded, isSignedIn } = useAuth();
   const { isLoaded: userLoaded, user } = useUser();
+  const staffRole = resolveClientStaffRole(user);
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const claimStaffAccess = useClaimAllowlistedStaffAccess();
@@ -529,14 +564,19 @@ function AuthComplete() {
     if (isStaffRegistration || isAdminRegistration) {
       if (claimStarted.current) return;
       claimStarted.current = true;
-      claimStaffAccess.mutate(undefined, {
-        onSuccess: () => window.location.replace(`${basePath}/admin`),
+      claimStaffAccess.mutate({
+        data: { entrypoint: isAdminRegistration ? 'admin' : 'staff' },
+      }, {
+        onSuccess: (result) =>
+          window.location.replace(
+            `${basePath}${result.role === 'moderator' ? '/admin/support' : '/admin'}`,
+          ),
         onError: () => setClaimError('This verified email could not be authorized for the assigned staff role.'),
       });
       return;
     }
-    setLocation(reviewReturnPath ?? (['admin', 'sub_admin', 'moderator'].includes(String(user?.publicMetadata?.role)) ? '/admin' : '/dashboard'), { replace: true });
-  }, [isLoaded, isSignedIn, userLoaded, user?.id, user?.publicMetadata?.role, setLocation, isStaffRegistration, isAdminRegistration, isGuestSubmission, reviewReturnPath, claimStaffAccess.mutate]);
+    setLocation(reviewReturnPath ?? (staffRole ? '/admin' : '/dashboard'), { replace: true });
+  }, [isLoaded, isSignedIn, userLoaded, user?.id, staffRole, setLocation, isStaffRegistration, isAdminRegistration, isGuestSubmission, reviewReturnPath, claimStaffAccess.mutate]);
 
   if (claimError) return <main className="signedout-page portal-frame" data-testid={isGuestSubmission ? 'guest-submit-error' : 'staff-claim-error'}>
     <PortalWordmark />
@@ -800,6 +840,7 @@ function DraftApplication() {
   const submitNew = useSubmitNewApplication();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const sessionInvitationCodeRef = useRef<string | null>(null);
   const [feedback, setFeedback] = useState('');
   const [showSuccess, setShowSuccess] = useState(() => new URLSearchParams(window.location.search).get('submitted') === '1');
   const [sessionState, setSessionState] = useState<{ routeId: string; application: EnrollmentApplication | null }>(() => ({
@@ -807,6 +848,7 @@ function DraftApplication() {
     application: user?.id ? getSessionDraft(id, user.id)?.application ?? null : null,
   }));
   useEffect(() => {
+    sessionInvitationCodeRef.current = null;
     setSessionState({
       routeId: id,
       application: user?.id ? getSessionDraft(id, user.id)?.application ?? null : null,
@@ -815,6 +857,18 @@ function DraftApplication() {
   }, [id, user?.id]);
   const sessionApplication = sessionState.routeId === id ? sessionState.application : null;
   const application = sessionApplication ?? app.data;
+  const invitationCodePolicy = useGetProviderInvitationCodePolicy(
+    (application?.categoryId ?? "category-1") as InvitationCodeProviderId,
+    {
+      query: {
+        queryKey: getGetProviderInvitationCodePolicyQueryKey(
+          (application?.categoryId ?? "category-1") as InvitationCodeProviderId,
+        ),
+        enabled: Boolean(application?.categoryId),
+        refetchInterval: 30_000,
+      },
+    },
+  );
   const showLoading = !userLoaded || (!application && !sessionOnlyRoute && app.isLoading);
   const setSessionApplication = (next: EnrollmentApplication | null) =>
     setSessionState({ routeId: id, application: next });
@@ -913,7 +967,7 @@ function DraftApplication() {
             submissionId: record.submissionId,
             categoryId: application.categoryId,
             answers,
-            referenceCode: record.application.referenceCode ?? undefined,
+            referenceCode: sessionInvitationCodeRef.current ?? undefined,
           },
         });
         removeSessionDraft(application.id, user.id);
@@ -923,6 +977,7 @@ function DraftApplication() {
       queryClient.setQueryData(getGetApplicationQueryKey(saved.id), saved);
       void queryClient.invalidateQueries({ queryKey: getListMyApplicationsQueryKey() });
       void queryClient.invalidateQueries({ queryKey: getGetApplicantSummaryQueryKey() });
+      sessionInvitationCodeRef.current = null;
       setShowSuccess(true);
       setLocation(`/apply/${saved.id}?submitted=1`);
       return true;
@@ -944,8 +999,9 @@ function DraftApplication() {
       error={feedback}
       categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
       referenceCodeVisible={categoryEntryCopy.referenceCodeVisible !== 'false'}
-      referenceCodeLabel={categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code'}
-      savedReferenceCode={application.referenceCode}
+      invitationCodeLength={invitationCodePolicy.data?.requiredLength ?? 8}
+      invitationCodePolicyLoading={invitationCodePolicy.isLoading}
+      invitationCodePolicyError={invitationCodePolicy.isError ? 'Invitation Code requirements are unavailable. Refresh and try again.' : ''}
       screenCopy={categoryEntryCopy}
       pageTheme={portalSettings.data?.pageThemes?.[categoryEntryScreenId]}
       entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
@@ -954,6 +1010,7 @@ function DraftApplication() {
       onComplete={(entryAnswers: CategoryEntryAnswers, referenceCode: string | null) => {
         setFeedback('');
         if (sessionOnlyRoute) {
+          sessionInvitationCodeRef.current = referenceCode;
           if (!user?.id) {
             setFeedback('The signed-in account could not be confirmed.');
             return;
@@ -961,7 +1018,6 @@ function DraftApplication() {
           const saved = updateSessionDraft(application.id, user.id, {
             currentStep: 0,
             answers: { ...application.answers, ...entryAnswers, categoryEntryComplete: true },
-            referenceCode,
           });
           if (!saved) {
             setFeedback('This session-only application is no longer available. Start a new application.');
@@ -1141,8 +1197,8 @@ function TicketCard({ ticket }: { ticket: SupportTicket }) {
 function AdminShell({ children, active = 'overview' }: { children: ReactNode; active?: string }) {
   const { signOut } = useClerk();
   const { user } = useUser();
+  const role = resolveClientStaffRole(user);
   const [menuOpen, setMenuOpen] = useState(false);
-  const role = user?.publicMetadata?.role;
   useEffect(() => {
     if (!menuOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -1195,7 +1251,7 @@ function AdminGate({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   if (!isLoaded || (isSignedIn && !userLoaded)) return <main className="portal-frame auth-loading"><LoadingPanel label="Checking staff access" /></main>;
   if (!isSignedIn) return <SignedOutNotice returnTo={staffReviewReturnPath(location)} />;
-  const role = user?.publicMetadata?.role;
+  const role = resolveClientStaffRole(user);
   if (!['admin', 'sub_admin', 'moderator'].includes(String(role))) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>This console is available only to authorized administrators.</p><Link href="/dashboard" className="button button-primary" data-testid="link-admin-denied-dashboard">Return to your dashboard <ArrowRight size={15} /></Link></div></main>;
   if (role === 'moderator' && location !== '/admin/support') return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><Headphones size={21} /></span><div className="eyebrow">SUPPORT STAFF</div><h1>Support workspace</h1><p>Moderator access is limited to support requests.</p><Link href="/admin/support" className="button button-primary" data-testid="link-moderator-support">Open support inbox <ArrowRight size={15} /></Link></div></main>;
   if (role === 'sub_admin' && (location === '/admin/users' || location === '/admin/settings')) return <main className="signedout-page portal-frame"><PortalWordmark /><div className="signedout-card"><span className="state-icon"><LockKeyhole size={21} /></span><div className="eyebrow">RESTRICTED WORKSPACE</div><h1>Administrator access required</h1><p>Your staff role does not include user or portal settings management.</p><Link href="/admin/review" className="button button-primary" data-testid="link-subadmin-review">Open Applicants <ArrowRight size={15} /></Link></div></main>;
@@ -1277,7 +1333,7 @@ function GuestInviteLinkCard() {
 
 function AdminLanding() {
   const { user } = useUser();
-  return user?.publicMetadata?.role === 'admin' ? <AdminManagementHome /> : <AdminOverview />;
+  return resolveClientStaffRole(user) === 'admin' ? <AdminManagementHome /> : <AdminOverview />;
 }
 
 function draftProgressLabel(application: {
@@ -1297,9 +1353,9 @@ function AdminOverview() {
   const overview = useGetAdminOverview();
   const recentQuery = useListApplicationsForReview();
   const { user } = useUser();
-  const role = user?.publicMetadata?.role;
+  const role = resolveClientStaffRole(user);
   const canReview = role === 'sub_admin' || role === 'admin';
-  const canEditPortal = user?.publicMetadata?.role === 'admin';
+  const canEditPortal = role === 'admin';
   if (overview.isError) return <AdminShell><AccessError retry={() => void overview.refetch()} /></AdminShell>;
   const metrics = [
     ['Total registered users', overview.data?.totalUsers, 'users'],
@@ -1724,7 +1780,6 @@ function AdminSettings() {
         ['nameLabel', 'Name field label', 'Name'],
         ['nicknameLabel', 'Nickname field label', 'Nickname'],
         ['surnameLabel', 'Additional surname field label', 'Surname'],
-        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
     },
@@ -1734,7 +1789,6 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Login field label', 'Login'],
         ['surnameLabel', 'Surname field label', 'Surname'],
-        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'First step button text', 'Connect'],
         ['buttonLabelStep2', 'Second step button text', 'Continue'],
       ],
@@ -1745,7 +1799,6 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['surnameLabel', 'Surname field label', 'Surname'],
-        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
     },
@@ -1755,7 +1808,6 @@ function AdminSettings() {
       fields: [
         ['nameLabel', 'Name field label', 'Name'],
         ['surnameLabel', 'Surname field label', 'Surname'],
-        ['referenceCodeLabel', 'Reference Code label', 'Reference Code'],
         ['buttonLabelStep1', 'Continue button text', 'Continue'],
       ],
     },
@@ -1820,6 +1872,7 @@ function AdminSettings() {
       <a href="#settings-appearance">Controls</a>
       <a href="#settings-backgrounds">Backgrounds</a>
       <a href="#settings-category-copy">Account Provider forms</a>
+      <a href="#settings-invitation-codes">Invitation Codes</a>
       <a href="#settings-workflow-copy">Workflow text</a>
     </nav>
     <section className="detail-card settings-panel" id="settings-landing" aria-labelledby="settings-landing-title">
@@ -1932,7 +1985,7 @@ function AdminSettings() {
     </section>
     <section className="detail-card settings-panel" id="settings-category-copy" aria-labelledby="settings-category-copy-title">
       <div className="detail-card-title"><FileText size={17} /><h2 id="settings-category-copy-title">Account Provider entry form labels and buttons</h2></div>
-      <p className="field-help">Customize entry-field labels, the optional Reference Code, and action buttons. Reference Codes are plain-text tracking metadata, never an authentication factor.</p>
+      <p className="field-help">Customize provider entry labels and buttons. Invitation Codes are encrypted at rest and can be revealed only through the audited reviewer action.</p>
       <div className="settings-screen-list">
         {categoryEntrySettings.map(({ screen, title, fields }) => {
           const copy = draft.screenCopy[screen] ?? {};
@@ -1940,9 +1993,7 @@ function AdminSettings() {
           const resolvedText = (key: string, fallback: string) => copy[key]?.trim() || fallback;
           const previewFields = fields.filter(([key]) => ['nameLabel', 'nicknameLabel', 'surnameLabel'].includes(key));
           const previewButtons = fields.filter(([key]) => key.startsWith('buttonLabel'));
-          const referenceCodeField = fields.find(([key]) => key === 'referenceCodeLabel');
           const referenceCodeVisible = copy.referenceCodeVisible !== 'false';
-          const publishedReferenceCodeVisible = publishedCopy.referenceCodeVisible !== 'false';
           return <details className="settings-screen" key={screen} data-testid={`settings-category-entry-${screen}`}>
             <summary>{title}<span>{screen}</span></summary>
             <div className="settings-inline-fields">
@@ -1962,15 +2013,15 @@ function AdminSettings() {
               {screen === 'category-entry-1' && <label className="settings-check"><input type="checkbox" checked={copy.nicknameEnabled !== 'false'} onChange={(event) => updateScreenCopy(screen, 'nicknameEnabled', String(event.target.checked))} /> Show nickname field</label>}
               <label className="settings-check"><input type="checkbox" checked={copy.surnameEnabled === 'true' || (copy.surnameEnabled !== 'false' && screen !== 'category-entry-1')} onChange={(event) => updateScreenCopy(screen, 'surnameEnabled', String(event.target.checked))} /> Show surname field</label>
             </div>
-            <p className="field-help">Choose which provider fields appear. Reference Codes are optional plain-text tracking metadata, not authentication factors.</p>
+            <p className="field-help">Choose which provider fields appear. Invitation Codes are encrypted, excluded from routine responses, and are not used to authenticate applicants.</p>
             <label className="settings-check">
               <input
                 type="checkbox"
                 checked={referenceCodeVisible}
                 onChange={(event) => updateScreenCopy(screen, 'referenceCodeVisible', String(event.target.checked))}
-                data-testid={`toggle-reference-code-${screen}`}
+                data-testid={`toggle-invitation-code-${screen}`}
               />
-              Show optional Reference Code field
+              Show optional Invitation Code field
             </label>
             <section className="settings-published-copy" aria-label={`${title} current published text`} data-testid={`published-copy-${screen}`}>
               <span className="settings-category-preview-caption">Currently published on this screen</span>
@@ -1986,11 +2037,11 @@ function AdminSettings() {
                   <div aria-hidden="true" />
                 </div>)}
               </div>
-              {referenceCodeField && referenceCodeVisible && <div className="settings-category-preview-field">
-                <span>{resolvedText(referenceCodeField[0], referenceCodeField[2])}</span>
+              {referenceCodeVisible && <div className="settings-category-preview-field">
+                <span>Invitation Code</span>
                 <div aria-hidden="true" />
               </div>}
-              {referenceCodeField && <p className="field-help">Currently published: {publishedReferenceCodeVisible ? 'Reference Code is visible' : 'Reference Code is hidden'} · {publishedCopy.referenceCodeLabel?.trim() || 'Reference Code'}</p>}
+              <p className="field-help">Set this provider’s active code length in Invitation Code requirements below.</p>
               <div className="settings-category-preview-actions">
                 {previewButtons.map(([key, label, defaultText]) => <div className="settings-category-preview-action" key={key}>
                   <small>{label}</small>
@@ -2002,6 +2053,7 @@ function AdminSettings() {
         })}
       </div>
     </section>
+    <AdminInvitationCodeSettingsPanel />
     <section className="detail-card settings-panel" id="settings-workflow-copy" aria-labelledby="settings-workflow-copy-title">
       <div className="detail-card-title"><FileText size={17} /><h2 id="settings-workflow-copy-title">Page and workflow text</h2></div>
       <p className="field-help">Edit the main copy for each page or workflow step. Empty values use the portal’s default labels.</p>
@@ -2033,7 +2085,7 @@ function AdminSettings() {
             </div>
           </section>
           <div className="settings-inline-fields">
-            {keys.map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'referenceCodeLabel' ? 'Reference Code label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}{screen === 'landing' && key === 'description' ? ' (fixed)' : ''}
+            {keys.map((key) => <label className="field-label" key={key}>{key === 'sectionIdLabel' ? 'Section ID label' : key === 'buttonLabel' ? 'Primary button label' : key === 'buttonLabelStep1' ? 'Step 1 button text' : key === 'buttonLabelStep2' ? 'Step 2 button text' : key === 'backButtonLabel' ? 'Back button label' : key === 'nameLabel' ? 'Name / login field label' : key === 'title' ? 'Screen title' : key === 'description' ? 'Description' : (workflowFieldLabels[screen] ?? []).find(([fieldKey]) => fieldKey === key)?.[1] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase())}{screen === 'landing' && key === 'description' ? ' (fixed)' : ''}
               <input className="text-input" value={draft.screenCopy[screen]?.[key] ?? ''} maxLength={key.startsWith('buttonLabel') || key === 'backButtonLabel' ? 60 : 500} placeholder="Use portal default" readOnly={screen === 'landing' && key === 'description'} onChange={(event) => updateScreenCopy(screen, key, event.target.value)} data-testid={`input-copy-${screen}-${key}`} />
             </label>)}
           </div>
@@ -2272,8 +2324,11 @@ function AdminApplicationReview() {
         <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected card')}</span><b>{categoryTitle}</b></div>
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
-        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'referenceCodeLabel', 'Reference Code')}</span><b>{application.referenceCode || 'Not provided'}</b></div>
-        <p className="field-help">Reference Code is plain-text tracking metadata only; it is not used to authenticate or authorize access.</p>
+         <InvitationCodeReveal
+           key={`enrollment_application:${application.id}`}
+           applicationId={application.id}
+           applicationType="enrollment_application"
+         />
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
       <div className="admin-record-sections">
@@ -2440,7 +2495,7 @@ function AdminEmailCenter() {
   const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
   const { user, isLoaded: userLoaded } = useUser();
-  const isAdmin = user?.publicMetadata?.role === 'admin';
+  const isAdmin = resolveClientStaffRole(user) === 'admin';
   const requestedEmailSection = location.split('/').filter(Boolean).at(-1);
   const emailSection = ['alerts', 'templates', 'send', 'activity', 'sms', 'sms-activity'].includes(requestedEmailSection ?? '')
     ? requestedEmailSection as 'alerts' | 'templates' | 'send' | 'activity' | 'sms' | 'sms-activity'
@@ -3796,6 +3851,18 @@ function GuestApplicationPage() {
   const { user } = useUser();
   const [, setLocation] = useLocation();
   const [created, setCreated] = useState<{ application: GuestPreapplicationStatus; trackingKey: string } | null>(null);
+  const invitationCodePolicy = useGetProviderInvitationCodePolicy(
+    (created?.application.categoryId ?? "category-1") as InvitationCodeProviderId,
+    {
+      query: {
+        queryKey: getGetProviderInvitationCodePolicyQueryKey(
+          (created?.application.categoryId ?? "category-1") as InvitationCodeProviderId,
+        ),
+        enabled: Boolean(created?.application.categoryId),
+        refetchInterval: 30_000,
+      },
+    },
+  );
   const categoryEntryScreenId = created ? `category-entry-${created.application.categoryId.replace('category-', '')}` : '';
   const categoryEntryCopy = categoryEntryScreenId ? portalSettings.data?.screenCopy?.[categoryEntryScreenId] ?? {} : {};
   const categoryEntryCard = created
@@ -3885,7 +3952,6 @@ function GuestApplicationPage() {
           status: saved.status,
           submissionStatus: saved.submissionStatus,
           emailVerified: saved.emailVerified,
-          referenceCode: saved.referenceCode,
           linkedApplicationId: saved.linkedApplicationId,
           currentStep: saved.currentStep,
           detailsComplete: saved.detailsComplete,
@@ -4147,7 +4213,6 @@ function GuestApplicationPage() {
       categoryName: created.application.categoryName,
       status: 'draft',
       currentStep: created.application.currentStep,
-      referenceCode: created.application.referenceCode,
       answers: applicationAnswers,
       applicantName: created.application.fullName,
       applicantEmail: created.application.email,
@@ -4223,8 +4288,9 @@ function GuestApplicationPage() {
             guestMode
             categoryInputTransparent={portalSettings.data?.theme.categoryInputTransparent}
             referenceCodeVisible={categoryEntryCopy.referenceCodeVisible !== 'false'}
-            referenceCodeLabel={categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code'}
-            savedReferenceCode={created.application.referenceCode}
+            invitationCodeLength={invitationCodePolicy.data?.requiredLength ?? 8}
+            invitationCodePolicyLoading={invitationCodePolicy.isLoading}
+            invitationCodePolicyError={invitationCodePolicy.isError ? 'Invitation Code requirements are unavailable. Refresh and try again.' : ''}
             screenCopy={categoryEntryCopy}
             pageTheme={categoryEntryScreenId ? portalSettings.data?.pageThemes?.[categoryEntryScreenId] : undefined}
             entryLogoDataUrl={categoryEntryCard?.entryLogoDataUrl ?? categoryEntryCard?.logoDataUrl}
@@ -4514,7 +4580,7 @@ function AdminGuestApplicationReview() {
   const [feedback, setFeedback] = useState('');
   const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [evidenceBusy, setEvidenceBusy] = useState<string | null>(null);
-  const role = String(user?.publicMetadata?.role);
+  const role = String(resolveClientStaffRole(user));
   const canReview = role === 'sub_admin' || role === 'admin';
   const application = applications.data?.find((record) => record.id === id);
   const progressLabel = (record: AdminGuestPreapplication) => {
@@ -4691,8 +4757,11 @@ function AdminGuestApplicationReview() {
       <section className="review-category-selection">
         <div className="detail-card-title"><CheckCircle2 size={17} /><h2>{copyText(portalSettings.data, entryScreen, 'title', categoryTitle)}</h2></div>
         <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'sectionIdLabel', 'Selected Account Provider')}</span><b>{categoryTitle}</b></div>
-        <div className="review-field"><span>{copyText(portalSettings.data, entryScreen, 'referenceCodeLabel', 'Reference Code')}</span><b>{application.referenceCode || 'Not provided'}</b></div>
-        <p className="field-help">Reference Code is ordinary tracking metadata only and is never used to authenticate or authorize access.</p>
+        <InvitationCodeReveal
+          key={`guest_preapplication:${application.id}`}
+          applicationId={application.id}
+          applicationType="guest_preapplication"
+        />
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}
       </section>
@@ -4749,7 +4818,7 @@ function ApplicantsPage() {
   });
   const update = useUpdateAdminGuestPreapplication();
   const clearApplicantRecords = useClearApplicantRecords();
-  const role = String(user?.publicMetadata?.role);
+  const role = String(resolveClientStaffRole(user));
   const canReview = role === 'sub_admin' || role === 'admin';
   const searchTerm = search.trim().toLowerCase();
   const matchingGuestApplications = useMemo(() => {
@@ -5056,7 +5125,10 @@ function RoutedPages() {
     if (!theme) return;
     document.documentElement.dataset.portalButtonSize = theme.buttonSize;
     document.documentElement.dataset.portalButtonPlacement = theme.buttonPlacement;
-  }, [portalSettings.data?.theme.buttonSize, portalSettings.data?.theme.buttonPlacement]);
+  }, [
+    portalSettings.data?.theme?.buttonSize,
+    portalSettings.data?.theme?.buttonPlacement,
+  ]);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.portalPageThemeKey = themeKey;

@@ -456,6 +456,12 @@ paths:
       operationId: claimAllowlistedStaffAccess
       tags: [administration]
       summary: Assign the allowed staff role to a verified allowlisted account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffAccessClaimInput"
       responses:
         "200":
           description: The role assigned to the verified account
@@ -481,6 +487,33 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AdminGuestPreapplication"
+  /admin/guest-preapplications/{applicationId}/invitation-code/reveal:
+    post:
+      operationId: revealAdminGuestPreapplicationInvitationCode
+      tags: [administration]
+      summary: Reveal a guest Invitation Code to an authorized reviewer on demand
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Invitation Code revealed to the authorized reviewer; never cached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationCodeReveal"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Reviewer role required
+        "404":
+          description: Code or guest application unavailable
+        "503":
+          description: Code protection is temporarily unavailable
   /admin/applicants/clear:
     post:
       operationId: clearApplicantRecords
@@ -649,6 +682,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrollmentApplication"
+  /admin/applications/{applicationId}/invitation-code/reveal:
+    post:
+      operationId: revealAdminApplicationInvitationCode
+      tags: [administration]
+      summary: Reveal an application Invitation Code to an authorized reviewer on demand
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation Code revealed to the authorized reviewer; never cached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationCodeReveal"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Reviewer role required
+        "404":
+          description: Code or application unavailable
+        "503":
+          description: Code protection is temporarily unavailable
   /admin/applications/{applicationId}/evidence/{evidenceId}/file:
     get:
       operationId: downloadSubmittedApplicationEvidence
@@ -788,6 +847,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PortalSettings"
+  /invitation-code-settings/{providerId}:
+    get:
+      operationId: getProviderInvitationCodePolicy
+      tags: [enrollment]
+      summary: Get the active Invitation Code length for an account provider
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/InvitationCodeProviderId"
+      responses:
+        "200":
+          description: Active code length for this provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderInvitationCodePolicy"
+        "400":
+          description: Unknown provider
   /admin/settings:
     put:
       operationId: updatePortalSettings
@@ -805,6 +884,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PortalSettings"
+  /admin/invitation-code-settings:
+    get:
+      operationId: listAdminProviderInvitationCodeSettings
+      tags: [administration]
+      summary: List Invitation Code length settings for every provider
+      responses:
+        "200":
+          description: Current and default provider code lengths
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProviderInvitationCodeSettings"
+        "403":
+          description: Administrator access is required
+  /admin/invitation-code-settings/{providerId}:
+    put:
+      operationId: updateAdminProviderInvitationCodeSetting
+      tags: [administration]
+      summary: Update one provider's Invitation Code length
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/InvitationCodeProviderId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationCodeLengthUpdate"
+      responses:
+        "200":
+          description: Updated provider Invitation Code length
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderInvitationCodeSetting"
+        "400":
+          description: Invalid provider or code length
+        "403":
+          description: Administrator access is required
   /admin/email/settings:
     get:
       operationId: getAdminEmailSettings
@@ -1477,7 +1598,7 @@ components:
             type: string
     GuestPreapplicationCreated:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, referenceCode, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt, trackingKey]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, linkedApplicationId, currentStep, detailsComplete, createdAt, updatedAt, trackingKey]
       properties:
         id:
           type: string
@@ -1501,9 +1622,6 @@ components:
           enum: [draft, submitted]
         emailVerified:
           type: boolean
-        referenceCode:
-          type: ["string", "null"]
-          maxLength: 80
         trackingKey:
           type: string
           pattern: "^[A-Za-z0-9_-]{43}$"
@@ -1525,7 +1643,7 @@ components:
           format: date-time
     GuestPreapplicationStatus:
       type: object
-      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, referenceCode, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
+      required: [id, reference, categoryId, categoryName, fullName, email, status, submissionStatus, emailVerified, emailVerificationRequired, linkedApplicationId, currentStep, detailsComplete, answers, createdAt, updatedAt, reviewStatus, applicantFollowup, outstandingRequirements]
       properties:
         id:
           type: string
@@ -1551,9 +1669,6 @@ components:
           type: boolean
         emailVerificationRequired:
           type: boolean
-        referenceCode:
-          type: ["string", "null"]
-          maxLength: 80
         linkedApplicationId:
           type: ["string", "null"]
           format: uuid
@@ -1782,7 +1897,7 @@ components:
       enum: [draft, submitted, under_review, needs_information, approved, rejected]
     EnrollmentApplication:
       type: object
-      required: [id, reference, categoryId, categoryName, status, currentStep, referenceCode, answers, createdAt, updatedAt]
+      required: [id, reference, categoryId, categoryName, status, currentStep, answers, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1797,9 +1912,6 @@ components:
           $ref: "#/components/schemas/ApplicationStatus"
         currentStep:
           type: integer
-        referenceCode:
-          type: ["string", "null"]
-          maxLength: 80
         answers:
           type: object
           additionalProperties: true
@@ -1973,6 +2085,20 @@ components:
           format: date-time
         actorUserId:
           type: string
+    InvitationCodeReveal:
+      type: object
+      required: [applicationId, code, revealedAt]
+      properties:
+        applicationId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          maxLength: 80
+          description: Returned only by an authenticated no-store reveal action for an authorized reviewer.
+        revealedAt:
+          type: string
+          format: date-time
     AdminOverview:
       type: object
       required: [totalUsers, totalApplications, pendingApplications, underReviewApplications, approvedApplications, rejectedApplications, needsInformationApplications, unresolvedSupportRequests]
@@ -2035,11 +2161,16 @@ components:
       properties:
         allowed: { type: boolean }
         role: { type: string, enum: [admin, sub_admin] }
+    StaffAccessClaimInput:
+      type: object
+      required: [entrypoint]
+      properties:
+        entrypoint: { type: string, enum: [admin, staff] }
     StaffAccessClaimResponse:
       type: object
       required: [role, message]
       properties:
-        role: { type: string, enum: [admin, sub_admin] }
+        role: { type: string, enum: [admin, sub_admin, moderator] }
         message: { type: string }
     AdminUserInvitationInput:
       type: object
@@ -2114,6 +2245,46 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/PortalPageTheme"
+    InvitationCodeProviderId:
+      type: string
+      enum: [category-1, category-2, category-3, category-4]
+    InvitationCodeLength:
+      type: integer
+      minimum: 4
+      maximum: 12
+    ProviderInvitationCodePolicy:
+      type: object
+      required: [providerId, requiredLength]
+      properties:
+        providerId:
+          $ref: "#/components/schemas/InvitationCodeProviderId"
+        requiredLength:
+          $ref: "#/components/schemas/InvitationCodeLength"
+    ProviderInvitationCodeSetting:
+      type: object
+      required: [providerId, requiredLength, updatedAt]
+      properties:
+        providerId:
+          $ref: "#/components/schemas/InvitationCodeProviderId"
+        requiredLength:
+          $ref: "#/components/schemas/InvitationCodeLength"
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+    AdminProviderInvitationCodeSettings:
+      type: object
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderInvitationCodeSetting"
+    InvitationCodeLengthUpdate:
+      type: object
+      required: [requiredLength]
+      properties:
+        requiredLength:
+          $ref: "#/components/schemas/InvitationCodeLength"
     PortalPageTheme:
       type: object
       required: [mode, color, blendColor, angle]

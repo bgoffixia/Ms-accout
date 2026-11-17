@@ -29,6 +29,7 @@ class GuestApiFixture {
   trackingKey = "";
   createCount = 0;
   lookupCount = 0;
+  invitationCodeLength = 8;
   categoryOneTitle = "Account Provider One";
   screenCopyOverrides: Record<string, Record<string, string>> = {};
   readonly uploadedEvidence: { id: string; slot: string; objectPath: string }[] = [];
@@ -49,6 +50,13 @@ class GuestApiFixture {
         description: "Account provider enrollment.",
         accent: "#168341",
       })));
+    }
+    if (method === "GET" && path.startsWith("/api/invitation-code-settings/")) {
+      const providerId = path.split("/").at(-1);
+      return json({
+        providerId,
+        requiredLength: this.invitationCodeLength,
+      });
     }
     if (method === "GET" && path === "/api/portal/settings") {
       return json({
@@ -83,7 +91,7 @@ class GuestApiFixture {
             description: "This dashboard introduction should appear once.",
             sectionIdLabel: "START ENROLLMENT",
           },
-          "category-entry-1": { referenceCodeVisible: "true", referenceCodeLabel: "Reference Code" },
+          "category-entry-1": { referenceCodeVisible: "true", referenceCodeLabel: "Invitation Code" },
           ...this.screenCopyOverrides,
         },
         pageThemes: {},
@@ -252,13 +260,14 @@ class GuestApiFixture {
   }
 
   private createdResponse() {
-    const { answers: _answers, ...response } = this.draft!;
+    const { answers: _answers, referenceCode: _referenceCode, ...response } = this.draft!;
     return { ...response, trackingKey: this.trackingKey };
   }
 
   private statusResponse() {
+    const { referenceCode: _referenceCode, ...safeDraft } = this.draft!;
     return {
-      ...this.draft,
+      ...safeDraft,
       emailVerificationRequired: false,
       answers: this.draft!.answers,
       reviewStatus: this.draft!.submissionStatus === "submitted" ? "submitted" : null,
@@ -537,8 +546,8 @@ test("keeps every guest category entry and Reference Code screen within one phon
     await expectNoDocumentOverflow(page);
     const field = page.getByTestId("input-reference-code");
     await expect(field).toBeVisible();
-    expect(await field.getAttribute("type")).toBe("text");
-    await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+    expect(await field.getAttribute("type")).toBe("password");
+    await expect(page.locator(".invitation-code-keypad")).toBeVisible();
     await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
     const box = await field.boundingBox();
     expect(box, `${categoryId} Reference Code field should be visible`).not.toBeNull();
@@ -563,6 +572,7 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
 
 test("submits without email OTP and opens status with the private tracking key", async ({ page }) => {
   const api = new GuestApiFixture();
+  api.invitationCodeLength = 10;
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
@@ -609,9 +619,24 @@ test("submits without email OTP and opens status with the private tracking key",
   await page.locator("form button[type=submit]").click();
   const referenceCodeInput = page.getByTestId("input-reference-code");
   await expect(referenceCodeInput).toBeVisible();
-  await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
+  await expect(referenceCodeInput).toHaveAttribute("readonly", "");
+  await expect(referenceCodeInput).toHaveAttribute("type", "password");
   await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
-  await referenceCodeInput.fill("CASE-4826");
+  await expect(page.getByTestId("text-invitation-code-status")).toHaveText("0 of 10 digits entered");
+  for (const digit of "8042135769") {
+    await page.getByTestId(`button-invitation-code-digit-${digit}`).click();
+  }
+  await expect(referenceCodeInput).toHaveValue("8042135769");
+  await expect(page.getByTestId("text-invitation-code-status")).toHaveText("10 of 10 digits entered");
+  await expect(page.getByTestId("button-invitation-code-digit-0")).toBeDisabled();
+  await page.getByTestId("button-invitation-code-backspace").click();
+  await expect(referenceCodeInput).toHaveValue("804213576");
+  await page.getByTestId("button-invitation-code-digit-9").click();
+  await page.getByTestId("button-invitation-code-clear").click();
+  await expect(referenceCodeInput).toHaveValue("");
+  for (const digit of "8042135769") {
+    await page.getByTestId(`button-invitation-code-digit-${digit}`).click();
+  }
   await expectNoDocumentOverflow(page);
   await expect(page.getByTestId("enrollment-wizard")).toHaveCount(0);
   await page.locator("form button[type=submit]").click();
@@ -690,7 +715,8 @@ test("submits without email OTP and opens status with the private tracking key",
   expect(api.uploadedEvidence.map(({ slot }) => slot)).toEqual(["identity_front", "verification_video"]);
   expect(api.draft?.emailVerified).toBe(false);
   expect(api.draft?.submissionStatus).toBe("submitted");
-  expect(api.draft?.referenceCode).toBe("CASE-4826");
+  expect(api.draft?.referenceCode).toBe("8042135769");
+  await expect(page.getByText("8042135769", { exact: true })).toHaveCount(0);
   expect(api.draft?.answers.reviewDeclarationAccepted).toBeUndefined();
   expect(api.draft?.linkedApplicationId).toBeNull();
   await expect(page.getByTestId("guest-submission-confirmation")).toContainText("Enrollment submitted");
@@ -704,6 +730,7 @@ test("submits without email OTP and opens status with the private tracking key",
   await page.getByTestId("input-track-private-key").fill(trackingKey);
   await page.getByTestId("button-lookup-guest-status").click();
   await expect(page.getByTestId("guest-public-status")).toBeVisible();
+  await expect(page.getByText("8042135769", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("status-guest-application")).toContainText("Pending Review");
   await expect(page.getByTestId("guest-public-status")).not.toContainText(reviewerOnlyNote);
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
@@ -728,7 +755,7 @@ test("submits without email OTP and opens status with the private tracking key",
   expect(api.createCount).toBe(1);
 });
 
-test("lets guests continue with incomplete details and an optional Reference Code", async ({ page }) => {
+test("lets guests continue with incomplete details and an optional Invitation Code", async ({ page }) => {
   const api = new GuestApiFixture();
   api.categoryOneTitle = "Configured Account Provider One";
   api.screenCopyOverrides = {
@@ -766,8 +793,9 @@ test("lets guests continue with incomplete details and an optional Reference Cod
 
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("input-reference-code")).toBeVisible();
-  await expect(page.getByTestId("input-reference-code")).toHaveAttribute("type", "text");
-  await expect(page.locator(".reference-code-entry-screen")).toContainText("non-secret tracking metadata");
+  await expect(page.getByTestId("input-reference-code")).toHaveAttribute("type", "password");
+  await expect(page.locator(".reference-code-entry-screen")).toContainText("Invitation Code");
+  await expect(page.locator(".reference-code-entry-screen")).toContainText("not used to sign in");
   await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
@@ -787,8 +815,7 @@ test("lets guests continue with incomplete details and an optional Reference Cod
   await expect(page.getByTestId("review-category-name")).toContainText("Not provided");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Configured entry nickname");
   await expect(page.getByTestId("review-category-nickname")).toContainText("Not provided");
-  await expect(page.getByTestId("review-category")).toContainText("Configured tracking reference");
-  await expect(page.getByTestId("review-category")).toContainText("Not provided");
+  await expect(page.getByTestId("review-category")).not.toContainText("Invitation Code");
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("button-submit-enrollment")).toBeEnabled();
   await expectNoDocumentOverflow(page);

@@ -17,11 +17,6 @@ export interface EnrollmentApplication {
   categoryName: string;
   status: ApplicationStatus;
   currentStep: number;
-  /**
-     * @maxLength 80
-     * @nullable
-     */
-  referenceCode: string | null;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;

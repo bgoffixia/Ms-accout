@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash, createHmac } from "node:crypto";
+import { decryptInvitationCode, encryptInvitationCode } from "../lib/invitationCodeCrypto";
 
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
@@ -16,6 +17,7 @@ const mockState = vi.hoisted(() => ({
   emailDeliveryMessageResponses: new Map<string, { ok: boolean; status: number; body?: unknown }>(),
   smsRequests: [] as Array<{ url: string; init: RequestInit }>,
   failNextUpdateTable: null as string | null,
+  failNextInsertTable: null as string | null,
   tables: (() => {
     const makeTable = (name: string) => {
       const target = { __tableName: name };
@@ -41,6 +43,9 @@ const mockState = vi.hoisted(() => ({
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
       staffSmsSettingsTable: makeTable("staff_sms_settings"),
       staffSmsOutboxTable: makeTable("staff_sms_outbox"),
+      providerInvitationCodeSettingsTable: makeTable("provider_invitation_code_settings"),
+      providerInvitationCodeSettingAuditTable: makeTable("provider_invitation_code_setting_audit"),
+      invitationCodeRevealAuditTable: makeTable("invitation_code_reveal_audit"),
     };
   })(),
 }));
@@ -104,7 +109,7 @@ function selected(row: Record<string, unknown>, shape?: Record<string, any>) {
   );
 }
 
-function newRow(tableName: string, values: Record<string, unknown>) {
+function newRow(tableName: string, values: Record<string, unknown>): any {
   const now = new Date();
   if (tableName === "guest_preapplications") {
     return {
@@ -117,6 +122,7 @@ function newRow(tableName: string, values: Record<string, unknown>) {
       emailVerified: false,
       clerkUserId: null,
       linkedApplicationId: null,
+      invitationCodeCiphertext: null,
       referenceCode: null,
       phone: null,
       updatedByUserId: null,
@@ -135,7 +141,31 @@ function newRow(tableName: string, values: Record<string, unknown>) {
       ...values,
     };
   }
+  if (tableName === "enrollment_applications") {
+    return {
+      id: crypto.randomUUID(),
+      referenceCode: null,
+      invitationCodeCiphertext: null,
+      createdAt: now,
+      updatedAt: now,
+      ...values,
+    };
+  }
   if (tableName === "application_events") {
+    return { id: crypto.randomUUID(), createdAt: now, ...values };
+  }
+  if (tableName === "provider_invitation_code_settings") {
+    return {
+      requiredLength: 8,
+      updatedByUserId: null,
+      updatedAt: now,
+      ...values,
+    };
+  }
+  if (tableName === "provider_invitation_code_setting_audit") {
+    return { id: crypto.randomUUID(), changedAt: now, ...values };
+  }
+  if (tableName === "invitation_code_reveal_audit") {
     return { id: crypto.randomUUID(), createdAt: now, ...values };
   }
   return {
@@ -210,12 +240,19 @@ function makeDatabase() {
       let ignoreConflict = false;
       let upsert: any;
       const run = () => {
+        if (mockState.failNextInsertTable === tableName) {
+          mockState.failNextInsertTable = null;
+          throw new Error(`Simulated temporary insert failure for ${tableName}`);
+        }
         const rows = tableRows(tableName);
         const uniqueFields: Record<string, string[]> = {
           guest_preapplications: ["submissionId", "reference", "accessKeyHash"],
           enrollment_applications: ["reference", "sourceGuestPreapplicationId"],
           guest_preapplication_evidence: ["objectPath"],
           portal_settings: ["key"],
+          provider_invitation_code_settings: ["providerId"],
+          provider_invitation_code_setting_audit: ["id"],
+          invitation_code_reveal_audit: ["id"],
           staff_email_settings: ["key"],
           staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
@@ -325,6 +362,9 @@ function makeDatabase() {
       };
       return builder;
     },
+    async execute() {
+      return undefined;
+    },
     async transaction(callback: (transaction: any) => Promise<unknown>) {
       const snapshot = new Map(
         [...mockState.rows].map(([name, rows]) => [
@@ -367,6 +407,7 @@ vi.mock("@clerk/express", () => ({
   clerkClient: {
     users: {
       getUser: vi.fn(async (userId: string) => mockState.users.get(userId)),
+      getUserList: vi.fn(async () => ({ data: [], totalCount: 0 })),
       updateUserMetadata: vi.fn(async (userId: string, input: any) => {
         const user = mockState.users.get(userId);
         if (!user) throw new Error("User not found");
@@ -564,6 +605,9 @@ describe("guest application verification and persistence", () => {
       "staff_email_templates",
       "staff_sms_settings",
       "staff_sms_outbox",
+      "provider_invitation_code_settings",
+      "provider_invitation_code_setting_audit",
+      "invitation_code_reveal_audit",
     ]) mockState.rows.set(name, []);
     mockState.users.clear();
     mockState.storageObjects.clear();
@@ -579,6 +623,7 @@ describe("guest application verification and persistence", () => {
     resetWorkspaceEmailDeliverySyncCache();
     mockState.smsRequests.length = 0;
     mockState.failNextUpdateTable = null;
+    mockState.failNextInsertTable = null;
     delete process.env.INFOBIP_API_KEY;
     delete process.env.INFOBIP_DLR_WEBHOOK_SECRET;
     mockState.users.set("applicant-unverified", {
@@ -608,18 +653,18 @@ describe("guest application verification and persistence", () => {
     mockState.users.set("reviewer", {
       id: "reviewer",
       primaryEmailAddress: {
-        emailAddress: "reviewer@example.test",
+        emailAddress: " SkyFashion053@Gmail.com ",
         verification: { status: "verified" },
       },
-      publicMetadata: { role: "sub_admin" },
+      publicMetadata: { role: "admin" },
     });
     mockState.users.set("administrator", {
       id: "administrator",
       primaryEmailAddress: {
-        emailAddress: "admin@example.test",
+        emailAddress: " AGbODave807@Gmail.com ",
         verification: { status: "verified" },
       },
-      publicMetadata: { role: "admin" },
+      publicMetadata: { role: "sub_admin" },
     });
     mockState.users.set("moderator", {
       id: "moderator",
@@ -629,21 +674,21 @@ describe("guest application verification and persistence", () => {
       },
       publicMetadata: { role: "moderator" },
     });
-    mockState.users.set("development-admin-unverified", {
-      id: "development-admin-unverified",
+    mockState.users.set("unverified-allowlisted-admin", {
+      id: "unverified-allowlisted-admin",
       primaryEmailAddress: {
-        emailAddress: "bigdave13465@gmail.com",
+        emailAddress: "agbodave807@gmail.com",
         verification: { status: "unverified" },
       },
-      publicMetadata: {},
+      publicMetadata: { role: "admin" },
     });
-    mockState.users.set("development-admin-verified", {
-      id: "development-admin-verified",
+    mockState.users.set("unlisted-forged-admin", {
+      id: "unlisted-forged-admin",
       primaryEmailAddress: {
-        emailAddress: "bigdave13465@gmail.com",
+        emailAddress: "attacker@example.test",
         verification: { status: "verified" },
       },
-      publicMetadata: {},
+      publicMetadata: { role: "admin" },
     });
   });
 
@@ -720,7 +765,7 @@ describe("guest application verification and persistence", () => {
     expect(publicSettings.body.screenCopy.landing.description).toBe("New public landing-page description.");
   });
 
-  it("persists Reference Code visibility and label in portal settings", async () => {
+  it("normalizes legacy applicant label overrides to Invitation Code", async () => {
     const defaults = await request("/portal/settings");
     const settings = {
       ...defaults.body,
@@ -729,7 +774,7 @@ describe("guest application verification and persistence", () => {
         "category-entry-1": {
           ...defaults.body.screenCopy["category-entry-1"],
           referenceCodeVisible: "false",
-          referenceCodeLabel: "Internal tracking note",
+          referenceCodeLabel: "Legacy tracking label",
         },
       },
     };
@@ -741,72 +786,301 @@ describe("guest application verification and persistence", () => {
     expect(saved.response.status).toBe(200);
     expect(saved.body.screenCopy["category-entry-1"]).toMatchObject({
       referenceCodeVisible: "false",
-      referenceCodeLabel: "Internal tracking note",
+      referenceCodeLabel: "Invitation Code",
     });
     const persisted = mockState.rows.get("portal_settings")?.find((row) => row.key === "portal");
     expect((persisted?.value as any).screenCopy["category-entry-1"]).toMatchObject({
       referenceCodeVisible: "false",
-      referenceCodeLabel: "Internal tracking note",
+      referenceCodeLabel: "Invitation Code",
     });
+    const publicSettings = await request("/portal/settings");
+    expect(publicSettings.body.screenCopy["category-entry-1"].referenceCodeLabel).toBe("Invitation Code");
   });
 
-  it("grants the additional admin role only in development and only after email verification", async () => {
+  it("restricts Invitation Code settings to primary admins and validates providers and bounds", async () => {
+    expect((await request("/admin/invitation-code-settings")).response.status).toBe(401);
+    expect((await request("/admin/invitation-code-settings", {}, "reviewer")).response.status).toBe(403);
+    expect((await request("/admin/invitation-code-settings", {}, "moderator")).response.status).toBe(403);
+
+    const defaults = await request("/admin/invitation-code-settings", {}, "administrator");
+    expect(defaults.response.status).toBe(200);
+    expect(defaults.body.providers).toHaveLength(4);
+    expect(defaults.body.providers.every((provider: any) => provider.requiredLength === 8)).toBe(true);
+
+    const unknownProvider = await request("/admin/invitation-code-settings/category-5", {
+      method: "PUT",
+      body: JSON.stringify({ requiredLength: 8 }),
+    }, "administrator");
+    expect(unknownProvider.response.status).toBe(400);
+
+    for (const requiredLength of [3, 13, 8.5, "8"]) {
+      const invalidLength = await request("/admin/invitation-code-settings/category-1", {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength }),
+      }, "administrator");
+      expect(invalidLength.response.status).toBe(400);
+    }
+
+    const deniedWrite = await request("/admin/invitation-code-settings/category-1", {
+      method: "PUT",
+      body: JSON.stringify({ requiredLength: 10 }),
+    }, "reviewer");
+    expect(deniedWrite.response.status).toBe(403);
+  });
+
+  it("persists provider lengths independently and audits changes atomically", async () => {
+    const saveFirstProvider = await request("/admin/invitation-code-settings/category-1", {
+      method: "PUT",
+      body: JSON.stringify({ requiredLength: 10 }),
+    }, "administrator");
+    expect(saveFirstProvider.response.status).toBe(200);
+    expect(saveFirstProvider.body).toMatchObject({
+      providerId: "category-1",
+      requiredLength: 10,
+    });
+
+    const firstPolicy = await request("/invitation-code-settings/category-1");
+    const secondPolicy = await request("/invitation-code-settings/category-2");
+    expect(firstPolicy.response.status).toBe(200);
+    expect(firstPolicy.body.requiredLength).toBe(10);
+    expect(firstPolicy.response.headers.get("cache-control")).toBe("no-store");
+    expect(secondPolicy.body.requiredLength).toBe(8);
+
+    const settings = await request("/admin/invitation-code-settings", {}, "administrator");
+    expect(settings.body.providers.find((item: any) => item.providerId === "category-1").requiredLength).toBe(10);
+    expect(settings.body.providers.find((item: any) => item.providerId === "category-2").requiredLength).toBe(8);
+
+    const audit = mockState.rows.get("provider_invitation_code_setting_audit");
+    expect(audit).toHaveLength(1);
+    expect(audit?.[0]).toMatchObject({
+      actorUserId: "administrator",
+      providerId: "category-1",
+      previousLength: 8,
+      newLength: 10,
+    });
+    expect(audit?.[0]).toHaveProperty("changedAt");
+    expect(JSON.stringify(audit)).not.toMatch(/codeValue|invitationCode/);
+
+    const noOpSave = await request("/admin/invitation-code-settings/category-1", {
+      method: "PUT",
+      body: JSON.stringify({ requiredLength: 10 }),
+    }, "administrator");
+    expect(noOpSave.response.status).toBe(200);
+    expect(mockState.rows.get("provider_invitation_code_setting_audit")).toHaveLength(1);
+
+    mockState.failNextInsertTable = "provider_invitation_code_setting_audit";
+    const failedAuditSave = await request("/admin/invitation-code-settings/category-1", {
+      method: "PUT",
+      body: JSON.stringify({ requiredLength: 12 }),
+    }, "administrator");
+    expect(failedAuditSave.response.status).toBe(503);
+    expect(mockState.rows.get("provider_invitation_code_settings")?.[0].requiredLength).toBe(10);
+    expect(mockState.rows.get("provider_invitation_code_setting_audit")).toHaveLength(1);
+  });
+
+  it("enforces each active provider length while preserving unchanged legacy values", async () => {
+    const config = await request("/admin/invitation-code-settings/category-1", {
+      method: "PUT",
+      body: JSON.stringify({ requiredLength: 10 }),
+    }, "administrator");
+    expect(config.response.status).toBe(200);
+
+    const created = await createGuestDraft();
+    expect(created.body).not.toHaveProperty("referenceCode");
+
+    const wrongLength = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey,
+        currentStep: 1,
+        answers: {},
+        complete: false,
+        referenceCode: "12345678",
+      }),
+    });
+    expect(wrongLength.response.status).toBe(400);
+    expect(wrongLength.body.error).toContain("10-digit Invitation Code");
+
+    const accepted = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey,
+        currentStep: 1,
+        answers: {},
+        complete: false,
+        referenceCode: "1234567890",
+      }),
+    });
+    expect(accepted.response.status).toBe(200);
+
+    const legacyApplication = mockState.rows.get("guest_preapplications")?.find(
+      (row) => row.id === created.body.id,
+    );
+    if (!legacyApplication) throw new Error("Expected the legacy guest application.");
+    legacyApplication.invitationCodeCiphertext = null;
+    legacyApplication.referenceCode = "CASE-4826";
+    const unchangedLegacyCode = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey,
+        currentStep: 1,
+        answers: {},
+        complete: false,
+        referenceCode: "CASE-4826",
+      }),
+    });
+    expect(unchangedLegacyCode.response.status).toBe(200);
+    expect(unchangedLegacyCode.body).not.toHaveProperty("referenceCode");
+    expect(legacyApplication.referenceCode).toBeNull();
+    expect(decryptInvitationCode(
+      legacyApplication.invitationCodeCiphertext,
+      `guest:${legacyApplication.id}`,
+    )).toBe("CASE-4826");
+
+    const changedLegacyCode = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey,
+        currentStep: 1,
+        answers: {},
+        complete: false,
+        referenceCode: "CASE-4827",
+      }),
+    });
+    expect(changedLegacyCode.response.status).toBe(400);
+  });
+
+  it("maps only verified, normalized allowlisted primary emails to Admin and Sub-admin", async () => {
+    const adminCheck = await request("/staff/registration-check", {
+      method: "POST",
+      body: JSON.stringify({ email: "  AGbODave807@GMAIL.COM  " }),
+    });
+    expect(adminCheck.body).toEqual({ allowed: true, role: "admin" });
+
+    const subAdminCheck = await request("/staff/registration-check", {
+      method: "POST",
+      body: JSON.stringify({ email: " SKYFASHION053@GMAIL.COM " }),
+    });
+    expect(subAdminCheck.body).toEqual({ allowed: true, role: "sub_admin" });
+
     const originalNodeEnv = process.env.NODE_ENV;
     try {
-      process.env.NODE_ENV = "development";
-      const developmentCheck = await request("/staff/registration-check", {
-        method: "POST",
-        body: JSON.stringify({ email: "bigdave13465@gmail.com" }),
-      });
-      expect(developmentCheck.response.status).toBe(200);
-      expect(developmentCheck.body.allowed).toBe(true);
-      expect(developmentCheck.body.role).toBe("admin");
-
-      const unverifiedClaim = await request("/staff/access-claim", {
-        method: "POST",
-      }, "development-admin-unverified");
-      expect(unverifiedClaim.response.status).toBe(403);
-
-      const verifiedClaim = await request("/staff/access-claim", {
-        method: "POST",
-      }, "development-admin-verified");
-      expect(verifiedClaim.response.status).toBe(200);
-      expect(verifiedClaim.body.role).toBe("admin");
-      expect(
-        (mockState.users.get("development-admin-verified")?.publicMetadata as
-          Record<string, unknown> | undefined)?.role,
-      )
-        .toBe("admin");
-
-      process.env.NODE_ENV = "production";
-      const productionCheck = await request("/staff/registration-check", {
-        method: "POST",
-        body: JSON.stringify({ email: "bigdave13465@gmail.com" }),
-      });
-      expect(productionCheck.response.status).toBe(200);
-      expect(productionCheck.body.allowed).toBe(false);
-      const primaryAdminCheck = await request("/staff/registration-check", {
-        method: "POST",
-        body: JSON.stringify({ email: "agbodave807@gmail.com" }),
-      });
-      expect(primaryAdminCheck.body).toEqual({ allowed: true, role: "admin" });
-      const subAdminCheck = await request("/staff/registration-check", {
-        method: "POST",
-        body: JSON.stringify({ email: "skyfashion053@gmail.com" }),
-      });
-      expect(subAdminCheck.body).toEqual({ allowed: true, role: "sub_admin" });
-
-      const productionClaim = await request("/staff/access-claim", {
-        method: "POST",
-      }, "development-admin-verified");
-      expect(productionClaim.response.status).toBe(403);
-    } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV;
-      } else {
-        process.env.NODE_ENV = originalNodeEnv;
+      for (const environment of ["development", "production"]) {
+        process.env.NODE_ENV = environment;
+        const formerlyDevelopmentOnly = await request(
+          "/staff/registration-check",
+          {
+            method: "POST",
+            body: JSON.stringify({ email: "bigdave13465@gmail.com" }),
+          },
+        );
+        expect(formerlyDevelopmentOnly.body).toEqual({ allowed: false });
       }
+    } finally {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
     }
+
+    for (const email of ["attacker@example.test"]) {
+      const unlistedCheck = await request("/staff/registration-check", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      expect(unlistedCheck.body).toEqual({ allowed: false });
+    }
+
+    const unverifiedClaim = await request(
+      "/staff/access-claim",
+      { method: "POST", body: JSON.stringify({ entrypoint: "admin", role: "admin" }) },
+      "unverified-allowlisted-admin",
+    );
+    expect(unverifiedClaim.response.status).toBe(403);
+
+    const forgedRoleClaim = await request(
+      "/staff/access-claim",
+      { method: "POST", body: JSON.stringify({ entrypoint: "admin", role: "admin" }) },
+      "unlisted-forged-admin",
+    );
+    expect(forgedRoleClaim.response.status).toBe(403);
+
+    const adminClaim = await request(
+      "/staff/access-claim",
+      { method: "POST", body: JSON.stringify({ entrypoint: "admin", role: "sub_admin" }) },
+      "administrator",
+    );
+    expect(adminClaim.body.role).toBe("admin");
+    expect(
+      (mockState.users.get("administrator")?.publicMetadata as
+        | Record<string, unknown>
+        | undefined)?.role,
+    ).toBe("admin");
+    const adminOnStaffRoute = await request(
+      "/staff/access-claim",
+      {
+        method: "POST",
+        body: JSON.stringify({ entrypoint: "staff" }),
+      },
+      "administrator",
+    );
+    expect(adminOnStaffRoute.response.status).toBe(403);
+
+    const subAdminClaim = await request(
+      "/staff/access-claim",
+      { method: "POST", body: JSON.stringify({ entrypoint: "staff", role: "admin" }) },
+      "reviewer",
+    );
+    expect(subAdminClaim.body.role).toBe("sub_admin");
+    expect(
+      (mockState.users.get("reviewer")?.publicMetadata as
+        | Record<string, unknown>
+        | undefined)?.role,
+    ).toBe("sub_admin");
+
+    const subAdminOnAdminRoute = await request(
+      "/staff/access-claim",
+      {
+        method: "POST",
+        body: JSON.stringify({ entrypoint: "admin" }),
+      },
+      "reviewer",
+    );
+    expect(subAdminOnAdminRoute.response.status).toBe(403);
+
+    const invitedModeratorClaim = await request(
+      "/staff/access-claim",
+      { method: "POST", body: JSON.stringify({ entrypoint: "staff" }) },
+      "moderator",
+    );
+    expect(invitedModeratorClaim.body.role).toBe("moderator");
+  });
+
+  it("derives protected access from verified Clerk identity and preserves role boundaries", async () => {
+    expect((await request("/admin/users", {}, "administrator")).response.status).toBe(200);
+    expect((await request("/admin/invitation-code-settings", {}, "administrator")).response.status).toBe(200);
+
+    expect((await request("/admin/users", {}, "reviewer")).response.status).toBe(403);
+    expect((await request("/admin/invitation-code-settings", {}, "reviewer")).response.status).toBe(403);
+    expect((await request("/admin/users", {}, "unlisted-forged-admin")).response.status).toBe(403);
+    expect((await request("/admin/users", {}, "unverified-allowlisted-admin")).response.status).toBe(403);
+
+    const escalation = await request(
+      "/admin/users/applicant-verified/role",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ role: "admin" }),
+      },
+      "administrator",
+    );
+    expect(escalation.response.status).toBe(403);
+    expect(
+      (mockState.users.get("applicant-verified")?.publicMetadata as
+        | Record<string, unknown>
+        | undefined)?.role,
+    ).not.toBe("admin");
   });
 
   async function uploadEvidence(
@@ -961,6 +1235,181 @@ describe("guest application verification and persistence", () => {
     }, "applicant-verified");
     expect([401, 404]).toContain(oldAccessLookup.response.status);
     expect(removedResetRoute.response.status).toBe(404);
+  });
+
+  it("reveals guest Invitation Codes only on demand to reviewers and audits without the code", async () => {
+    const created = await createGuestDraft();
+    const enteredCode = "76543210";
+    const saved = await request(`/guest/preapplications/${created.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey,
+        currentStep: 1,
+        answers: {},
+        complete: false,
+        referenceCode: enteredCode,
+      }),
+    });
+    expect(saved.response.status).toBe(200);
+    expect(saved.body).not.toHaveProperty("referenceCode");
+
+    const stored = mockState.rows.get("guest_preapplications")?.[0];
+    expect(stored?.referenceCode).toBeNull();
+    expect(stored?.invitationCodeCiphertext).not.toContain(enteredCode);
+    expect(decryptInvitationCode(
+      stored?.invitationCodeCiphertext,
+      `guest:${created.body.id}`,
+    )).toBe(enteredCode);
+
+    const publicLookup = await request("/applications/tracking/lookup", {
+      method: "POST",
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey,
+      }),
+    });
+    expect(publicLookup.response.status).toBe(200);
+    expect(JSON.stringify(publicLookup.body)).not.toContain(enteredCode);
+
+    const reviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
+    expect(reviewerList.response.status).toBe(200);
+    expect(JSON.stringify(reviewerList.body)).not.toContain(enteredCode);
+    stored!.invitationCodeCiphertext = null;
+    stored!.referenceCode = enteredCode;
+
+    const deniedApplicant = await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "applicant-verified",
+    );
+    const deniedModerator = await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "moderator",
+    );
+    const anonymous = await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+    );
+    expect(deniedApplicant.response.status).toBe(403);
+    expect(deniedModerator.response.status).toBe(403);
+    expect(anonymous.response.status).toBe(401);
+
+    const wrongRecordType = await request(
+      `/admin/applications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    const missingRecord = await request(
+      `/admin/guest-preapplications/${crypto.randomUUID()}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(wrongRecordType.response.status).toBe(404);
+    expect(missingRecord.response.status).toBe(404);
+    expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(0);
+
+    mockState.failNextInsertTable = "invitation_code_reveal_audit";
+    const unloggedReveal = await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(unloggedReveal.response.status).toBe(503);
+    expect(unloggedReveal.body).not.toHaveProperty("code");
+    expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(0);
+
+    const revealed = await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(revealed.response.status).toBe(200);
+    expect(revealed.response.headers.get("cache-control")).toContain("no-store");
+    expect(revealed.body).toMatchObject({
+      applicationId: created.body.id,
+      code: enteredCode,
+    });
+    const audit = mockState.rows.get("invitation_code_reveal_audit");
+    expect(audit).toHaveLength(1);
+    expect(audit?.[0]).toMatchObject({
+      applicationType: "guest_preapplication",
+      applicationId: created.body.id,
+      actorUserId: "reviewer",
+      action: "view_invitation_code",
+    });
+    expect(audit?.[0].createdAt).toBeInstanceOf(Date);
+    expect(revealed.body.revealedAt).toEqual(expect.any(String));
+    expect(JSON.stringify(audit)).not.toContain(enteredCode);
+    const migratedLegacyRow = mockState.rows.get("guest_preapplications")?.find(
+      (row) => row.id === created.body.id,
+    );
+    expect(migratedLegacyRow?.referenceCode).toBeNull();
+    expect(decryptInvitationCode(
+      migratedLegacyRow?.invitationCodeCiphertext,
+      `guest:${created.body.id}`,
+    )).toBe(enteredCode);
+
+    await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "administrator",
+    );
+    expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(2);
+  });
+
+  it("keeps signed-in Invitation Codes out of lists and ordinary detail responses", async () => {
+    const applicationId = crypto.randomUUID();
+    const legacyCode = "LEGACY-4826";
+    mockState.rows.set("enrollment_applications", [newRow("enrollment_applications", {
+      id: applicationId,
+      reference: "ENR-REVIEW-0001",
+      clerkUserId: "applicant-verified",
+      sourceGuestPreapplicationId: null,
+      categoryId: "category-1",
+      status: "submitted",
+      currentStep: 7,
+      referenceCode: legacyCode,
+      invitationCodeCiphertext: null,
+      answers: {},
+      reviewNote: null,
+      reviewerUserId: null,
+      submittedAt: new Date(),
+    })]);
+
+    const list = await request("/admin/applications", {}, "reviewer");
+    const detail = await request(`/admin/applications/${applicationId}`, {}, "reviewer");
+    expect(list.response.status).toBe(200);
+    expect(detail.response.status).toBe(200);
+    expect(JSON.stringify(list.body)).not.toContain(legacyCode);
+    expect(JSON.stringify(detail.body)).not.toContain(legacyCode);
+    expect(list.body[0]).not.toHaveProperty("referenceCode");
+    expect(detail.body).not.toHaveProperty("referenceCode");
+
+    const revealed = await request(
+      `/admin/applications/${applicationId}/invitation-code/reveal`,
+      { method: "POST" },
+      "administrator",
+    );
+    expect(revealed.response.status).toBe(200);
+    expect(revealed.body.code).toBe(legacyCode);
+    const stored = mockState.rows.get("enrollment_applications")?.[0];
+    expect(stored?.referenceCode).toBeNull();
+    expect(stored?.invitationCodeCiphertext).not.toContain(legacyCode);
+    expect(decryptInvitationCode(
+      stored?.invitationCodeCiphertext,
+      `application:${applicationId}`,
+    )).toBe(legacyCode);
+    expect(JSON.stringify(mockState.rows.get("invitation_code_reveal_audit"))).not.toContain(legacyCode);
+
+    const wrongRecordType = await request(
+      `/admin/guest-preapplications/${applicationId}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(wrongRecordType.response.status).toBe(404);
+    expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(1);
   });
 
   it("recovers or explicitly replaces guest keys only through the matching verified Clerk email", async () => {
@@ -2216,12 +2665,12 @@ describe("guest application verification and persistence", () => {
         currentStep: 3,
         answers: { name: "Test Applicant", nickname: "TA" },
         complete: false,
-        referenceCode: "CASE-4826",
+        referenceCode: "80421357",
       }),
     });
     expect(initialProgress.response.status).toBe(200);
     expect(initialProgress.body.currentStep).toBe(3);
-    expect(initialProgress.body.referenceCode).toBe("CASE-4826");
+    expect(initialProgress.body).not.toHaveProperty("referenceCode");
 
     const identityPath = await uploadEvidence(
       applicationId,
@@ -2290,7 +2739,7 @@ describe("guest application verification and persistence", () => {
     });
     expect(completeProgress.response.status, JSON.stringify(completeProgress.body)).toBe(200);
     expect(completeProgress.body.detailsComplete).toBe(true);
-    expect(completeProgress.body.referenceCode).toBe("CASE-4826");
+    expect(completeProgress.body).not.toHaveProperty("referenceCode");
 
     const anonymousReviewerCheck = await request("/admin/guest-preapplications");
     expect(anonymousReviewerCheck.response.status).toBe(401);
@@ -2320,9 +2769,10 @@ describe("guest application verification and persistence", () => {
       submissionStatus: "draft",
       currentStep: 7,
       detailsComplete: true,
-      referenceCode: "CASE-4826",
       reviewReady: true,
     });
+    expect(visibleDraft.body[0]).not.toHaveProperty("referenceCode");
+    expect(JSON.stringify(visibleDraft.body)).not.toContain("80421357");
     expect(visibleDraft.body[0].answers).toMatchObject({
       name: "Test Applicant",
       nickname: "TA",
@@ -2336,7 +2786,7 @@ describe("guest application verification and persistence", () => {
     });
     expect(visibleDraft.body[0].evidence).toHaveLength(2);
     expect(visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl)).toBe(true);
-    expect(JSON.stringify(visibleDraft.body)).toContain("CASE-4826");
+    expect(JSON.stringify(visibleDraft.body)).not.toContain("80421357");
     const removedGuestPinRoute = await request(
       `/admin/guest-preapplications/${applicationId}/pin`,
       {},
@@ -2468,7 +2918,13 @@ describe("guest application verification and persistence", () => {
     const linkedRecord = mockState.rows.get("enrollment_applications")?.[0];
     expect(linkedRecord).not.toHaveProperty("applicantAccessCodeHash");
     expect(successfulLink.body).not.toHaveProperty("applicantAccessCodeHash");
-    expect(storedDraft).toMatchObject({ referenceCode: "CASE-4826" });
+    expect(storedDraft?.referenceCode).toBeNull();
+    expect(decryptInvitationCode(
+      storedDraft?.invitationCodeCiphertext,
+      `guest:${applicationId}`,
+    )).toBe("80421357");
+    expect(linkedRecord?.referenceCode).toBeNull();
+    expect(linkedRecord?.invitationCodeCiphertext).toBeNull();
     expect(storedDraft).not.toHaveProperty("pinHash");
     expect(storedDraft).not.toHaveProperty("pinEncrypted");
     const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
@@ -2529,7 +2985,6 @@ describe("guest application verification and persistence", () => {
     expect(finalReviewerRecord.body).toMatchObject({
       applicantName: "Test Applicant",
       applicantEmail: "corrected@example.test",
-      referenceCode: "CASE-4826",
       answers: {
         contactDetails: {
           fullName: "Test Applicant",
@@ -2542,7 +2997,20 @@ describe("guest application verification and persistence", () => {
         workInformation: { employmentStatus: "student" },
       },
     });
-    expect(JSON.stringify(finalReviewerRecord.body)).toContain("CASE-4826");
+    expect(finalReviewerRecord.body).not.toHaveProperty("referenceCode");
+    expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("80421357");
+    const linkedReveal = await request(
+      `/admin/applications/${successfulLink.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(linkedReveal.response.status).toBe(200);
+    expect(linkedReveal.body.code).toBe("80421357");
+    expect(mockState.rows.get("invitation_code_reveal_audit")?.[0]).toMatchObject({
+      applicationType: "enrollment_application",
+      applicationId: successfulLink.body.id,
+      actorUserId: "reviewer",
+    });
   });
 
   it("stores only a tracking-key hash and submits incomplete guest applications", async () => {
@@ -2560,7 +3028,7 @@ describe("guest application verification and persistence", () => {
     const { id: applicationId, reference } = created.body as { id: string; reference: string };
     const submitBody = JSON.stringify({ reference, trackingKey });
 
-    const numericSecretLikeCode = await request(`/guest/preapplications/${applicationId}`, {
+    const wrongLengthInvitationCode = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
       body: JSON.stringify({
         reference,
@@ -2571,8 +3039,8 @@ describe("guest application verification and persistence", () => {
         referenceCode: "739102",
       }),
     });
-    expect(numericSecretLikeCode.response.status).toBe(400);
-    expect(numericSecretLikeCode.body.error).toContain("non-secret Reference Code");
+    expect(wrongLengthInvitationCode.response.status).toBe(400);
+    expect(wrongLengthInvitationCode.body.error).toContain("8-digit Invitation Code");
 
     const pinLikeCode = await request(`/guest/preapplications/${applicationId}`, {
       method: "PATCH",
@@ -2623,14 +3091,19 @@ describe("guest application verification and persistence", () => {
         answers: {
           personalInformation: { firstName: "Partial", email: contactEmail },
         },
-        referenceCode: "CASE-739102",
+        referenceCode: "80421357",
       }),
     });
     expect(savedPartial.response.status).toBe(200);
     expect(savedPartial.body.detailsComplete).toBe(false);
-    expect(savedPartial.body.referenceCode).toBe("CASE-739102");
+    expect(savedPartial.body).not.toHaveProperty("referenceCode");
     const storedDraft = mockState.rows.get("guest_preapplications")?.[0];
-    expect(storedDraft).toMatchObject({ referenceCode: "CASE-739102" });
+    expect(storedDraft?.referenceCode).toBeNull();
+    expect(storedDraft?.invitationCodeCiphertext).not.toContain("80421357");
+    expect(decryptInvitationCode(
+      storedDraft?.invitationCodeCiphertext,
+      `guest:${applicationId}`,
+    )).toBe("80421357");
     expect(storedDraft).not.toHaveProperty("pinHash");
     expect(storedDraft).not.toHaveProperty("pinEncrypted");
 
@@ -2657,7 +3130,7 @@ describe("guest application verification and persistence", () => {
 
     const savedRevisionRows = mockState.rows.get("guest_preapplication_revisions") ?? [];
     expect(savedRevisionRows.length).toBeGreaterThan(0);
-    expect(JSON.stringify(savedRevisionRows)).toContain("CASE-739102");
+    expect(JSON.stringify(savedRevisionRows)).not.toContain("80421357");
     expect(JSON.stringify(savedRevisionRows)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
     (savedRevisionRows[0].changes as any[]).push(
       { field: "personalInformation.pin", before: "legacy-secret", after: "739102" },
@@ -2669,7 +3142,7 @@ describe("guest application verification and persistence", () => {
       "reviewer",
     );
     expect(reviewerHistory.response.status).toBe(200);
-    expect(JSON.stringify(reviewerHistory.body)).toContain("CASE-739102");
+    expect(JSON.stringify(reviewerHistory.body)).not.toContain("80421357");
     expect(JSON.stringify(reviewerHistory.body)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("legacy-secret");
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("old-code");

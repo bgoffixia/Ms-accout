@@ -76,6 +76,8 @@ export const guestPreapplicationsTable = pgTable(
     emailVerified: boolean("email_verified").notNull().default(false),
     clerkUserId: text("clerk_user_id"),
     linkedApplicationId: uuid("linked_application_id"),
+    invitationCodeCiphertext: text("invitation_code_ciphertext"),
+    // Legacy plaintext is retained only until the reviewed backfill completes.
     referenceCode: text("reference_code"),
     updatedByUserId: text("updated_by_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -172,6 +174,8 @@ export const enrollmentApplicationsTable = pgTable(
     categoryId: text("category_id").notNull(),
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
+    invitationCodeCiphertext: text("invitation_code_ciphertext"),
+    // Legacy plaintext is retained only until the reviewed backfill completes.
     referenceCode: text("reference_code"),
     // Legacy only; Clerk ownership and guest tracking keys now authorize applicants.
     applicantAccessCodeHash: text("applicant_access_code_hash"),
@@ -248,6 +252,35 @@ export const applicationEventsTable = pgTable(
     index("application_events_application_idx").on(table.applicationId),
   ],
 );
+
+export const invitationCodeRevealAuditTable = pgTable(
+  "invitation_code_reveal_audit",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    applicationType: text("application_type").notNull(),
+    applicationId: uuid("application_id").notNull(),
+    actorUserId: text("actor_user_id").notNull(),
+    action: text("action").notNull().default("view_invitation_code"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "invitation_code_reveal_audit_application_type_check",
+      sql`${table.applicationType} IN ('guest_preapplication', 'enrollment_application')`,
+    ),
+    check(
+      "invitation_code_reveal_audit_action_check",
+      sql`${table.action} = 'view_invitation_code'`,
+    ),
+    index("invitation_code_reveal_audit_application_idx").on(
+      table.applicationType,
+      table.applicationId,
+      table.createdAt,
+    ),
+  ],
+).enableRLS();
 
 export const supportTicketsTable = pgTable(
   "enrollment_support_tickets",

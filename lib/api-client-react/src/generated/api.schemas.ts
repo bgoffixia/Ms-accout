@@ -200,11 +200,6 @@ export interface GuestPreapplicationCreated {
   status: GuestPreapplicationStatusValue;
   submissionStatus: GuestPreapplicationCreatedSubmissionStatus;
   emailVerified: boolean;
-  /**
-     * @maxLength 80
-     * @nullable
-     */
-  referenceCode: string | null;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
   linkedApplicationId: string | null;
@@ -264,11 +259,6 @@ export interface GuestPreapplicationStatus {
   submissionStatus: GuestPreapplicationStatusSubmissionStatus;
   emailVerified: boolean;
   emailVerificationRequired: boolean;
-  /**
-     * @maxLength 80
-     * @nullable
-     */
-  referenceCode: string | null;
   /** @nullable */
   linkedApplicationId: string | null;
   /**
@@ -524,11 +514,6 @@ export interface EnrollmentApplication {
   categoryName: string;
   status: ApplicationStatus;
   currentStep: number;
-  /**
-     * @maxLength 80
-     * @nullable
-     */
-  referenceCode: string | null;
   answers: EnrollmentApplicationAnswers;
   /** @nullable */
   applicantName?: string | null;
@@ -709,6 +694,16 @@ export interface ApplicationEvent {
   actorUserId: string;
 }
 
+export interface InvitationCodeReveal {
+  applicationId: string;
+  /**
+     * Returned only by an authenticated no-store reveal action for an authorized reviewer.
+     * @maxLength 80
+     */
+  code: string;
+  revealedAt: string;
+}
+
 export interface AdminOverview {
   totalUsers: number;
   totalApplications: number;
@@ -810,12 +805,25 @@ export interface StaffRegistrationCheckResponse {
   role?: StaffRegistrationCheckResponseRole;
 }
 
+export type StaffAccessClaimInputEntrypoint = typeof StaffAccessClaimInputEntrypoint[keyof typeof StaffAccessClaimInputEntrypoint];
+
+
+export const StaffAccessClaimInputEntrypoint = {
+  admin: 'admin',
+  staff: 'staff',
+} as const;
+
+export interface StaffAccessClaimInput {
+  entrypoint: StaffAccessClaimInputEntrypoint;
+}
+
 export type StaffAccessClaimResponseRole = typeof StaffAccessClaimResponseRole[keyof typeof StaffAccessClaimResponseRole];
 
 
 export const StaffAccessClaimResponseRole = {
   admin: 'admin',
   sub_admin: 'sub_admin',
+  moderator: 'moderator',
 } as const;
 
 export interface StaffAccessClaimResponse {
@@ -1017,6 +1025,42 @@ export interface PortalSettings {
   theme: PortalSettingsTheme;
   screenCopy: PortalSettingsScreenCopy;
   pageThemes?: PortalSettingsPageThemes;
+}
+
+export type InvitationCodeProviderId = typeof InvitationCodeProviderId[keyof typeof InvitationCodeProviderId];
+
+
+export const InvitationCodeProviderId = {
+  'category-1': 'category-1',
+  'category-2': 'category-2',
+  'category-3': 'category-3',
+  'category-4': 'category-4',
+} as const;
+
+/**
+ * @minimum 4
+ * @maximum 12
+ */
+export type InvitationCodeLength = number;
+
+export interface ProviderInvitationCodePolicy {
+  providerId: InvitationCodeProviderId;
+  requiredLength: InvitationCodeLength;
+}
+
+export interface ProviderInvitationCodeSetting {
+  providerId: InvitationCodeProviderId;
+  requiredLength: InvitationCodeLength;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export interface AdminProviderInvitationCodeSettings {
+  providers: ProviderInvitationCodeSetting[];
+}
+
+export interface InvitationCodeLengthUpdate {
+  requiredLength: InvitationCodeLength;
 }
 
 export interface ApplicantSummary {

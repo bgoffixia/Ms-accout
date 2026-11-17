@@ -19,11 +19,6 @@ export interface GuestPreapplicationCreated {
   status: GuestPreapplicationStatusValue;
   submissionStatus: GuestPreapplicationCreatedSubmissionStatus;
   emailVerified: boolean;
-  /**
-     * @maxLength 80
-     * @nullable
-     */
-  referenceCode: string | null;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
   linkedApplicationId: string | null;
