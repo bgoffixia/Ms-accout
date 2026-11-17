@@ -8,11 +8,13 @@ import { Eye, EyeOff, LoaderCircle, LockKeyhole } from "lucide-react";
 type InvitationCodeRevealProps = {
   applicationId: string;
   applicationType: "enrollment_application" | "guest_preapplication";
+  canReveal: boolean;
 };
 
 export function InvitationCodeReveal({
   applicationId,
   applicationType,
+  canReveal,
 }: InvitationCodeRevealProps) {
   const applicationReveal = useRevealAdminApplicationInvitationCode({
     mutation: { gcTime: 0 },
@@ -72,41 +74,47 @@ export function InvitationCodeReveal({
           <p>Reviewer-only. Each successful reveal is recorded.</p>
         </div>
       </div>
-      <button
-        type="button"
-        className="button button-quiet invitation-code-reveal-button"
-        onClick={toggleReveal}
-        disabled={isPending}
-        aria-expanded={revealedCode !== null}
-        aria-controls={
-          revealedCode !== null
-            ? `invitation-code-value-${applicationId}`
-            : undefined
-        }
-        aria-label={
-          revealedCode === null
-            ? "View Invitation Code"
-            : "Hide Invitation Code"
-        }
-        data-testid={`button-invitation-code-${revealedCode === null ? "show" : "hide"}-${applicationId}`}
-      >
-        {isPending ? (
-          <LoaderCircle
-            size={16}
-            className="invitation-code-spinner"
-            aria-hidden="true"
-          />
-        ) : revealedCode === null ? (
-          <Eye size={16} aria-hidden="true" />
-        ) : (
-          <EyeOff size={16} aria-hidden="true" />
-        )}
-        {isPending
-          ? "Loading code…"
-          : revealedCode === null
-            ? "View code"
-            : "Hide code"}
-      </button>
+      {canReveal ? (
+        <button
+          type="button"
+          className="button button-quiet invitation-code-reveal-button"
+          onClick={toggleReveal}
+          disabled={isPending}
+          aria-expanded={revealedCode !== null}
+          aria-controls={
+            revealedCode !== null
+              ? `invitation-code-value-${applicationId}`
+              : undefined
+          }
+          aria-label={
+            revealedCode === null
+              ? "View Invitation Code"
+              : "Hide Invitation Code"
+          }
+          data-testid={`button-invitation-code-${revealedCode === null ? "show" : "hide"}-${applicationId}`}
+        >
+          {isPending ? (
+            <LoaderCircle
+              size={16}
+              className="invitation-code-spinner"
+              aria-hidden="true"
+            />
+          ) : revealedCode === null ? (
+            <Eye size={16} aria-hidden="true" />
+          ) : (
+            <EyeOff size={16} aria-hidden="true" />
+          )}
+          {isPending
+            ? "Loading code…"
+            : revealedCode === null
+              ? "View code"
+              : "Hide code"}
+        </button>
+      ) : (
+        <p className="field-help" role="status">
+          Only the assigned reviewer or an Admin may reveal this code.
+        </p>
+      )}
       {revealedCode !== null && (
         <output
           id={`invitation-code-value-${applicationId}`}

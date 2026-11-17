@@ -28,6 +28,45 @@ CREATE TABLE IF NOT EXISTS public.provider_invitation_code_setting_audit (
     CHECK (new_length BETWEEN 4 AND 12)
 );
 
+-- CREATE TABLE IF NOT EXISTS is a no-op for an existing object, so verify that
+-- its required column contract is present before modifying it.
+DO $preconditions$
+DECLARE
+  required_column record;
+BEGIN
+  FOR required_column IN
+    SELECT * FROM (VALUES
+      ('provider_invitation_code_settings', 'provider_id', 'text', 'NO'),
+      ('provider_invitation_code_settings', 'required_length', 'integer', 'NO'),
+      ('provider_invitation_code_settings', 'updated_by_user_id', 'text', 'YES'),
+      ('provider_invitation_code_settings', 'updated_at', 'timestamp with time zone', 'NO'),
+      ('provider_invitation_code_setting_audit', 'id', 'uuid', 'NO'),
+      ('provider_invitation_code_setting_audit', 'actor_user_id', 'text', 'NO'),
+      ('provider_invitation_code_setting_audit', 'provider_id', 'text', 'NO'),
+      ('provider_invitation_code_setting_audit', 'previous_length', 'integer', 'NO'),
+      ('provider_invitation_code_setting_audit', 'new_length', 'integer', 'NO'),
+      ('provider_invitation_code_setting_audit', 'changed_at', 'timestamp with time zone', 'NO')
+    ) AS required(table_name, column_name, data_type, is_nullable)
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = required_column.table_name
+        AND column_name = required_column.column_name
+        AND data_type = required_column.data_type
+        AND is_nullable = required_column.is_nullable
+    ) THEN
+      RAISE EXCEPTION 'Migration precondition failed: public.%.% must be % and nullable=%',
+        required_column.table_name,
+        required_column.column_name,
+        required_column.data_type,
+        required_column.is_nullable;
+    END IF;
+  END LOOP;
+END
+$preconditions$;
+
 DO $constraints$
 BEGIN
   IF NOT EXISTS (

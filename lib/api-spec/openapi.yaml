@@ -681,7 +681,65 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EnrollmentApplication"
+                $ref: "#/components/schemas/AdminEnrollmentApplication"
+  /admin/reviewer-assignments/{applicationType}/{applicationId}:
+    parameters:
+      - name: applicationType
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [guest_preapplication, enrollment_application]
+      - name: applicationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getAdminReviewerAssignment
+      tags: [administration]
+      summary: Get the assigned reviewer for an application
+      responses:
+        "200":
+          description: Reviewer assignment for this application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReviewerAssignment"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Primary administrator access required
+        "404":
+          description: Application not found
+    put:
+      operationId: setAdminReviewerAssignment
+      tags: [administration]
+      summary: Assign or unassign an authorized Sub-admin reviewer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetApplicationReviewerAssignmentInput"
+      responses:
+        "200":
+          description: Reviewer assignment updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReviewerAssignment"
+        "400":
+          description: Invalid assignment
+        "401":
+          description: Sign-in required
+        "403":
+          description: Primary administrator or eligible reviewer required
+        "404":
+          description: Application not found
+        "503":
+          description: Reviewer access could not be verified
   /admin/applications/{applicationId}/invitation-code/reveal:
     post:
       operationId: revealAdminApplicationInvitationCode
@@ -1775,7 +1833,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/GuestPreapplicationStatus"
         - type: object
-          required: [fullName, email, phone, reviewReady, evidence, history]
+          required: [fullName, email, phone, reviewReady, evidence, history, assignedReviewerUserId]
           properties:
             fullName:
               type: string
@@ -1794,6 +1852,28 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/GuestPreapplicationRevision"
+            assignedReviewerUserId:
+              type: ["string", "null"]
+    ApplicationReviewerAssignment:
+      type: object
+      required: [applicationType, applicationId, reviewerUserId]
+      properties:
+        applicationType:
+          type: string
+          enum: [guest_preapplication, enrollment_application]
+        applicationId:
+          type: string
+          format: uuid
+        reviewerUserId:
+          type: ["string", "null"]
+    SetApplicationReviewerAssignmentInput:
+      type: object
+      required: [reviewerUserId]
+      properties:
+        reviewerUserId:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 255
     GuestEvidenceUploadInput:
       type: object
       required: [evidenceType, fileName, contentType, sizeBytes]
@@ -1941,6 +2021,14 @@ components:
           description: Present only for authorized review records linked to a submitted guest application.
           items:
             $ref: "#/components/schemas/AdminGuestPreapplicationEvidence"
+    AdminEnrollmentApplication:
+      allOf:
+        - $ref: "#/components/schemas/EnrollmentApplication"
+        - type: object
+          required: [assignedReviewerUserId]
+          properties:
+            assignedReviewerUserId:
+              type: ["string", "null"]
     ApplicationInput:
       type: object
       required: [categoryId]

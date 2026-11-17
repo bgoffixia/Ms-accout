@@ -149,6 +149,11 @@ import {
   CreateAdminUserInvitationResponse,
   GetProviderInvitationCodePolicyParams,
   GetProviderInvitationCodePolicyResponse,
+  GetAdminReviewerAssignmentParams,
+  GetAdminReviewerAssignmentResponse,
+  SetAdminReviewerAssignmentBody,
+  SetAdminReviewerAssignmentParams,
+  SetAdminReviewerAssignmentResponse,
   ListAdminProviderInvitationCodeSettingsResponse,
   UpdateAdminProviderInvitationCodeSettingBody,
   UpdateAdminProviderInvitationCodeSettingParams,
@@ -666,6 +671,7 @@ function serializeAdminGuestPreapplication(
     phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
     reviewReady:
       application.detailsComplete && hasIdentityFront && hasVerificationVideo,
+    assignedReviewerUserId: application.assignedReviewerUserId ?? null,
     evidence: evidence.map(serializeGuestEvidence),
     history: history.map((revision) => ({
       id: revision.id,
@@ -5413,6 +5419,7 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
     }
   }
   const response: Record<string, unknown> = serializeApplication(reviewApplication, true, true);
+  response.assignedReviewerUserId = application.assignedReviewerUserId ?? null;
   if (
     application.sourceGuestPreapplicationId &&
     sourceGuestSubmissionStatus === "submitted"
@@ -5435,15 +5442,120 @@ router.get("/admin/applications/:applicationId", requireReviewer, async (req, re
   res.json(GetAdminApplicationResponse.parse(response));
 });
 
+type ReviewableApplicationType =
+  | "guest_preapplication"
+  | "enrollment_application";
+
+router.get(
+  "/admin/reviewer-assignments/:applicationType/:applicationId",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const params = GetAdminReviewerAssignmentParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Reviewer assignment could not be loaded." });
+      return;
+    }
+    const { applicationType, applicationId } = params.data;
+    const [application] =
+      applicationType === "guest_preapplication"
+        ? await db
+            .select({
+              id: guestPreapplicationsTable.id,
+              reviewerUserId: guestPreapplicationsTable.assignedReviewerUserId,
+            })
+            .from(guestPreapplicationsTable)
+            .where(eq(guestPreapplicationsTable.id, applicationId))
+            .limit(1)
+        : await db
+            .select({
+              id: enrollmentApplicationsTable.id,
+              reviewerUserId: enrollmentApplicationsTable.assignedReviewerUserId,
+            })
+            .from(enrollmentApplicationsTable)
+            .where(eq(enrollmentApplicationsTable.id, applicationId))
+            .limit(1);
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    res.json(
+      GetAdminReviewerAssignmentResponse.parse({
+        applicationType,
+        applicationId,
+        reviewerUserId: application.reviewerUserId,
+      }),
+    );
+  },
+);
+
+router.put(
+  "/admin/reviewer-assignments/:applicationType/:applicationId",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const params = SetAdminReviewerAssignmentParams.safeParse(req.params);
+    const body = SetAdminReviewerAssignmentBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Choose a valid application and reviewer." });
+      return;
+    }
+    const { applicationType, applicationId } = params.data;
+    const { reviewerUserId } = body.data;
+    if (reviewerUserId) {
+      try {
+        const reviewer = await clerkClient.users.getUser(reviewerUserId);
+        if (
+          !reviewer ||
+          reviewer.publicMetadata?.accountStatus === "suspended" ||
+          trustedStaffRole(reviewer) !== "sub_admin"
+        ) {
+          res.status(403).json({
+            error: "Only a verified, authorized Sub-admin can be assigned.",
+          });
+          return;
+        }
+      } catch {
+        res.status(503).json({ error: "Reviewer authorization could not be verified." });
+        return;
+      }
+    }
+
+    const [application] =
+      applicationType === "guest_preapplication"
+        ? await db
+            .update(guestPreapplicationsTable)
+            .set({ assignedReviewerUserId: reviewerUserId })
+            .where(eq(guestPreapplicationsTable.id, applicationId))
+            .returning()
+        : await db
+            .update(enrollmentApplicationsTable)
+            .set({ assignedReviewerUserId: reviewerUserId })
+            .where(eq(enrollmentApplicationsTable.id, applicationId))
+            .returning();
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    res.json(
+      SetAdminReviewerAssignmentResponse.parse({
+        applicationType,
+        applicationId,
+        reviewerUserId: application.assignedReviewerUserId,
+      }),
+    );
+  },
+);
+
 type InvitationCodeRevealResult =
   | { kind: "revealed"; code: string; revealedAt: Date }
   | { kind: "not_found" }
+  | { kind: "forbidden" }
   | { kind: "unavailable" };
 
 async function revealInvitationCodeForReview(
   applicationType: "guest_preapplication" | "enrollment_application",
   applicationId: string,
   actorUserId: string,
+  actorRole: "admin" | "sub_admin",
 ): Promise<InvitationCodeRevealResult> {
   return db.transaction(async (transaction) => {
     let storedCode: string | null | undefined;
@@ -5457,6 +5569,7 @@ async function revealInvitationCodeForReview(
       const [application] = await transaction
         .select({
           id: guestPreapplicationsTable.id,
+          assignedReviewerUserId: guestPreapplicationsTable.assignedReviewerUserId,
           invitationCodeCiphertext: guestPreapplicationsTable.invitationCodeCiphertext,
           referenceCode: guestPreapplicationsTable.referenceCode,
         })
@@ -5465,6 +5578,12 @@ async function revealInvitationCodeForReview(
         .for("update")
         .limit(1);
       if (!application) return { kind: "not_found" };
+      if (
+        actorRole !== "admin" &&
+        application.assignedReviewerUserId !== actorUserId
+      ) {
+        return { kind: "forbidden" };
+      }
       storedCode = application.invitationCodeCiphertext ?? application.referenceCode;
       hasLegacyPlaintext = Boolean(application.referenceCode);
       hasCiphertext = Boolean(application.invitationCodeCiphertext);
@@ -5473,6 +5592,7 @@ async function revealInvitationCodeForReview(
       const [application] = await transaction
         .select({
           id: enrollmentApplicationsTable.id,
+          assignedReviewerUserId: enrollmentApplicationsTable.assignedReviewerUserId,
           invitationCodeCiphertext: enrollmentApplicationsTable.invitationCodeCiphertext,
           referenceCode: enrollmentApplicationsTable.referenceCode,
           sourceGuestPreapplicationId: enrollmentApplicationsTable.sourceGuestPreapplicationId,
@@ -5482,6 +5602,12 @@ async function revealInvitationCodeForReview(
         .for("update")
         .limit(1);
       if (!application) return { kind: "not_found" };
+      if (
+        actorRole !== "admin" &&
+        application.assignedReviewerUserId !== actorUserId
+      ) {
+        return { kind: "forbidden" };
+      }
       storedCode = application.invitationCodeCiphertext ?? application.referenceCode;
       hasLegacyPlaintext = Boolean(application.referenceCode);
       hasCiphertext = Boolean(application.invitationCodeCiphertext);
@@ -5573,7 +5699,14 @@ router.post(
         "enrollment_application",
         params.data.applicationId,
         res.locals.userId as string,
+        res.locals.staffRole as "admin" | "sub_admin",
       );
+      if (result.kind === "forbidden") {
+        res.status(403).json({
+          error: "You are not assigned to review this application's Invitation Code.",
+        });
+        return;
+      }
       if (result.kind === "not_found") {
         res.status(404).json({ error: "Invitation Code is unavailable for this application." });
         return;
@@ -5610,7 +5743,14 @@ router.post(
         "guest_preapplication",
         params.data.applicationId,
         res.locals.userId as string,
+        res.locals.staffRole as "admin" | "sub_admin",
       );
+      if (result.kind === "forbidden") {
+        res.status(403).json({
+          error: "You are not assigned to review this application's Invitation Code.",
+        });
+        return;
+      }
       if (result.kind === "not_found") {
         res.status(404).json({ error: "Invitation Code is unavailable for this application." });
         return;

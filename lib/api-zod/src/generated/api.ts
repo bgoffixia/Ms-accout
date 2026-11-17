@@ -790,7 +790,8 @@ export const ListAdminGuestPreapplicationsResponseItem = zod.object({
   "after": zod.string()
 })),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "assignedReviewerUserId": zod.string().nullable()
 }))
 export const ListAdminGuestPreapplicationsResponse = zod.array(ListAdminGuestPreapplicationsResponseItem)
 
@@ -903,7 +904,8 @@ export const UpdateAdminGuestPreapplicationResponse = zod.object({
   "after": zod.string()
 })),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "assignedReviewerUserId": zod.string().nullable()
 }))
 
 
@@ -1035,6 +1037,46 @@ export const GetAdminApplicationResponse = zod.object({
   "uploadedAt": zod.coerce.date().nullable(),
   "downloadUrl": zod.string().nullable()
 })).optional().describe('Present only for authorized review records linked to a submitted guest application.')
+}).and(zod.object({
+  "assignedReviewerUserId": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Get the assigned reviewer for an application
+ */
+export const GetAdminReviewerAssignmentParams = zod.object({
+  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const GetAdminReviewerAssignmentResponse = zod.object({
+  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
+  "applicationId": zod.string().uuid(),
+  "reviewerUserId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Assign or unassign an authorized Sub-admin reviewer
+ */
+export const SetAdminReviewerAssignmentParams = zod.object({
+  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
+  "applicationId": zod.coerce.string().uuid()
+})
+
+export const setAdminReviewerAssignmentBodyReviewerUserIdMax = 255;
+
+
+
+export const SetAdminReviewerAssignmentBody = zod.object({
+  "reviewerUserId": zod.string().min(1).max(setAdminReviewerAssignmentBodyReviewerUserIdMax).nullable()
+})
+
+export const SetAdminReviewerAssignmentResponse = zod.object({
+  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
+  "applicationId": zod.string().uuid(),
+  "reviewerUserId": zod.string().nullable()
 })
 
 

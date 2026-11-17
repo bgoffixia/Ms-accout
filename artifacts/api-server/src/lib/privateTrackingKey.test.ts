@@ -33,7 +33,7 @@ describe("private applicant tracking keys", () => {
     expect(verifyPrivateTrackingKey(hash, "123456")).toBe(false);
   });
 
-  it("keeps the current nullable tracking-key schema and legacy columns migration-safe", () => {
+  it("keeps legacy access-code storage out of runtime schema selections", () => {
     const schema = readFileSync(
       new URL("../../../../lib/db/src/schema/enrollment.ts", import.meta.url),
       "utf8",
@@ -45,14 +45,20 @@ describe("private applicant tracking keys", () => {
       ),
       "utf8",
     );
+    const routes = readFileSync(
+      new URL("../routes/enrollment.ts", import.meta.url),
+      "utf8",
+    );
 
     expect(schema).toMatch(
       /accessKeyHash:\s*text\("access_key_hash"\)\.unique\(\)/,
     );
-    expect(schema).toMatch(
-      /applicantAccessCodeHash:\s*text\("applicant_access_code_hash"\)/,
-    );
-    expect(schema).toMatch(/export const applicantAccessCodeAttemptsTable/);
+    expect(schema).not.toMatch(/applicantAccessCodeHash/);
+    expect(schema).not.toMatch(/applicant_access_code_attempts/);
+    expect(routes).not.toMatch(/applicantAccessCodeHash|applicant_access_code_hash/);
+    expect(routes).not.toMatch(/applicantAccessCodeAttemptsTable|applicant_access_code_attempts/);
+    expect(migration).toMatch(/applicant_access_code_hash/i);
+    expect(migration).toMatch(/CREATE TABLE IF NOT EXISTS public\.applicant_access_code_attempts/i);
     expect(migration).toMatch(/ALTER COLUMN access_key_hash DROP NOT NULL/i);
     expect(migration).not.toMatch(/\bDROP\s+(TABLE|COLUMN)\b/i);
   });

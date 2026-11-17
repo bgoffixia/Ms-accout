@@ -64,6 +64,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { CategoryEntryForm, type CategoryEntryAnswers } from './components/CategoryEntryForm';
+import { ApplicationReviewerAssignment } from './components/ApplicationReviewerAssignment';
 import { AdminInvitationCodeSettingsPanel } from './components/AdminInvitationCodeSettingsPanel';
 import { InvitationCodeReveal } from './components/InvitationCodeReveal';
 import { EnrollmentWizard } from './components/EnrollmentWizard';
@@ -2212,6 +2213,8 @@ function AdminAnswerSection({
 function AdminApplicationReview() {
   const params = useParams<{ applicationId?: string }>();
   const id = params.applicationId ?? '';
+  const { user } = useUser();
+  const isPrimaryAdmin = resolveClientStaffRole(user) === 'admin';
   const review = useGetAdminApplication(id);
   const portalSettings = useGetPortalSettings();
   const history = useGetAdminApplicationHistory(id);
@@ -2283,6 +2286,7 @@ function AdminApplicationReview() {
     <div className="admin-review-page">
       <Link href="/admin/review" className="back-link" data-testid="link-review-back"><ArrowLeft size={16} /> Applicants</Link>
       <div className="review-title-row"><div><div className="eyebrow">{copyText(portalSettings.data, 'admin-review', 'sectionIdLabel', 'APPLICATION REVIEW')}</div><h1>{categoryTitle}</h1><p className="mono">{application.reference}</p></div><StatusPill status={application.status} testId={`status-review-detail-${application.id}`} /></div>
+      {isPrimaryAdmin && <ApplicationReviewerAssignment applicationId={application.id} applicationType="enrollment_application" />}
       <div className="review-detail-grid">
         <section className="detail-card applicant-record">
           <div className="detail-card-title"><FileText size={17} /><h2>Applicant record</h2></div>
@@ -2328,6 +2332,10 @@ function AdminApplicationReview() {
            key={`enrollment_application:${application.id}`}
            applicationId={application.id}
            applicationType="enrollment_application"
+           canReveal={
+             resolveClientStaffRole(user) === 'admin' ||
+             application.assignedReviewerUserId === user?.id
+           }
          />
         <div className="review-field"><span>Enrollment date</span><b>{formatDate(application.createdAt)}</b></div>
       </section>
@@ -4711,6 +4719,7 @@ function AdminGuestApplicationReview() {
           <p className="mono">{application.reference} · {categoryTitle}</p></div>
         <StatusPill status={application.status} testId={`status-guest-review-detail-${application.id}`} />
       </div>
+      {role === 'admin' && <ApplicationReviewerAssignment applicationId={application.id} applicationType="guest_preapplication" />}
       {feedback && <p className={feedbackIsError ? 'inline-error' : 'inline-success'} role="status" data-testid="guest-detail-feedback">{feedback}</p>}
       <div className="review-detail-grid">
         <section className="detail-card applicant-record">
@@ -4761,6 +4770,7 @@ function AdminGuestApplicationReview() {
           key={`guest_preapplication:${application.id}`}
           applicationId={application.id}
           applicationType="guest_preapplication"
+          canReveal={role === 'admin' || application.assignedReviewerUserId === user?.id}
         />
         {getCategoryEntryFields(application.answers, application.categoryId, portalSettings.data).map((field) =>
           <div className="review-field" key={field.label}><span>{field.label}</span><b>{field.value}</b></div>)}

@@ -122,6 +122,7 @@ function newRow(tableName: string, values: Record<string, unknown>): any {
       emailVerified: false,
       clerkUserId: null,
       linkedApplicationId: null,
+      assignedReviewerUserId: null,
       invitationCodeCiphertext: null,
       referenceCode: null,
       phone: null,
@@ -146,6 +147,7 @@ function newRow(tableName: string, values: Record<string, unknown>): any {
       id: crypto.randomUUID(),
       referenceCode: null,
       invitationCodeCiphertext: null,
+      assignedReviewerUserId: null,
       createdAt: now,
       updatedAt: now,
       ...values,
@@ -1275,6 +1277,7 @@ describe("guest application verification and persistence", () => {
     const reviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
     expect(reviewerList.response.status).toBe(200);
     expect(JSON.stringify(reviewerList.body)).not.toContain(enteredCode);
+    stored!.assignedReviewerUserId = "reviewer";
     stored!.invitationCodeCiphertext = null;
     stored!.referenceCode = enteredCode;
 
@@ -1357,6 +1360,103 @@ describe("guest application verification and persistence", () => {
       "administrator",
     );
     expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(2);
+  });
+
+  it("limits reviewer Invitation Code reveals to the assigned application", async () => {
+    const assigned = await createGuestDraft();
+    const unassignedId = crypto.randomUUID();
+    const unassigned = newRow("guest_preapplications", {
+      id: unassignedId,
+      submissionId: crypto.randomUUID(),
+      reference: "PRE-UNASSIGNED01",
+      categoryId: "category-1",
+      fullName: "Unassigned Applicant",
+      email: contactEmail,
+    });
+    mockState.rows.get("guest_preapplications")?.push(unassigned);
+    const assignedRow = mockState.rows.get("guest_preapplications")?.find(
+      (row) => row.id === assigned.body.id,
+    );
+    const unassignedRow = mockState.rows.get("guest_preapplications")?.find(
+      (row) => row.id === unassignedId,
+    );
+    expect(assignedRow).toBeDefined();
+    expect(unassignedRow).toBeDefined();
+    assignedRow!.assignedReviewerUserId = "reviewer";
+    assignedRow!.referenceCode = "11112222";
+    unassignedRow!.referenceCode = "33334444";
+
+    const assignedReveal = await request(
+      `/admin/guest-preapplications/${assigned.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    const crossApplicationReveal = await request(
+      `/admin/guest-preapplications/${unassignedId}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(assignedReveal.response.status).toBe(200);
+    expect(assignedReveal.body.code).toBe("11112222");
+    expect(crossApplicationReveal.response.status).toBe(403);
+    expect(crossApplicationReveal.body).not.toHaveProperty("code");
+    expect(JSON.stringify(crossApplicationReveal.body)).not.toContain("33334444");
+    expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(1);
+
+    const adminReveal = await request(
+      `/admin/guest-preapplications/${unassignedId}/invitation-code/reveal`,
+      { method: "POST" },
+      "administrator",
+    );
+    expect(adminReveal.response.status).toBe(200);
+    expect(adminReveal.body.code).toBe("33334444");
+    expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(2);
+  });
+
+  it("allows only Admin to assign a verified authorized Sub-admin to an application", async () => {
+    const created = await createGuestDraft();
+    const endpoint = `/admin/reviewer-assignments/guest_preapplication/${created.body.id}`;
+
+    const subAdminRead = await request(endpoint, {}, "reviewer");
+    const subAdminAssign = await request(endpoint, {
+      method: "PUT",
+      body: JSON.stringify({ reviewerUserId: "reviewer" }),
+    }, "reviewer");
+    expect(subAdminRead.response.status).toBe(403);
+    expect(subAdminAssign.response.status).toBe(403);
+
+    const invalidReviewer = await request(endpoint, {
+      method: "PUT",
+      body: JSON.stringify({ reviewerUserId: "unlisted-forged-admin" }),
+    }, "administrator");
+    expect(invalidReviewer.response.status).toBe(403);
+    expect(mockState.rows.get("guest_preapplications")?.[0]?.assignedReviewerUserId).toBeNull();
+
+    const assignment = await request(endpoint, {
+      method: "PUT",
+      body: JSON.stringify({ reviewerUserId: "reviewer" }),
+    }, "administrator");
+    expect(assignment.response.status).toBe(200);
+    expect(assignment.body).toMatchObject({
+      applicationType: "guest_preapplication",
+      applicationId: created.body.id,
+      reviewerUserId: "reviewer",
+    });
+    const assignedRow = mockState.rows.get("guest_preapplications")?.find(
+      (row) => row.id === created.body.id,
+    );
+    if (assignedRow) assignedRow.referenceCode = "99887766";
+
+    const loaded = await request(endpoint, {}, "administrator");
+    expect(loaded.response.status).toBe(200);
+    expect(loaded.body.reviewerUserId).toBe("reviewer");
+
+    const reveal = await request(
+      `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
+      { method: "POST" },
+      "reviewer",
+    );
+    expect(reveal.response.status).toBe(200);
   });
 
   it("keeps signed-in Invitation Codes out of lists and ordinary detail responses", async () => {
@@ -2916,6 +3016,7 @@ describe("guest application verification and persistence", () => {
       linkedApplicationId: successfulLink.body.id,
     });
     const linkedRecord = mockState.rows.get("enrollment_applications")?.[0];
+    if (linkedRecord) linkedRecord.assignedReviewerUserId = "reviewer";
     expect(linkedRecord).not.toHaveProperty("applicantAccessCodeHash");
     expect(successfulLink.body).not.toHaveProperty("applicantAccessCodeHash");
     expect(storedDraft?.referenceCode).toBeNull();

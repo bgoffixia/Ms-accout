@@ -29,15 +29,17 @@ new columns, and a separately reviewed migration. No legacy PIN values are
 read, returned, or changed by this migration or the current application.
 
 `0002_applicant_access_codes.sql` is a historical, additive migration. Its
-columns and lockout table remain represented in the Drizzle schema solely to
-avoid destructive drift against databases where that migration was applied.
-The current application no longer reads or writes applicant access-code hashes
-or the lockout table; neither this migration nor a schema push should be run
-again for the private tracking-key implementation. Existing guest
-`access_key_hash` values remain intact and continue to authorize guest access.
-For old guest records without a tracking-key hash, recovery requires the
-applicant to sign in with the same verified Clerk email; recovery adds a new
-tracking-key hash without exposing or changing the legacy access-code hash.
+legacy access-code hash columns and lockout table remain in databases where
+that migration was applied, but they are deliberately absent from the runtime
+Drizzle schema. This prevents default `.select().from(applicationTable)`
+queries from fetching legacy hashes, and no runtime route reads or writes the
+lockout table. The migration SQL remains for historical compatibility; do not
+rerun it or use `drizzle-kit push`, which could drop the intentionally unmapped
+legacy objects. Existing guest `access_key_hash` values remain mapped because
+they store the current private tracking-key hash and are required for guest
+authorization. For old guest records without a tracking-key hash, recovery
+requires the applicant to sign in with the same verified Clerk email; it adds a
+new tracking-key hash without reading or changing any legacy access-code hash.
 
 The historical lockout table has row-level security enabled, with no policies
 for ordinary roles, and explicit privileges revoked from `PUBLIC` and, when
@@ -47,32 +49,67 @@ path needs them. No database migration or production mutation is authorized by
 the tracking-key implementation request.
 
 `0003_provider_invitation_code_lengths.sql` adds per-provider length settings
-and a server-only audit table. It enables row-level security and revokes
-`PUBLIC`, `anon`, and `authenticated` privileges; the trusted server database
-role remains responsible for reads and writes. Apply this migration only after
-verifying the intended non-production database and approval. It does not alter
-existing Invitation Code values or apply itself.
+and a server-only audit table. It is transactional and idempotent for the
+expected schema, verifies required column names/types/nullability before adding
+constraints, enables row-level security, and revokes `PUBLIC`, `anon`, and
+`authenticated` privileges. The migration runner must own the target tables;
+the runtime `DATABASE_URL` role must be the owner or have the required
+`SELECT`, `INSERT`, and `UPDATE` privileges. Apply only after verifying the
+intended non-production database and approval. This additive schema change does
+not rewrite existing rows or Invitation Code values. A restorable backup is
+required before the separate data-changing backfill, not for this DDL.
 
 `0004_invitation_code_reveal_audit.sql` adds nullable ciphertext columns for
-Invitation Codes and a reviewer-reveal audit table. It is additive and does not
-drop legacy `reference_code` columns. New application writes use authenticated
-AES-256-GCM ciphertext; the legacy plaintext is retained only until the
-operator-run backfill is reviewed and applied. The backfill is dry-run by
-default, reports counts only, and also redacts old Invitation Code values in
-guest revision history:
+Invitation Codes and a reviewer-reveal audit table. It is transactional,
+idempotent for the expected schema, checks existing column types/nullability,
+enables RLS, and revokes `PUBLIC`, `anon`, and `authenticated` privileges on
+the audit table. It does not drop legacy `reference_code` columns or application
+rows. The migration runner must own the tables and the runtime role must have
+the required `SELECT`, `UPDATE`, and audit `INSERT` privileges. New application
+writes use authenticated AES-256-GCM ciphertext. Legacy plaintext remains
+until the separate operator-run backfill completes.
+
+Before backfill, verify that `0004` is applied to the intended database; both
+application tables have `reference_code` and nullable `invitation_code_ciphertext`
+text columns; `guest_preapplication_revisions.changes` is JSONB; the runtime
+role can select/update those tables; and the same stable `SESSION_SECRET` is
+configured for every app instance and retained for future decryptions. Take
+and validate a restorable backup, stop or quiesce concurrent edits during the
+run, and first review the dry-run counts. The script checks schema/privilege
+preconditions and never prints code values. Its dry-run is the default and
+reports counts only:
 
 ```sh
 pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/scripts/backfill-legacy-invitation-codes.ts
-pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/scripts/backfill-legacy-invitation-codes.ts --apply
+pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/scripts/backfill-legacy-invitation-codes.ts \
+  --apply \
+  --confirm-database="<verified-current_database>" \
+  --confirm-server="<verified-inet_server_addr>" \
+  --confirm-user="<verified-current_user>"
 ```
 
-Apply `0004_invitation_code_reveal_audit.sql` separately before the backfill.
-Run the `--apply` form only after confirming the database target, a restorable
-backup, `SESSION_SECRET` availability and stability, and the dry-run counts.
-The backfill encrypts values in place into the new ciphertext column, clears
-legacy plaintext, and is safe to rerun. If both a ciphertext and a different
-legacy value exist for one record, that batch aborts without overwriting either
-value. A pre-change application build cannot display migrated Invitation Codes
-because it does not understand the ciphertext column; the data remains intact
-and becomes available again only after restoring the compatible application
-build. No database migration or backfill is run automatically by the app.
+Apply `0004_invitation_code_reveal_audit.sql` separately before backfill. The
+`--apply` operation is per-batch transactional, preserves application rows, and
+is safe to rerun; conflicting ciphertext/plaintext pairs abort their batch. It
+also redacts Invitation Code values from revision history, which is
+intentionally not reversible after commit. Do not remove the old plaintext
+columns automatically; leave them nullable for rollback compatibility. If an
+older build is restored, the data remains in the database, but that build may
+not understand ciphertext values. No migration or backfill runs automatically.
+
+There is no tracking-key backfill: existing guest `access_key_hash` values
+already contain hashes and remain usable. Records without a key use the
+verified-Clerk-email recovery path, which generates a new key only after an
+explicit applicant action.
+
+`0005_application_reviewer_assignments.sql` adds nullable assignment columns
+without rewriting existing records. It requires both
+application tables and must be applied by a role permitted to alter them; the
+runtime role must be able to update each table. PostgreSQL takes a brief
+`ACCESS EXCLUSIVE` metadata lock for each `ALTER TABLE`; schedule the migration
+when application traffic is low, and do not run it if either table is already
+under a long-running transaction. There are no new table-scan indexes.
+Existing `reviewer_user_id` decision history is not copied into the assignment
+columns. Roll back the app
+by stopping use of the new endpoints; leave these additive columns/indexes in
+place to preserve assignment history and avoid destructive rollback.

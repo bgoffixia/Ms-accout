@@ -378,7 +378,33 @@ export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   reviewReady: boolean;
   evidence: AdminGuestPreapplicationEvidence[];
   history: GuestPreapplicationRevision[];
+  /** @nullable */
+  assignedReviewerUserId: string | null;
 });
+
+export type ApplicationReviewerAssignmentApplicationType = typeof ApplicationReviewerAssignmentApplicationType[keyof typeof ApplicationReviewerAssignmentApplicationType];
+
+
+export const ApplicationReviewerAssignmentApplicationType = {
+  guest_preapplication: 'guest_preapplication',
+  enrollment_application: 'enrollment_application',
+} as const;
+
+export interface ApplicationReviewerAssignment {
+  applicationType: ApplicationReviewerAssignmentApplicationType;
+  applicationId: string;
+  /** @nullable */
+  reviewerUserId: string | null;
+}
+
+export interface SetApplicationReviewerAssignmentInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     * @nullable
+     */
+  reviewerUserId: string | null;
+}
 
 export type GuestEvidenceUploadInputEvidenceType = typeof GuestEvidenceUploadInputEvidenceType[keyof typeof GuestEvidenceUploadInputEvidenceType];
 
@@ -531,6 +557,11 @@ export interface EnrollmentApplication {
   /** Present only for authorized review records linked to a submitted guest application. */
   evidence?: AdminGuestPreapplicationEvidence[];
 }
+
+export type AdminEnrollmentApplication = EnrollmentApplication & ({
+  /** @nullable */
+  assignedReviewerUserId: string | null;
+});
 
 export type ApplicationInputCategoryId = typeof ApplicationInputCategoryId[keyof typeof ApplicationInputCategoryId];
 
