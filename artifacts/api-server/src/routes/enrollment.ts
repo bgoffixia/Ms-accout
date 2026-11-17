@@ -166,6 +166,12 @@ import {
   ClaimAllowlistedStaffAccessResponse,
   UpdatePortalSettingsBody,
   UpdatePortalSettingsResponse,
+  GetApplicantFormContentResponse,
+  GetAdminApplicantFormContentResponse,
+  UpdateAdminApplicantFormContentBody,
+  UpdateAdminApplicantFormContentResponse,
+  ResetAdminApplicantFormContentBody,
+  ResetAdminApplicantFormContentResponse,
 } from "@workspace/api-zod";
 import {
   applicationEventsTable,
@@ -226,6 +232,17 @@ import {
   sendReviewerNotification,
   type ReviewerNotification,
 } from "../lib/reviewerNotifications";
+import {
+  APPLICANT_FORM_DEFAULTS,
+  APPLICANT_FORM_CATALOG,
+  createAdminFormContentResponse,
+  sanitizeApplicantFormContent,
+} from "../lib/applicantFormContent";
+import {
+  ApplicantFormContentPersistenceError,
+  readApplicantFormContentRow,
+  saveApplicantFormContentRow,
+} from "../lib/supabaseApplicantFormContent";
 import type { ApplicationAccessStatus } from "@workspace/api-zod";
 import {
   dispatchStaffEmail,
@@ -380,7 +397,9 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function allowlistedStaffRole(email: string): "admin" | "sub_admin" | undefined {
+function allowlistedStaffRole(
+  email: string,
+): "admin" | "sub_admin" | undefined {
   return allowlistedStaffRoles.get(normalizeEmail(email));
 }
 
@@ -392,7 +411,9 @@ type ClerkStaffIdentity = {
   publicMetadata?: Record<string, unknown> | null;
 };
 
-function verifiedPrimaryStaffEmail(user: ClerkStaffIdentity): string | undefined {
+function verifiedPrimaryStaffEmail(
+  user: ClerkStaffIdentity,
+): string | undefined {
   const primaryEmail = user.primaryEmailAddress;
   if (
     primaryEmail?.verification?.status !== "verified" ||
@@ -438,14 +459,19 @@ async function authenticate(
   try {
     const user = await clerkClient.users.getUser(userId);
     if (user.publicMetadata?.accountStatus === "suspended") {
-      res.status(403).json({ error: "This account is suspended. Contact support." });
+      res
+        .status(403)
+        .json({ error: "This account is suspended. Contact support." });
       return;
     }
     res.locals.userId = userId;
     res.locals.clerkUser = user;
     next();
   } catch (error) {
-    req.log.error({ err: error, userId }, "Failed to verify applicant account status");
+    req.log.error(
+      { err: error, userId },
+      "Failed to verify applicant account status",
+    );
     res.status(503).json({ error: "Account access could not be verified." });
   }
 }
@@ -472,8 +498,13 @@ async function requireAdmin(
     res.locals.staffRole = role;
     next();
   } catch (error) {
-    req.log.error({ err: error, userId }, "Failed to verify administrator role");
-    res.status(503).json({ error: "Administrator access could not be verified." });
+    req.log.error(
+      { err: error, userId },
+      "Failed to verify administrator role",
+    );
+    res
+      .status(503)
+      .json({ error: "Administrator access could not be verified." });
   }
 }
 
@@ -482,7 +513,10 @@ function requireReviewer(
   res: Response,
   next: NextFunction,
 ): void {
-  if (res.locals.staffRole === "sub_admin" || res.locals.staffRole === "admin") {
+  if (
+    res.locals.staffRole === "sub_admin" ||
+    res.locals.staffRole === "admin"
+  ) {
     next();
     return;
   }
@@ -503,20 +537,40 @@ function requirePrimaryAdmin(
 
 function validatePublicImageDataUrl(value: string | null): boolean {
   if (value === null) return true;
-  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(value);
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(
+    value,
+  );
   if (!match) return false;
   const bytes = Buffer.from(match[2]!, "base64");
   if (!bytes.length || bytes.length > 2 * 1024 * 1024) return false;
   const type = match[1];
   if (type === "png") {
-    return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    return (
+      bytes.length >= 8 &&
+      bytes
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    );
   }
-  if (type === "jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes.at(-2) === 0xff && bytes.at(-1) === 0xd9;
-  return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (type === "jpeg")
+    return (
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes.at(-2) === 0xff &&
+      bytes.at(-1) === 0xd9
+    );
+  return (
+    bytes.length >= 12 &&
+    bytes.toString("ascii", 0, 4) === "RIFF" &&
+    bytes.toString("ascii", 8, 12) === "WEBP"
+  );
 }
 
 function categoryName(categoryId: string): string {
-  return categories.find((category) => category.id === categoryId)?.name ?? "Enrollment";
+  return (
+    categories.find((category) => category.id === categoryId)?.name ??
+    "Enrollment"
+  );
 }
 
 const TRACKING_KEY_GENERIC_ERROR =
@@ -608,7 +662,8 @@ function serializeApplicationAccessStatus(
     status: application.status,
     submissionStatus: application.status === "draft" ? "draft" : "submitted",
     currentStep: application.currentStep,
-    detailsComplete: validateFinalApplication(application.categoryId, answers, true) === null,
+    detailsComplete:
+      validateFinalApplication(application.categoryId, answers, true) === null,
     updatedAt: application.updatedAt,
     reviewStatus: application.status,
     applicantFollowup: application.reviewNote ?? null,
@@ -657,7 +712,9 @@ function serializeAdminGuestPreapplication(
   history: Array<typeof guestPreapplicationRevisionsTable.$inferSelect> = [],
 ) {
   const uploadedEvidence = evidence.filter((item) => item.uploadedAt !== null);
-  const hasIdentityFront = uploadedEvidence.some((item) => item.evidenceSlot === "identity_front");
+  const hasIdentityFront = uploadedEvidence.some(
+    (item) => item.evidenceSlot === "identity_front",
+  );
   const hasVerificationVideo = uploadedEvidence.some(
     (item) => item.evidenceSlot === "verification_video",
   );
@@ -668,7 +725,9 @@ function serializeAdminGuestPreapplication(
     ),
     fullName: application.fullName,
     email: application.email,
-    phone: application.phone ?? nestedString(application.answers ?? {}, "personalInformation", "phone"),
+    phone:
+      application.phone ??
+      nestedString(application.answers ?? {}, "personalInformation", "phone"),
     reviewReady:
       application.detailsComplete && hasIdentityFront && hasVerificationVideo,
     assignedReviewerUserId: application.assignedReviewerUserId ?? null,
@@ -699,14 +758,23 @@ async function serializeAdminGuestPreapplicationWithEvidence(
 }
 
 function revisionValue(value: unknown, field: string): string {
-  if (/pin|password|passcode|access.?code|invitation.?code|reference.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(field)) {
+  if (
+    /pin|password|passcode|access.?code|invitation.?code|reference.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(
+      field,
+    )
+  ) {
     return "Private value not stored";
   }
   if (field.toLowerCase().endsWith("objectpath")) {
     return value ? "Private evidence attached" : "No private evidence attached";
   }
-  if (value === undefined || value === null || value === "") return "Not provided";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (value === undefined || value === null || value === "")
+    return "Not provided";
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
     return String(value);
   }
   return JSON.stringify(value);
@@ -718,17 +786,22 @@ function collectGuestRevisionChanges(
   prefix = "",
   changes: Array<{ field: string; before: string; after: string }> = [],
 ) {
-  const beforeIsRecord = before !== null && typeof before === "object" && !Array.isArray(before);
-  const afterIsRecord = after !== null && typeof after === "object" && !Array.isArray(after);
+  const beforeIsRecord =
+    before !== null && typeof before === "object" && !Array.isArray(before);
+  const afterIsRecord =
+    after !== null && typeof after === "object" && !Array.isArray(after);
   if (beforeIsRecord || afterIsRecord) {
-    const previous = beforeIsRecord ? before as Record<string, unknown> : {};
-    const current = afterIsRecord ? after as Record<string, unknown> : {};
+    const previous = beforeIsRecord ? (before as Record<string, unknown>) : {};
+    const current = afterIsRecord ? (after as Record<string, unknown>) : {};
     const keys = new Set([...Object.keys(previous), ...Object.keys(current)]);
     for (const key of keys) {
       if (
         key.startsWith("__") ||
-         /pin|password|passcode|access.?code|invitation.?code|reference.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(key)
-      ) continue;
+        /pin|password|passcode|access.?code|invitation.?code|reference.?code|verification.?code|otp|accountNumber|routingNumber|sortCode|iban|swift/i.test(
+          key,
+        )
+      )
+        continue;
       collectGuestRevisionChanges(
         previous[key],
         current[key],
@@ -752,7 +825,8 @@ function sanitizeStoredRevisionChanges(changes: unknown) {
   if (!Array.isArray(changes)) return [];
   return changes.map((entry) => {
     const change = asRecord(entry);
-    const field = typeof change.field === "string" ? change.field : "Application";
+    const field =
+      typeof change.field === "string" ? change.field : "Application";
     return {
       field,
       before: revisionValue(change.before, field),
@@ -776,7 +850,10 @@ function guestRevisionChanges(
     email: application.email,
     answers: applicantSafeAnswers(answers),
   };
-  const changes = collectGuestRevisionChanges(previousSnapshot, currentSnapshot);
+  const changes = collectGuestRevisionChanges(
+    previousSnapshot,
+    currentSnapshot,
+  );
   if (application.currentStep !== currentStep) {
     changes.push({
       field: "Saved progress step",
@@ -793,7 +870,8 @@ function serializeGuestEvidence(
   return {
     id: evidence.id,
     evidenceType: evidence.evidenceType,
-    evidenceSlot: evidence.evidenceSlot as AdminGuestPreapplicationEvidence["evidenceSlot"],
+    evidenceSlot:
+      evidence.evidenceSlot as AdminGuestPreapplicationEvidence["evidenceSlot"],
     fileName: evidence.fileName,
     contentType: evidence.contentType,
     sizeBytes: evidence.sizeBytes,
@@ -805,18 +883,29 @@ function serializeGuestEvidence(
 }
 
 function safeEvidenceFileName(fileName: string): string {
-  return fileName.replace(/[\u0000-\u001f\u007f/\\]/g, "_").trim().slice(0, 160) || "evidence";
+  return (
+    fileName
+      .replace(/[\u0000-\u001f\u007f/\\]/g, "_")
+      .trim()
+      .slice(0, 160) || "evidence"
+  );
 }
 
 function isAllowedEvidenceType(
-  evidenceType: "identity_document" | "verification_video" | "education_certificate",
+  evidenceType:
+    "identity_document" | "verification_video" | "education_certificate",
   contentType: string,
   sizeBytes: number,
 ): boolean {
-  if (evidenceType === "identity_document" || evidenceType === "education_certificate") {
+  if (
+    evidenceType === "identity_document" ||
+    evidenceType === "education_certificate"
+  ) {
     return (
       sizeBytes <= 20 * 1024 * 1024 &&
-      ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(contentType)
+      ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(
+        contentType,
+      )
     );
   }
   return (
@@ -830,36 +919,76 @@ function evidenceSignatureMatches(contentType: string, bytes: Buffer): boolean {
     case "application/pdf":
       return bytes.length >= 5 && bytes.toString("ascii", 0, 5) === "%PDF-";
     case "image/jpeg":
-      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      return (
+        bytes.length >= 3 &&
+        bytes[0] === 0xff &&
+        bytes[1] === 0xd8 &&
+        bytes[2] === 0xff
+      );
     case "image/png":
-      return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      return (
+        bytes.length >= 8 &&
+        bytes
+          .subarray(0, 8)
+          .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      );
     case "image/webp":
-      return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+      return (
+        bytes.length >= 12 &&
+        bytes.toString("ascii", 0, 4) === "RIFF" &&
+        bytes.toString("ascii", 8, 12) === "WEBP"
+      );
     case "video/mp4":
       return bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp";
     case "video/webm":
-      return bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+      return (
+        bytes.length >= 4 &&
+        bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+      );
     default:
       return false;
   }
 }
 
-function emailLogoSignatureMatches(contentType: string, bytes: Buffer): boolean {
+function emailLogoSignatureMatches(
+  contentType: string,
+  bytes: Buffer,
+): boolean {
   switch (contentType) {
     case "image/png":
-      return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      return (
+        bytes.length >= 8 &&
+        bytes
+          .subarray(0, 8)
+          .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      );
     case "image/jpeg":
-      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      return (
+        bytes.length >= 3 &&
+        bytes[0] === 0xff &&
+        bytes[1] === 0xd8 &&
+        bytes[2] === 0xff
+      );
     case "image/webp":
-      return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+      return (
+        bytes.length >= 12 &&
+        bytes.toString("ascii", 0, 4) === "RIFF" &&
+        bytes.toString("ascii", 8, 12) === "WEBP"
+      );
     case "image/gif":
-      return bytes.length >= 6 && ["GIF87a", "GIF89a"].includes(bytes.toString("ascii", 0, 6));
+      return (
+        bytes.length >= 6 &&
+        ["GIF87a", "GIF89a"].includes(bytes.toString("ascii", 0, 6))
+      );
     default:
       return false;
   }
 }
 
-function answerString(answers: Record<string, unknown>, key: string): string | null {
+function answerString(
+  answers: Record<string, unknown>,
+  key: string,
+): string | null {
   const value = answers[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -896,7 +1025,10 @@ function containsCredentialAnswerKey(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => {
     const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, "");
-    return forbiddenCredentialAnswerKeys.has(normalizedKey) || containsCredentialAnswerKey(child);
+    return (
+      forbiddenCredentialAnswerKeys.has(normalizedKey) ||
+      containsCredentialAnswerKey(child)
+    );
   });
 }
 
@@ -905,9 +1037,12 @@ function stripLegacyCredentialAnswers(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => !forbiddenCredentialAnswerKeys.has(
-        key.toLowerCase().replace(/[_\s-]/g, ""),
-      ))
+      .filter(
+        ([key]) =>
+          !forbiddenCredentialAnswerKeys.has(
+            key.toLowerCase().replace(/[_\s-]/g, ""),
+          ),
+      )
       .map(([key, child]) => [key, stripLegacyCredentialAnswers(child)]),
   );
 }
@@ -917,11 +1052,13 @@ function containsLegacyPinInput(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => {
     const normalizedKey = key.toLowerCase().replace(/[_\s-]/g, "");
-    return normalizedKey === "pin" ||
+    return (
+      normalizedKey === "pin" ||
       normalizedKey.startsWith("pinconfirmation") ||
       normalizedKey.startsWith("pinhash") ||
       normalizedKey.startsWith("pinencrypted") ||
-      containsLegacyPinInput(child);
+      containsLegacyPinInput(child)
+    );
   });
 }
 
@@ -932,7 +1069,9 @@ async function getProviderInvitationCodeLength(
     throw new Error("Unknown account provider.");
   }
   const [setting] = await db
-    .select({ requiredLength: providerInvitationCodeSettingsTable.requiredLength })
+    .select({
+      requiredLength: providerInvitationCodeSettingsTable.requiredLength,
+    })
     .from(providerInvitationCodeSettingsTable)
     .where(eq(providerInvitationCodeSettingsTable.providerId, providerId))
     .limit(1);
@@ -963,7 +1102,7 @@ async function normalizeInvitationCode(
   }
   const existingValue = existingCiphertext
     ? decryptInvitationCode(existingCiphertext, scope)
-    : existingLegacyPlaintext ?? null;
+    : (existingLegacyPlaintext ?? null);
   if (existingCiphertext && !existingValue) {
     return {
       valid: false,
@@ -973,7 +1112,11 @@ async function normalizeInvitationCode(
   }
   try {
     const requiredLength = await getProviderInvitationCodeLength(providerId);
-    const validation = validateInvitationCode(value, requiredLength, existingValue);
+    const validation = validateInvitationCode(
+      value,
+      requiredLength,
+      existingValue,
+    );
     if (validation.error) {
       return { valid: false, error: validation.error, unavailable: false };
     }
@@ -1030,10 +1173,14 @@ function evidenceRowsOwnAnswers(
   return slots.every(([section, key, evidenceSlot]) => {
     const value = asRecord(answers[section])[key];
     if (value === undefined || value === null || value === "") return true;
-    return typeof value === "string" && evidence.some(
-      (item) => item.uploadedAt !== null &&
-        item.evidenceSlot === evidenceSlot &&
-        item.objectPath === value,
+    return (
+      typeof value === "string" &&
+      evidence.some(
+        (item) =>
+          item.uploadedAt !== null &&
+          item.evidenceSlot === evidenceSlot &&
+          item.objectPath === value,
+      )
     );
   });
 }
@@ -1154,7 +1301,9 @@ function prepareApplicantAnswers(
 }
 
 function applicantSafeAnswers(answers: Record<string, unknown>) {
-  const safeAnswers = stripLegacyCredentialAnswers(structuredClone(answers)) as Record<string, unknown>;
+  const safeAnswers = stripLegacyCredentialAnswers(
+    structuredClone(answers),
+  ) as Record<string, unknown>;
   const bank = asRecord(safeAnswers.bankDetails);
   if (Object.keys(bank).length > 0) {
     delete bank.accountNumber;
@@ -1232,7 +1381,11 @@ function validateFinalApplication(
     }
   }
   const dob = nestedString(answers, "personalInformation", "dateOfBirth");
-  if (!dob || Number.isNaN(Date.parse(`${dob}T00:00:00Z`)) || dob > new Date().toISOString().slice(0, 10)) {
+  if (
+    !dob ||
+    Number.isNaN(Date.parse(`${dob}T00:00:00Z`)) ||
+    dob > new Date().toISOString().slice(0, 10)
+  ) {
     return "Enter a valid date of birth that is not in the future.";
   }
   if (!validPhone(nestedString(answers, "personalInformation", "phone"))) {
@@ -1271,7 +1424,9 @@ function validateFinalApplication(
     }
   }
   const startYear = Number(nestedString(answers, "education", "startYear"));
-  const completionYear = Number(nestedString(answers, "education", "completionYear"));
+  const completionYear = Number(
+    nestedString(answers, "education", "completionYear"),
+  );
   const currentYear = new Date().getFullYear();
   if (
     !Number.isInteger(startYear) ||
@@ -1283,7 +1438,11 @@ function validateFinalApplication(
     return "Enter valid education years in chronological order.";
   }
 
-  const employmentStatus = nestedString(answers, "workInformation", "employmentStatus")?.toLowerCase();
+  const employmentStatus = nestedString(
+    answers,
+    "workInformation",
+    "employmentStatus",
+  )?.toLowerCase();
   if (!employmentStatus) return "Select your employment status.";
   if (employmentStatus === "employed") {
     if (
@@ -1300,13 +1459,25 @@ function validateFinalApplication(
     ) {
       return "Enter your business name and work address.";
     }
-  } else if (!["unemployed", "not currently employed", "student", "retired", "other"].includes(employmentStatus)) {
+  } else if (
+    ![
+      "unemployed",
+      "not currently employed",
+      "student",
+      "retired",
+      "other",
+    ].includes(employmentStatus)
+  ) {
     return "Select a valid employment status.";
   }
 
   if (requireEvidence) {
     const identity = asRecord(answers.proofOfIdentity);
-    const documentType = nestedString(answers, "proofOfIdentity", "documentType");
+    const documentType = nestedString(
+      answers,
+      "proofOfIdentity",
+      "documentType",
+    );
     if (
       !documentType ||
       typeof identity.frontObjectPath !== "string" ||
@@ -1315,7 +1486,9 @@ function validateFinalApplication(
       return "Complete the private proof-of-identity upload.";
     }
     if (
-      ["National ID", "Driver license", "Passport card"].includes(documentType) &&
+      ["National ID", "Driver license", "Passport card"].includes(
+        documentType,
+      ) &&
       (typeof identity.backObjectPath !== "string" || !identity.backObjectPath)
     ) {
       return "Upload the back of the selected identity document.";
@@ -1332,8 +1505,13 @@ function validateFinalApplication(
   }
 
   const bank = asRecord(answers.bankDetails);
-  const anyBankDetails = ["bankName", "accountHolder", "accountNumberEncrypted"].some(
-    (key) => typeof bank[key] === "string" && String(bank[key]).trim().length > 0,
+  const anyBankDetails = [
+    "bankName",
+    "accountHolder",
+    "accountNumberEncrypted",
+  ].some(
+    (key) =>
+      typeof bank[key] === "string" && String(bank[key]).trim().length > 0,
   );
   if (
     anyBankDetails &&
@@ -1360,31 +1538,59 @@ function outstandingApplicationRequirements(
   if (
     answers.categoryEntryComplete !== true ||
     !hasRequiredCategoryDetails(categoryId, answers)
-  ) missing.push("Complete the account provider entry details");
-  if (!sectionHas("personalInformation", [
-    "firstName", "surname", "dateOfBirth", "nationality", "phone", "email",
-    "residentialAddress", "stateRegion", "city",
-  ])) missing.push("Complete personal information");
-  if (!sectionHas("nextOfKin", [
-    "fullName", "relationship", "phone",
-  ])) missing.push("Complete next-of-kin information");
-  if (!sectionHas("education", [
-    "highestQualification", "institution", "courseField", "startYear",
-    "completionYear", "certificationStatus",
-  ])) missing.push("Complete education information");
+  )
+    missing.push("Complete the account provider entry details");
+  if (
+    !sectionHas("personalInformation", [
+      "firstName",
+      "surname",
+      "dateOfBirth",
+      "nationality",
+      "phone",
+      "email",
+      "residentialAddress",
+      "stateRegion",
+      "city",
+    ])
+  )
+    missing.push("Complete personal information");
+  if (!sectionHas("nextOfKin", ["fullName", "relationship", "phone"]))
+    missing.push("Complete next-of-kin information");
+  if (
+    !sectionHas("education", [
+      "highestQualification",
+      "institution",
+      "courseField",
+      "startYear",
+      "completionYear",
+      "certificationStatus",
+    ])
+  )
+    missing.push("Complete education information");
 
-  const employmentStatus = nestedString(answers, "workInformation", "employmentStatus")?.toLowerCase();
-  const workComplete = employmentStatus === "employed"
-    ? sectionHas("workInformation", ["occupation", "employer", "workAddress"])
-    : employmentStatus === "self-employed"
-      ? sectionHas("workInformation", ["businessName", "workAddress"])
-      : Boolean(employmentStatus);
+  const employmentStatus = nestedString(
+    answers,
+    "workInformation",
+    "employmentStatus",
+  )?.toLowerCase();
+  const workComplete =
+    employmentStatus === "employed"
+      ? sectionHas("workInformation", ["occupation", "employer", "workAddress"])
+      : employmentStatus === "self-employed"
+        ? sectionHas("workInformation", ["businessName", "workAddress"])
+        : Boolean(employmentStatus);
   if (!workComplete) missing.push("Complete work information");
 
   const identity = asRecord(answers.proofOfIdentity);
   const documentType = nestedString(answers, "proofOfIdentity", "documentType");
-  const needsBack = ["National ID", "Driver license", "Passport card"].includes(documentType ?? "");
-  if (!documentType || !identity.frontObjectPath || (needsBack && !identity.backObjectPath)) {
+  const needsBack = ["National ID", "Driver license", "Passport card"].includes(
+    documentType ?? "",
+  );
+  if (
+    !documentType ||
+    !identity.frontObjectPath ||
+    (needsBack && !identity.backObjectPath)
+  ) {
     missing.push("Provide the required identity document files");
   }
   const video = asRecord(answers.liveVideoRecording);
@@ -1393,17 +1599,27 @@ function outstandingApplicationRequirements(
     video.durationSeconds !== 12 ||
     typeof video.objectPath !== "string" ||
     !video.objectPath
-  ) missing.push("Provide the 12-second verification video");
+  )
+    missing.push("Provide the 12-second verification video");
 
   const bank = asRecord(answers.bankDetails);
-  const anyBankDetails = ["bankName", "accountHolder", "accountNumberEncrypted", "accountType"]
-    .some((field) => typeof bank[field] === "string" && String(bank[field]).trim());
+  const anyBankDetails = [
+    "bankName",
+    "accountHolder",
+    "accountNumberEncrypted",
+    "accountType",
+  ].some(
+    (field) => typeof bank[field] === "string" && String(bank[field]).trim(),
+  );
   if (
     anyBankDetails &&
     (!nestedString(answers, "bankDetails", "bankName") ||
       !nestedString(answers, "bankDetails", "accountHolder") ||
       typeof bank.accountNumberEncrypted !== "string")
-  ) missing.push("Complete the optional bank details or clear the partial entries");
+  )
+    missing.push(
+      "Complete the optional bank details or clear the partial entries",
+    );
   return missing;
 }
 
@@ -1511,7 +1727,9 @@ async function loadPortalSettings() {
     .from(portalSettingsTable)
     .where(eq(portalSettingsTable.key, "portal"))
     .limit(1);
-  const settings = GetPortalSettingsResponse.parse(record?.value ?? defaultPortalSettings);
+  const settings = GetPortalSettingsResponse.parse(
+    record?.value ?? defaultPortalSettings,
+  );
   const providerNames = ["One", "Two", "Three", "Four"] as const;
   for (const card of settings.cards) {
     const categoryIndex = Number(card.id.replace("category-", "")) - 1;
@@ -1520,7 +1738,10 @@ async function loadPortalSettings() {
     if (card.title === `Enrollment Category ${number}`) {
       card.title = `Account Provider ${number}`;
     }
-    if (card.description === `Complete the registration process for Category ${number}.`) {
+    if (
+      card.description ===
+      `Complete the registration process for Category ${number}.`
+    ) {
       card.description = `Complete the enrollment for Account Provider ${number}.`;
     }
     if (card.buttonLabel === "Select Category") {
@@ -1556,20 +1777,25 @@ async function loadPortalSettings() {
   }
   const previousHeroDefaults = {
     title: "Security",
-    description: "We protect systems, data, and users through strong controls and monitoring.",
+    description:
+      "We protect systems, data, and users through strong controls and monitoring.",
     buttonLabel: "Get Started",
   };
-  if (settings.hero.title === previousHeroDefaults.title) settings.hero.title = defaultPortalSettings.hero.title;
+  if (settings.hero.title === previousHeroDefaults.title)
+    settings.hero.title = defaultPortalSettings.hero.title;
   if (settings.hero.description === previousHeroDefaults.description) {
     settings.hero.description = defaultPortalSettings.hero.description;
   }
   if (settings.hero.getStartedLabel === previousHeroDefaults.buttonLabel) {
     settings.hero.getStartedLabel = defaultPortalSettings.hero.getStartedLabel;
   }
-  const legacyTitle = "Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal";
-  const legacyDescription = "Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.";
+  const legacyTitle =
+    "Welcome to the Secure Path. Authorized Security Verification System. Vanuatu - enrollment Portal";
+  const legacyDescription =
+    "Proceed with your informations and enroll your personal identity and credential authentication / encrypted safety verification.";
 
-  if (settings.hero.title === legacyTitle) settings.hero.title = defaultPortalSettings.hero.title;
+  if (settings.hero.title === legacyTitle)
+    settings.hero.title = defaultPortalSettings.hero.title;
   if (settings.hero.description === legacyDescription) {
     settings.hero.description = defaultPortalSettings.hero.description;
   }
@@ -1583,7 +1809,8 @@ async function loadPortalSettings() {
   if (landingCopy?.buttonLabel === previousHeroDefaults.buttonLabel) {
     landingCopy.buttonLabel = defaultPortalSettings.hero.getStartedLabel;
   }
-  if (landingCopy?.title === legacyTitle) landingCopy.title = defaultPortalSettings.hero.title;
+  if (landingCopy?.title === legacyTitle)
+    landingCopy.title = defaultPortalSettings.hero.title;
   if (landingCopy?.description === legacyDescription) {
     landingCopy.description = defaultPortalSettings.hero.description;
   }
@@ -1598,32 +1825,91 @@ router.get("/portal/settings", async (req, res): Promise<void> => {
     res.json(await loadPortalSettings());
   } catch (error) {
     req.log.error({ err: error }, "Failed to load portal settings");
-    res.status(503).json({ error: "Portal settings are temporarily unavailable." });
+    res
+      .status(503)
+      .json({ error: "Portal settings are temporarily unavailable." });
   }
 });
 
-router.get("/invitation-code-settings/:providerId", async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const params = GetProviderInvitationCodePolicyParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: "Choose a valid account provider." });
-    return;
+function formContentLocalDefaults() {
+  return GetApplicantFormContentResponse.parse({
+    version: 0,
+    defaults: APPLICANT_FORM_DEFAULTS,
+    savedContent: {},
+    updatedAt: null,
+    persistenceAvailable: false,
+  });
+}
+
+function canUseLocalFormContentDefaults(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    !process.env.SUPABASE_URL &&
+    !process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !process.env.SUPABASE_SECRET_KEY
+  );
+}
+
+async function readFormContentSnapshot() {
+  if (canUseLocalFormContentDefaults()) {
+    return formContentLocalDefaults();
   }
+  const row = await readApplicantFormContentRow();
+  return GetApplicantFormContentResponse.parse({
+    version: row.version,
+    defaults: APPLICANT_FORM_DEFAULTS,
+    savedContent: row.content,
+    updatedAt: row.updatedAt,
+    persistenceAvailable: true,
+  });
+}
+
+router.get("/applicant/form-content", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Vary", "Cookie, Authorization");
   try {
-    res.json(
-      GetProviderInvitationCodePolicyResponse.parse({
-        providerId: params.data.providerId,
-        requiredLength: await getProviderInvitationCodeLength(params.data.providerId),
-      }),
-    );
+    res.json(await readFormContentSnapshot());
   } catch (error) {
-    req.log.error(
-      { err: error, providerId: params.data.providerId },
-      "Failed to load provider Invitation Code policy",
-    );
-    res.status(503).json({ error: "Invitation Code requirements are temporarily unavailable." });
+    const code =
+      error instanceof ApplicantFormContentPersistenceError
+        ? error.code
+        : "unknown";
+    req.log.error({ code }, "Failed to load applicant form content");
+    res
+      .status(503)
+      .json({ error: "Applicant form content is temporarily unavailable." });
   }
 });
+
+router.get(
+  "/invitation-code-settings/:providerId",
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const params = GetProviderInvitationCodePolicyParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Choose a valid account provider." });
+      return;
+    }
+    try {
+      res.json(
+        GetProviderInvitationCodePolicyResponse.parse({
+          providerId: params.data.providerId,
+          requiredLength: await getProviderInvitationCodeLength(
+            params.data.providerId,
+          ),
+        }),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error, providerId: params.data.providerId },
+        "Failed to load provider Invitation Code policy",
+      );
+      res.status(503).json({
+        error: "Invitation Code requirements are temporarily unavailable.",
+      });
+    }
+  },
+);
 
 router.get("/enrollment/categories", (_req, res): void => {
   res.json(ListEnrollmentCategoriesResponse.parse(categories));
@@ -1631,12 +1917,16 @@ router.get("/enrollment/categories", (_req, res): void => {
 
 router.post("/guest/preapplications", async (req, res): Promise<void> => {
   if (containsLegacyPinInput(req.body)) {
-    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    res
+      .status(400)
+      .json({ error: "Legacy PIN inputs are no longer accepted." });
     return;
   }
   const parsed = CreateGuestPreapplicationBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Check the application details and try again." });
+    res
+      .status(400)
+      .json({ error: "Check the application details and try again." });
     return;
   }
   const input = {
@@ -1652,7 +1942,8 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
 
   const matchesRequest = (
     existing: typeof guestPreapplicationsTable.$inferSelect,
-  ) => verifyPrivateTrackingKey(existing.accessKeyHash, input.trackingKey) &&
+  ) =>
+    verifyPrivateTrackingKey(existing.accessKeyHash, input.trackingKey) &&
     existing.categoryId === input.categoryId &&
     existing.fullName === input.fullName &&
     existing.email === input.email &&
@@ -1666,16 +1957,16 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       .limit(1);
     if (existing) {
       if (!(await matchesRequest(existing))) {
-        res.status(409).json({ error: "This submission request has already been used." });
+        res
+          .status(409)
+          .json({ error: "This submission request has already been used." });
         return;
       }
       res.status(200).json(
-        CreateGuestPreapplicationResponse.parse(
-          {
-            ...serializeGuestPreapplicationStatus(existing),
-            trackingKey: input.trackingKey,
-          },
-        ),
+        CreateGuestPreapplicationResponse.parse({
+          ...serializeGuestPreapplicationStatus(existing),
+          trackingKey: input.trackingKey,
+        }),
       );
       return;
     }
@@ -1702,16 +1993,16 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
         .limit(1);
       if (concurrentSubmission && matchesRequest(concurrentSubmission)) {
         res.status(200).json(
-          CreateGuestPreapplicationResponse.parse(
-            {
-              ...serializeGuestPreapplicationStatus(concurrentSubmission),
-              trackingKey: input.trackingKey,
-            },
-          ),
+          CreateGuestPreapplicationResponse.parse({
+            ...serializeGuestPreapplicationStatus(concurrentSubmission),
+            trackingKey: input.trackingKey,
+          }),
         );
         return;
       }
-      res.status(409).json({ error: "This submission request has already been used." });
+      res
+        .status(409)
+        .json({ error: "This submission request has already been used." });
       return;
     }
 
@@ -1723,234 +2014,38 @@ router.post("/guest/preapplications", async (req, res): Promise<void> => {
       idempotencyKey: `guest-contact:${created.id}`,
     });
     res.status(201).json(
-      CreateGuestPreapplicationResponse.parse(
-        {
-          ...serializeGuestPreapplicationStatus(created),
-          trackingKey: input.trackingKey,
-        },
-      ),
+      CreateGuestPreapplicationResponse.parse({
+        ...serializeGuestPreapplicationStatus(created),
+        trackingKey: input.trackingKey,
+      }),
     );
   } catch (error) {
     req.log.error({ err: error }, "Failed to create guest pre-application");
-    res.status(503).json({ error: "Guest applications are temporarily unavailable." });
-  }
-});
-
-router.patch("/guest/preapplications/:applicationId", async (req, res): Promise<void> => {
-  if (containsLegacyPinInput(req.body)) {
-    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
-    return;
-  }
-  const parsedParams = UpdateGuestPreapplicationProgressParams.safeParse(req.params);
-  const parsedBody = UpdateGuestPreapplicationProgressBody.safeParse(req.body);
-  if (!parsedParams.success || !parsedBody.success) {
-    res.status(400).json({ error: "Check the application progress and try again." });
-    return;
-  }
-
-  try {
-    const [application] = await db
-      .select()
-      .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
-      .limit(1);
-    const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
-    if (
-      !application ||
-      !referenceMatches ||
-      !verifyPrivateTrackingKey(
-        referenceMatches ? application.accessKeyHash : null,
-        parsedBody.data.trackingKey,
-      )
-    ) {
-      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
-      return;
-    }
-    if (application.status === "closed" || application.submissionStatus === "submitted") {
-      res.status(409).json({ error: "This guest application has already been submitted or closed." });
-      return;
-    }
-    const normalizedReferenceCode = await normalizeInvitationCode(
-      application.categoryId,
-      parsedBody.data.referenceCode,
-      application.invitationCodeCiphertext,
-      `guest:${application.id}`,
-      application.referenceCode,
-    );
-    if (!normalizedReferenceCode.valid) {
-      res
-        .status(normalizedReferenceCode.unavailable ? 503 : 400)
-        .json({ error: normalizedReferenceCode.error });
-      return;
-    }
-    if (containsCredentialAnswerKey(parsedBody.data.answers)) {
-      res.status(400).json({ error: "PINs and passwords cannot be saved as application answers." });
-      return;
-    }
-    if (!(await guestEvidencePathsAreOwned(application.id, parsedBody.data.answers))) {
-      res.status(400).json({ error: "Attach evidence using the private upload form before saving its reference." });
-      return;
-    }
-
-    const prepared = prepareApplicantAnswers(
-      application.answers ?? {},
-      parsedBody.data.answers,
-    );
-    if (prepared.error) {
-      res.status(400).json({ error: prepared.error });
-      return;
-    }
-    const currentStep = parsedBody.data.currentStep;
-    const changes = guestRevisionChanges(
-      application,
-      prepared.answers,
-      currentStep,
-    );
-    const detailsComplete =
-      validateFinalApplication(application.categoryId, prepared.answers, true) === null;
-    const updated = await db.transaction(async (transaction) => {
-      const [row] = await transaction
-        .update(guestPreapplicationsTable)
-        .set({
-          currentStep,
-          answers: prepared.answers,
-          detailsComplete,
-          invitationCodeCiphertext: normalizedReferenceCode.ciphertext,
-          ...(normalizedReferenceCode.clearLegacyPlaintext
-            ? { referenceCode: null }
-            : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(guestPreapplicationsTable.id, application.id))
-        .returning();
-      if (row && changes.length) {
-        await transaction.insert(guestPreapplicationRevisionsTable).values({
-          applicationId: application.id,
-          currentStep,
-          changes,
-        });
-      }
-      return row;
-    });
-    if (!updated) {
-      res.status(404).json({ error: "Guest application not found." });
-      return;
-    }
-    if (changes.length > 0) {
-      await notifyEnrollmentReviewer(req, {
-        kind: "step_saved",
-        reference: updated.reference,
-        categoryName: categoryName(updated.categoryId),
-        currentStep: updated.currentStep,
-        idempotencyKey: `guest-step:${updated.id}:${updated.updatedAt.getTime()}`,
-      });
-    }
-    res.json(
-      UpdateGuestPreapplicationProgressResponse.parse(
-        serializeGuestPreapplicationStatus(updated),
-      ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to save guest application progress");
-    res.status(503).json({ error: "Guest application progress could not be saved." });
-  }
-});
-
-router.post("/guest/preapplications/lookup", async (req, res): Promise<void> => {
-  const parsed = LookupGuestPreapplicationBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
-    return;
-  }
-  try {
-    const [application] = await db
-      .select()
-      .from(guestPreapplicationsTable)
-      .where(eq(
-        guestPreapplicationsTable.reference,
-        parsed.data.reference.trim().toUpperCase(),
-      ))
-      .limit(1);
-    if (!guestTrackingCredentialsMatch(
-      application,
-      parsed.data.reference,
-      parsed.data.trackingKey,
-    )) {
-      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
-      return;
-    }
-    res.json(
-      LookupGuestPreapplicationResponse.parse(
-        await serializeGuestPreapplicationStatusWithReview(application),
-      ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to restore a guest application");
-    res.status(503).json({ error: "Guest application is temporarily unavailable." });
-  }
-});
-
-router.post("/applications/tracking/lookup", async (req, res): Promise<void> => {
-  const parsed = LookupApplicationByTrackingKeyBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
-    return;
-  }
-
-  try {
-    const [application] = await db
-      .select()
-      .from(guestPreapplicationsTable)
-      .where(eq(
-        guestPreapplicationsTable.reference,
-        parsed.data.reference.trim().toUpperCase(),
-      ))
-      .limit(1);
-    if (!guestTrackingCredentialsMatch(
-      application,
-      parsed.data.reference,
-      parsed.data.trackingKey,
-    )) {
-      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
-      return;
-    }
-
-    if (application.linkedApplicationId) {
-      const [linkedApplication] = await db
-        .select()
-        .from(enrollmentApplicationsTable)
-        .where(eq(
-          enrollmentApplicationsTable.id,
-          application.linkedApplicationId,
-        ))
-        .limit(1);
-      if (linkedApplication) {
-        res.json(
-          LookupApplicationByTrackingKeyResponse.parse(
-            serializeApplicationAccessStatus(linkedApplication),
-          ),
-        );
-        return;
-      }
-    }
-    res.json(
-      LookupApplicationByTrackingKeyResponse.parse(
-        serializeGuestAccessStatus(application),
-      ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to look up application with its private tracking key");
-    res.status(503).json({ error: "Application status is temporarily unavailable." });
+    res
+      .status(503)
+      .json({ error: "Guest applications are temporarily unavailable." });
   }
 });
 
 router.patch(
-  "/guest/preapplications/:applicationId/email",
+  "/guest/preapplications/:applicationId",
   async (req, res): Promise<void> => {
-    const parsedParams = UpdateGuestPreapplicationEmailParams.safeParse(req.params);
-    const parsedBody = UpdateGuestPreapplicationEmailBody.safeParse(req.body);
+    if (containsLegacyPinInput(req.body)) {
+      res
+        .status(400)
+        .json({ error: "Legacy PIN inputs are no longer accepted." });
+      return;
+    }
+    const parsedParams = UpdateGuestPreapplicationProgressParams.safeParse(
+      req.params,
+    );
+    const parsedBody = UpdateGuestPreapplicationProgressBody.safeParse(
+      req.body,
+    );
     if (!parsedParams.success || !parsedBody.success) {
-      res.status(400).json({ error: "Enter a valid contact email and try again." });
+      res
+        .status(400)
+        .json({ error: "Check the application progress and try again." });
       return;
     }
 
@@ -1958,9 +2053,13 @@ router.patch(
       const [application] = await db
         .select()
         .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
         .limit(1);
-      const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
+      const referenceMatches =
+        application?.reference ===
+        parsedBody.data.reference.trim().toUpperCase();
       if (
         !application ||
         !referenceMatches ||
@@ -1972,8 +2071,272 @@ router.patch(
         res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
-      if (application.status === "closed" || application.submissionStatus === "submitted") {
-        res.status(409).json({ error: "This guest application has already been submitted or closed." });
+      if (
+        application.status === "closed" ||
+        application.submissionStatus === "submitted"
+      ) {
+        res.status(409).json({
+          error: "This guest application has already been submitted or closed.",
+        });
+        return;
+      }
+      const normalizedReferenceCode = await normalizeInvitationCode(
+        application.categoryId,
+        parsedBody.data.referenceCode,
+        application.invitationCodeCiphertext,
+        `guest:${application.id}`,
+        application.referenceCode,
+      );
+      if (!normalizedReferenceCode.valid) {
+        res
+          .status(normalizedReferenceCode.unavailable ? 503 : 400)
+          .json({ error: normalizedReferenceCode.error });
+        return;
+      }
+      if (containsCredentialAnswerKey(parsedBody.data.answers)) {
+        res.status(400).json({
+          error: "PINs and passwords cannot be saved as application answers.",
+        });
+        return;
+      }
+      if (
+        !(await guestEvidencePathsAreOwned(
+          application.id,
+          parsedBody.data.answers,
+        ))
+      ) {
+        res.status(400).json({
+          error:
+            "Attach evidence using the private upload form before saving its reference.",
+        });
+        return;
+      }
+
+      const prepared = prepareApplicantAnswers(
+        application.answers ?? {},
+        parsedBody.data.answers,
+      );
+      if (prepared.error) {
+        res.status(400).json({ error: prepared.error });
+        return;
+      }
+      const currentStep = parsedBody.data.currentStep;
+      const changes = guestRevisionChanges(
+        application,
+        prepared.answers,
+        currentStep,
+      );
+      const detailsComplete =
+        validateFinalApplication(
+          application.categoryId,
+          prepared.answers,
+          true,
+        ) === null;
+      const updated = await db.transaction(async (transaction) => {
+        const [row] = await transaction
+          .update(guestPreapplicationsTable)
+          .set({
+            currentStep,
+            answers: prepared.answers,
+            detailsComplete,
+            invitationCodeCiphertext: normalizedReferenceCode.ciphertext,
+            ...(normalizedReferenceCode.clearLegacyPlaintext
+              ? { referenceCode: null }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(guestPreapplicationsTable.id, application.id))
+          .returning();
+        if (row && changes.length) {
+          await transaction.insert(guestPreapplicationRevisionsTable).values({
+            applicationId: application.id,
+            currentStep,
+            changes,
+          });
+        }
+        return row;
+      });
+      if (!updated) {
+        res.status(404).json({ error: "Guest application not found." });
+        return;
+      }
+      if (changes.length > 0) {
+        await notifyEnrollmentReviewer(req, {
+          kind: "step_saved",
+          reference: updated.reference,
+          categoryName: categoryName(updated.categoryId),
+          currentStep: updated.currentStep,
+          idempotencyKey: `guest-step:${updated.id}:${updated.updatedAt.getTime()}`,
+        });
+      }
+      res.json(
+        UpdateGuestPreapplicationProgressResponse.parse(
+          serializeGuestPreapplicationStatus(updated),
+        ),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to save guest application progress",
+      );
+      res
+        .status(503)
+        .json({ error: "Guest application progress could not be saved." });
+    }
+  },
+);
+
+router.post(
+  "/guest/preapplications/lookup",
+  async (req, res): Promise<void> => {
+    const parsed = LookupGuestPreapplicationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+      return;
+    }
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(
+          eq(
+            guestPreapplicationsTable.reference,
+            parsed.data.reference.trim().toUpperCase(),
+          ),
+        )
+        .limit(1);
+      if (
+        !guestTrackingCredentialsMatch(
+          application,
+          parsed.data.reference,
+          parsed.data.trackingKey,
+        )
+      ) {
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+        return;
+      }
+      res.json(
+        LookupGuestPreapplicationResponse.parse(
+          await serializeGuestPreapplicationStatusWithReview(application),
+        ),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to restore a guest application");
+      res
+        .status(503)
+        .json({ error: "Guest application is temporarily unavailable." });
+    }
+  },
+);
+
+router.post(
+  "/applications/tracking/lookup",
+  async (req, res): Promise<void> => {
+    const parsed = LookupApplicationByTrackingKeyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+      return;
+    }
+
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(
+          eq(
+            guestPreapplicationsTable.reference,
+            parsed.data.reference.trim().toUpperCase(),
+          ),
+        )
+        .limit(1);
+      if (
+        !guestTrackingCredentialsMatch(
+          application,
+          parsed.data.reference,
+          parsed.data.trackingKey,
+        )
+      ) {
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+        return;
+      }
+
+      if (application.linkedApplicationId) {
+        const [linkedApplication] = await db
+          .select()
+          .from(enrollmentApplicationsTable)
+          .where(
+            eq(enrollmentApplicationsTable.id, application.linkedApplicationId),
+          )
+          .limit(1);
+        if (linkedApplication) {
+          res.json(
+            LookupApplicationByTrackingKeyResponse.parse(
+              serializeApplicationAccessStatus(linkedApplication),
+            ),
+          );
+          return;
+        }
+      }
+      res.json(
+        LookupApplicationByTrackingKeyResponse.parse(
+          serializeGuestAccessStatus(application),
+        ),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to look up application with its private tracking key",
+      );
+      res
+        .status(503)
+        .json({ error: "Application status is temporarily unavailable." });
+    }
+  },
+);
+
+router.patch(
+  "/guest/preapplications/:applicationId/email",
+  async (req, res): Promise<void> => {
+    const parsedParams = UpdateGuestPreapplicationEmailParams.safeParse(
+      req.params,
+    );
+    const parsedBody = UpdateGuestPreapplicationEmailBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res
+        .status(400)
+        .json({ error: "Enter a valid contact email and try again." });
+      return;
+    }
+
+    try {
+      const [application] = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
+        .limit(1);
+      const referenceMatches =
+        application?.reference ===
+        parsedBody.data.reference.trim().toUpperCase();
+      if (
+        !application ||
+        !referenceMatches ||
+        !verifyPrivateTrackingKey(
+          referenceMatches ? application.accessKeyHash : null,
+          parsedBody.data.trackingKey,
+        )
+      ) {
+        res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
+        return;
+      }
+      if (
+        application.status === "closed" ||
+        application.submissionStatus === "submitted"
+      ) {
+        res.status(409).json({
+          error: "This guest application has already been submitted or closed.",
+        });
         return;
       }
 
@@ -1992,11 +2355,13 @@ router.patch(
         const [row] = await transaction
           .update(guestPreapplicationsTable)
           .set({ email, answers, updatedAt: new Date() })
-          .where(and(
-            eq(guestPreapplicationsTable.id, application.id),
-            eq(guestPreapplicationsTable.submissionStatus, "draft"),
-            ne(guestPreapplicationsTable.status, "closed"),
-          ))
+          .where(
+            and(
+              eq(guestPreapplicationsTable.id, application.id),
+              eq(guestPreapplicationsTable.submissionStatus, "draft"),
+              ne(guestPreapplicationsTable.status, "closed"),
+            ),
+          )
           .returning();
         if (row && changes.length) {
           await transaction.insert(guestPreapplicationRevisionsTable).values({
@@ -2008,7 +2373,9 @@ router.patch(
         return row;
       });
       if (!updated) {
-        res.status(409).json({ error: "This guest application has already been submitted or closed." });
+        res.status(409).json({
+          error: "This guest application has already been submitted or closed.",
+        });
         return;
       }
       if (changes.length > 0) {
@@ -2027,7 +2394,9 @@ router.patch(
       );
     } catch (error) {
       req.log.error({ err: error }, "Failed to update guest applicant email");
-      res.status(503).json({ error: "The contact email could not be updated." });
+      res
+        .status(503)
+        .json({ error: "The contact email could not be updated." });
     }
   },
 );
@@ -2035,23 +2404,35 @@ router.patch(
 router.post(
   "/guest/preapplications/:applicationId/evidence/upload-url",
   async (req, res): Promise<void> => {
-    const parsedParams = RequestGuestApplicantEvidenceUploadParams.safeParse(req.params);
-    const parsedBody = RequestGuestApplicantEvidenceUploadBody.safeParse(req.body);
+    const parsedParams = RequestGuestApplicantEvidenceUploadParams.safeParse(
+      req.params,
+    );
+    const parsedBody = RequestGuestApplicantEvidenceUploadBody.safeParse(
+      req.body,
+    );
     if (!parsedParams.success || !parsedBody.success) {
-      res.status(400).json({ error: "Choose a supported evidence file and try again." });
+      res
+        .status(400)
+        .json({ error: "Choose a supported evidence file and try again." });
       return;
     }
-    const { evidenceType, evidenceSlot, contentType, sizeBytes } = parsedBody.data;
-    const expectedType = evidenceSlot === "verification_video"
-      ? "verification_video"
-      : evidenceSlot === "education_certificate"
-        ? "education_certificate"
-        : "identity_document";
-    if (evidenceType !== expectedType || !isAllowedEvidenceType(evidenceType, contentType, sizeBytes)) {
+    const { evidenceType, evidenceSlot, contentType, sizeBytes } =
+      parsedBody.data;
+    const expectedType =
+      evidenceSlot === "verification_video"
+        ? "verification_video"
+        : evidenceSlot === "education_certificate"
+          ? "education_certificate"
+          : "identity_document";
+    if (
+      evidenceType !== expectedType ||
+      !isAllowedEvidenceType(evidenceType, contentType, sizeBytes)
+    ) {
       res.status(400).json({
-        error: evidenceType === "verification_video"
-          ? "Verification videos must be MP4 or WebM files no larger than 200 MB."
-          : "Documents must be PDF, JPEG, PNG, or WebP files no larger than 20 MB.",
+        error:
+          evidenceType === "verification_video"
+            ? "Verification videos must be MP4 or WebM files no larger than 200 MB."
+            : "Documents must be PDF, JPEG, PNG, or WebP files no larger than 20 MB.",
       });
       return;
     }
@@ -2060,9 +2441,13 @@ router.post(
       const [application] = await db
         .select()
         .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
         .limit(1);
-      const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
+      const referenceMatches =
+        application?.reference ===
+        parsedBody.data.reference.trim().toUpperCase();
       if (
         !application ||
         !referenceMatches ||
@@ -2074,24 +2459,37 @@ router.post(
         res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
-      if (application.status === "closed" || application.submissionStatus === "submitted") {
-        res.status(409).json({ error: "Evidence cannot be added to a submitted or closed application." });
+      if (
+        application.status === "closed" ||
+        application.submissionStatus === "submitted"
+      ) {
+        res.status(409).json({
+          error:
+            "Evidence cannot be added to a submitted or closed application.",
+        });
         return;
       }
       if (!isPrivateStorageConfigured()) {
-        res.status(503).json({ error: "Private evidence storage is unavailable." });
+        res
+          .status(503)
+          .json({ error: "Private evidence storage is unavailable." });
         return;
       }
 
       const existingEvidence = await db
         .select()
         .from(guestPreapplicationEvidenceTable)
-        .where(eq(guestPreapplicationEvidenceTable.applicationId, application.id));
-      const evidenceCount = existingEvidence.filter((item) =>
-        item.evidenceType === evidenceType,
+        .where(
+          eq(guestPreapplicationEvidenceTable.applicationId, application.id),
+        );
+      const evidenceCount = existingEvidence.filter(
+        (item) => item.evidenceType === evidenceType,
       ).length;
       if (evidenceCount >= 5) {
-        res.status(409).json({ error: "The evidence upload limit has been reached for this application." });
+        res.status(409).json({
+          error:
+            "The evidence upload limit has been reached for this application.",
+        });
         return;
       }
 
@@ -2100,7 +2498,9 @@ router.post(
       if (!objectPath.startsWith("/objects/")) {
         throw new Error("Storage returned an invalid private object path.");
       }
-      const uploadExpiresAt = new Date(Date.now() + INCOMPLETE_GUEST_UPLOAD_RETENTION_MS);
+      const uploadExpiresAt = new Date(
+        Date.now() + INCOMPLETE_GUEST_UPLOAD_RETENTION_MS,
+      );
       const [record] = await db
         .insert(guestPreapplicationEvidenceTable)
         .values({
@@ -2115,14 +2515,22 @@ router.post(
           uploadExpiresAt,
         })
         .returning();
-      if (!record) throw new Error("Evidence upload record could not be created.");
-      res.json(RequestGuestApplicantEvidenceUploadResponse.parse({
-        evidenceId: record.id,
-        uploadUrl,
-      }));
+      if (!record)
+        throw new Error("Evidence upload record could not be created.");
+      res.json(
+        RequestGuestApplicantEvidenceUploadResponse.parse({
+          evidenceId: record.id,
+          uploadUrl,
+        }),
+      );
     } catch (error) {
-      req.log.error({ err: error }, "Failed to prepare private applicant evidence upload");
-      res.status(503).json({ error: "A secure evidence upload could not be prepared." });
+      req.log.error(
+        { err: error },
+        "Failed to prepare private applicant evidence upload",
+      );
+      res
+        .status(503)
+        .json({ error: "A secure evidence upload could not be prepared." });
     }
   },
 );
@@ -2130,8 +2538,12 @@ router.post(
 router.post(
   "/guest/preapplications/:applicationId/evidence/:evidenceId/complete",
   async (req, res): Promise<void> => {
-    const parsedParams = CompleteGuestApplicantEvidenceUploadParams.safeParse(req.params);
-    const parsedBody = CompleteGuestApplicantEvidenceUploadBody.safeParse(req.body);
+    const parsedParams = CompleteGuestApplicantEvidenceUploadParams.safeParse(
+      req.params,
+    );
+    const parsedBody = CompleteGuestApplicantEvidenceUploadBody.safeParse(
+      req.body,
+    );
     if (!parsedParams.success || !parsedBody.success) {
       res.status(400).json({ error: "Evidence could not be verified." });
       return;
@@ -2143,7 +2555,9 @@ router.post(
         .from(guestPreapplicationsTable)
         .where(eq(guestPreapplicationsTable.id, applicationId))
         .limit(1);
-      const referenceMatches = application?.reference === parsedBody.data.reference.trim().toUpperCase();
+      const referenceMatches =
+        application?.reference ===
+        parsedBody.data.reference.trim().toUpperCase();
       if (
         !application ||
         !referenceMatches ||
@@ -2155,18 +2569,26 @@ router.post(
         res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
-      if (application.status === "closed" || application.submissionStatus === "submitted") {
-        res.status(409).json({ error: "Evidence cannot be added to a submitted or closed application." });
+      if (
+        application.status === "closed" ||
+        application.submissionStatus === "submitted"
+      ) {
+        res.status(409).json({
+          error:
+            "Evidence cannot be added to a submitted or closed application.",
+        });
         return;
       }
       const [evidence] = await db
         .select()
         .from(guestPreapplicationEvidenceTable)
-        .where(and(
-          eq(guestPreapplicationEvidenceTable.id, evidenceId),
-          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
-          isNull(guestPreapplicationEvidenceTable.uploadedByUserId),
-        ))
+        .where(
+          and(
+            eq(guestPreapplicationEvidenceTable.id, evidenceId),
+            eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+            isNull(guestPreapplicationEvidenceTable.uploadedByUserId),
+          ),
+        )
         .limit(1);
       if (!evidence) {
         res.status(404).json({ error: "Evidence upload not found." });
@@ -2174,13 +2596,23 @@ router.post(
       }
       let completed = evidence;
       if (!evidence.uploadedAt) {
-        const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+        const objectFile = await objectStorage.getObjectEntityFile(
+          evidence.objectPath,
+        );
         const [metadata] = await objectFile.getMetadata();
-        if (Number(metadata.size) !== evidence.sizeBytes || metadata.contentType !== evidence.contentType) {
-          await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-          await db.delete(guestPreapplicationEvidenceTable)
+        if (
+          Number(metadata.size) !== evidence.sizeBytes ||
+          metadata.contentType !== evidence.contentType
+        ) {
+          await objectFile
+            .delete({ ignoreNotFound: true })
+            .catch(() => undefined);
+          await db
+            .delete(guestPreapplicationEvidenceTable)
             .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
-          res.status(400).json({ error: "The uploaded file did not match its declared type or size." });
+          res.status(400).json({
+            error: "The uploaded file did not match its declared type or size.",
+          });
           return;
         }
         const [signatureBytes] = await objectFile.download({
@@ -2188,10 +2620,16 @@ router.post(
           end: Math.min(evidence.sizeBytes - 1, 31),
         });
         if (!evidenceSignatureMatches(evidence.contentType, signatureBytes)) {
-          await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-          await db.delete(guestPreapplicationEvidenceTable)
+          await objectFile
+            .delete({ ignoreNotFound: true })
+            .catch(() => undefined);
+          await db
+            .delete(guestPreapplicationEvidenceTable)
             .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
-          res.status(400).json({ error: "The uploaded file content is not a supported evidence format." });
+          res.status(400).json({
+            error:
+              "The uploaded file content is not a supported evidence format.",
+          });
           return;
         }
         const [updatedEvidence] = await db
@@ -2214,12 +2652,17 @@ router.post(
       };
       const location = answerLocation[completed.evidenceSlot];
       if (!location) {
-        res.status(400).json({ error: "The evidence is not linked to a supported application field." });
+        res.status(400).json({
+          error: "The evidence is not linked to a supported application field.",
+        });
         return;
       }
       const answers = structuredClone(application.answers ?? {});
       const section = asRecord(answers[location[0]]);
-      answers[location[0]] = { ...section, [location[1]]: completed.objectPath };
+      answers[location[0]] = {
+        ...section,
+        [location[1]]: completed.objectPath,
+      };
       const changes = guestRevisionChanges(
         application,
         answers,
@@ -2248,21 +2691,30 @@ router.post(
           idempotencyKey: `guest-evidence:${application.id}:${completed.id}:${completed.uploadedAt?.getTime() ?? "saved"}`,
         });
       }
-      res.json(CompleteGuestApplicantEvidenceUploadResponse.parse({
-        evidenceId: completed.id,
-        evidenceType: completed.evidenceType,
-        evidenceSlot: completed.evidenceSlot,
-        fileName: completed.fileName,
-        objectPath: completed.objectPath,
-        uploadedAt: completed.uploadedAt,
-      }));
+      res.json(
+        CompleteGuestApplicantEvidenceUploadResponse.parse({
+          evidenceId: completed.id,
+          evidenceType: completed.evidenceType,
+          evidenceSlot: completed.evidenceSlot,
+          fileName: completed.fileName,
+          objectPath: completed.objectPath,
+          uploadedAt: completed.uploadedAt,
+        }),
+      );
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
-        res.status(409).json({ error: "Upload the selected file before recording it." });
+        res
+          .status(409)
+          .json({ error: "Upload the selected file before recording it." });
         return;
       }
-      req.log.error({ err: error, applicationId, evidenceId }, "Failed to verify applicant evidence upload");
-      res.status(503).json({ error: "The evidence file could not be verified." });
+      req.log.error(
+        { err: error, applicationId, evidenceId },
+        "Failed to verify applicant evidence upload",
+      );
+      res
+        .status(503)
+        .json({ error: "The evidence file could not be verified." });
     }
   },
 );
@@ -2283,7 +2735,9 @@ router.post("/staff/registration-check", (req, res): void => {
   res.json(
     CheckStaffRegistrationEmailResponse.parse({
       allowed: Boolean(allowlistedStaffRole(parsed.data.email)),
-      ...(allowlistedStaffRole(parsed.data.email) ? { role: allowlistedStaffRole(parsed.data.email) } : {}),
+      ...(allowlistedStaffRole(parsed.data.email)
+        ? { role: allowlistedStaffRole(parsed.data.email) }
+        : {}),
     }),
   );
 });
@@ -2292,13 +2746,17 @@ router.post(
   "/guest/preapplications/:applicationId/submit",
   async (req, res): Promise<void> => {
     if (containsLegacyPinInput(req.body)) {
-      res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+      res
+        .status(400)
+        .json({ error: "Legacy PIN inputs are no longer accepted." });
       return;
     }
     const parsedParams = SubmitGuestPreapplicationParams.safeParse(req.params);
     const parsedBody = SubmitGuestPreapplicationBody.safeParse(req.body);
     if (!parsedParams.success || !parsedBody.success) {
-      res.status(400).json({ error: "The saved application could not be submitted." });
+      res
+        .status(400)
+        .json({ error: "The saved application could not be submitted." });
       return;
     }
 
@@ -2306,9 +2764,13 @@ router.post(
       const [preapplication] = await db
         .select()
         .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
         .limit(1);
-      const referenceMatches = preapplication?.reference === parsedBody.data.reference.trim().toUpperCase();
+      const referenceMatches =
+        preapplication?.reference ===
+        parsedBody.data.reference.trim().toUpperCase();
       if (
         !preapplication ||
         !referenceMatches ||
@@ -2321,11 +2783,21 @@ router.post(
         return;
       }
       if (preapplication.status === "closed") {
-        res.status(409).json({ error: "This application was closed and cannot be submitted." });
+        res.status(409).json({
+          error: "This application was closed and cannot be submitted.",
+        });
         return;
       }
-      if (!(await guestEvidencePathsAreOwned(preapplication.id, preapplication.answers ?? {}))) {
-        res.status(400).json({ error: "One or more evidence references are not attached to this application." });
+      if (
+        !(await guestEvidencePathsAreOwned(
+          preapplication.id,
+          preapplication.answers ?? {},
+        ))
+      ) {
+        res.status(400).json({
+          error:
+            "One or more evidence references are not attached to this application.",
+        });
         return;
       }
 
@@ -2337,7 +2809,8 @@ router.post(
           .where(eq(guestPreapplicationsTable.id, preapplication.id))
           .for("update")
           .limit(1);
-        if (!current || current.status === "closed") return { application: null, changed: false };
+        if (!current || current.status === "closed")
+          return { application: null, changed: false };
         if (current.submissionStatus === "submitted") {
           return { application: current, changed: false };
         }
@@ -2352,28 +2825,35 @@ router.post(
             currentStep: 7,
             updatedAt: now,
           })
-          .where(and(
-            eq(guestPreapplicationsTable.id, current.id),
-            eq(guestPreapplicationsTable.submissionStatus, "draft"),
-            isNull(guestPreapplicationsTable.linkedApplicationId),
-          ))
+          .where(
+            and(
+              eq(guestPreapplicationsTable.id, current.id),
+              eq(guestPreapplicationsTable.submissionStatus, "draft"),
+              isNull(guestPreapplicationsTable.linkedApplicationId),
+            ),
+          )
           .returning();
         if (updated) {
           await transaction.insert(guestPreapplicationRevisionsTable).values({
             applicationId: updated.id,
             currentStep: 7,
-            changes: [{
-              field: "Submission",
-              before: "Not submitted",
+            changes: [
+              {
+                field: "Submission",
+                before: "Not submitted",
                 after: "Submitted by applicant",
-            }],
+              },
+            ],
           });
         }
         return { application: updated ?? null, changed: Boolean(updated) };
       });
 
       if (!result.application) {
-        res.status(409).json({ error: "The application could not be submitted. Refresh and try again." });
+        res.status(409).json({
+          error:
+            "The application could not be submitted. Refresh and try again.",
+        });
         return;
       }
       if (result.changed) {
@@ -2387,12 +2867,20 @@ router.post(
       }
       res.json(
         SubmitGuestPreapplicationResponse.parse(
-          await serializeGuestPreapplicationStatusWithReview(result.application),
+          await serializeGuestPreapplicationStatusWithReview(
+            result.application,
+          ),
         ),
       );
     } catch (error) {
-      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit guest application");
-      res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
+      req.log.error(
+        { err: error, applicationId: parsedParams.data.applicationId },
+        "Failed to submit guest application",
+      );
+      res.status(503).json({
+        error:
+          "The application could not be submitted. Your saved draft remains available.",
+      });
     }
   },
 );
@@ -2410,20 +2898,26 @@ router.post(
     const userId = res.locals.userId as string | undefined;
     if (!userId) {
       res.status(401).json({
-        error: "Sign in with the verified email used for the application to recover its tracking key.",
+        error:
+          "Sign in with the verified email used for the application to recover its tracking key.",
       });
       return;
     }
 
     try {
-      const user = res.locals.clerkUser ?? await clerkClient.users.getUser(userId);
+      const user =
+        res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
       const primaryEmail = user.primaryEmailAddress;
       const normalizedEmail = primaryEmail?.emailAddress
         ? normalizeEmail(primaryEmail.emailAddress)
         : "";
-      if (!normalizedEmail || primaryEmail?.verification?.status !== "verified") {
+      if (
+        !normalizedEmail ||
+        primaryEmail?.verification?.status !== "verified"
+      ) {
         res.status(403).json({
-          error: "Verify the email address used for the application before recovering its tracking key.",
+          error:
+            "Verify the email address used for the application before recovering its tracking key.",
         });
         return;
       }
@@ -2434,10 +2928,7 @@ router.post(
         .from(guestPreapplicationsTable)
         .where(eq(guestPreapplicationsTable.reference, normalizedReference))
         .limit(1);
-      if (
-        !application ||
-        application.email !== normalizedEmail
-      ) {
+      if (!application || application.email !== normalizedEmail) {
         res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
         return;
       }
@@ -2451,12 +2942,17 @@ router.post(
           accessKeyHash: hashPrivateTrackingKey(trackingKey),
           updatedAt: new Date(),
         })
-        .where(and(
-          eq(guestPreapplicationsTable.id, application.id),
-          application.accessKeyHash
-            ? eq(guestPreapplicationsTable.accessKeyHash, application.accessKeyHash)
-            : isNull(guestPreapplicationsTable.accessKeyHash),
-        ))
+        .where(
+          and(
+            eq(guestPreapplicationsTable.id, application.id),
+            application.accessKeyHash
+              ? eq(
+                  guestPreapplicationsTable.accessKeyHash,
+                  application.accessKeyHash,
+                )
+              : isNull(guestPreapplicationsTable.accessKeyHash),
+          ),
+        )
         .returning({ id: guestPreapplicationsTable.id });
       if (!updated) {
         res.status(404).json({ error: TRACKING_KEY_GENERIC_ERROR });
@@ -2465,7 +2961,9 @@ router.post(
       res.json(RecoverGuestTrackingKeyResponse.parse({ trackingKey }));
     } catch (error) {
       req.log.error({ err: error }, "Failed to replace a guest tracking key");
-      res.status(503).json({ error: "The tracking key could not be recovered right now." });
+      res
+        .status(503)
+        .json({ error: "The tracking key could not be recovered right now." });
     }
   },
 );
@@ -2474,38 +2972,56 @@ router.post(
   "/guest/preapplications/:applicationId/link",
   async (req, res): Promise<void> => {
     if (containsLegacyPinInput(req.body)) {
-      res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+      res
+        .status(400)
+        .json({ error: "Legacy PIN inputs are no longer accepted." });
       return;
     }
-    const parsedParams = LinkGuestPreapplicationAccountParams.safeParse(req.params);
+    const parsedParams = LinkGuestPreapplicationAccountParams.safeParse(
+      req.params,
+    );
     const parsedBody = LinkGuestPreapplicationAccountBody.safeParse(req.body);
     if (!parsedParams.success || !parsedBody.success) {
-      res.status(400).json({ error: "The saved application could not be submitted." });
+      res
+        .status(400)
+        .json({ error: "The saved application could not be submitted." });
       return;
     }
     const userId = res.locals.userId as string | undefined;
     if (!userId) {
-      res.status(401).json({ error: "Verify your email and sign in to view application status." });
+      res.status(401).json({
+        error: "Verify your email and sign in to view application status.",
+      });
       return;
     }
 
     try {
-      const user = res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
+      const user =
+        res.locals.clerkUser ?? (await clerkClient.users.getUser(userId));
       const primaryEmail = user.primaryEmailAddress;
       const normalizedEmail = primaryEmail?.emailAddress
         ? normalizeEmail(primaryEmail.emailAddress)
         : "";
-      if (!normalizedEmail || primaryEmail?.verification?.status !== "verified") {
-        res.status(403).json({ error: "Verify your email address before opening application status." });
+      if (
+        !normalizedEmail ||
+        primaryEmail?.verification?.status !== "verified"
+      ) {
+        res.status(403).json({
+          error: "Verify your email address before opening application status.",
+        });
         return;
       }
 
       const [preapplication] = await db
         .select()
         .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
         .limit(1);
-      const referenceMatches = preapplication?.reference === parsedBody.data.reference.trim().toUpperCase();
+      const referenceMatches =
+        preapplication?.reference ===
+        parsedBody.data.reference.trim().toUpperCase();
       if (
         !preapplication ||
         !referenceMatches ||
@@ -2518,11 +3034,16 @@ router.post(
         return;
       }
       if (preapplication.email !== normalizedEmail) {
-        res.status(403).json({ error: "Sign in with the verified email address used to start this application." });
+        res.status(403).json({
+          error:
+            "Sign in with the verified email address used to start this application.",
+        });
         return;
       }
       if (preapplication.status === "closed") {
-        res.status(409).json({ error: "This application was closed and cannot be submitted." });
+        res.status(409).json({
+          error: "This application was closed and cannot be submitted.",
+        });
         return;
       }
 
@@ -2535,27 +3056,44 @@ router.post(
           const [existingApplication] = await db
             .select()
             .from(enrollmentApplicationsTable)
-            .where(and(
-              eq(enrollmentApplicationsTable.id, preapplication.linkedApplicationId),
-              eq(enrollmentApplicationsTable.clerkUserId, userId),
-            ))
+            .where(
+              and(
+                eq(
+                  enrollmentApplicationsTable.id,
+                  preapplication.linkedApplicationId,
+                ),
+                eq(enrollmentApplicationsTable.clerkUserId, userId),
+              ),
+            )
             .limit(1);
           if (existingApplication) {
-            res.json(LinkGuestPreapplicationAccountResponse.parse(serializeApplication(existingApplication)));
+            res.json(
+              LinkGuestPreapplicationAccountResponse.parse(
+                serializeApplication(existingApplication),
+              ),
+            );
             return;
           }
         }
         if (preapplication.linkedApplicationId || preapplication.clerkUserId) {
-          res.status(409).json({ error: "This application is already linked to another account." });
+          res.status(409).json({
+            error: "This application is already linked to another account.",
+          });
           return;
         }
       } else {
-        res.status(409).json({ error: "Submit the application before verifying email for status access." });
+        res.status(409).json({
+          error:
+            "Submit the application before verifying email for status access.",
+        });
         return;
       }
       const answers = preapplication.answers ?? {};
       if (!(await guestEvidencePathsAreOwned(preapplication.id, answers))) {
-        res.status(400).json({ error: "One or more evidence references are not attached to this application." });
+        res.status(400).json({
+          error:
+            "One or more evidence references are not attached to this application.",
+        });
         return;
       }
 
@@ -2572,7 +3110,8 @@ router.post(
           currentPreapplication.submissionStatus !== "submitted" ||
           currentPreapplication.email !== normalizedEmail ||
           currentPreapplication.linkedApplicationId
-        ) return null;
+        )
+          return null;
 
         const currentAnswers = currentPreapplication.answers ?? {};
         const currentEvidence = await transaction
@@ -2582,8 +3121,14 @@ router.post(
             uploadedAt: guestPreapplicationEvidenceTable.uploadedAt,
           })
           .from(guestPreapplicationEvidenceTable)
-          .where(eq(guestPreapplicationEvidenceTable.applicationId, preapplication.id));
-        if (!evidenceRowsOwnAnswers(currentEvidence, currentAnswers)) return null;
+          .where(
+            eq(
+              guestPreapplicationEvidenceTable.applicationId,
+              preapplication.id,
+            ),
+          );
+        if (!evidenceRowsOwnAnswers(currentEvidence, currentAnswers))
+          return null;
         const reviewAnswers = {
           ...currentAnswers,
           contactDetails: {
@@ -2611,7 +3156,9 @@ router.post(
             submittedAt: now,
             updatedAt: now,
           })
-          .onConflictDoNothing({ target: enrollmentApplicationsTable.sourceGuestPreapplicationId })
+          .onConflictDoNothing({
+            target: enrollmentApplicationsTable.sourceGuestPreapplicationId,
+          })
           .returning();
 
         let application = created;
@@ -2619,7 +3166,12 @@ router.post(
           const [existing] = await transaction
             .select()
             .from(enrollmentApplicationsTable)
-            .where(eq(enrollmentApplicationsTable.sourceGuestPreapplicationId, preapplication.id))
+            .where(
+              eq(
+                enrollmentApplicationsTable.sourceGuestPreapplicationId,
+                preapplication.id,
+              ),
+            )
             .limit(1);
           if (!existing || existing.clerkUserId !== userId) return null;
           application = existing;
@@ -2641,22 +3193,37 @@ router.post(
             updatedByUserId: userId,
             updatedAt: now,
           })
-          .where(and(
-            eq(guestPreapplicationsTable.id, preapplication.id),
-            eq(guestPreapplicationsTable.submissionStatus, "submitted"),
-            isNull(guestPreapplicationsTable.linkedApplicationId),
-          ));
+          .where(
+            and(
+              eq(guestPreapplicationsTable.id, preapplication.id),
+              eq(guestPreapplicationsTable.submissionStatus, "submitted"),
+              isNull(guestPreapplicationsTable.linkedApplicationId),
+            ),
+          );
         return application;
       });
 
       if (!submitted) {
-        res.status(409).json({ error: "The application could not be linked to this account. Refresh and try again." });
+        res.status(409).json({
+          error:
+            "The application could not be linked to this account. Refresh and try again.",
+        });
         return;
       }
-      res.json(LinkGuestPreapplicationAccountResponse.parse(serializeApplication(submitted)));
+      res.json(
+        LinkGuestPreapplicationAccountResponse.parse(
+          serializeApplication(submitted),
+        ),
+      );
     } catch (error) {
-      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to submit verified guest application");
-      res.status(503).json({ error: "The application could not be submitted. Your saved draft remains available." });
+      req.log.error(
+        { err: error, applicationId: parsedParams.data.applicationId },
+        "Failed to submit verified guest application",
+      );
+      res.status(503).json({
+        error:
+          "The application could not be submitted. Your saved draft remains available.",
+      });
     }
   },
 );
@@ -2664,7 +3231,9 @@ router.post(
 router.post("/staff/access-claim", async (req, res): Promise<void> => {
   const parsedBody = ClaimAllowlistedStaffAccessBody.safeParse(req.body);
   if (!parsedBody.success) {
-    res.status(400).json({ error: "Choose the appropriate staff sign-in route." });
+    res
+      .status(400)
+      .json({ error: "Choose the appropriate staff sign-in route." });
     return;
   }
   const userId = res.locals.userId as string;
@@ -2708,14 +3277,19 @@ router.post("/staff/access-claim", async (req, res): Promise<void> => {
       }),
     );
   } catch (error) {
-    req.log.error({ err: error, userId }, "Failed to activate allowlisted staff access");
+    req.log.error(
+      { err: error, userId },
+      "Failed to activate allowlisted staff access",
+    );
     res.status(503).json({ error: "Staff access could not be activated." });
   }
 });
 
 router.post("/applications/drafts", async (req, res): Promise<void> => {
   if (containsLegacyPinInput(req.body)) {
-    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    res
+      .status(400)
+      .json({ error: "Legacy PIN inputs are no longer accepted." });
     return;
   }
   const parsed = CreateApplicationDraftBody.safeParse(req.body);
@@ -2747,15 +3321,21 @@ router.post("/applications/drafts", async (req, res): Promise<void> => {
       return application;
     });
     if (!created) {
-      res.status(500).json({ error: "The application draft could not be created." });
+      res
+        .status(500)
+        .json({ error: "The application draft could not be created." });
       return;
     }
-    res.status(201).json(
-      CreateApplicationDraftResponse.parse(serializeApplication(created)),
-    );
+    res
+      .status(201)
+      .json(
+        CreateApplicationDraftResponse.parse(serializeApplication(created)),
+      );
   } catch (error) {
     req.log.error({ err: error }, "Failed to create application draft");
-    res.status(503).json({ error: "The application draft could not be created." });
+    res
+      .status(503)
+      .json({ error: "The application draft could not be created." });
   }
 });
 
@@ -2765,7 +3345,11 @@ router.get("/me/applications", async (req, res): Promise<void> => {
     .from(enrollmentApplicationsTable)
     .where(eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId))
     .orderBy(desc(enrollmentApplicationsTable.updatedAt));
-  res.json(ListMyApplicationsResponse.parse(applications.map((application) => serializeApplication(application))));
+  res.json(
+    ListMyApplicationsResponse.parse(
+      applications.map((application) => serializeApplication(application)),
+    ),
+  );
 });
 
 router.delete("/me/drafts", async (_req, res): Promise<void> => {
@@ -2783,7 +3367,9 @@ router.delete("/me/drafts", async (_req, res): Promise<void> => {
 
 router.post("/applications/submit", async (req, res): Promise<void> => {
   if (containsLegacyPinInput(req.body)) {
-    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
+    res
+      .status(400)
+      .json({ error: "Legacy PIN inputs are no longer accepted." });
     return;
   }
   const parsed = SubmitNewApplicationBody.safeParse(req.body);
@@ -2799,11 +3385,18 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     .where(eq(enrollmentApplicationsTable.reference, reference))
     .limit(1);
   if (existing) {
-    if (existing.clerkUserId !== res.locals.userId || existing.status !== "submitted") {
-      res.status(409).json({ error: "This submission request has already been used." });
+    if (
+      existing.clerkUserId !== res.locals.userId ||
+      existing.status !== "submitted"
+    ) {
+      res
+        .status(409)
+        .json({ error: "This submission request has already been used." });
       return;
     }
-    res.json(SubmitNewApplicationResponse.parse(serializeApplication(existing)));
+    res.json(
+      SubmitNewApplicationResponse.parse(serializeApplication(existing)),
+    );
     return;
   }
 
@@ -2820,7 +3413,7 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     null,
     `application:${applicationId}`,
   );
-    if (!normalizedReferenceCode.valid) {
+  if (!normalizedReferenceCode.valid) {
     res
       .status(normalizedReferenceCode.unavailable ? 503 : 400)
       .json({ error: normalizedReferenceCode.error });
@@ -2840,7 +3433,8 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
   }
   if (!isPrivateStorageConfigured()) {
     res.status(503).json({
-      error: "Secure document and video storage is unavailable. The application was not submitted.",
+      error:
+        "Secure document and video storage is unavailable. The application was not submitted.",
       code: "PRIVATE_UPLOAD_STORAGE_UNAVAILABLE",
     });
     return;
@@ -2864,8 +3458,8 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
         reference,
         status: "submitted",
         currentStep: 7,
-            invitationCodeCiphertext: normalizedReferenceCode.ciphertext,
-            referenceCode: null,
+        invitationCodeCiphertext: normalizedReferenceCode.ciphertext,
+        referenceCode: null,
         answers,
         submittedAt: now,
         updatedAt: now,
@@ -2893,12 +3487,18 @@ router.post("/applications/submit", async (req, res): Promise<void> => {
     outcome.application.clerkUserId !== res.locals.userId ||
     outcome.application.status !== "submitted"
   ) {
-    res.status(409).json({ error: "This submission request could not be completed." });
+    res
+      .status(409)
+      .json({ error: "This submission request could not be completed." });
     return;
   }
   res
     .status(outcome.created ? 201 : 200)
-    .json(SubmitNewApplicationResponse.parse(serializeApplication(outcome.application)));
+    .json(
+      SubmitNewApplicationResponse.parse(
+        serializeApplication(outcome.application),
+      ),
+    );
 });
 
 router.get("/applications/:applicationId", async (req, res): Promise<void> => {
@@ -2924,366 +3524,421 @@ router.get("/applications/:applicationId", async (req, res): Promise<void> => {
   res.json(GetApplicationResponse.parse(serializeApplication(application)));
 });
 
-router.patch("/applications/:applicationId", async (req, res): Promise<void> => {
-  if (containsLegacyPinInput(req.body)) {
-    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
-    return;
-  }
-  const params = UpdateApplicationParams.safeParse(req.params);
-  const parsed = UpdateApplicationBody.safeParse(req.body);
-  if (!params.success || !parsed.success) {
-    res.status(400).json({
-      error: !params.success
-        ? params.error.message
-        : parsed.success
-          ? "Invalid request."
-          : parsed.error.message,
-    });
-    return;
-  }
-
-  const [application] = await db
-    .select()
-    .from(enrollmentApplicationsTable)
-    .where(
-      and(
-        eq(enrollmentApplicationsTable.id, params.data.applicationId),
-        eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
-      ),
-    )
-    .limit(1);
-  if (!application) {
-    res.status(404).json({ error: "Application not found." });
-    return;
-  }
-  if (!["draft", "needs_information"].includes(application.status)) {
-    res.status(409).json({ error: "This application is locked against ordinary edits." });
-    return;
-  }
-
-  const nextCategoryId = parsed.data.categoryId;
-  const categoryChanged = Boolean(
-    nextCategoryId && nextCategoryId !== application.categoryId,
-  );
-  const normalizedReferenceCode = await normalizeInvitationCode(
-    categoryChanged ? (nextCategoryId ?? application.categoryId) : application.categoryId,
-    parsed.data.referenceCode,
-    categoryChanged ? null : application.invitationCodeCiphertext,
-    `application:${application.id}`,
-    categoryChanged ? null : application.referenceCode,
-  );
-  if (!normalizedReferenceCode.valid) {
-    res
-      .status(normalizedReferenceCode.unavailable ? 503 : 400)
-      .json({ error: normalizedReferenceCode.error });
-    return;
-  }
-  const invitationCodeCiphertext = categoryChanged
-    ? null
-    : normalizedReferenceCode.ciphertext;
-  if (application.status === "needs_information" && nextCategoryId) {
-    res.status(403).json({
-      error: "An application under correction cannot change its selected account provider.",
-    });
-    return;
-  }
-  if (
-    categoryChanged &&
-    (parsed.data.answers !== undefined || parsed.data.referenceCode !== undefined)
-  ) {
-    res.status(400).json({
-      error: "Change the account provider separately before editing the new application.",
-    });
-    return;
-  }
-  if (parsed.data.answers && containsCredentialAnswerKey(parsed.data.answers)) {
-    res.status(400).json({
-      error: "Credential values cannot be saved as application answers.",
-    });
-    return;
-  }
-  let submittedAnswers = parsed.data.answers;
-  if (submittedAnswers && application.status === "needs_information") {
-    const requested = application.answers?.__requestedSections;
-    const requestedSections = Array.isArray(requested)
-      ? requested.filter(
-          (index): index is number =>
-            Number.isInteger(index) && index >= 0 && index <= 6,
-        )
-      : [];
-    if (requestedSections.length === 0) {
-      res.status(403).json({
-        error: "No application sections have been reopened for correction.",
+router.patch(
+  "/applications/:applicationId",
+  async (req, res): Promise<void> => {
+    if (containsLegacyPinInput(req.body)) {
+      res
+        .status(400)
+        .json({ error: "Legacy PIN inputs are no longer accepted." });
+      return;
+    }
+    const params = UpdateApplicationParams.safeParse(req.params);
+    const parsed = UpdateApplicationBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({
+        error: !params.success
+          ? params.error.message
+          : parsed.success
+            ? "Invalid request."
+            : parsed.error.message,
       });
       return;
     }
-    const changedSections = Object.keys(submittedAnswers).filter((key) => {
-      if (key === "__requestedSections") return false;
-      return JSON.stringify(submittedAnswers?.[key]) !==
-        JSON.stringify(application.answers?.[key]);
-    });
-    const unauthorizedChange = changedSections.some((key) => {
-      const sectionIndex = wizardSections.indexOf(
-        key as (typeof wizardSections)[number],
-      );
-      return sectionIndex < 0 || !requestedSections.includes(sectionIndex);
-    });
-    if (unauthorizedChange) {
-      res.status(403).json({
-        error: "Only sections specifically reopened by a reviewer can be changed.",
-      });
-      return;
-    }
-  }
-  let nextAnswers = submittedAnswers ?? application.answers ?? {};
-  if (!categoryChanged && submittedAnswers) {
-    const prepared = prepareApplicantAnswers(
-      application.answers ?? {},
-      submittedAnswers,
-    );
-    if (prepared.error) {
-      res.status(400).json({ error: prepared.error });
-      return;
-    }
-    nextAnswers = prepared.answers;
-    submittedAnswers = nextAnswers;
-  }
-  const entryIsComplete = nextAnswers.categoryEntryComplete === true;
-  if (
-    submittedAnswers?.categoryEntryComplete === true &&
-    !hasRequiredCategoryDetails(application.categoryId, nextAnswers)
-  ) {
-    res.status(400).json({
-      error: "Enter all required account provider details before continuing.",
-    });
-    return;
-  }
-  if (entryIsComplete && !hasRequiredCategoryDetails(application.categoryId, nextAnswers)) {
-    res.status(400).json({
-      error: "Enter all required account provider details before saving this application.",
-    });
-    return;
-  }
-  const notificationStep = parsed.data.currentStep ?? application.currentStep;
-  const shouldNotifyReviewer =
-    categoryChanged ||
-    notificationStep !== application.currentStep ||
-    (submittedAnswers !== undefined &&
-      JSON.stringify(submittedAnswers) !== JSON.stringify(application.answers ?? {})) ||
-    invitationCodeCiphertext !== (application.invitationCodeCiphertext ?? null);
-  const updated = await db.transaction(async (transaction) => {
-    const [applicationRow] = await transaction
-      .update(enrollmentApplicationsTable)
-      .set({
-        ...(parsed.data.currentStep !== undefined
-          ? { currentStep: parsed.data.currentStep }
-          : {}),
-        ...(categoryChanged
-          ? {
-              categoryId: nextCategoryId,
-              answers: {},
-              currentStep: 0,
-            }
-          : {}),
-        ...(!categoryChanged && submittedAnswers !== undefined
-          ? { answers: submittedAnswers }
-          : {}),
-        invitationCodeCiphertext,
-        ...(categoryChanged || normalizedReferenceCode.clearLegacyPlaintext
-          ? { referenceCode: null }
-          : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
-      .returning();
-    if (!applicationRow) return undefined;
-    if (categoryChanged && nextCategoryId) {
-      await transaction.insert(applicationEventsTable).values({
-        applicationId: applicationRow.id,
-        actorUserId: res.locals.userId,
-        eventType: "category_changed",
-        note: `${categoryName(application.categoryId)} → ${categoryName(nextCategoryId)}`,
-      });
-    } else if (
-      parsed.data.answers !== undefined ||
-      parsed.data.currentStep !== undefined
-    ) {
-      const savedPosition = parsed.data.currentStep ?? application.currentStep;
-      const note =
-        submittedAnswers?.categoryEntryComplete === true && savedPosition === 0
-          ? "Account Provider details and Invitation Code saved."
-          : savedPosition === 7
-            ? "Final review saved."
-            : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
-      await transaction.insert(applicationEventsTable).values({
-        applicationId: applicationRow.id,
-        actorUserId: res.locals.userId,
-        eventType: "applicant_step_saved",
-        note,
-      });
-    }
-    return applicationRow;
-  });
-  if (!updated) {
-    res.status(500).json({ error: "The application could not be saved." });
-    return;
-  }
-  if (shouldNotifyReviewer) {
-    await notifyEnrollmentReviewer(req, {
-      kind: "step_saved",
-      reference: updated.reference,
-      categoryName: categoryName(updated.categoryId),
-      currentStep: updated.currentStep,
-      applicationId: updated.id,
-      idempotencyKey: `application-step:${updated.id}:${updated.updatedAt.getTime()}`,
-    });
-  }
-  res.json(UpdateApplicationResponse.parse(serializeApplication(updated)));
-});
 
-router.post("/applications/:applicationId/submit", async (req, res): Promise<void> => {
-  if (containsLegacyPinInput(req.body)) {
-    res.status(400).json({ error: "Legacy PIN inputs are no longer accepted." });
-    return;
-  }
-  const params = SubmitApplicationParams.safeParse(req.params);
-  const body = SubmitApplicationBody.safeParse(req.body ?? {});
-  if (!params.success || !body.success) {
-    res.status(400).json({
-      error: !params.success ? params.error.message : body.success ? "Invalid request." : body.error.message,
-    });
-    return;
-  }
-  const [application] = await db
-    .select()
-    .from(enrollmentApplicationsTable)
-    .where(
-      and(
-        eq(enrollmentApplicationsTable.id, params.data.applicationId),
-        eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
-      ),
-    )
-    .limit(1);
-  if (!application) {
-    res.status(404).json({ error: "Application not found." });
-    return;
-  }
-  if (application.status === "submitted") {
-    res.json(SubmitApplicationResponse.parse(serializeApplication(application)));
-    return;
-  }
-  if (!["draft", "needs_information"].includes(application.status)) {
-    res.status(409).json({ error: "This application has already been submitted." });
-    return;
-  }
-
-  let answers = application.answers ?? {};
-  const normalizedReferenceCode = await normalizeInvitationCode(
-    application.categoryId,
-    body.data.referenceCode,
-    application.invitationCodeCiphertext,
-    `application:${application.id}`,
-    application.referenceCode,
-  );
-  if (!normalizedReferenceCode.valid) {
-    res
-      .status(normalizedReferenceCode.unavailable ? 503 : 400)
-      .json({ error: normalizedReferenceCode.error });
-    return;
-  }
-  const invitationCodeCiphertext = normalizedReferenceCode.ciphertext;
-  if (application.status === "draft") {
-    if (body.data.categoryId && body.data.categoryId !== application.categoryId) {
-      res.status(409).json({
-        error: "The selected account provider changed. Refresh the application before submitting.",
-      });
-      return;
-    }
-    if (body.data.answers) {
-      if (containsCredentialAnswerKey(body.data.answers)) {
-        res.status(400).json({
-          error: "Credential values cannot be saved as application answers.",
-        });
-        return;
-      }
-      const prepared = prepareApplicantAnswers(application.answers ?? {}, body.data.answers);
-      if (prepared.error) {
-        res.status(400).json({ error: prepared.error });
-        return;
-      }
-      answers = prepared.answers;
-    }
-  }
-  if (application.status === "needs_information" && application.currentStep < 7) {
-    res.status(400).json({ error: "Complete all eight enrollment stages first." });
-    return;
-  }
-  const validationError = validateFinalApplication(application.categoryId, answers);
-  if (validationError) {
-    res.status(400).json({ error: validationError });
-    return;
-  }
-  if (!isPrivateStorageConfigured()) {
-    res.status(503).json({
-      error:
-        "Secure document and video storage is unavailable. The application was not submitted.",
-      code: "PRIVATE_UPLOAD_STORAGE_UNAVAILABLE",
-    });
-    return;
-  }
-
-  const now = new Date();
-  const submitted = await db.transaction(async (transaction) => {
-    const [row] = await transaction
-      .update(enrollmentApplicationsTable)
-      .set({
-        status: "submitted",
-        answers: { ...answers, __requestedSections: [] },
-        currentStep: 7,
-        invitationCodeCiphertext,
-        ...(normalizedReferenceCode.clearLegacyPlaintext
-          ? { referenceCode: null }
-          : {}),
-        submittedAt: now,
-        updatedAt: now,
-      })
+    const [application] = await db
+      .select()
+      .from(enrollmentApplicationsTable)
       .where(
         and(
           eq(enrollmentApplicationsTable.id, params.data.applicationId),
           eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
-          eq(enrollmentApplicationsTable.categoryId, application.categoryId),
-          eq(enrollmentApplicationsTable.status, application.status),
         ),
       )
-      .returning();
-    if (!row) return null;
-    await transaction.insert(applicationEventsTable).values({
-      applicationId: row.id,
-      actorUserId: res.locals.userId,
-      eventType: `status_changed:${application.status}->submitted`,
-      note:
-        application.status === "needs_information"
-          ? application.reviewNote
-          : "Submitted for review.",
+      .limit(1);
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    if (!["draft", "needs_information"].includes(application.status)) {
+      res
+        .status(409)
+        .json({ error: "This application is locked against ordinary edits." });
+      return;
+    }
+
+    const nextCategoryId = parsed.data.categoryId;
+    const categoryChanged = Boolean(
+      nextCategoryId && nextCategoryId !== application.categoryId,
+    );
+    const normalizedReferenceCode = await normalizeInvitationCode(
+      categoryChanged
+        ? (nextCategoryId ?? application.categoryId)
+        : application.categoryId,
+      parsed.data.referenceCode,
+      categoryChanged ? null : application.invitationCodeCiphertext,
+      `application:${application.id}`,
+      categoryChanged ? null : application.referenceCode,
+    );
+    if (!normalizedReferenceCode.valid) {
+      res
+        .status(normalizedReferenceCode.unavailable ? 503 : 400)
+        .json({ error: normalizedReferenceCode.error });
+      return;
+    }
+    const invitationCodeCiphertext = categoryChanged
+      ? null
+      : normalizedReferenceCode.ciphertext;
+    if (application.status === "needs_information" && nextCategoryId) {
+      res.status(403).json({
+        error:
+          "An application under correction cannot change its selected account provider.",
+      });
+      return;
+    }
+    if (
+      categoryChanged &&
+      (parsed.data.answers !== undefined ||
+        parsed.data.referenceCode !== undefined)
+    ) {
+      res.status(400).json({
+        error:
+          "Change the account provider separately before editing the new application.",
+      });
+      return;
+    }
+    if (
+      parsed.data.answers &&
+      containsCredentialAnswerKey(parsed.data.answers)
+    ) {
+      res.status(400).json({
+        error: "Credential values cannot be saved as application answers.",
+      });
+      return;
+    }
+    let submittedAnswers = parsed.data.answers;
+    if (submittedAnswers && application.status === "needs_information") {
+      const requested = application.answers?.__requestedSections;
+      const requestedSections = Array.isArray(requested)
+        ? requested.filter(
+            (index): index is number =>
+              Number.isInteger(index) && index >= 0 && index <= 6,
+          )
+        : [];
+      if (requestedSections.length === 0) {
+        res.status(403).json({
+          error: "No application sections have been reopened for correction.",
+        });
+        return;
+      }
+      const changedSections = Object.keys(submittedAnswers).filter((key) => {
+        if (key === "__requestedSections") return false;
+        return (
+          JSON.stringify(submittedAnswers?.[key]) !==
+          JSON.stringify(application.answers?.[key])
+        );
+      });
+      const unauthorizedChange = changedSections.some((key) => {
+        const sectionIndex = wizardSections.indexOf(
+          key as (typeof wizardSections)[number],
+        );
+        return sectionIndex < 0 || !requestedSections.includes(sectionIndex);
+      });
+      if (unauthorizedChange) {
+        res.status(403).json({
+          error:
+            "Only sections specifically reopened by a reviewer can be changed.",
+        });
+        return;
+      }
+    }
+    let nextAnswers = submittedAnswers ?? application.answers ?? {};
+    if (!categoryChanged && submittedAnswers) {
+      const prepared = prepareApplicantAnswers(
+        application.answers ?? {},
+        submittedAnswers,
+      );
+      if (prepared.error) {
+        res.status(400).json({ error: prepared.error });
+        return;
+      }
+      nextAnswers = prepared.answers;
+      submittedAnswers = nextAnswers;
+    }
+    const entryIsComplete = nextAnswers.categoryEntryComplete === true;
+    if (
+      submittedAnswers?.categoryEntryComplete === true &&
+      !hasRequiredCategoryDetails(application.categoryId, nextAnswers)
+    ) {
+      res.status(400).json({
+        error: "Enter all required account provider details before continuing.",
+      });
+      return;
+    }
+    if (
+      entryIsComplete &&
+      !hasRequiredCategoryDetails(application.categoryId, nextAnswers)
+    ) {
+      res.status(400).json({
+        error:
+          "Enter all required account provider details before saving this application.",
+      });
+      return;
+    }
+    const notificationStep = parsed.data.currentStep ?? application.currentStep;
+    const shouldNotifyReviewer =
+      categoryChanged ||
+      notificationStep !== application.currentStep ||
+      (submittedAnswers !== undefined &&
+        JSON.stringify(submittedAnswers) !==
+          JSON.stringify(application.answers ?? {})) ||
+      invitationCodeCiphertext !==
+        (application.invitationCodeCiphertext ?? null);
+    const updated = await db.transaction(async (transaction) => {
+      const [applicationRow] = await transaction
+        .update(enrollmentApplicationsTable)
+        .set({
+          ...(parsed.data.currentStep !== undefined
+            ? { currentStep: parsed.data.currentStep }
+            : {}),
+          ...(categoryChanged
+            ? {
+                categoryId: nextCategoryId,
+                answers: {},
+                currentStep: 0,
+              }
+            : {}),
+          ...(!categoryChanged && submittedAnswers !== undefined
+            ? { answers: submittedAnswers }
+            : {}),
+          invitationCodeCiphertext,
+          ...(categoryChanged || normalizedReferenceCode.clearLegacyPlaintext
+            ? { referenceCode: null }
+            : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
+        .returning();
+      if (!applicationRow) return undefined;
+      if (categoryChanged && nextCategoryId) {
+        await transaction.insert(applicationEventsTable).values({
+          applicationId: applicationRow.id,
+          actorUserId: res.locals.userId,
+          eventType: "category_changed",
+          note: `${categoryName(application.categoryId)} → ${categoryName(nextCategoryId)}`,
+        });
+      } else if (
+        parsed.data.answers !== undefined ||
+        parsed.data.currentStep !== undefined
+      ) {
+        const savedPosition =
+          parsed.data.currentStep ?? application.currentStep;
+        const note =
+          submittedAnswers?.categoryEntryComplete === true &&
+          savedPosition === 0
+            ? "Account Provider details and Invitation Code saved."
+            : savedPosition === 7
+              ? "Final review saved."
+              : `Applicant saved progress through step ${Math.max(1, savedPosition)} of 8.`;
+        await transaction.insert(applicationEventsTable).values({
+          applicationId: applicationRow.id,
+          actorUserId: res.locals.userId,
+          eventType: "applicant_step_saved",
+          note,
+        });
+      }
+      return applicationRow;
     });
-    return row;
-  });
-  if (!submitted) {
-    res.status(409).json({
-      error: "The application changed while it was being submitted. Refresh and try again.",
+    if (!updated) {
+      res.status(500).json({ error: "The application could not be saved." });
+      return;
+    }
+    if (shouldNotifyReviewer) {
+      await notifyEnrollmentReviewer(req, {
+        kind: "step_saved",
+        reference: updated.reference,
+        categoryName: categoryName(updated.categoryId),
+        currentStep: updated.currentStep,
+        applicationId: updated.id,
+        idempotencyKey: `application-step:${updated.id}:${updated.updatedAt.getTime()}`,
+      });
+    }
+    res.json(UpdateApplicationResponse.parse(serializeApplication(updated)));
+  },
+);
+
+router.post(
+  "/applications/:applicationId/submit",
+  async (req, res): Promise<void> => {
+    if (containsLegacyPinInput(req.body)) {
+      res
+        .status(400)
+        .json({ error: "Legacy PIN inputs are no longer accepted." });
+      return;
+    }
+    const params = SubmitApplicationParams.safeParse(req.params);
+    const body = SubmitApplicationBody.safeParse(req.body ?? {});
+    if (!params.success || !body.success) {
+      res.status(400).json({
+        error: !params.success
+          ? params.error.message
+          : body.success
+            ? "Invalid request."
+            : body.error.message,
+      });
+      return;
+    }
+    const [application] = await db
+      .select()
+      .from(enrollmentApplicationsTable)
+      .where(
+        and(
+          eq(enrollmentApplicationsTable.id, params.data.applicationId),
+          eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
+        ),
+      )
+      .limit(1);
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    if (application.status === "submitted") {
+      res.json(
+        SubmitApplicationResponse.parse(serializeApplication(application)),
+      );
+      return;
+    }
+    if (!["draft", "needs_information"].includes(application.status)) {
+      res
+        .status(409)
+        .json({ error: "This application has already been submitted." });
+      return;
+    }
+
+    let answers = application.answers ?? {};
+    const normalizedReferenceCode = await normalizeInvitationCode(
+      application.categoryId,
+      body.data.referenceCode,
+      application.invitationCodeCiphertext,
+      `application:${application.id}`,
+      application.referenceCode,
+    );
+    if (!normalizedReferenceCode.valid) {
+      res
+        .status(normalizedReferenceCode.unavailable ? 503 : 400)
+        .json({ error: normalizedReferenceCode.error });
+      return;
+    }
+    const invitationCodeCiphertext = normalizedReferenceCode.ciphertext;
+    if (application.status === "draft") {
+      if (
+        body.data.categoryId &&
+        body.data.categoryId !== application.categoryId
+      ) {
+        res.status(409).json({
+          error:
+            "The selected account provider changed. Refresh the application before submitting.",
+        });
+        return;
+      }
+      if (body.data.answers) {
+        if (containsCredentialAnswerKey(body.data.answers)) {
+          res.status(400).json({
+            error: "Credential values cannot be saved as application answers.",
+          });
+          return;
+        }
+        const prepared = prepareApplicantAnswers(
+          application.answers ?? {},
+          body.data.answers,
+        );
+        if (prepared.error) {
+          res.status(400).json({ error: prepared.error });
+          return;
+        }
+        answers = prepared.answers;
+      }
+    }
+    if (
+      application.status === "needs_information" &&
+      application.currentStep < 7
+    ) {
+      res
+        .status(400)
+        .json({ error: "Complete all eight enrollment stages first." });
+      return;
+    }
+    const validationError = validateFinalApplication(
+      application.categoryId,
+      answers,
+    );
+    if (validationError) {
+      res.status(400).json({ error: validationError });
+      return;
+    }
+    if (!isPrivateStorageConfigured()) {
+      res.status(503).json({
+        error:
+          "Secure document and video storage is unavailable. The application was not submitted.",
+        code: "PRIVATE_UPLOAD_STORAGE_UNAVAILABLE",
+      });
+      return;
+    }
+
+    const now = new Date();
+    const submitted = await db.transaction(async (transaction) => {
+      const [row] = await transaction
+        .update(enrollmentApplicationsTable)
+        .set({
+          status: "submitted",
+          answers: { ...answers, __requestedSections: [] },
+          currentStep: 7,
+          invitationCodeCiphertext,
+          ...(normalizedReferenceCode.clearLegacyPlaintext
+            ? { referenceCode: null }
+            : {}),
+          submittedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(enrollmentApplicationsTable.id, params.data.applicationId),
+            eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId),
+            eq(enrollmentApplicationsTable.categoryId, application.categoryId),
+            eq(enrollmentApplicationsTable.status, application.status),
+          ),
+        )
+        .returning();
+      if (!row) return null;
+      await transaction.insert(applicationEventsTable).values({
+        applicationId: row.id,
+        actorUserId: res.locals.userId,
+        eventType: `status_changed:${application.status}->submitted`,
+        note:
+          application.status === "needs_information"
+            ? application.reviewNote
+            : "Submitted for review.",
+      });
+      return row;
     });
-    return;
-  }
-  await notifyEnrollmentReviewer(req, {
-    kind: "application_submitted",
-    reference: submitted.reference,
-    categoryName: categoryName(submitted.categoryId),
-    currentStep: submitted.currentStep,
-    applicationId: submitted.id,
-    idempotencyKey: `application-submit:${submitted.id}`,
-  });
-  res.json(SubmitApplicationResponse.parse(serializeApplication(submitted)));
-});
+    if (!submitted) {
+      res.status(409).json({
+        error:
+          "The application changed while it was being submitted. Refresh and try again.",
+      });
+      return;
+    }
+    await notifyEnrollmentReviewer(req, {
+      kind: "application_submitted",
+      reference: submitted.reference,
+      categoryName: categoryName(submitted.categoryId),
+      currentStep: submitted.currentStep,
+      applicationId: submitted.id,
+      idempotencyKey: `application-submit:${submitted.id}`,
+    });
+    res.json(SubmitApplicationResponse.parse(serializeApplication(submitted)));
+  },
+);
 
 router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   const applications = await db
@@ -3292,11 +3947,14 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
     .where(eq(enrollmentApplicationsTable.clerkUserId, res.locals.userId));
   const summary = {
     total: applications.length,
-    drafts: applications.filter((application) => application.status === "draft").length,
+    drafts: applications.filter((application) => application.status === "draft")
+      .length,
     inReview: applications.filter((application) =>
       ["submitted", "under_review"].includes(application.status),
     ).length,
-    approved: applications.filter((application) => application.status === "approved").length,
+    approved: applications.filter(
+      (application) => application.status === "approved",
+    ).length,
     needsAttention: applications.filter(
       (application) => application.status === "needs_information",
     ).length,
@@ -3310,15 +3968,24 @@ router.get("/support/tickets", async (_req, res): Promise<void> => {
     .from(supportTicketsTable)
     .where(eq(supportTicketsTable.clerkUserId, res.locals.userId))
     .orderBy(desc(supportTicketsTable.updatedAt));
-  const applications = await db.select({
-    id: enrollmentApplicationsTable.id,
-    reference: enrollmentApplicationsTable.reference,
-  }).from(enrollmentApplicationsTable);
-  const references = new Map(applications.map((application) => [application.id, application.reference]));
+  const applications = await db
+    .select({
+      id: enrollmentApplicationsTable.id,
+      reference: enrollmentApplicationsTable.reference,
+    })
+    .from(enrollmentApplicationsTable);
+  const references = new Map(
+    applications.map((application) => [application.id, application.reference]),
+  );
   res.json(
     ListMySupportTicketsResponse.parse(
       tickets.map((ticket) =>
-        serializeTicket(ticket, ticket.applicationId ? references.get(ticket.applicationId) ?? null : null),
+        serializeTicket(
+          ticket,
+          ticket.applicationId
+            ? (references.get(ticket.applicationId) ?? null)
+            : null,
+        ),
       ),
     ),
   );
@@ -3374,14 +4041,18 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     })
     .returning();
   if (!created) {
-    res.status(500).json({ error: "The support request could not be created." });
+    res
+      .status(500)
+      .json({ error: "The support request could not be created." });
     return;
   }
-  res.status(201).json(
-    CreateSupportTicketResponse.parse(
-      serializeTicket(created, applicationReference),
-    ),
-  );
+  res
+    .status(201)
+    .json(
+      CreateSupportTicketResponse.parse(
+        serializeTicket(created, applicationReference),
+      ),
+    );
 });
 
 router.post(
@@ -3391,7 +4062,9 @@ router.post(
     const parsed = AddApplicantSupportMessageBody.safeParse(req.body);
     if (!params.success || !parsed.success) {
       res.status(400).json({
-        error: !params.success ? params.error.message : (parsed.error?.message ?? "Invalid request body"),
+        error: !params.success
+          ? params.error.message
+          : (parsed.error?.message ?? "Invalid request body"),
       });
       return;
     }
@@ -3411,7 +4084,8 @@ router.post(
     }
     if (["resolved", "closed"].includes(ticket.status)) {
       res.status(409).json({
-        error: "This support request is resolved. Start a new request if needed.",
+        error:
+          "This support request is resolved. Start a new request if needed.",
       });
       return;
     }
@@ -3447,51 +4121,67 @@ router.post(
         .limit(1);
       reference = application?.reference ?? null;
     }
-    res.status(201).json(
-      AddApplicantSupportMessageResponse.parse(
-        serializeTicket(updated, reference),
-      ),
-    );
+    res
+      .status(201)
+      .json(
+        AddApplicantSupportMessageResponse.parse(
+          serializeTicket(updated, reference),
+        ),
+      );
   },
 );
 router.use("/admin", requireAdmin);
 
-router.get("/admin/invitation-code-settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    const rows = await db
-      .select()
-      .from(providerInvitationCodeSettingsTable);
-    const settingsByProvider = new Map(
-      rows.map((row) => [row.providerId, row]),
-    );
-    res.json(
-      ListAdminProviderInvitationCodeSettingsResponse.parse({
-        providers: INVITATION_CODE_PROVIDER_IDS.map((providerId) => {
-          const setting = settingsByProvider.get(providerId);
-          return {
-            providerId,
-            requiredLength: setting?.requiredLength ?? DEFAULT_INVITATION_CODE_LENGTH,
-            updatedAt: setting?.updatedAt.toISOString() ?? null,
-          };
+router.get(
+  "/admin/invitation-code-settings",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const rows = await db.select().from(providerInvitationCodeSettingsTable);
+      const settingsByProvider = new Map(
+        rows.map((row) => [row.providerId, row]),
+      );
+      res.json(
+        ListAdminProviderInvitationCodeSettingsResponse.parse({
+          providers: INVITATION_CODE_PROVIDER_IDS.map((providerId) => {
+            const setting = settingsByProvider.get(providerId);
+            return {
+              providerId,
+              requiredLength:
+                setting?.requiredLength ?? DEFAULT_INVITATION_CODE_LENGTH,
+              updatedAt: setting?.updatedAt.toISOString() ?? null,
+            };
+          }),
         }),
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load provider Invitation Code settings");
-    res.status(503).json({ error: "Invitation Code settings are temporarily unavailable." });
-  }
-});
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to load provider Invitation Code settings",
+      );
+      res.status(503).json({
+        error: "Invitation Code settings are temporarily unavailable.",
+      });
+    }
+  },
+);
 
 router.put(
   "/admin/invitation-code-settings/:providerId",
   requirePrimaryAdmin,
   async (req, res): Promise<void> => {
     res.setHeader("Cache-Control", "no-store");
-    const params = UpdateAdminProviderInvitationCodeSettingParams.safeParse(req.params);
-    const body = UpdateAdminProviderInvitationCodeSettingBody.safeParse(req.body);
+    const params = UpdateAdminProviderInvitationCodeSettingParams.safeParse(
+      req.params,
+    );
+    const body = UpdateAdminProviderInvitationCodeSettingBody.safeParse(
+      req.body,
+    );
     if (!params.success || !body.success) {
-      res.status(400).json({ error: "Choose a provider and a length from 4 to 12 digits." });
+      res
+        .status(400)
+        .json({ error: "Choose a provider and a length from 4 to 12 digits." });
       return;
     }
 
@@ -3566,262 +4256,363 @@ router.put(
         { err: error, providerId, actorUserId },
         "Failed to save provider Invitation Code settings",
       );
-      res.status(503).json({ error: "Invitation Code settings could not be saved." });
+      res
+        .status(503)
+        .json({ error: "Invitation Code settings could not be saved." });
     }
   },
 );
 
-router.post("/admin/applicants/clear", requireReviewer, async (req, res): Promise<void> => {
-  const parsed = ClearApplicantRecordsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Select at least one applicant record to clear." });
-    return;
-  }
-
-  const guestIds = [...new Set(parsed.data.guestPreapplicationIds)];
-  const requestedApplicationIds = [...new Set(parsed.data.enrollmentApplicationIds)];
-  if (!guestIds.length && !requestedApplicationIds.length) {
-    res.status(400).json({ error: "Select at least one applicant record to clear." });
-    return;
-  }
-  if (guestIds.length + requestedApplicationIds.length > 100) {
-    res.status(400).json({ error: "Clear no more than 100 applicant records at a time." });
-    return;
-  }
-
-  const guestTargetKey = (id: string) => `guest_preapplication:${id}`;
-  const enrollmentTargetKey = (id: string) => `enrollment_application:${id}`;
-  const requestedKeys = new Set([
-    ...guestIds.map(guestTargetKey),
-    ...requestedApplicationIds.map(enrollmentTargetKey),
-  ]);
-  const failedKeys = new Set<string>();
-
-  try {
-    const selectedApplications = requestedApplicationIds.length
-      ? await db.select().from(enrollmentApplicationsTable)
-        .where(inArray(enrollmentApplicationsTable.id, requestedApplicationIds))
-      : [];
-    const selectedGuests = guestIds.length
-      ? await db.select().from(guestPreapplicationsTable)
-        .where(inArray(guestPreapplicationsTable.id, guestIds))
-      : [];
-    const selectedApplicationById = new Map(
-      selectedApplications.map((application) => [application.id, application]),
-    );
-    const selectedGuestById = new Map(
-      selectedGuests.map((application) => [application.id, application]),
-    );
-
-    for (const id of requestedApplicationIds) {
-      if (!selectedApplicationById.has(id)) failedKeys.add(enrollmentTargetKey(id));
-    }
-    for (const id of guestIds) {
-      if (!selectedGuestById.has(id)) failedKeys.add(guestTargetKey(id));
+router.post(
+  "/admin/applicants/clear",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsed = ClearApplicantRecordsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "Select at least one applicant record to clear." });
+      return;
     }
 
-    const sourceGuestIds = selectedApplications
-      .map((application) => application.sourceGuestPreapplicationId)
-      .filter((id): id is string => Boolean(id));
-    const missingSourceGuestIds = sourceGuestIds.filter((id) => !selectedGuestById.has(id));
-    const sourceGuests = missingSourceGuestIds.length
-      ? await db.select().from(guestPreapplicationsTable)
-        .where(inArray(guestPreapplicationsTable.id, missingSourceGuestIds))
-      : [];
-    const guestsToDelete = new Map([
-      ...selectedGuests.map((application) => [application.id, application] as const),
-      ...sourceGuests.map((application) => [application.id, application] as const),
+    const guestIds = [...new Set(parsed.data.guestPreapplicationIds)];
+    const requestedApplicationIds = [
+      ...new Set(parsed.data.enrollmentApplicationIds),
+    ];
+    if (!guestIds.length && !requestedApplicationIds.length) {
+      res
+        .status(400)
+        .json({ error: "Select at least one applicant record to clear." });
+      return;
+    }
+    if (guestIds.length + requestedApplicationIds.length > 100) {
+      res
+        .status(400)
+        .json({ error: "Clear no more than 100 applicant records at a time." });
+      return;
+    }
+
+    const guestTargetKey = (id: string) => `guest_preapplication:${id}`;
+    const enrollmentTargetKey = (id: string) => `enrollment_application:${id}`;
+    const requestedKeys = new Set([
+      ...guestIds.map(guestTargetKey),
+      ...requestedApplicationIds.map(enrollmentTargetKey),
     ]);
+    const failedKeys = new Set<string>();
 
-    const linkedApplicationIds = [...new Set(
-      [...guestsToDelete.values()]
-        .map((application) => application.linkedApplicationId)
-        .filter((id): id is string => Boolean(id)),
-    )].filter((id) => !selectedApplicationById.has(id));
-    const linkedApplications = linkedApplicationIds.length
-      ? await db.select().from(enrollmentApplicationsTable)
-        .where(inArray(enrollmentApplicationsTable.id, linkedApplicationIds))
-      : [];
-    const applicationsToDelete = new Map([
-      ...selectedApplications.map((application) => [application.id, application] as const),
-      ...linkedApplications.map((application) => [application.id, application] as const),
-    ]);
+    try {
+      const selectedApplications = requestedApplicationIds.length
+        ? await db
+            .select()
+            .from(enrollmentApplicationsTable)
+            .where(
+              inArray(enrollmentApplicationsTable.id, requestedApplicationIds),
+            )
+        : [];
+      const selectedGuests = guestIds.length
+        ? await db
+            .select()
+            .from(guestPreapplicationsTable)
+            .where(inArray(guestPreapplicationsTable.id, guestIds))
+        : [];
+      const selectedApplicationById = new Map(
+        selectedApplications.map((application) => [
+          application.id,
+          application,
+        ]),
+      );
+      const selectedGuestById = new Map(
+        selectedGuests.map((application) => [application.id, application]),
+      );
 
-    const evidenceByGuestId = new Map<string, Array<typeof guestPreapplicationEvidenceTable.$inferSelect>>();
-    const allGuestIds = [...guestsToDelete.keys()];
-    const evidenceRows = allGuestIds.length
-      ? await db.select().from(guestPreapplicationEvidenceTable)
-        .where(inArray(guestPreapplicationEvidenceTable.applicationId, allGuestIds))
-      : [];
-    for (const evidence of evidenceRows) {
-      const records = evidenceByGuestId.get(evidence.applicationId) ?? [];
-      records.push(evidence);
-      evidenceByGuestId.set(evidence.applicationId, records);
-    }
+      for (const id of requestedApplicationIds) {
+        if (!selectedApplicationById.has(id))
+          failedKeys.add(enrollmentTargetKey(id));
+      }
+      for (const id of guestIds) {
+        if (!selectedGuestById.has(id)) failedKeys.add(guestTargetKey(id));
+      }
 
-    const failedGuestIds = new Set<string>();
-    for (const [guestId, evidenceItems] of evidenceByGuestId) {
-      for (const evidence of evidenceItems) {
-        if (!evidence.objectPath.startsWith("/objects/")) {
-          failedGuestIds.add(guestId);
-          break;
-        }
-        try {
-          const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
-          await objectFile.delete({ ignoreNotFound: true });
-        } catch (error) {
-          if (error instanceof ObjectNotFoundError) continue;
-          failedGuestIds.add(guestId);
-          req.log.error(
-            { err: error, applicationId: guestId, evidenceId: evidence.id },
-            "Failed to remove applicant evidence while clearing a record",
-          );
-          break;
+      const sourceGuestIds = selectedApplications
+        .map((application) => application.sourceGuestPreapplicationId)
+        .filter((id): id is string => Boolean(id));
+      const missingSourceGuestIds = sourceGuestIds.filter(
+        (id) => !selectedGuestById.has(id),
+      );
+      const sourceGuests = missingSourceGuestIds.length
+        ? await db
+            .select()
+            .from(guestPreapplicationsTable)
+            .where(inArray(guestPreapplicationsTable.id, missingSourceGuestIds))
+        : [];
+      const guestsToDelete = new Map([
+        ...selectedGuests.map(
+          (application) => [application.id, application] as const,
+        ),
+        ...sourceGuests.map(
+          (application) => [application.id, application] as const,
+        ),
+      ]);
+
+      const linkedApplicationIds = [
+        ...new Set(
+          [...guestsToDelete.values()]
+            .map((application) => application.linkedApplicationId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ].filter((id) => !selectedApplicationById.has(id));
+      const linkedApplications = linkedApplicationIds.length
+        ? await db
+            .select()
+            .from(enrollmentApplicationsTable)
+            .where(
+              inArray(enrollmentApplicationsTable.id, linkedApplicationIds),
+            )
+        : [];
+      const applicationsToDelete = new Map([
+        ...selectedApplications.map(
+          (application) => [application.id, application] as const,
+        ),
+        ...linkedApplications.map(
+          (application) => [application.id, application] as const,
+        ),
+      ]);
+
+      const evidenceByGuestId = new Map<
+        string,
+        Array<typeof guestPreapplicationEvidenceTable.$inferSelect>
+      >();
+      const allGuestIds = [...guestsToDelete.keys()];
+      const evidenceRows = allGuestIds.length
+        ? await db
+            .select()
+            .from(guestPreapplicationEvidenceTable)
+            .where(
+              inArray(
+                guestPreapplicationEvidenceTable.applicationId,
+                allGuestIds,
+              ),
+            )
+        : [];
+      for (const evidence of evidenceRows) {
+        const records = evidenceByGuestId.get(evidence.applicationId) ?? [];
+        records.push(evidence);
+        evidenceByGuestId.set(evidence.applicationId, records);
+      }
+
+      const failedGuestIds = new Set<string>();
+      for (const [guestId, evidenceItems] of evidenceByGuestId) {
+        for (const evidence of evidenceItems) {
+          if (!evidence.objectPath.startsWith("/objects/")) {
+            failedGuestIds.add(guestId);
+            break;
+          }
+          try {
+            const objectFile = await objectStorage.getObjectEntityFile(
+              evidence.objectPath,
+            );
+            await objectFile.delete({ ignoreNotFound: true });
+          } catch (error) {
+            if (error instanceof ObjectNotFoundError) continue;
+            failedGuestIds.add(guestId);
+            req.log.error(
+              { err: error, applicationId: guestId, evidenceId: evidence.id },
+              "Failed to remove applicant evidence while clearing a record",
+            );
+            break;
+          }
         }
       }
-    }
 
-    for (const guestId of failedGuestIds) {
-      if (requestedKeys.has(guestTargetKey(guestId))) failedKeys.add(guestTargetKey(guestId));
-      for (const application of applicationsToDelete.values()) {
+      for (const guestId of failedGuestIds) {
+        if (requestedKeys.has(guestTargetKey(guestId)))
+          failedKeys.add(guestTargetKey(guestId));
+        for (const application of applicationsToDelete.values()) {
+          if (
+            application.sourceGuestPreapplicationId === guestId &&
+            requestedKeys.has(enrollmentTargetKey(application.id))
+          ) {
+            failedKeys.add(enrollmentTargetKey(application.id));
+          }
+        }
+        const guest = guestsToDelete.get(guestId);
         if (
-          application.sourceGuestPreapplicationId === guestId &&
-          requestedKeys.has(enrollmentTargetKey(application.id))
+          guest?.linkedApplicationId &&
+          requestedKeys.has(enrollmentTargetKey(guest.linkedApplicationId))
         ) {
-          failedKeys.add(enrollmentTargetKey(application.id));
+          failedKeys.add(enrollmentTargetKey(guest.linkedApplicationId));
         }
       }
-      const guest = guestsToDelete.get(guestId);
-      if (
-        guest?.linkedApplicationId &&
-        requestedKeys.has(enrollmentTargetKey(guest.linkedApplicationId))
-      ) {
-        failedKeys.add(enrollmentTargetKey(guest.linkedApplicationId));
+
+      const deletableApplications = [...applicationsToDelete.values()].filter(
+        (application) =>
+          !failedGuestIds.has(application.sourceGuestPreapplicationId ?? ""),
+      );
+      const deletableGuestIds = [...guestsToDelete.keys()].filter(
+        (id) => !failedGuestIds.has(id),
+      );
+
+      const deleted = await db.transaction(async (transaction) => {
+        const removedApplications = deletableApplications.length
+          ? await transaction
+              .delete(enrollmentApplicationsTable)
+              .where(
+                inArray(
+                  enrollmentApplicationsTable.id,
+                  deletableApplications.map((application) => application.id),
+                ),
+              )
+              .returning({ id: enrollmentApplicationsTable.id })
+          : [];
+        if (deletableGuestIds.length) {
+          await transaction
+            .delete(guestPreapplicationEvidenceTable)
+            .where(
+              inArray(
+                guestPreapplicationEvidenceTable.applicationId,
+                deletableGuestIds,
+              ),
+            );
+          await transaction
+            .delete(guestPreapplicationRevisionsTable)
+            .where(
+              inArray(
+                guestPreapplicationRevisionsTable.applicationId,
+                deletableGuestIds,
+              ),
+            );
+        }
+        const removedGuests = deletableGuestIds.length
+          ? await transaction
+              .delete(guestPreapplicationsTable)
+              .where(inArray(guestPreapplicationsTable.id, deletableGuestIds))
+              .returning({ id: guestPreapplicationsTable.id })
+          : [];
+        return {
+          applicationIds: new Set(
+            removedApplications.map((application) => application.id),
+          ),
+          guestIds: new Set(removedGuests.map((application) => application.id)),
+        };
+      });
+
+      for (const id of guestIds) {
+        if (!deleted.guestIds.has(id)) failedKeys.add(guestTargetKey(id));
       }
-    }
-
-    const deletableApplications = [...applicationsToDelete.values()]
-      .filter((application) => !failedGuestIds.has(application.sourceGuestPreapplicationId ?? ""));
-    const deletableGuestIds = [...guestsToDelete.keys()]
-      .filter((id) => !failedGuestIds.has(id));
-
-    const deleted = await db.transaction(async (transaction) => {
-      const removedApplications = deletableApplications.length
-        ? await transaction.delete(enrollmentApplicationsTable)
-          .where(inArray(
-            enrollmentApplicationsTable.id,
-            deletableApplications.map((application) => application.id),
-          ))
-          .returning({ id: enrollmentApplicationsTable.id })
-        : [];
-      if (deletableGuestIds.length) {
-        await transaction.delete(guestPreapplicationEvidenceTable)
-          .where(inArray(guestPreapplicationEvidenceTable.applicationId, deletableGuestIds));
-        await transaction.delete(guestPreapplicationRevisionsTable)
-          .where(inArray(guestPreapplicationRevisionsTable.applicationId, deletableGuestIds));
+      for (const id of requestedApplicationIds) {
+        if (!deleted.applicationIds.has(id))
+          failedKeys.add(enrollmentTargetKey(id));
       }
-      const removedGuests = deletableGuestIds.length
-        ? await transaction.delete(guestPreapplicationsTable)
-          .where(inArray(guestPreapplicationsTable.id, deletableGuestIds))
-          .returning({ id: guestPreapplicationsTable.id })
+      const clearedCount = requestedKeys.size - failedKeys.size;
+      const failedRecords = [...failedKeys].map((key) => {
+        const [type, id] = key.split(":");
+        return {
+          type: type as "guest_preapplication" | "enrollment_application",
+          id: id ?? "",
+        };
+      });
+      res.json(
+        ClearApplicantRecordsResponse.parse({ clearedCount, failedRecords }),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to clear selected applicant records",
+      );
+      res.status(503).json({
+        error:
+          "The selected applicant records could not be cleared. Please retry.",
+      });
+    }
+  },
+);
+
+router.get(
+  "/admin/guest-preapplications",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    try {
+      const applications = await db
+        .select()
+        .from(guestPreapplicationsTable)
+        .where(isNull(guestPreapplicationsTable.linkedApplicationId))
+        .orderBy(desc(guestPreapplicationsTable.createdAt));
+      const evidenceRows = applications.length
+        ? await db
+            .select()
+            .from(guestPreapplicationEvidenceTable)
+            .where(
+              inArray(
+                guestPreapplicationEvidenceTable.applicationId,
+                applications.map((application) => application.id),
+              ),
+            )
+            .orderBy(desc(guestPreapplicationEvidenceTable.createdAt))
         : [];
-      return {
-        applicationIds: new Set(removedApplications.map((application) => application.id)),
-        guestIds: new Set(removedGuests.map((application) => application.id)),
-      };
-    });
-
-    for (const id of guestIds) {
-      if (!deleted.guestIds.has(id)) failedKeys.add(guestTargetKey(id));
-    }
-    for (const id of requestedApplicationIds) {
-      if (!deleted.applicationIds.has(id)) failedKeys.add(enrollmentTargetKey(id));
-    }
-    const clearedCount = requestedKeys.size - failedKeys.size;
-    const failedRecords = [...failedKeys].map((key) => {
-      const [type, id] = key.split(":");
-      return {
-        type: type as "guest_preapplication" | "enrollment_application",
-        id: id ?? "",
-      };
-    });
-    res.json(ClearApplicantRecordsResponse.parse({ clearedCount, failedRecords }));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to clear selected applicant records");
-    res.status(503).json({ error: "The selected applicant records could not be cleared. Please retry." });
-  }
-});
-
-router.get("/admin/guest-preapplications", requireReviewer, async (req, res): Promise<void> => {
-  try {
-    const applications = await db
-      .select()
-      .from(guestPreapplicationsTable)
-      .where(isNull(guestPreapplicationsTable.linkedApplicationId))
-      .orderBy(desc(guestPreapplicationsTable.createdAt));
-    const evidenceRows = applications.length
-      ? await db
-          .select()
-          .from(guestPreapplicationEvidenceTable)
-          .where(inArray(
-            guestPreapplicationEvidenceTable.applicationId,
-            applications.map((application) => application.id),
-          ))
-          .orderBy(desc(guestPreapplicationEvidenceTable.createdAt))
-      : [];
-    const evidenceByApplication = new Map<string, typeof evidenceRows>();
-    for (const evidence of evidenceRows) {
-      const group = evidenceByApplication.get(evidence.applicationId) ?? [];
-      group.push(evidence);
-      evidenceByApplication.set(evidence.applicationId, group);
-    }
-    const revisionRows = applications.length
-      ? await db
-          .select()
-          .from(guestPreapplicationRevisionsTable)
-          .where(inArray(
-            guestPreapplicationRevisionsTable.applicationId,
-            applications.map((application) => application.id),
-          ))
-          .orderBy(guestPreapplicationRevisionsTable.createdAt)
-      : [];
-    const historyByApplication = new Map<string, typeof revisionRows>();
-    for (const revision of revisionRows) {
-      const group = historyByApplication.get(revision.applicationId) ?? [];
-      group.push(revision);
-      historyByApplication.set(revision.applicationId, group);
-    }
-    res.json(
-      ListAdminGuestPreapplicationsResponse.parse(
-        applications.map((application) =>
-          serializeAdminGuestPreapplication(
-            application,
-            evidenceByApplication.get(application.id) ?? [],
-            historyByApplication.get(application.id) ?? [],
+      const evidenceByApplication = new Map<string, typeof evidenceRows>();
+      for (const evidence of evidenceRows) {
+        const group = evidenceByApplication.get(evidence.applicationId) ?? [];
+        group.push(evidence);
+        evidenceByApplication.set(evidence.applicationId, group);
+      }
+      const revisionRows = applications.length
+        ? await db
+            .select()
+            .from(guestPreapplicationRevisionsTable)
+            .where(
+              inArray(
+                guestPreapplicationRevisionsTable.applicationId,
+                applications.map((application) => application.id),
+              ),
+            )
+            .orderBy(guestPreapplicationRevisionsTable.createdAt)
+        : [];
+      const historyByApplication = new Map<string, typeof revisionRows>();
+      for (const revision of revisionRows) {
+        const group = historyByApplication.get(revision.applicationId) ?? [];
+        group.push(revision);
+        historyByApplication.set(revision.applicationId, group);
+      }
+      res.json(
+        ListAdminGuestPreapplicationsResponse.parse(
+          applications.map((application) =>
+            serializeAdminGuestPreapplication(
+              application,
+              evidenceByApplication.get(application.id) ?? [],
+              historyByApplication.get(application.id) ?? [],
+            ),
           ),
         ),
-      ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to list guest pre-applications");
-    res.status(503).json({ error: "Guest pre-applications are temporarily unavailable." });
-  }
-});
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to list guest pre-applications");
+      res
+        .status(503)
+        .json({ error: "Guest pre-applications are temporarily unavailable." });
+    }
+  },
+);
 
 router.get(
   "/admin/applications/:applicationId/guest-history",
   requireReviewer,
   async (req, res): Promise<void> => {
-    const parsedParams = GetAdminGuestApplicationHistoryParams.safeParse(req.params);
+    const parsedParams = GetAdminGuestApplicationHistoryParams.safeParse(
+      req.params,
+    );
     if (!parsedParams.success) {
-      res.status(400).json({ error: "Application history could not be loaded." });
+      res
+        .status(400)
+        .json({ error: "Application history could not be loaded." });
       return;
     }
     try {
       const [application] = await db
         .select()
         .from(enrollmentApplicationsTable)
-        .where(eq(enrollmentApplicationsTable.id, parsedParams.data.applicationId))
+        .where(
+          eq(enrollmentApplicationsTable.id, parsedParams.data.applicationId),
+        )
         .limit(1);
       if (!application) {
         res.status(404).json({ error: "Application not found." });
@@ -3834,20 +4625,31 @@ router.get(
       const history = await db
         .select()
         .from(guestPreapplicationRevisionsTable)
-        .where(eq(
-          guestPreapplicationRevisionsTable.applicationId,
-          application.sourceGuestPreapplicationId,
-        ))
+        .where(
+          eq(
+            guestPreapplicationRevisionsTable.applicationId,
+            application.sourceGuestPreapplicationId,
+          ),
+        )
         .orderBy(guestPreapplicationRevisionsTable.createdAt);
-      res.json(GetAdminGuestApplicationHistoryResponse.parse(history.map((revision) => ({
-        id: revision.id,
-        currentStep: revision.currentStep,
-        changes: sanitizeStoredRevisionChanges(revision.changes),
-        createdAt: revision.createdAt.toISOString(),
-      }))));
+      res.json(
+        GetAdminGuestApplicationHistoryResponse.parse(
+          history.map((revision) => ({
+            id: revision.id,
+            currentStep: revision.currentStep,
+            changes: sanitizeStoredRevisionChanges(revision.changes),
+            createdAt: revision.createdAt.toISOString(),
+          })),
+        ),
+      );
     } catch (error) {
-      req.log.error({ err: error, applicationId: parsedParams.data.applicationId }, "Failed to load guest application history");
-      res.status(503).json({ error: "Application history is temporarily unavailable." });
+      req.log.error(
+        { err: error, applicationId: parsedParams.data.applicationId },
+        "Failed to load guest application history",
+      );
+      res
+        .status(503)
+        .json({ error: "Application history is temporarily unavailable." });
     }
   },
 );
@@ -3856,14 +4658,20 @@ router.post(
   "/admin/guest-preapplications/:applicationId/evidence/upload-url",
   requireReviewer,
   async (req, res): Promise<void> => {
-    const parsedParams = RequestGuestPreapplicationEvidenceUploadParams.safeParse(req.params);
-    const parsedBody = RequestGuestPreapplicationEvidenceUploadBody.safeParse(req.body);
+    const parsedParams =
+      RequestGuestPreapplicationEvidenceUploadParams.safeParse(req.params);
+    const parsedBody = RequestGuestPreapplicationEvidenceUploadBody.safeParse(
+      req.body,
+    );
     if (!parsedParams.success || !parsedBody.success) {
-      res.status(400).json({ error: "Choose a supported evidence file and try again." });
+      res
+        .status(400)
+        .json({ error: "Choose a supported evidence file and try again." });
       return;
     }
     const { evidenceType, contentType, sizeBytes } = parsedBody.data;
-    const evidenceSlot = parsedBody.data.evidenceSlot ??
+    const evidenceSlot =
+      parsedBody.data.evidenceSlot ??
       (evidenceType === "verification_video"
         ? "verification_video"
         : evidenceType === "education_certificate"
@@ -3871,9 +4679,10 @@ router.post(
           : "identity_front");
     if (!isAllowedEvidenceType(evidenceType, contentType, sizeBytes)) {
       res.status(400).json({
-        error: evidenceType === "identity_document"
-          ? "Identity evidence must be a PDF, JPEG, PNG, or WebP file no larger than 20 MB."
-          : "Verification videos must be MP4 or WebM files no larger than 200 MB.",
+        error:
+          evidenceType === "identity_document"
+            ? "Identity evidence must be a PDF, JPEG, PNG, or WebP file no larger than 20 MB."
+            : "Verification videos must be MP4 or WebM files no larger than 200 MB.",
       });
       return;
     }
@@ -3882,35 +4691,61 @@ router.post(
       const [application] = await db
         .select()
         .from(guestPreapplicationsTable)
-        .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
         .limit(1);
       if (!application) {
         res.status(404).json({ error: "Guest application not found." });
         return;
       }
       if (application.status === "closed") {
-        res.status(409).json({ error: "Evidence cannot be added to a closed application." });
+        res
+          .status(409)
+          .json({ error: "Evidence cannot be added to a closed application." });
         return;
       }
-      if (!process.env.PRIVATE_OBJECT_DIR || !process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) {
-        res.status(503).json({ error: "Private evidence storage is unavailable." });
+      if (
+        !process.env.PRIVATE_OBJECT_DIR ||
+        !process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID
+      ) {
+        res
+          .status(503)
+          .json({ error: "Private evidence storage is unavailable." });
         return;
       }
 
       const existingEvidence = await db
         .select()
         .from(guestPreapplicationEvidenceTable)
-        .where(eq(guestPreapplicationEvidenceTable.applicationId, application.id));
-      if (evidenceType === "verification_video" && existingEvidence.some(
-        (item) => item.evidenceType === "verification_video" && item.uploadedAt !== null,
-      )) {
-        res.status(409).json({ error: "A verification video is already recorded for this application." });
+        .where(
+          eq(guestPreapplicationEvidenceTable.applicationId, application.id),
+        );
+      if (
+        evidenceType === "verification_video" &&
+        existingEvidence.some(
+          (item) =>
+            item.evidenceType === "verification_video" &&
+            item.uploadedAt !== null,
+        )
+      ) {
+        res.status(409).json({
+          error:
+            "A verification video is already recorded for this application.",
+        });
         return;
       }
-      if (evidenceType === "identity_document" && existingEvidence.filter(
-        (item) => item.evidenceType === "identity_document" && item.uploadedAt !== null,
-      ).length >= 5) {
-        res.status(409).json({ error: "No more than five identity files can be recorded." });
+      if (
+        evidenceType === "identity_document" &&
+        existingEvidence.filter(
+          (item) =>
+            item.evidenceType === "identity_document" &&
+            item.uploadedAt !== null,
+        ).length >= 5
+      ) {
+        res
+          .status(409)
+          .json({ error: "No more than five identity files can be recorded." });
         return;
       }
 
@@ -3919,7 +4754,9 @@ router.post(
       if (!objectPath.startsWith("/objects/")) {
         throw new Error("Storage returned an invalid private object path.");
       }
-      const uploadExpiresAt = new Date(Date.now() + INCOMPLETE_GUEST_UPLOAD_RETENTION_MS);
+      const uploadExpiresAt = new Date(
+        Date.now() + INCOMPLETE_GUEST_UPLOAD_RETENTION_MS,
+      );
       const [record] = await db
         .insert(guestPreapplicationEvidenceTable)
         .values({
@@ -3934,7 +4771,8 @@ router.post(
           uploadExpiresAt,
         })
         .returning();
-      if (!record) throw new Error("Evidence upload record could not be created.");
+      if (!record)
+        throw new Error("Evidence upload record could not be created.");
       res.json(
         RequestGuestPreapplicationEvidenceUploadResponse.parse({
           evidenceId: record.id,
@@ -3942,8 +4780,13 @@ router.post(
         }),
       );
     } catch (error) {
-      req.log.error({ err: error }, "Failed to prepare private guest evidence upload");
-      res.status(503).json({ error: "A secure evidence upload could not be prepared." });
+      req.log.error(
+        { err: error },
+        "Failed to prepare private guest evidence upload",
+      );
+      res
+        .status(503)
+        .json({ error: "A secure evidence upload could not be prepared." });
     }
   },
 );
@@ -3952,7 +4795,8 @@ router.post(
   "/admin/guest-preapplications/:applicationId/evidence/:evidenceId/complete",
   requireReviewer,
   async (req, res): Promise<void> => {
-    const parsedParams = CompleteGuestPreapplicationEvidenceUploadParams.safeParse(req.params);
+    const parsedParams =
+      CompleteGuestPreapplicationEvidenceUploadParams.safeParse(req.params);
     if (!parsedParams.success) {
       res.status(400).json({ error: "Evidence could not be verified." });
       return;
@@ -3962,29 +4806,43 @@ router.post(
       const [evidence] = await db
         .select()
         .from(guestPreapplicationEvidenceTable)
-        .where(and(
-          eq(guestPreapplicationEvidenceTable.id, evidenceId),
-          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
-        ))
+        .where(
+          and(
+            eq(guestPreapplicationEvidenceTable.id, evidenceId),
+            eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+          ),
+        )
         .limit(1);
       if (!evidence) {
         res.status(404).json({ error: "Evidence upload not found." });
         return;
       }
       if (evidence.uploadedAt) {
-        res.json(CompleteGuestPreapplicationEvidenceUploadResponse.parse(
-          serializeGuestEvidence(evidence),
-        ));
+        res.json(
+          CompleteGuestPreapplicationEvidenceUploadResponse.parse(
+            serializeGuestEvidence(evidence),
+          ),
+        );
         return;
       }
 
-      const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+      const objectFile = await objectStorage.getObjectEntityFile(
+        evidence.objectPath,
+      );
       const [metadata] = await objectFile.getMetadata();
-      if (Number(metadata.size) !== evidence.sizeBytes || metadata.contentType !== evidence.contentType) {
-        await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-        await db.delete(guestPreapplicationEvidenceTable)
+      if (
+        Number(metadata.size) !== evidence.sizeBytes ||
+        metadata.contentType !== evidence.contentType
+      ) {
+        await objectFile
+          .delete({ ignoreNotFound: true })
+          .catch(() => undefined);
+        await db
+          .delete(guestPreapplicationEvidenceTable)
           .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
-        res.status(400).json({ error: "The uploaded file did not match its declared type or size." });
+        res.status(400).json({
+          error: "The uploaded file did not match its declared type or size.",
+        });
         return;
       }
       const [signatureBytes] = await objectFile.download({
@@ -3992,20 +4850,28 @@ router.post(
         end: Math.min(evidence.sizeBytes - 1, 31),
       });
       if (!evidenceSignatureMatches(evidence.contentType, signatureBytes)) {
-        await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-        await db.delete(guestPreapplicationEvidenceTable)
+        await objectFile
+          .delete({ ignoreNotFound: true })
+          .catch(() => undefined);
+        await db
+          .delete(guestPreapplicationEvidenceTable)
           .where(eq(guestPreapplicationEvidenceTable.id, evidence.id));
-        res.status(400).json({ error: "The uploaded file content is not a supported evidence format." });
+        res.status(400).json({
+          error:
+            "The uploaded file content is not a supported evidence format.",
+        });
         return;
       }
 
       const [completed] = await db
         .update(guestPreapplicationEvidenceTable)
         .set({ uploadedAt: new Date(), uploadExpiresAt: null })
-        .where(and(
-          eq(guestPreapplicationEvidenceTable.id, evidence.id),
-          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
-        ))
+        .where(
+          and(
+            eq(guestPreapplicationEvidenceTable.id, evidence.id),
+            eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+          ),
+        )
         .returning();
       if (!completed) {
         res.status(404).json({ error: "Evidence upload not found." });
@@ -4013,7 +4879,10 @@ router.post(
       }
       await db
         .update(guestPreapplicationsTable)
-        .set({ updatedAt: new Date(), updatedByUserId: res.locals.userId as string })
+        .set({
+          updatedAt: new Date(),
+          updatedByUserId: res.locals.userId as string,
+        })
         .where(eq(guestPreapplicationsTable.id, applicationId));
       res.json(
         CompleteGuestPreapplicationEvidenceUploadResponse.parse(
@@ -4022,11 +4891,18 @@ router.post(
       );
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
-        res.status(409).json({ error: "Upload the selected file before recording it." });
+        res
+          .status(409)
+          .json({ error: "Upload the selected file before recording it." });
         return;
       }
-      req.log.error({ err: error, applicationId, evidenceId }, "Failed to verify guest evidence upload");
-      res.status(503).json({ error: "The evidence file could not be verified." });
+      req.log.error(
+        { err: error, applicationId, evidenceId },
+        "Failed to verify guest evidence upload",
+      );
+      res
+        .status(503)
+        .json({ error: "The evidence file could not be verified." });
     }
   },
 );
@@ -4035,7 +4911,9 @@ router.get(
   "/admin/guest-preapplications/:applicationId/evidence/:evidenceId/file",
   requireReviewer,
   async (req, res): Promise<void> => {
-    const parsedParams = DownloadGuestPreapplicationEvidenceParams.safeParse(req.params);
+    const parsedParams = DownloadGuestPreapplicationEvidenceParams.safeParse(
+      req.params,
+    );
     if (!parsedParams.success) {
       res.status(400).json({ error: "Evidence file not found." });
       return;
@@ -4045,16 +4923,20 @@ router.get(
       const [evidence] = await db
         .select()
         .from(guestPreapplicationEvidenceTable)
-        .where(and(
-          eq(guestPreapplicationEvidenceTable.id, evidenceId),
-          eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
-        ))
+        .where(
+          and(
+            eq(guestPreapplicationEvidenceTable.id, evidenceId),
+            eq(guestPreapplicationEvidenceTable.applicationId, applicationId),
+          ),
+        )
         .limit(1);
       if (!evidence?.uploadedAt) {
         res.status(404).json({ error: "Uploaded evidence file not found." });
         return;
       }
-      const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+      const objectFile = await objectStorage.getObjectEntityFile(
+        evidence.objectPath,
+      );
       const [metadata] = await objectFile.getMetadata();
       const downloadName = safeEvidenceFileName(evidence.fileName);
       res.setHeader("Content-Type", evidence.contentType);
@@ -4067,9 +4949,15 @@ router.get(
       res.setHeader("X-Content-Type-Options", "nosniff");
       const stream = objectFile.createReadStream();
       stream.on("error", (error) => {
-        req.log.error({ err: error, applicationId, evidenceId }, "Failed to stream private guest evidence");
+        req.log.error(
+          { err: error, applicationId, evidenceId },
+          "Failed to stream private guest evidence",
+        );
         if (res.headersSent) res.destroy(error);
-        else res.status(503).json({ error: "The evidence file could not be downloaded." });
+        else
+          res
+            .status(503)
+            .json({ error: "The evidence file could not be downloaded." });
       });
       stream.pipe(res);
     } catch (error) {
@@ -4077,97 +4965,263 @@ router.get(
         res.status(404).json({ error: "Uploaded evidence file not found." });
         return;
       }
-      req.log.error({ err: error, applicationId, evidenceId }, "Failed to open private guest evidence");
-      res.status(503).json({ error: "The evidence file could not be downloaded." });
+      req.log.error(
+        { err: error, applicationId, evidenceId },
+        "Failed to open private guest evidence",
+      );
+      res
+        .status(503)
+        .json({ error: "The evidence file could not be downloaded." });
     }
   },
 );
 
-router.patch("/admin/guest-preapplications/:applicationId", requireReviewer, async (req, res): Promise<void> => {
-  const parsedParams = UpdateAdminGuestPreapplicationParams.safeParse(req.params);
-  const parsedBody = UpdateAdminGuestPreapplicationBody.safeParse(req.body);
-  if (!parsedParams.success || !parsedBody.success) {
-    res.status(400).json({ error: "Choose a valid follow-up status." });
-    return;
-  }
-
-  try {
-    const [updated] = await db
-      .update(guestPreapplicationsTable)
-      .set({
-        status: parsedBody.data.status,
-        updatedByUserId: res.locals.userId,
-        updatedAt: new Date(),
-      })
-      .where(eq(guestPreapplicationsTable.id, parsedParams.data.applicationId))
-      .returning();
-    if (!updated) {
-      res.status(404).json({ error: "Guest pre-application not found." });
+router.patch(
+  "/admin/guest-preapplications/:applicationId",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsedParams = UpdateAdminGuestPreapplicationParams.safeParse(
+      req.params,
+    );
+    const parsedBody = UpdateAdminGuestPreapplicationBody.safeParse(req.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      res.status(400).json({ error: "Choose a valid follow-up status." });
       return;
     }
-    res.json(
-      UpdateAdminGuestPreapplicationResponse.parse(
-        await serializeAdminGuestPreapplicationWithEvidence(updated),
-      ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to update guest pre-application");
-    res.status(503).json({ error: "Guest pre-application could not be updated." });
-  }
-});
 
-router.put("/admin/settings", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const parsed = UpdatePortalSettingsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const ids = parsed.data.cards.map((card) => card.id);
-  if (new Set(ids).size !== 4 || categories.some((category) => !ids.includes(category.id))) {
-    res.status(400).json({ error: "Settings must contain each of the four enrollment cards exactly once." });
-    return;
-  }
-  const landingCopy = parsed.data.screenCopy.landing;
-  // Keep the dedicated hero field and the landing-screen copy in sync.
-  if (landingCopy) {
-    landingCopy.description = parsed.data.hero.description;
-  }
-  for (const category of categories) {
-    const screenId = `category-entry-${category.id.replace("category-", "")}`;
-    const entryCopy = parsed.data.screenCopy[screenId];
-    if (entryCopy) entryCopy.referenceCodeLabel = "Invitation Code";
-  }
-  if (parsed.data.cards.some((card) =>
-    !validatePublicImageDataUrl(card.logoDataUrl)
-    || !validatePublicImageDataUrl(card.entryLogoDataUrl ?? null))) {
-    res.status(400).json({ error: "Card and entry logos must be valid PNG, JPEG, or WebP images no larger than 2 MB." });
-    return;
-  }
-  try {
-    const [record] = await db
-      .insert(portalSettingsTable)
-      .values({
-        key: "portal",
-        value: parsed.data,
-        updatedByUserId: res.locals.userId,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: portalSettingsTable.key,
-        set: {
+    try {
+      const [updated] = await db
+        .update(guestPreapplicationsTable)
+        .set({
+          status: parsedBody.data.status,
+          updatedByUserId: res.locals.userId,
+          updatedAt: new Date(),
+        })
+        .where(
+          eq(guestPreapplicationsTable.id, parsedParams.data.applicationId),
+        )
+        .returning();
+      if (!updated) {
+        res.status(404).json({ error: "Guest pre-application not found." });
+        return;
+      }
+      res.json(
+        UpdateAdminGuestPreapplicationResponse.parse(
+          await serializeAdminGuestPreapplicationWithEvidence(updated),
+        ),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to update guest pre-application");
+      res
+        .status(503)
+        .json({ error: "Guest pre-application could not be updated." });
+    }
+  },
+);
+
+router.get(
+  "/admin/form-content",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    try {
+      const snapshot = await readFormContentSnapshot();
+      res.json(
+        GetAdminApplicantFormContentResponse.parse({
+          ...snapshot,
+          forms: APPLICANT_FORM_CATALOG,
+        }),
+      );
+    } catch (error) {
+      const code =
+        error instanceof ApplicantFormContentPersistenceError
+          ? error.code
+          : "unknown";
+      req.log.error({ code }, "Failed to load admin applicant form content");
+      res
+        .status(503)
+        .json({ error: "Applicant form content is temporarily unavailable." });
+    }
+  },
+);
+
+router.put(
+  "/admin/form-content",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const parsed = UpdateAdminApplicantFormContentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Check the form content and try again." });
+      return;
+    }
+    let content;
+    try {
+      content = sanitizeApplicantFormContent(parsed.data.content);
+    } catch {
+      res
+        .status(400)
+        .json({ error: "Form content contains an invalid form or field." });
+      return;
+    }
+    try {
+      const row = await saveApplicantFormContentRow({
+        expectedVersion: parsed.data.expectedVersion,
+        content,
+        actorUserId: String(res.locals.userId ?? ""),
+      });
+      res.json(
+        UpdateAdminApplicantFormContentResponse.parse(
+          createAdminFormContentResponse({
+            version: row.version,
+            savedContent: row.content,
+            updatedAt: row.updatedAt,
+            persistenceAvailable: true,
+          }),
+        ),
+      );
+    } catch (error) {
+      if (
+        error instanceof ApplicantFormContentPersistenceError &&
+        error.code === "version_conflict"
+      ) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
+      const code =
+        error instanceof ApplicantFormContentPersistenceError
+          ? error.code
+          : "unknown";
+      req.log.error({ code }, "Failed to save admin applicant form content");
+      res
+        .status(503)
+        .json({ error: "Applicant form content could not be saved." });
+    }
+  },
+);
+
+router.post(
+  "/admin/form-content/reset",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const parsed = ResetAdminApplicantFormContentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "Reload the form content before restoring defaults." });
+      return;
+    }
+    try {
+      const row = await saveApplicantFormContentRow({
+        expectedVersion: parsed.data.expectedVersion,
+        content: APPLICANT_FORM_DEFAULTS,
+        actorUserId: String(res.locals.userId ?? ""),
+      });
+      res.json(
+        ResetAdminApplicantFormContentResponse.parse(
+          createAdminFormContentResponse({
+            version: row.version,
+            savedContent: row.content,
+            updatedAt: row.updatedAt,
+            persistenceAvailable: true,
+          }),
+        ),
+      );
+    } catch (error) {
+      if (
+        error instanceof ApplicantFormContentPersistenceError &&
+        error.code === "version_conflict"
+      ) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
+      const code =
+        error instanceof ApplicantFormContentPersistenceError
+          ? error.code
+          : "unknown";
+      req.log.error(
+        { code },
+        "Failed to restore applicant form content defaults",
+      );
+      res.status(503).json({
+        error: "Applicant form content defaults could not be restored.",
+      });
+    }
+  },
+);
+
+router.put(
+  "/admin/settings",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const parsed = UpdatePortalSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const ids = parsed.data.cards.map((card) => card.id);
+    if (
+      new Set(ids).size !== 4 ||
+      categories.some((category) => !ids.includes(category.id))
+    ) {
+      res.status(400).json({
+        error:
+          "Settings must contain each of the four enrollment cards exactly once.",
+      });
+      return;
+    }
+    const landingCopy = parsed.data.screenCopy.landing;
+    // Keep the dedicated hero field and the landing-screen copy in sync.
+    if (landingCopy) {
+      landingCopy.description = parsed.data.hero.description;
+    }
+    for (const category of categories) {
+      const screenId = `category-entry-${category.id.replace("category-", "")}`;
+      const entryCopy = parsed.data.screenCopy[screenId];
+      if (entryCopy) entryCopy.referenceCodeLabel = "Invitation Code";
+    }
+    if (
+      parsed.data.cards.some(
+        (card) =>
+          !validatePublicImageDataUrl(card.logoDataUrl) ||
+          !validatePublicImageDataUrl(card.entryLogoDataUrl ?? null),
+      )
+    ) {
+      res.status(400).json({
+        error:
+          "Card and entry logos must be valid PNG, JPEG, or WebP images no larger than 2 MB.",
+      });
+      return;
+    }
+    try {
+      const [record] = await db
+        .insert(portalSettingsTable)
+        .values({
+          key: "portal",
           value: parsed.data,
           updatedByUserId: res.locals.userId,
           updatedAt: new Date(),
-        },
-      })
-      .returning({ value: portalSettingsTable.value });
-    res.json(UpdatePortalSettingsResponse.parse(record?.value ?? parsed.data));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to save portal settings");
-    res.status(503).json({ error: "Portal settings could not be saved." });
-  }
-});
+        })
+        .onConflictDoUpdate({
+          target: portalSettingsTable.key,
+          set: {
+            value: parsed.data,
+            updatedByUserId: res.locals.userId,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ value: portalSettingsTable.value });
+      res.json(
+        UpdatePortalSettingsResponse.parse(record?.value ?? parsed.data),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to save portal settings");
+      res.status(503).json({ error: "Portal settings could not be saved." });
+    }
+  },
+);
 
 function serializeStaffEmailRecord(record: StaffEmailOutboxRecord) {
   return {
@@ -4199,11 +5253,14 @@ router.post("/webhooks/infobip/sms", async (req, res): Promise<void> => {
     res.status(503).json({ error: "Webhook verification is not configured." });
     return;
   }
-  if (!rawBody || !verifyInfobipDeliveryReportSignature({
-    rawBody,
-    signature: req.header("x-hub-signature"),
-    secret,
-  })) {
+  if (
+    !rawBody ||
+    !verifyInfobipDeliveryReportSignature({
+      rawBody,
+      signature: req.header("x-hub-signature"),
+      secret,
+    })
+  ) {
     res.status(401).json({ error: "Webhook signature is invalid." });
     return;
   }
@@ -4226,48 +5283,61 @@ router.post("/webhooks/infobip/sms", async (req, res): Promise<void> => {
 
   try {
     for (const result of body.results) {
-      const groupName = typeof result.status?.groupName === "string"
-        ? result.status.groupName.toUpperCase()
-        : "";
-      const statusName = typeof result.status?.name === "string"
-        ? result.status.name.toUpperCase()
-        : "";
-      const outcome = groupName === "DELIVERED" || statusName.includes("DELIVERED")
-        ? "delivered"
-        : /UNDELIVERABLE|REJECTED|EXPIRED/.test(`${groupName} ${statusName}`)
-          ? "failed"
-          : null;
+      const groupName =
+        typeof result.status?.groupName === "string"
+          ? result.status.groupName.toUpperCase()
+          : "";
+      const statusName =
+        typeof result.status?.name === "string"
+          ? result.status.name.toUpperCase()
+          : "";
+      const outcome =
+        groupName === "DELIVERED" || statusName.includes("DELIVERED")
+          ? "delivered"
+          : /UNDELIVERABLE|REJECTED|EXPIRED/.test(`${groupName} ${statusName}`)
+            ? "failed"
+            : null;
       if (!outcome) continue;
-      const doneAt = typeof result.doneAt === "string"
-        ? new Date(result.doneAt)
-        : new Date();
+      const doneAt =
+        typeof result.doneAt === "string"
+          ? new Date(result.doneAt)
+          : new Date();
       if (Number.isNaN(doneAt.getTime())) {
-        res.status(400).json({ error: "Delivery report timestamp is invalid." });
+        res
+          .status(400)
+          .json({ error: "Delivery report timestamp is invalid." });
         return;
       }
       await applyInfobipDeliveryReport({
-        callbackData: typeof result.callbackData === "string"
-          ? result.callbackData
-          : undefined,
-        providerMessageId: typeof result.messageId === "string"
-          ? result.messageId
-          : undefined,
+        callbackData:
+          typeof result.callbackData === "string"
+            ? result.callbackData
+            : undefined,
+        providerMessageId:
+          typeof result.messageId === "string" ? result.messageId : undefined,
         status: outcome,
-        providerStatus: typeof result.status?.description === "string"
-          ? result.status.description
-          : typeof result.status?.name === "string"
-            ? result.status.name
+        providerStatus:
+          typeof result.status?.description === "string"
+            ? result.status.description
+            : typeof result.status?.name === "string"
+              ? result.status.name
+              : null,
+        providerStatusGroup:
+          typeof result.status?.groupName === "string"
+            ? result.status.groupName
             : null,
-        providerStatusGroup: typeof result.status?.groupName === "string"
-          ? result.status.groupName
-          : null,
         providerStatusAt: doneAt,
       });
     }
     res.status(200).json({ received: true });
   } catch (error) {
-    req.log.error({ err: error }, "Failed to record Infobip SMS delivery report");
-    res.status(503).json({ error: "SMS delivery outcome could not be recorded." });
+    req.log.error(
+      { err: error },
+      "Failed to record Infobip SMS delivery report",
+    );
+    res
+      .status(503)
+      .json({ error: "SMS delivery outcome could not be recorded." });
   }
 });
 
@@ -4287,7 +5357,9 @@ async function streamPublicEmailBrandImage(
     const contentType = String(metadata.contentType ?? "");
     const sizeBytes = Number(metadata.size);
     if (
-      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType) ||
+      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(
+        contentType,
+      ) ||
       !Number.isInteger(sizeBytes) ||
       sizeBytes < 1 ||
       sizeBytes > 2 * 1024 * 1024
@@ -4302,13 +5374,19 @@ async function streamPublicEmailBrandImage(
     res.setHeader("X-Content-Type-Options", "nosniff");
     const stream = objectFile.createReadStream();
     stream.on("error", (error) => {
-      req.log.error({ err: error, asset: label }, "Failed to stream public email branding image");
+      req.log.error(
+        { err: error, asset: label },
+        "Failed to stream public email branding image",
+      );
       if (res.headersSent) res.destroy(error);
       else res.status(503).end();
     });
     stream.pipe(res);
   } catch (error) {
-    req.log.error({ err: error, asset: label }, "Failed to load public email branding image");
+    req.log.error(
+      { err: error, asset: label },
+      "Failed to load public email branding image",
+    );
     res.status(404).end();
   }
 }
@@ -4318,321 +5396,404 @@ router.get("/public/email/logo", async (req, res): Promise<void> => {
   await streamPublicEmailBrandImage(req, res, branding.logoObjectPath, "logo");
 });
 
-router.get("/public/email/footer-background", async (req, res): Promise<void> => {
-  const { branding } = await getStaffEmailConfiguration();
-  await streamPublicEmailBrandImage(
-    req,
-    res,
-    branding.footerBackgroundObjectPath,
-    "footer-background",
-  );
-});
-
-router.post("/admin/email/logo/upload-url", requireReviewer, async (req, res): Promise<void> => {
-  const parsed = RequestAdminEmailLogoUploadBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Choose a PNG, JPEG, WebP, or GIF logo no larger than 2 MB." });
-    return;
-  }
-  if (!isPrivateStorageConfigured()) {
-    res.status(503).json({ error: "Email logo storage is unavailable." });
-    return;
-  }
-  try {
-    const uploadUrl = await objectStorage.getObjectEntityUploadURL("email-logos");
-    const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
-    res.json(RequestAdminEmailLogoUploadResponse.parse({ uploadUrl, objectPath }));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to prepare email logo upload");
-    res.status(503).json({ error: "An email logo upload could not be prepared." });
-  }
-});
-
-router.post("/admin/email/logo/complete", requireReviewer, async (req, res): Promise<void> => {
-  const parsed = CompleteAdminEmailLogoUploadBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "The uploaded email logo path is invalid." });
-    return;
-  }
-  try {
-    const objectFile = await objectStorage.getObjectEntityFile(parsed.data.objectPath);
-    const [metadata] = await objectFile.getMetadata();
-    const contentType = String(metadata.contentType ?? "");
-    const sizeBytes = Number(metadata.size);
-    if (
-      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType) ||
-      !Number.isInteger(sizeBytes) ||
-      sizeBytes < 1 ||
-      sizeBytes > 2 * 1024 * 1024
-    ) {
-      await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-      res.status(400).json({ error: "The uploaded logo must be a supported image no larger than 2 MB." });
-      return;
-    }
-    const [signatureBytes] = await objectFile.download({ start: 0, end: Math.min(sizeBytes - 1, 11) });
-    if (!emailLogoSignatureMatches(contentType, signatureBytes)) {
-      await objectFile.delete({ ignoreNotFound: true }).catch(() => undefined);
-      res.status(400).json({ error: "The uploaded file content is not a supported image format." });
-      return;
-    }
-    res.json(CompleteAdminEmailLogoUploadResponse.parse({ objectPath: parsed.data.objectPath }));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to verify email logo upload");
-    res.status(400).json({ error: "Upload the selected logo before confirming it." });
-  }
-});
-
-router.get("/admin/email/settings", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    const configuration = await getStaffEmailConfiguration();
-    const isAdmin = res.locals.staffRole === "admin";
-    res.json(
-      GetAdminEmailSettingsResponse.parse({
-        ...configuration,
-        ...(isAdmin
-          ? {}
-          : {
-              recipients: [],
-              alerts: {
-                contact_received: false,
-                step_saved: false,
-                contact_updated: false,
-                evidence_saved: false,
-                application_submitted: false,
-              },
-            }),
-        updatedAt: configuration.updatedAt
-          ? new Date(configuration.updatedAt)
-          : null,
-      }),
+router.get(
+  "/public/email/footer-background",
+  async (req, res): Promise<void> => {
+    const { branding } = await getStaffEmailConfiguration();
+    await streamPublicEmailBrandImage(
+      req,
+      res,
+      branding.footerBackgroundObjectPath,
+      "footer-background",
     );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load staff email settings");
-    res.status(503).json({ error: "Email settings could not be loaded." });
-  }
-});
+  },
+);
 
-router.put("/admin/email/settings", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const parsed = UpdateAdminEmailSettingsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Check the recipient addresses and alert settings." });
-    return;
-  }
-  const { branding } = parsed.data;
-  let workspaceSenderAddress: string;
-  try {
-    workspaceSenderAddress = await getWorkspaceMailboxAddress();
-  } catch (error) {
-    req.log.error({ err: error }, "Google Workspace sender is unavailable");
-    res.status(503).json({ error: "The connected Google Workspace sender is unavailable." });
-    return;
-  }
-  if (
-    !isApprovedStaffSenderAddress(workspaceSenderAddress) ||
-    branding.senderEmail.trim().toLowerCase() !== workspaceSenderAddress
-  ) {
-    res.status(400).json({
-      error: "The sender address must match the connected Google Workspace account.",
-    });
-    return;
-  }
-  if (
-    (branding.logoUrl !== null && (
-      branding.logoUrl.length > 2048 ||
-      !/^https:\/\/[^\s]+$/i.test(branding.logoUrl)
-    )) ||
-    (branding.logoObjectPath !== null &&
-      !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(branding.logoObjectPath)) ||
-    (branding.footerBackgroundUrl !== null && (
-      branding.footerBackgroundUrl.length > 2048 ||
-      !/^https:\/\/[^\s]+$/i.test(branding.footerBackgroundUrl)
-    )) ||
-    (branding.footerBackgroundObjectPath !== null &&
-      !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(branding.footerBackgroundObjectPath)) ||
-    !/^#[\da-f]{6}$/i.test(branding.accentColor) ||
-    !/^#[\da-f]{6}$/i.test(branding.headerColor) ||
-    !/^#[\da-f]{6}$/i.test(branding.footerLinkColor) ||
-    !/^#[\da-f]{6}$/i.test(branding.footerBackgroundColor) ||
-    !/^#[\da-f]{6}$/i.test(branding.footerTextColor) ||
-    !branding.senderName.trim() ||
-    branding.senderName.trim().length > 80 ||
-    /[<>\r\n]/.test(branding.senderName) ||
-    branding.senderEmail.trim().length > 254 ||
-    !branding.bannerTitle.trim() ||
-    branding.bannerTitle.length > 100 ||
-    branding.bannerMark.length > 12 ||
-    branding.bannerSubtitle.length > 120 ||
-    branding.preheaderText.length > 200 ||
-    branding.messageEyebrow.length > 80 ||
-    branding.footerText.length > 300 ||
-    branding.footerLinkText.length > 80 ||
-    (branding.footerLinkUrl !== null && (
-      branding.footerLinkUrl.length > 2048 ||
-      !/^https:\/\/[^\s]+$/i.test(branding.footerLinkUrl)
-    )) ||
-    (branding.footerLinkUrl !== null && !branding.footerLinkText.trim())
-  ) {
-    res.status(400).json({ error: "Check the email sender, banner text, colors, footer, link, and images." });
-    return;
-  }
-  const recipients = [...new Set(
-    parsed.data.recipients.map((email) => email.trim().toLowerCase()),
-  )];
-  try {
-    const isAdmin = res.locals.staffRole === "admin";
-    const normalizedBranding = {
-      ...branding,
-      logoUrl: branding.logoUrl?.trim() || null,
-      senderName: branding.senderName.trim(),
-      senderEmail: branding.senderEmail.trim().toLowerCase(),
-      bannerTitle: branding.bannerTitle.trim(),
-      bannerSubtitle: branding.bannerSubtitle.trim(),
-      preheaderText: branding.preheaderText.trim(),
-      messageEyebrow: branding.messageEyebrow.trim(),
-      footerBackgroundUrl: branding.footerBackgroundUrl?.trim() || null,
-    };
-    const configuration = isAdmin
-      ? await saveStaffEmailConfiguration(
-          recipients,
-          parsed.data.alerts,
-          normalizedBranding,
-          res.locals.userId as string,
-        )
-      : await saveStaffEmailBranding(
-          normalizedBranding,
-          res.locals.userId as string,
-        );
-    res.json(
-      UpdateAdminEmailSettingsResponse.parse({
-        ...configuration,
-        ...(isAdmin
-          ? {}
-          : {
-              recipients: [],
-              alerts: {
-                contact_received: false,
-                step_saved: false,
-                contact_updated: false,
-                evidence_saved: false,
-                application_submitted: false,
-              },
-            }),
-        updatedAt: configuration.updatedAt
-          ? new Date(configuration.updatedAt)
-          : null,
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to save staff email settings");
-    res.status(503).json({ error: "Email settings could not be saved." });
-  }
-});
-
-router.get("/admin/email/outbox", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    let records = await db
-      .select()
-      .from(staffEmailOutboxTable)
-      .orderBy(desc(staffEmailOutboxTable.createdAt))
-      .limit(100);
-    try {
-      await refreshWorkspaceEmailDeliveryStatuses(records);
-    } catch (error) {
-      req.log.warn({ err: error }, "Could not refresh Gmail delivery notices");
-    }
-    records = await db
-      .select()
-      .from(staffEmailOutboxTable)
-      .orderBy(desc(staffEmailOutboxTable.createdAt))
-      .limit(100);
-    const messageIds = records.map((record) => record.id);
-    const providerEvents = messageIds.length
-      ? await db
-          .select({
-            outboxId: staffEmailProviderEventsTable.outboxId,
-            deliveryStatus: staffEmailProviderEventsTable.deliveryStatus,
-            providerEventAt: staffEmailProviderEventsTable.providerEventAt,
-          })
-          .from(staffEmailProviderEventsTable)
-          .where(inArray(staffEmailProviderEventsTable.outboxId, messageIds))
-          .orderBy(
-            asc(staffEmailProviderEventsTable.providerEventAt),
-            asc(staffEmailProviderEventsTable.id),
-          )
-      : [];
-    const eventsByMessageId = new Map<
-      string,
-      { deliveryStatus: string; providerEventAt: Date }[]
-    >();
-    for (const event of providerEvents) {
-      const events = eventsByMessageId.get(event.outboxId) ?? [];
-      events.push({
-        deliveryStatus: event.deliveryStatus,
-        providerEventAt: event.providerEventAt,
+router.post(
+  "/admin/email/logo/upload-url",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsed = RequestAdminEmailLogoUploadBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Choose a PNG, JPEG, WebP, or GIF logo no larger than 2 MB.",
       });
-      eventsByMessageId.set(event.outboxId, events);
+      return;
     }
-    res.json(
-      ListAdminEmailOutboxResponse.parse(
-        records.map((record) => ({
-          ...serializeStaffEmailRecord(record),
-          providerEvents: eventsByMessageId.get(record.id) ?? [],
-        })),
+    if (!isPrivateStorageConfigured()) {
+      res.status(503).json({ error: "Email logo storage is unavailable." });
+      return;
+    }
+    try {
+      const uploadUrl =
+        await objectStorage.getObjectEntityUploadURL("email-logos");
+      const objectPath = objectStorage.normalizeObjectEntityPath(uploadUrl);
+      res.json(
+        RequestAdminEmailLogoUploadResponse.parse({ uploadUrl, objectPath }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to prepare email logo upload");
+      res
+        .status(503)
+        .json({ error: "An email logo upload could not be prepared." });
+    }
+  },
+);
+
+router.post(
+  "/admin/email/logo/complete",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsed = CompleteAdminEmailLogoUploadBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "The uploaded email logo path is invalid." });
+      return;
+    }
+    try {
+      const objectFile = await objectStorage.getObjectEntityFile(
+        parsed.data.objectPath,
+      );
+      const [metadata] = await objectFile.getMetadata();
+      const contentType = String(metadata.contentType ?? "");
+      const sizeBytes = Number(metadata.size);
+      if (
+        !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(
+          contentType,
+        ) ||
+        !Number.isInteger(sizeBytes) ||
+        sizeBytes < 1 ||
+        sizeBytes > 2 * 1024 * 1024
+      ) {
+        await objectFile
+          .delete({ ignoreNotFound: true })
+          .catch(() => undefined);
+        res.status(400).json({
+          error:
+            "The uploaded logo must be a supported image no larger than 2 MB.",
+        });
+        return;
+      }
+      const [signatureBytes] = await objectFile.download({
+        start: 0,
+        end: Math.min(sizeBytes - 1, 11),
+      });
+      if (!emailLogoSignatureMatches(contentType, signatureBytes)) {
+        await objectFile
+          .delete({ ignoreNotFound: true })
+          .catch(() => undefined);
+        res.status(400).json({
+          error: "The uploaded file content is not a supported image format.",
+        });
+        return;
+      }
+      res.json(
+        CompleteAdminEmailLogoUploadResponse.parse({
+          objectPath: parsed.data.objectPath,
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to verify email logo upload");
+      res
+        .status(400)
+        .json({ error: "Upload the selected logo before confirming it." });
+    }
+  },
+);
+
+router.get(
+  "/admin/email/settings",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const configuration = await getStaffEmailConfiguration();
+      const isAdmin = res.locals.staffRole === "admin";
+      res.json(
+        GetAdminEmailSettingsResponse.parse({
+          ...configuration,
+          ...(isAdmin
+            ? {}
+            : {
+                recipients: [],
+                alerts: {
+                  contact_received: false,
+                  step_saved: false,
+                  contact_updated: false,
+                  evidence_saved: false,
+                  application_submitted: false,
+                },
+              }),
+          updatedAt: configuration.updatedAt
+            ? new Date(configuration.updatedAt)
+            : null,
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to load staff email settings");
+      res.status(503).json({ error: "Email settings could not be loaded." });
+    }
+  },
+);
+
+router.put(
+  "/admin/email/settings",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const parsed = UpdateAdminEmailSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "Check the recipient addresses and alert settings." });
+      return;
+    }
+    const { branding } = parsed.data;
+    let workspaceSenderAddress: string;
+    try {
+      workspaceSenderAddress = await getWorkspaceMailboxAddress();
+    } catch (error) {
+      req.log.error({ err: error }, "Google Workspace sender is unavailable");
+      res.status(503).json({
+        error: "The connected Google Workspace sender is unavailable.",
+      });
+      return;
+    }
+    if (
+      !isApprovedStaffSenderAddress(workspaceSenderAddress) ||
+      branding.senderEmail.trim().toLowerCase() !== workspaceSenderAddress
+    ) {
+      res.status(400).json({
+        error:
+          "The sender address must match the connected Google Workspace account.",
+      });
+      return;
+    }
+    if (
+      (branding.logoUrl !== null &&
+        (branding.logoUrl.length > 2048 ||
+          !/^https:\/\/[^\s]+$/i.test(branding.logoUrl))) ||
+      (branding.logoObjectPath !== null &&
+        !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(
+          branding.logoObjectPath,
+        )) ||
+      (branding.footerBackgroundUrl !== null &&
+        (branding.footerBackgroundUrl.length > 2048 ||
+          !/^https:\/\/[^\s]+$/i.test(branding.footerBackgroundUrl))) ||
+      (branding.footerBackgroundObjectPath !== null &&
+        !/^\/objects\/email-logos\/[0-9a-f-]{36}$/i.test(
+          branding.footerBackgroundObjectPath,
+        )) ||
+      !/^#[\da-f]{6}$/i.test(branding.accentColor) ||
+      !/^#[\da-f]{6}$/i.test(branding.headerColor) ||
+      !/^#[\da-f]{6}$/i.test(branding.footerLinkColor) ||
+      !/^#[\da-f]{6}$/i.test(branding.footerBackgroundColor) ||
+      !/^#[\da-f]{6}$/i.test(branding.footerTextColor) ||
+      !branding.senderName.trim() ||
+      branding.senderName.trim().length > 80 ||
+      /[<>\r\n]/.test(branding.senderName) ||
+      branding.senderEmail.trim().length > 254 ||
+      !branding.bannerTitle.trim() ||
+      branding.bannerTitle.length > 100 ||
+      branding.bannerMark.length > 12 ||
+      branding.bannerSubtitle.length > 120 ||
+      branding.preheaderText.length > 200 ||
+      branding.messageEyebrow.length > 80 ||
+      branding.footerText.length > 300 ||
+      branding.footerLinkText.length > 80 ||
+      (branding.footerLinkUrl !== null &&
+        (branding.footerLinkUrl.length > 2048 ||
+          !/^https:\/\/[^\s]+$/i.test(branding.footerLinkUrl))) ||
+      (branding.footerLinkUrl !== null && !branding.footerLinkText.trim())
+    ) {
+      res.status(400).json({
+        error:
+          "Check the email sender, banner text, colors, footer, link, and images.",
+      });
+      return;
+    }
+    const recipients = [
+      ...new Set(
+        parsed.data.recipients.map((email) => email.trim().toLowerCase()),
       ),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load staff email outbox");
-    res.status(503).json({ error: "Email history could not be loaded." });
-  }
-});
+    ];
+    try {
+      const isAdmin = res.locals.staffRole === "admin";
+      const normalizedBranding = {
+        ...branding,
+        logoUrl: branding.logoUrl?.trim() || null,
+        senderName: branding.senderName.trim(),
+        senderEmail: branding.senderEmail.trim().toLowerCase(),
+        bannerTitle: branding.bannerTitle.trim(),
+        bannerSubtitle: branding.bannerSubtitle.trim(),
+        preheaderText: branding.preheaderText.trim(),
+        messageEyebrow: branding.messageEyebrow.trim(),
+        footerBackgroundUrl: branding.footerBackgroundUrl?.trim() || null,
+      };
+      const configuration = isAdmin
+        ? await saveStaffEmailConfiguration(
+            recipients,
+            parsed.data.alerts,
+            normalizedBranding,
+            res.locals.userId as string,
+          )
+        : await saveStaffEmailBranding(
+            normalizedBranding,
+            res.locals.userId as string,
+          );
+      res.json(
+        UpdateAdminEmailSettingsResponse.parse({
+          ...configuration,
+          ...(isAdmin
+            ? {}
+            : {
+                recipients: [],
+                alerts: {
+                  contact_received: false,
+                  step_saved: false,
+                  contact_updated: false,
+                  evidence_saved: false,
+                  application_submitted: false,
+                },
+              }),
+          updatedAt: configuration.updatedAt
+            ? new Date(configuration.updatedAt)
+            : null,
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to save staff email settings");
+      res.status(503).json({ error: "Email settings could not be saved." });
+    }
+  },
+);
 
-router.get("/admin/email/templates", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    const templates = await db
-      .select()
-      .from(staffEmailTemplatesTable)
-      .orderBy(asc(staffEmailTemplatesTable.name), asc(staffEmailTemplatesTable.createdAt));
-    res.json(ListAdminEmailTemplatesResponse.parse(templates));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load staff email templates");
-    res.status(503).json({ error: "Email templates could not be loaded." });
-  }
-});
+router.get(
+  "/admin/email/outbox",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      let records = await db
+        .select()
+        .from(staffEmailOutboxTable)
+        .orderBy(desc(staffEmailOutboxTable.createdAt))
+        .limit(100);
+      try {
+        await refreshWorkspaceEmailDeliveryStatuses(records);
+      } catch (error) {
+        req.log.warn(
+          { err: error },
+          "Could not refresh Gmail delivery notices",
+        );
+      }
+      records = await db
+        .select()
+        .from(staffEmailOutboxTable)
+        .orderBy(desc(staffEmailOutboxTable.createdAt))
+        .limit(100);
+      const messageIds = records.map((record) => record.id);
+      const providerEvents = messageIds.length
+        ? await db
+            .select({
+              outboxId: staffEmailProviderEventsTable.outboxId,
+              deliveryStatus: staffEmailProviderEventsTable.deliveryStatus,
+              providerEventAt: staffEmailProviderEventsTable.providerEventAt,
+            })
+            .from(staffEmailProviderEventsTable)
+            .where(inArray(staffEmailProviderEventsTable.outboxId, messageIds))
+            .orderBy(
+              asc(staffEmailProviderEventsTable.providerEventAt),
+              asc(staffEmailProviderEventsTable.id),
+            )
+        : [];
+      const eventsByMessageId = new Map<
+        string,
+        { deliveryStatus: string; providerEventAt: Date }[]
+      >();
+      for (const event of providerEvents) {
+        const events = eventsByMessageId.get(event.outboxId) ?? [];
+        events.push({
+          deliveryStatus: event.deliveryStatus,
+          providerEventAt: event.providerEventAt,
+        });
+        eventsByMessageId.set(event.outboxId, events);
+      }
+      res.json(
+        ListAdminEmailOutboxResponse.parse(
+          records.map((record) => ({
+            ...serializeStaffEmailRecord(record),
+            providerEvents: eventsByMessageId.get(record.id) ?? [],
+          })),
+        ),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to load staff email outbox");
+      res.status(503).json({ error: "Email history could not be loaded." });
+    }
+  },
+);
 
-router.post("/admin/email/templates", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const parsed = CreateAdminEmailTemplateBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Check the template name, subject, and message." });
-    return;
-  }
-  const name = parsed.data.name.trim();
-  const subject = parsed.data.subject.trim();
-  const messageText = parsed.data.messageText.trim();
-  if (!name || !subject || !messageText) {
-    res.status(400).json({ error: "Template name, subject, and message cannot be blank." });
-    return;
-  }
-  try {
-    const [template] = await db
-      .insert(staffEmailTemplatesTable)
-      .values({
-        name,
-        subject,
-        messageText,
-        createdByUserId: res.locals.userId as string,
-      })
-      .returning();
-    res.status(201).json(CreateAdminEmailTemplateResponse.parse(template));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to create staff email template");
-    res.status(503).json({ error: "Email template could not be saved." });
-  }
-});
+router.get(
+  "/admin/email/templates",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const templates = await db
+        .select()
+        .from(staffEmailTemplatesTable)
+        .orderBy(
+          asc(staffEmailTemplatesTable.name),
+          asc(staffEmailTemplatesTable.createdAt),
+        );
+      res.json(ListAdminEmailTemplatesResponse.parse(templates));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to load staff email templates");
+      res.status(503).json({ error: "Email templates could not be loaded." });
+    }
+  },
+);
+
+router.post(
+  "/admin/email/templates",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const parsed = CreateAdminEmailTemplateBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "Check the template name, subject, and message." });
+      return;
+    }
+    const name = parsed.data.name.trim();
+    const subject = parsed.data.subject.trim();
+    const messageText = parsed.data.messageText.trim();
+    if (!name || !subject || !messageText) {
+      res.status(400).json({
+        error: "Template name, subject, and message cannot be blank.",
+      });
+      return;
+    }
+    try {
+      const [template] = await db
+        .insert(staffEmailTemplatesTable)
+        .values({
+          name,
+          subject,
+          messageText,
+          createdByUserId: res.locals.userId as string,
+        })
+        .returning();
+      res.status(201).json(CreateAdminEmailTemplateResponse.parse(template));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to create staff email template");
+      res.status(503).json({ error: "Email template could not be saved." });
+    }
+  },
+);
 
 router.patch(
   "/admin/email/templates/:templateId",
@@ -4642,14 +5803,18 @@ router.patch(
     const params = UpdateAdminEmailTemplateParams.safeParse(req.params);
     const parsed = UpdateAdminEmailTemplateBody.safeParse(req.body);
     if (!params.success || !parsed.success) {
-      res.status(400).json({ error: "Check the template identifier, name, subject, and message." });
+      res.status(400).json({
+        error: "Check the template identifier, name, subject, and message.",
+      });
       return;
     }
     const name = parsed.data.name.trim();
     const subject = parsed.data.subject.trim();
     const messageText = parsed.data.messageText.trim();
     if (!name || !subject || !messageText) {
-      res.status(400).json({ error: "Template name, subject, and message cannot be blank." });
+      res.status(400).json({
+        error: "Template name, subject, and message cannot be blank.",
+      });
       return;
     }
     try {
@@ -4677,7 +5842,9 @@ router.delete(
     res.setHeader("Cache-Control", "no-store");
     const params = DeleteAdminEmailTemplateParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: "The email template identifier is invalid." });
+      res
+        .status(400)
+        .json({ error: "The email template identifier is invalid." });
       return;
     }
     try {
@@ -4697,268 +5864,353 @@ router.delete(
   },
 );
 
-router.post("/admin/email/send", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const parsed = SendAdminEmailBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Check the recipients, subject, and message before sending." });
-    return;
-  }
-  const subject = parsed.data.subject.trim();
-  const messageText = parsed.data.messageText.trim();
-  if (!subject || !messageText) {
-    res.status(400).json({ error: "Subject and message cannot be blank." });
-    return;
-  }
-  const recipients = [...new Set(
-    parsed.data.recipients.map((email) => email.trim().toLowerCase()),
-  )];
-  try {
-    const messages: StaffEmailOutboxRecord[] = [];
-    for (const recipientEmail of recipients) {
-      messages.push(
-        await dispatchStaffEmail({
-          idempotencyKey: emailRecipientIdempotencyKey(
-            `manual:${parsed.data.requestId}`,
+router.post(
+  "/admin/email/send",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const parsed = SendAdminEmailBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Check the recipients, subject, and message before sending.",
+      });
+      return;
+    }
+    const subject = parsed.data.subject.trim();
+    const messageText = parsed.data.messageText.trim();
+    if (!subject || !messageText) {
+      res.status(400).json({ error: "Subject and message cannot be blank." });
+      return;
+    }
+    const recipients = [
+      ...new Set(
+        parsed.data.recipients.map((email) => email.trim().toLowerCase()),
+      ),
+    ];
+    try {
+      const messages: StaffEmailOutboxRecord[] = [];
+      for (const recipientEmail of recipients) {
+        messages.push(
+          await dispatchStaffEmail({
+            idempotencyKey: emailRecipientIdempotencyKey(
+              `manual:${parsed.data.requestId}`,
+              recipientEmail,
+            ),
             recipientEmail,
-          ),
-          recipientEmail,
-          subject,
-          messageText,
-          eventKind: "manual",
-          createdByUserId: res.locals.userId as string,
+            subject,
+            messageText,
+            eventKind: "manual",
+            createdByUserId: res.locals.userId as string,
+          }),
+        );
+      }
+      res
+        .status(201)
+        .json(
+          SendAdminEmailResponse.parse(messages.map(serializeStaffEmailRecord)),
+        );
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to process staff email send request",
+      );
+      res
+        .status(503)
+        .json({ error: "The email request could not be recorded." });
+    }
+  },
+);
+
+router.get(
+  "/admin/email/sms/settings",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const configuration = await getStaffSmsConfiguration();
+      res.json(
+        GetAdminSmsSettingsResponse.parse({
+          ...configuration,
+          canConfigure: res.locals.staffRole === "admin",
+          updatedAt: configuration.updatedAt
+            ? new Date(configuration.updatedAt)
+            : null,
         }),
       );
-    }
-    res.status(201).json(
-      SendAdminEmailResponse.parse(messages.map(serializeStaffEmailRecord)),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to process staff email send request");
-    res.status(503).json({ error: "The email request could not be recorded." });
-  }
-});
-
-router.get("/admin/email/sms/settings", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    const configuration = await getStaffSmsConfiguration();
-    res.json(
-      GetAdminSmsSettingsResponse.parse({
-        ...configuration,
-        canConfigure: res.locals.staffRole === "admin",
-        updatedAt: configuration.updatedAt
-          ? new Date(configuration.updatedAt)
-          : null,
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load staff SMS settings");
-    res.status(503).json({ error: "SMS settings could not be loaded." });
-  }
-});
-
-router.put("/admin/email/sms/settings", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const parsed = UpdateAdminSmsSettingsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Enter at least one valid SMS setting." });
-    return;
-  }
-  if (
-    parsed.data.baseUrl === undefined &&
-    parsed.data.senderId === undefined &&
-    parsed.data.dailyLimit === undefined
-  ) {
-    res.status(400).json({ error: "Enter at least one SMS setting to save." });
-    return;
-  }
-  const isAdmin = res.locals.staffRole === "admin";
-  if (!isAdmin && (
-    parsed.data.baseUrl !== undefined ||
-    parsed.data.dailyLimit !== undefined
-  )) {
-    res.status(403).json({
-      error: "Only an administrator can change the Infobip base URL or daily SMS limit.",
-    });
-    return;
-  }
-  const normalizedBaseUrl = parsed.data.baseUrl === undefined
-    ? undefined
-    : normalizeInfobipBaseUrl(parsed.data.baseUrl);
-  const baseUrl = normalizedBaseUrl ?? undefined;
-  const senderId = parsed.data.senderId?.trim();
-  if (
-    (parsed.data.baseUrl !== undefined && normalizedBaseUrl === null) ||
-    (senderId !== undefined && !isValidInfobipSenderId(senderId))
-  ) {
-    res.status(400).json({
-      error: "Use the HTTPS Infobip base URL and a 3–11 character sender ID containing only letters and numbers.",
-    });
-    return;
-  }
-  try {
-    const saved = await saveStaffSmsConfiguration({
-      ...(baseUrl !== undefined ? { baseUrl } : {}),
-      ...(senderId !== undefined ? { senderId } : {}),
-      ...(parsed.data.dailyLimit !== undefined
-        ? { dailyLimit: parsed.data.dailyLimit }
-        : {}),
-      updatedByUserId: res.locals.userId as string,
-    });
-    res.json(
-      UpdateAdminSmsSettingsResponse.parse({
-        ...saved,
-        canConfigure: isAdmin,
-        updatedAt: saved.updatedAt ? new Date(saved.updatedAt) : null,
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to save staff SMS settings");
-    res.status(503).json({ error: "SMS settings could not be saved." });
-  }
-});
-
-router.post("/admin/email/sms/send", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  const parsed = SendAdminSmsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({
-      error: "Enter one phone number in international format and a message of up to 1,600 characters.",
-    });
-    return;
-  }
-
-  const apiKey = process.env.INFOBIP_API_KEY?.trim();
-  if (!apiKey) {
-    res.status(503).json({ error: "Infobip is not connected yet. Add INFOBIP_API_KEY in Replit Secrets." });
-    return;
-  }
-
-  let configuration;
-  try {
-    configuration = await getStaffSmsConfiguration();
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load staff SMS settings before sending");
-    res.status(503).json({ error: "SMS settings could not be loaded." });
-    return;
-  }
-  if (!configuration.deliveryReportUrl || !configuration.deliveryReportsConfigured) {
-    res.status(503).json({
-      error: "Configure a public callback URL and the Infobip HMAC-SHA256 signing secret before sending.",
-    });
-    return;
-  }
-  if (!configuration.baseUrl || !configuration.senderId) {
-    res.status(400).json({ error: "Save the Infobip base URL and sender ID before sending." });
-    return;
-  }
-
-  let quota;
-  try {
-    quota = await reserveStaffSmsDailyQuota();
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to reserve the daily SMS allowance");
-    res.status(503).json({ error: "The daily SMS allowance could not be checked." });
-    return;
-  }
-  if (!quota.allowed) {
-    res.status(429).json({
-      error: `Daily SMS limit reached (${quota.usedCount}/${quota.dailyLimit}). It resets at 00:00 UTC.`,
-    });
-    return;
-  }
-
-  let attempt;
-  try {
-    attempt = await createStaffSmsAttempt({
-      recipientPhone: parsed.data.recipientPhone,
-      senderId: configuration.senderId,
-      messageText: parsed.data.messageText,
-      createdByUserId: res.locals.userId as string,
-    });
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to record a staff SMS attempt");
-    res.status(503).json({ error: "The SMS attempt could not be recorded, so it was not sent." });
-    return;
-  }
-
-  let result: Awaited<ReturnType<typeof sendInfobipSms>>;
-  try {
-    result = await sendInfobipSms({
-      baseUrl: configuration.baseUrl,
-      apiKey,
-      senderId: configuration.senderId,
-      recipientPhone: parsed.data.recipientPhone,
-      messageText: parsed.data.messageText,
-      deliveryReportUrl: configuration.deliveryReportUrl,
-      callbackData: attempt.id,
-    });
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to send a staff SMS through Infobip");
-    try {
-      await markStaffSmsFailed(
-        attempt.id,
-        "The request did not return a confirmed acceptance. Check Infobip activity before manually retrying.",
-      );
-    } catch (recordError) {
-      req.log.error({ err: recordError }, "Failed to mark the SMS attempt as uncertain");
-    }
-    res.status(503).json({
-      error: "Could not reach Infobip. Check the connection and provider activity before retrying.",
-    });
-    return;
-  }
-
-  if (!result.ok) {
-    req.log.warn({ providerStatus: result.status }, "Infobip rejected a staff SMS request");
-    const failureMessage = result.status === 429
-      ? "Infobip rate limit reached."
-      : result.status === 401 || result.status === 403
-        ? "Infobip rejected the API credential or sender ID."
-        : result.status === 400 || result.status === 422
-          ? "Infobip rejected the number, sender ID, or message."
-          : "Infobip did not accept the message. Check provider activity before manually retrying.";
-    try {
-      await markStaffSmsFailed(attempt.id, failureMessage);
     } catch (error) {
-      req.log.error({ err: error }, "Failed to record the rejected SMS attempt");
+      req.log.error({ err: error }, "Failed to load staff SMS settings");
+      res.status(503).json({ error: "SMS settings could not be loaded." });
     }
-    if (result.status === 429) {
-      res.status(429).json({ error: "Infobip rate limit reached. Wait before sending another text." });
-      return;
-    }
-    if (result.status === 401 || result.status === 403) {
-      res.status(502).json({ error: "Infobip rejected the API credential or sender ID. Check the provider setup." });
-      return;
-    }
-    if (result.status === 400 || result.status === 422) {
-      res.status(400).json({ error: "Infobip rejected the number, sender ID, or message." });
-      return;
-    }
-    res.status(502).json({ error: "Infobip could not accept the message. Check provider activity before retrying." });
-    return;
-  }
+  },
+);
 
-  const acceptedAt = new Date();
-  try {
-    await markStaffSmsAccepted({
-      id: attempt.id,
-      providerMessageId: result.providerMessageId,
-      acceptedAt,
-    });
-    const savedAttempt = await getStaffSmsAttemptById(attempt.id);
-    if (!savedAttempt) throw new Error("Saved SMS attempt could not be loaded.");
-    res.status(201).json(
-      SendAdminSmsResponse.parse(serializeStaffSmsRecord(savedAttempt)),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Infobip accepted the SMS but its result could not be saved");
-    res.status(503).json({
-      error: "Infobip accepted the message, but the local result could not be saved. Check SMS activity before manually retrying.",
-    });
-  }
-});
+router.put(
+  "/admin/email/sms/settings",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const parsed = UpdateAdminSmsSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Enter at least one valid SMS setting." });
+      return;
+    }
+    if (
+      parsed.data.baseUrl === undefined &&
+      parsed.data.senderId === undefined &&
+      parsed.data.dailyLimit === undefined
+    ) {
+      res
+        .status(400)
+        .json({ error: "Enter at least one SMS setting to save." });
+      return;
+    }
+    const isAdmin = res.locals.staffRole === "admin";
+    if (
+      !isAdmin &&
+      (parsed.data.baseUrl !== undefined ||
+        parsed.data.dailyLimit !== undefined)
+    ) {
+      res.status(403).json({
+        error:
+          "Only an administrator can change the Infobip base URL or daily SMS limit.",
+      });
+      return;
+    }
+    const normalizedBaseUrl =
+      parsed.data.baseUrl === undefined
+        ? undefined
+        : normalizeInfobipBaseUrl(parsed.data.baseUrl);
+    const baseUrl = normalizedBaseUrl ?? undefined;
+    const senderId = parsed.data.senderId?.trim();
+    if (
+      (parsed.data.baseUrl !== undefined && normalizedBaseUrl === null) ||
+      (senderId !== undefined && !isValidInfobipSenderId(senderId))
+    ) {
+      res.status(400).json({
+        error:
+          "Use the HTTPS Infobip base URL and a 3–11 character sender ID containing only letters and numbers.",
+      });
+      return;
+    }
+    try {
+      const saved = await saveStaffSmsConfiguration({
+        ...(baseUrl !== undefined ? { baseUrl } : {}),
+        ...(senderId !== undefined ? { senderId } : {}),
+        ...(parsed.data.dailyLimit !== undefined
+          ? { dailyLimit: parsed.data.dailyLimit }
+          : {}),
+        updatedByUserId: res.locals.userId as string,
+      });
+      res.json(
+        UpdateAdminSmsSettingsResponse.parse({
+          ...saved,
+          canConfigure: isAdmin,
+          updatedAt: saved.updatedAt ? new Date(saved.updatedAt) : null,
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to save staff SMS settings");
+      res.status(503).json({ error: "SMS settings could not be saved." });
+    }
+  },
+);
+
+router.post(
+  "/admin/email/sms/send",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    const parsed = SendAdminSmsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error:
+          "Enter one phone number in international format and a message of up to 1,600 characters.",
+      });
+      return;
+    }
+
+    const apiKey = process.env.INFOBIP_API_KEY?.trim();
+    if (!apiKey) {
+      res.status(503).json({
+        error:
+          "Infobip is not connected yet. Add INFOBIP_API_KEY in Replit Secrets.",
+      });
+      return;
+    }
+
+    let configuration;
+    try {
+      configuration = await getStaffSmsConfiguration();
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to load staff SMS settings before sending",
+      );
+      res.status(503).json({ error: "SMS settings could not be loaded." });
+      return;
+    }
+    if (
+      !configuration.deliveryReportUrl ||
+      !configuration.deliveryReportsConfigured
+    ) {
+      res.status(503).json({
+        error:
+          "Configure a public callback URL and the Infobip HMAC-SHA256 signing secret before sending.",
+      });
+      return;
+    }
+    if (!configuration.baseUrl || !configuration.senderId) {
+      res.status(400).json({
+        error: "Save the Infobip base URL and sender ID before sending.",
+      });
+      return;
+    }
+
+    let quota;
+    try {
+      quota = await reserveStaffSmsDailyQuota();
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to reserve the daily SMS allowance",
+      );
+      res
+        .status(503)
+        .json({ error: "The daily SMS allowance could not be checked." });
+      return;
+    }
+    if (!quota.allowed) {
+      res.status(429).json({
+        error: `Daily SMS limit reached (${quota.usedCount}/${quota.dailyLimit}). It resets at 00:00 UTC.`,
+      });
+      return;
+    }
+
+    let attempt;
+    try {
+      attempt = await createStaffSmsAttempt({
+        recipientPhone: parsed.data.recipientPhone,
+        senderId: configuration.senderId,
+        messageText: parsed.data.messageText,
+        createdByUserId: res.locals.userId as string,
+      });
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to record a staff SMS attempt");
+      res.status(503).json({
+        error: "The SMS attempt could not be recorded, so it was not sent.",
+      });
+      return;
+    }
+
+    let result: Awaited<ReturnType<typeof sendInfobipSms>>;
+    try {
+      result = await sendInfobipSms({
+        baseUrl: configuration.baseUrl,
+        apiKey,
+        senderId: configuration.senderId,
+        recipientPhone: parsed.data.recipientPhone,
+        messageText: parsed.data.messageText,
+        deliveryReportUrl: configuration.deliveryReportUrl,
+        callbackData: attempt.id,
+      });
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to send a staff SMS through Infobip",
+      );
+      try {
+        await markStaffSmsFailed(
+          attempt.id,
+          "The request did not return a confirmed acceptance. Check Infobip activity before manually retrying.",
+        );
+      } catch (recordError) {
+        req.log.error(
+          { err: recordError },
+          "Failed to mark the SMS attempt as uncertain",
+        );
+      }
+      res.status(503).json({
+        error:
+          "Could not reach Infobip. Check the connection and provider activity before retrying.",
+      });
+      return;
+    }
+
+    if (!result.ok) {
+      req.log.warn(
+        { providerStatus: result.status },
+        "Infobip rejected a staff SMS request",
+      );
+      const failureMessage =
+        result.status === 429
+          ? "Infobip rate limit reached."
+          : result.status === 401 || result.status === 403
+            ? "Infobip rejected the API credential or sender ID."
+            : result.status === 400 || result.status === 422
+              ? "Infobip rejected the number, sender ID, or message."
+              : "Infobip did not accept the message. Check provider activity before manually retrying.";
+      try {
+        await markStaffSmsFailed(attempt.id, failureMessage);
+      } catch (error) {
+        req.log.error(
+          { err: error },
+          "Failed to record the rejected SMS attempt",
+        );
+      }
+      if (result.status === 429) {
+        res.status(429).json({
+          error:
+            "Infobip rate limit reached. Wait before sending another text.",
+        });
+        return;
+      }
+      if (result.status === 401 || result.status === 403) {
+        res.status(502).json({
+          error:
+            "Infobip rejected the API credential or sender ID. Check the provider setup.",
+        });
+        return;
+      }
+      if (result.status === 400 || result.status === 422) {
+        res.status(400).json({
+          error: "Infobip rejected the number, sender ID, or message.",
+        });
+        return;
+      }
+      res.status(502).json({
+        error:
+          "Infobip could not accept the message. Check provider activity before retrying.",
+      });
+      return;
+    }
+
+    const acceptedAt = new Date();
+    try {
+      await markStaffSmsAccepted({
+        id: attempt.id,
+        providerMessageId: result.providerMessageId,
+        acceptedAt,
+      });
+      const savedAttempt = await getStaffSmsAttemptById(attempt.id);
+      if (!savedAttempt)
+        throw new Error("Saved SMS attempt could not be loaded.");
+      res
+        .status(201)
+        .json(
+          SendAdminSmsResponse.parse(serializeStaffSmsRecord(savedAttempt)),
+        );
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Infobip accepted the SMS but its result could not be saved",
+      );
+      res.status(503).json({
+        error:
+          "Infobip accepted the message, but the local result could not be saved. Check SMS activity before manually retrying.",
+      });
+    }
+  },
+);
 
 function serializeStaffSmsRecord(record: StaffSmsOutboxRecord) {
   return {
@@ -4973,16 +6225,24 @@ function serializeStaffSmsRecord(record: StaffSmsOutboxRecord) {
   };
 }
 
-router.get("/admin/email/sms/activity", requireReviewer, async (req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    const records = await listStaffSmsAttempts();
-    res.json(ListAdminSmsActivityResponse.parse(records.map(serializeStaffSmsRecord)));
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load staff SMS activity");
-    res.status(503).json({ error: "SMS activity could not be loaded." });
-  }
-});
+router.get(
+  "/admin/email/sms/activity",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const records = await listStaffSmsAttempts();
+      res.json(
+        ListAdminSmsActivityResponse.parse(
+          records.map(serializeStaffSmsRecord),
+        ),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to load staff SMS activity");
+      res.status(503).json({ error: "SMS activity could not be loaded." });
+    }
+  },
+);
 
 router.post(
   "/admin/email/outbox/:messageId/retry",
@@ -5005,7 +6265,9 @@ router.post(
         return;
       }
       if (record.status !== "failed") {
-        res.status(409).json({ error: "Only failed email attempts can be retried." });
+        res
+          .status(409)
+          .json({ error: "Only failed email attempts can be retried." });
         return;
       }
       const retried = await dispatchStaffEmail({
@@ -5017,7 +6279,9 @@ router.post(
         applicationReference: record.applicationReference,
         createdByUserId: record.createdByUserId,
       });
-      res.json(RetryAdminEmailResponse.parse(serializeStaffEmailRecord(retried)));
+      res.json(
+        RetryAdminEmailResponse.parse(serializeStaffEmailRecord(retried)),
+      );
     } catch (error) {
       req.log.error({ err: error }, "Failed to retry staff email");
       res.status(503).json({ error: "Email retry could not be processed." });
@@ -5025,10 +6289,21 @@ router.post(
   },
 );
 
-router.get("/admin/overview", requireReviewer, async (req, res): Promise<void> => {
-  try {
-    const [users, total, submitted, underReview, approved, rejected, needsInformation, unresolved] =
-      await Promise.all([
+router.get(
+  "/admin/overview",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    try {
+      const [
+        users,
+        total,
+        submitted,
+        underReview,
+        approved,
+        rejected,
+        needsInformation,
+        unresolved,
+      ] = await Promise.all([
         clerkClient.users.getUserList({ limit: 1 }),
         db.select({ value: count() }).from(enrollmentApplicationsTable),
         db
@@ -5056,395 +6331,473 @@ router.get("/admin/overview", requireReviewer, async (req, res): Promise<void> =
           .from(supportTicketsTable)
           .where(inArray(supportTicketsTable.status, ["open", "in_progress"])),
       ]);
-    const [totalUsers] = [Number(users.totalCount ?? users.data.length)];
-    res.json(
-      GetAdminOverviewResponse.parse({
-        totalUsers,
-        totalApplications: Number(total[0]?.value ?? 0),
-        pendingApplications: Number(submitted[0]?.value ?? 0),
-        underReviewApplications: Number(underReview[0]?.value ?? 0),
-        approvedApplications: Number(approved[0]?.value ?? 0),
-        rejectedApplications: Number(rejected[0]?.value ?? 0),
-        needsInformationApplications: Number(needsInformation[0]?.value ?? 0),
-        unresolvedSupportRequests: Number(unresolved[0]?.value ?? 0),
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load administrator overview");
-    res.status(503).json({ error: "Dashboard totals are temporarily unavailable." });
-  }
-});
-
-router.get("/admin/users", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  const parsed = ListAdminUsersQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  try {
-    const [usersPage, applications] = await Promise.all([
-      clerkClient.users.getUserList({ limit: 500 }),
-      db
-        .select()
-        .from(enrollmentApplicationsTable)
-        .orderBy(desc(enrollmentApplicationsTable.updatedAt)),
-    ]);
-    const latestByUser = new Map<string, (typeof applications)[number]>();
-    for (const application of applications) {
-      if (!latestByUser.has(application.clerkUserId)) {
-        latestByUser.set(application.clerkUserId, application);
-      }
-    }
-    const search = parsed.data.search?.trim().toLowerCase() ?? "";
-    const users = usersPage.data
-      .map((user) => {
-        const application = latestByUser.get(user.id);
-        const staffRole = trustedStaffRole(user);
-        const accountStatus =
-          user.publicMetadata?.accountStatus === "suspended"
-            ? "suspended"
-            : "active";
-        const name =
-          [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || null;
-        const email =
-          user.emailAddresses.find(
-            (address) => address.id === user.primaryEmailAddressId,
-          )?.emailAddress ??
-          user.emailAddresses[0]?.emailAddress ??
-          null;
-        const enrollmentStatus =
-          application?.status === "draft" && application.currentStep > 0
-            ? "in_progress"
-            : application?.status ?? null;
-        return {
-          userId: user.id,
-          name,
-          username: user.username ?? null,
-          email,
-          role: staffRole ?? "applicant",
-          accountStatus,
-          applicationId: application?.id ?? null,
-          categoryId: application?.categoryId ?? null,
-          categoryName: application ? categoryName(application.categoryId) : null,
-          applicationReference: application?.reference ?? null,
-          registrationDate: new Date(user.createdAt).toISOString(),
-          enrollmentStatus,
-        };
-      })
-      .filter((user) => {
-        if (
-          parsed.data.accountStatus &&
-          user.accountStatus !== parsed.data.accountStatus
-        ) {
-          return false;
-        }
-        return (
-          !search ||
-          [
-            user.userId,
-            user.name,
-            user.username,
-            user.email,
-            user.categoryName,
-            user.applicationReference,
-            user.enrollmentStatus,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes(search)
-        );
-      });
-    res.json(
-      ListAdminUsersResponse.parse({
-        users,
-        totalCount: usersPage.totalCount ?? usersPage.data.length,
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load administrator user list");
-    res.status(503).json({ error: "User accounts are temporarily unavailable." });
-  }
-});
-
-router.post("/admin/users/invitations", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  const parsed = CreateAdminUserInvitationBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const originHeader = req.get("origin");
-  const rawForwardedHost = req.headers["x-forwarded-host"];
-  const forwardedHost = Array.isArray(rawForwardedHost)
-    ? rawForwardedHost[0]
-    : rawForwardedHost;
-  const requestHost = forwardedHost?.split(",")[0]?.trim() || req.get("host");
-  const rawForwardedProto = req.headers["x-forwarded-proto"];
-  const forwardedProto = Array.isArray(rawForwardedProto)
-    ? rawForwardedProto[0]
-    : rawForwardedProto;
-  let trustedOrigin: URL | null = null;
-
-  try {
-    if (originHeader && requestHost) {
-      const origin = new URL(originHeader);
-      const requestOrigin = new URL(
-        `${origin.protocol}//${requestHost}`,
+      const [totalUsers] = [Number(users.totalCount ?? users.data.length)];
+      res.json(
+        GetAdminOverviewResponse.parse({
+          totalUsers,
+          totalApplications: Number(total[0]?.value ?? 0),
+          pendingApplications: Number(submitted[0]?.value ?? 0),
+          underReviewApplications: Number(underReview[0]?.value ?? 0),
+          approvedApplications: Number(approved[0]?.value ?? 0),
+          rejectedApplications: Number(rejected[0]?.value ?? 0),
+          needsInformationApplications: Number(needsInformation[0]?.value ?? 0),
+          unresolvedSupportRequests: Number(unresolved[0]?.value ?? 0),
+        }),
       );
-      const requestProtocol = forwardedProto?.split(",")[0]?.trim();
-      if (
-        ["http:", "https:"].includes(origin.protocol) &&
-        origin.host.toLowerCase() === requestOrigin.host.toLowerCase() &&
-        (!requestProtocol || `${requestProtocol}:` === origin.protocol)
-      ) {
-        trustedOrigin = origin;
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to load administrator overview");
+      res
+        .status(503)
+        .json({ error: "Dashboard totals are temporarily unavailable." });
+    }
+  },
+);
+
+router.get(
+  "/admin/users",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const parsed = ListAdminUsersQueryParams.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const [usersPage, applications] = await Promise.all([
+        clerkClient.users.getUserList({ limit: 500 }),
+        db
+          .select()
+          .from(enrollmentApplicationsTable)
+          .orderBy(desc(enrollmentApplicationsTable.updatedAt)),
+      ]);
+      const latestByUser = new Map<string, (typeof applications)[number]>();
+      for (const application of applications) {
+        if (!latestByUser.has(application.clerkUserId)) {
+          latestByUser.set(application.clerkUserId, application);
+        }
       }
+      const search = parsed.data.search?.trim().toLowerCase() ?? "";
+      const users = usersPage.data
+        .map((user) => {
+          const application = latestByUser.get(user.id);
+          const staffRole = trustedStaffRole(user);
+          const accountStatus =
+            user.publicMetadata?.accountStatus === "suspended"
+              ? "suspended"
+              : "active";
+          const name =
+            [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+            null;
+          const email =
+            user.emailAddresses.find(
+              (address) => address.id === user.primaryEmailAddressId,
+            )?.emailAddress ??
+            user.emailAddresses[0]?.emailAddress ??
+            null;
+          const enrollmentStatus =
+            application?.status === "draft" && application.currentStep > 0
+              ? "in_progress"
+              : (application?.status ?? null);
+          return {
+            userId: user.id,
+            name,
+            username: user.username ?? null,
+            email,
+            role: staffRole ?? "applicant",
+            accountStatus,
+            applicationId: application?.id ?? null,
+            categoryId: application?.categoryId ?? null,
+            categoryName: application
+              ? categoryName(application.categoryId)
+              : null,
+            applicationReference: application?.reference ?? null,
+            registrationDate: new Date(user.createdAt).toISOString(),
+            enrollmentStatus,
+          };
+        })
+        .filter((user) => {
+          if (
+            parsed.data.accountStatus &&
+            user.accountStatus !== parsed.data.accountStatus
+          ) {
+            return false;
+          }
+          return (
+            !search ||
+            [
+              user.userId,
+              user.name,
+              user.username,
+              user.email,
+              user.categoryName,
+              user.applicationReference,
+              user.enrollmentStatus,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase()
+              .includes(search)
+          );
+        });
+      res.json(
+        ListAdminUsersResponse.parse({
+          users,
+          totalCount: usersPage.totalCount ?? usersPage.data.length,
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to load administrator user list");
+      res
+        .status(503)
+        .json({ error: "User accounts are temporarily unavailable." });
     }
-  } catch {
-    trustedOrigin = null;
-  }
+  },
+);
 
-  if (!trustedOrigin) {
-    res.status(403).json({ error: "Staff invitations must be sent from the portal." });
-    return;
-  }
-
-  const email = parsed.data.email.trim().toLowerCase();
-  const allowlistedRole = allowlistedStaffRole(email);
-  if (
-    (allowlistedRole && parsed.data.role !== allowlistedRole) ||
-    (!allowlistedRole && parsed.data.role !== "moderator")
-  ) {
-    res.status(403).json({
-      error:
-        "Admin and sub-admin invitations are limited to their verified allowlisted email addresses.",
-    });
-    return;
-  }
-  const redirectUrl = new URL("/staff/sign-up", trustedOrigin).toString();
-  try {
-    const invitation = await clerkClient.invitations.createInvitation({
-      emailAddress: email,
-      expiresInDays: 7,
-      notify: true,
-      redirectUrl,
-      publicMetadata: { role: parsed.data.role },
-    });
-    res.status(201).json(
-      CreateAdminUserInvitationResponse.parse({
-        invitationId: invitation.id,
-        email: invitation.emailAddress,
-        role: parsed.data.role,
-        message: `Invitation email sent to ${invitation.emailAddress}.`,
-      }),
-    );
-  } catch (error) {
-    const errorStatus =
-      typeof error === "object" && error !== null && "status" in error
-        ? Number((error as { status?: unknown }).status)
-        : Number.NaN;
-    if ([400, 409, 422].includes(errorStatus)) {
-      res.status(409).json({
-        error: "This email already has an account or an active invitation.",
-      });
+router.post(
+  "/admin/users/invitations",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const parsed = CreateAdminUserInvitationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
-    req.log.error(
-      { clerkStatus: Number.isFinite(errorStatus) ? errorStatus : undefined },
-      "Failed to send staff invitation",
-    );
-    res.status(503).json({ error: "The staff invitation could not be sent." });
-  }
-});
 
-router.patch("/admin/users/:userId/status", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  const params = UpdateAdminUserStatusParams.safeParse(req.params);
-  const parsed = UpdateAdminUserStatusBody.safeParse(req.body);
-  if (!params.success || !parsed.success) {
-    res.status(400).json({
-      error: !params.success ? params.error.message : (parsed.error?.message ?? "Invalid request body"),
-    });
-    return;
-  }
-  if (params.data.userId === res.locals.userId) {
-    res.status(400).json({ error: "You cannot suspend your own staff account." });
-    return;
-  }
-  try {
-    const target = await clerkClient.users.getUser(params.data.userId);
-    if (trustedStaffRole(target)) {
-      res.status(403).json({ error: "Staff accounts cannot be suspended here." });
+    const originHeader = req.get("origin");
+    const rawForwardedHost = req.headers["x-forwarded-host"];
+    const forwardedHost = Array.isArray(rawForwardedHost)
+      ? rawForwardedHost[0]
+      : rawForwardedHost;
+    const requestHost = forwardedHost?.split(",")[0]?.trim() || req.get("host");
+    const rawForwardedProto = req.headers["x-forwarded-proto"];
+    const forwardedProto = Array.isArray(rawForwardedProto)
+      ? rawForwardedProto[0]
+      : rawForwardedProto;
+    let trustedOrigin: URL | null = null;
+
+    try {
+      if (originHeader && requestHost) {
+        const origin = new URL(originHeader);
+        const requestOrigin = new URL(`${origin.protocol}//${requestHost}`);
+        const requestProtocol = forwardedProto?.split(",")[0]?.trim();
+        if (
+          ["http:", "https:"].includes(origin.protocol) &&
+          origin.host.toLowerCase() === requestOrigin.host.toLowerCase() &&
+          (!requestProtocol || `${requestProtocol}:` === origin.protocol)
+        ) {
+          trustedOrigin = origin;
+        }
+      }
+    } catch {
+      trustedOrigin = null;
+    }
+
+    if (!trustedOrigin) {
+      res
+        .status(403)
+        .json({ error: "Staff invitations must be sent from the portal." });
       return;
     }
-    const updated = await clerkClient.users.updateUserMetadata(params.data.userId, {
-      publicMetadata: { accountStatus: parsed.data.accountStatus },
-    });
-    const email =
-      updated.emailAddresses.find(
-        (address) => address.id === updated.primaryEmailAddressId,
-      )?.emailAddress ??
-      updated.emailAddresses[0]?.emailAddress ??
-      null;
-    res.json(
-      UpdateAdminUserStatusResponse.parse({
-        userId: updated.id,
-        name:
-          [updated.firstName, updated.lastName].filter(Boolean).join(" ").trim() ||
-          null,
-        username: updated.username ?? null,
-        email,
-        role: "applicant",
-        accountStatus: parsed.data.accountStatus,
-        applicationId: null,
-        categoryId: null,
-        categoryName: null,
-        applicationReference: null,
-        registrationDate: new Date(updated.createdAt).toISOString(),
-        enrollmentStatus: null,
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error, targetUserId: params.data.userId }, "Failed to update user account status");
-    res.status(503).json({ error: "The account status could not be changed." });
-  }
-});
 
-router.patch("/admin/users/:userId/role", requirePrimaryAdmin, async (req, res): Promise<void> => {
-  const params = UpdateAdminUserRoleParams.safeParse(req.params);
-  const parsed = UpdateAdminUserRoleBody.safeParse(req.body);
-  if (!params.success || !parsed.success) {
-    res.status(400).json({ error: !params.success ? params.error.message : (parsed.error?.message ?? "Invalid request body") });
-    return;
-  }
-  if (params.data.userId === res.locals.userId) {
-    res.status(400).json({ error: "You cannot change your own staff role." });
-    return;
-  }
-  try {
-    const target = await clerkClient.users.getUser(params.data.userId);
-    const targetEmail = verifiedPrimaryStaffEmail(target);
-    const allowlistedRole = targetEmail
-      ? allowlistedStaffRole(targetEmail)
-      : undefined;
-    const requestedRole = parsed.data.role;
-    const isPrivilegedStaffRole =
-      requestedRole === "admin" || requestedRole === "sub_admin";
-    const primaryEmailIsVerified =
-      target.primaryEmailAddress?.verification?.status === "verified";
+    const email = parsed.data.email.trim().toLowerCase();
+    const allowlistedRole = allowlistedStaffRole(email);
     if (
-      (allowlistedRole !== undefined && requestedRole !== allowlistedRole) ||
-      (isPrivilegedStaffRole && requestedRole !== allowlistedRole) ||
-      (requestedRole !== "applicant" && !primaryEmailIsVerified)
+      (allowlistedRole && parsed.data.role !== allowlistedRole) ||
+      (!allowlistedRole && parsed.data.role !== "moderator")
     ) {
       res.status(403).json({
         error:
-          "Admin and sub-admin roles are fixed to verified allowlisted accounts; other staff access requires a verified, explicit support invitation.",
+          "Admin and sub-admin invitations are limited to their verified allowlisted email addresses.",
       });
       return;
     }
-    const updated = await clerkClient.users.updateUserMetadata(params.data.userId, {
-      publicMetadata: {
-        ...target.publicMetadata,
-        role: requestedRole === "applicant" ? null : requestedRole,
-      },
-    });
-    const email =
-      updated.emailAddresses.find((address) => address.id === updated.primaryEmailAddressId)?.emailAddress ??
-      updated.emailAddresses[0]?.emailAddress ??
-      null;
-    res.json(UpdateAdminUserRoleResponse.parse({
-      userId: updated.id,
-      name: [updated.firstName, updated.lastName].filter(Boolean).join(" ").trim() || null,
-      username: updated.username ?? null,
-      email,
-      role: parsed.data.role,
-      accountStatus: updated.publicMetadata?.accountStatus === "suspended" ? "suspended" : "active",
-      applicationId: null,
-      categoryId: null,
-      categoryName: null,
-      applicationReference: null,
-      registrationDate: new Date(updated.createdAt).toISOString(),
-      enrollmentStatus: null,
-    }));
-  } catch (error) {
-    req.log.error({ err: error, targetUserId: params.data.userId }, "Failed to assign staff role");
-    res.status(503).json({ error: "The user role could not be changed." });
-  }
-});
+    const redirectUrl = new URL("/staff/sign-up", trustedOrigin).toString();
+    try {
+      const invitation = await clerkClient.invitations.createInvitation({
+        emailAddress: email,
+        expiresInDays: 7,
+        notify: true,
+        redirectUrl,
+        publicMetadata: { role: parsed.data.role },
+      });
+      res.status(201).json(
+        CreateAdminUserInvitationResponse.parse({
+          invitationId: invitation.id,
+          email: invitation.emailAddress,
+          role: parsed.data.role,
+          message: `Invitation email sent to ${invitation.emailAddress}.`,
+        }),
+      );
+    } catch (error) {
+      const errorStatus =
+        typeof error === "object" && error !== null && "status" in error
+          ? Number((error as { status?: unknown }).status)
+          : Number.NaN;
+      if ([400, 409, 422].includes(errorStatus)) {
+        res.status(409).json({
+          error: "This email already has an account or an active invitation.",
+        });
+        return;
+      }
+      req.log.error(
+        { clerkStatus: Number.isFinite(errorStatus) ? errorStatus : undefined },
+        "Failed to send staff invitation",
+      );
+      res
+        .status(503)
+        .json({ error: "The staff invitation could not be sent." });
+    }
+  },
+);
 
-router.get("/admin/applications/:applicationId", requireReviewer, async (req, res): Promise<void> => {
-  const params = GetAdminApplicationParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const [application] = await db
-    .select()
-    .from(enrollmentApplicationsTable)
-    .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
-    .limit(1);
-  if (!application) {
-    res.status(404).json({ error: "Application not found." });
-    return;
-  }
-  let reviewApplication = application;
-  let sourceGuestSubmissionStatus: string | null = null;
-  if (application.sourceGuestPreapplicationId) {
-    const [sourceGuestApplication] = await db
-      .select({
-        fullName: guestPreapplicationsTable.fullName,
-        email: guestPreapplicationsTable.email,
-        phone: guestPreapplicationsTable.phone,
-        emailVerified: guestPreapplicationsTable.emailVerified,
-        submissionStatus: guestPreapplicationsTable.submissionStatus,
-      })
-      .from(guestPreapplicationsTable)
-      .where(eq(guestPreapplicationsTable.id, application.sourceGuestPreapplicationId))
-      .limit(1);
-    if (sourceGuestApplication) {
-      sourceGuestSubmissionStatus = sourceGuestApplication.submissionStatus;
-      reviewApplication = {
-        ...application,
-        answers: {
-          ...(application.answers ?? {}),
-          contactDetails: {
-            fullName: sourceGuestApplication.fullName,
-            email: sourceGuestApplication.email,
-            phone: sourceGuestApplication.phone,
-            emailVerified: sourceGuestApplication.emailVerified,
+router.patch(
+  "/admin/users/:userId/status",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const params = UpdateAdminUserStatusParams.safeParse(req.params);
+    const parsed = UpdateAdminUserStatusBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({
+        error: !params.success
+          ? params.error.message
+          : (parsed.error?.message ?? "Invalid request body"),
+      });
+      return;
+    }
+    if (params.data.userId === res.locals.userId) {
+      res
+        .status(400)
+        .json({ error: "You cannot suspend your own staff account." });
+      return;
+    }
+    try {
+      const target = await clerkClient.users.getUser(params.data.userId);
+      if (trustedStaffRole(target)) {
+        res
+          .status(403)
+          .json({ error: "Staff accounts cannot be suspended here." });
+        return;
+      }
+      const updated = await clerkClient.users.updateUserMetadata(
+        params.data.userId,
+        {
+          publicMetadata: { accountStatus: parsed.data.accountStatus },
+        },
+      );
+      const email =
+        updated.emailAddresses.find(
+          (address) => address.id === updated.primaryEmailAddressId,
+        )?.emailAddress ??
+        updated.emailAddresses[0]?.emailAddress ??
+        null;
+      res.json(
+        UpdateAdminUserStatusResponse.parse({
+          userId: updated.id,
+          name:
+            [updated.firstName, updated.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || null,
+          username: updated.username ?? null,
+          email,
+          role: "applicant",
+          accountStatus: parsed.data.accountStatus,
+          applicationId: null,
+          categoryId: null,
+          categoryName: null,
+          applicationReference: null,
+          registrationDate: new Date(updated.createdAt).toISOString(),
+          enrollmentStatus: null,
+        }),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error, targetUserId: params.data.userId },
+        "Failed to update user account status",
+      );
+      res
+        .status(503)
+        .json({ error: "The account status could not be changed." });
+    }
+  },
+);
+
+router.patch(
+  "/admin/users/:userId/role",
+  requirePrimaryAdmin,
+  async (req, res): Promise<void> => {
+    const params = UpdateAdminUserRoleParams.safeParse(req.params);
+    const parsed = UpdateAdminUserRoleBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({
+        error: !params.success
+          ? params.error.message
+          : (parsed.error?.message ?? "Invalid request body"),
+      });
+      return;
+    }
+    if (params.data.userId === res.locals.userId) {
+      res.status(400).json({ error: "You cannot change your own staff role." });
+      return;
+    }
+    try {
+      const target = await clerkClient.users.getUser(params.data.userId);
+      const targetEmail = verifiedPrimaryStaffEmail(target);
+      const allowlistedRole = targetEmail
+        ? allowlistedStaffRole(targetEmail)
+        : undefined;
+      const requestedRole = parsed.data.role;
+      const isPrivilegedStaffRole =
+        requestedRole === "admin" || requestedRole === "sub_admin";
+      const primaryEmailIsVerified =
+        target.primaryEmailAddress?.verification?.status === "verified";
+      if (
+        (allowlistedRole !== undefined && requestedRole !== allowlistedRole) ||
+        (isPrivilegedStaffRole && requestedRole !== allowlistedRole) ||
+        (requestedRole !== "applicant" && !primaryEmailIsVerified)
+      ) {
+        res.status(403).json({
+          error:
+            "Admin and sub-admin roles are fixed to verified allowlisted accounts; other staff access requires a verified, explicit support invitation.",
+        });
+        return;
+      }
+      const updated = await clerkClient.users.updateUserMetadata(
+        params.data.userId,
+        {
+          publicMetadata: {
+            ...target.publicMetadata,
+            role: requestedRole === "applicant" ? null : requestedRole,
           },
         },
-      };
+      );
+      const email =
+        updated.emailAddresses.find(
+          (address) => address.id === updated.primaryEmailAddressId,
+        )?.emailAddress ??
+        updated.emailAddresses[0]?.emailAddress ??
+        null;
+      res.json(
+        UpdateAdminUserRoleResponse.parse({
+          userId: updated.id,
+          name:
+            [updated.firstName, updated.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim() || null,
+          username: updated.username ?? null,
+          email,
+          role: parsed.data.role,
+          accountStatus:
+            updated.publicMetadata?.accountStatus === "suspended"
+              ? "suspended"
+              : "active",
+          applicationId: null,
+          categoryId: null,
+          categoryName: null,
+          applicationReference: null,
+          registrationDate: new Date(updated.createdAt).toISOString(),
+          enrollmentStatus: null,
+        }),
+      );
+    } catch (error) {
+      req.log.error(
+        { err: error, targetUserId: params.data.userId },
+        "Failed to assign staff role",
+      );
+      res.status(503).json({ error: "The user role could not be changed." });
     }
-  }
-  const response: Record<string, unknown> = serializeApplication(reviewApplication, true, true);
-  response.assignedReviewerUserId = application.assignedReviewerUserId ?? null;
-  if (
-    application.sourceGuestPreapplicationId &&
-    sourceGuestSubmissionStatus === "submitted"
-  ) {
-    const evidence = await db
+  },
+);
+
+router.get(
+  "/admin/applications/:applicationId",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const params = GetAdminApplicationParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [application] = await db
       .select()
-      .from(guestPreapplicationEvidenceTable)
-      .where(eq(
-        guestPreapplicationEvidenceTable.applicationId,
-        application.sourceGuestPreapplicationId,
-      ))
-      .orderBy(desc(guestPreapplicationEvidenceTable.createdAt));
-    response.evidence = evidence.map((item) => ({
-      ...serializeGuestEvidence(item),
-      downloadUrl: item.uploadedAt
-        ? `/api/admin/applications/${application.id}/evidence/${item.id}/file`
-        : null,
-    }));
-  }
-  res.json(GetAdminApplicationResponse.parse(response));
-});
+      .from(enrollmentApplicationsTable)
+      .where(eq(enrollmentApplicationsTable.id, params.data.applicationId))
+      .limit(1);
+    if (!application) {
+      res.status(404).json({ error: "Application not found." });
+      return;
+    }
+    let reviewApplication = application;
+    let sourceGuestSubmissionStatus: string | null = null;
+    if (application.sourceGuestPreapplicationId) {
+      const [sourceGuestApplication] = await db
+        .select({
+          fullName: guestPreapplicationsTable.fullName,
+          email: guestPreapplicationsTable.email,
+          phone: guestPreapplicationsTable.phone,
+          emailVerified: guestPreapplicationsTable.emailVerified,
+          submissionStatus: guestPreapplicationsTable.submissionStatus,
+        })
+        .from(guestPreapplicationsTable)
+        .where(
+          eq(
+            guestPreapplicationsTable.id,
+            application.sourceGuestPreapplicationId,
+          ),
+        )
+        .limit(1);
+      if (sourceGuestApplication) {
+        sourceGuestSubmissionStatus = sourceGuestApplication.submissionStatus;
+        reviewApplication = {
+          ...application,
+          answers: {
+            ...(application.answers ?? {}),
+            contactDetails: {
+              fullName: sourceGuestApplication.fullName,
+              email: sourceGuestApplication.email,
+              phone: sourceGuestApplication.phone,
+              emailVerified: sourceGuestApplication.emailVerified,
+            },
+          },
+        };
+      }
+    }
+    const response: Record<string, unknown> = serializeApplication(
+      reviewApplication,
+      true,
+      true,
+    );
+    response.assignedReviewerUserId =
+      application.assignedReviewerUserId ?? null;
+    if (
+      application.sourceGuestPreapplicationId &&
+      sourceGuestSubmissionStatus === "submitted"
+    ) {
+      const evidence = await db
+        .select()
+        .from(guestPreapplicationEvidenceTable)
+        .where(
+          eq(
+            guestPreapplicationEvidenceTable.applicationId,
+            application.sourceGuestPreapplicationId,
+          ),
+        )
+        .orderBy(desc(guestPreapplicationEvidenceTable.createdAt));
+      response.evidence = evidence.map((item) => ({
+        ...serializeGuestEvidence(item),
+        downloadUrl: item.uploadedAt
+          ? `/api/admin/applications/${application.id}/evidence/${item.id}/file`
+          : null,
+      }));
+    }
+    res.json(GetAdminApplicationResponse.parse(response));
+  },
+);
 
 type ReviewableApplicationType =
-  | "guest_preapplication"
-  | "enrollment_application";
+  "guest_preapplication" | "enrollment_application";
 
 router.get(
   "/admin/reviewer-assignments/:applicationType/:applicationId",
@@ -5452,7 +6805,9 @@ router.get(
   async (req, res): Promise<void> => {
     const params = GetAdminReviewerAssignmentParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: "Reviewer assignment could not be loaded." });
+      res
+        .status(400)
+        .json({ error: "Reviewer assignment could not be loaded." });
       return;
     }
     const { applicationType, applicationId } = params.data;
@@ -5469,7 +6824,8 @@ router.get(
         : await db
             .select({
               id: enrollmentApplicationsTable.id,
-              reviewerUserId: enrollmentApplicationsTable.assignedReviewerUserId,
+              reviewerUserId:
+                enrollmentApplicationsTable.assignedReviewerUserId,
             })
             .from(enrollmentApplicationsTable)
             .where(eq(enrollmentApplicationsTable.id, applicationId))
@@ -5495,7 +6851,9 @@ router.put(
     const params = SetAdminReviewerAssignmentParams.safeParse(req.params);
     const body = SetAdminReviewerAssignmentBody.safeParse(req.body);
     if (!params.success || !body.success) {
-      res.status(400).json({ error: "Choose a valid application and reviewer." });
+      res
+        .status(400)
+        .json({ error: "Choose a valid application and reviewer." });
       return;
     }
     const { applicationType, applicationId } = params.data;
@@ -5514,7 +6872,9 @@ router.put(
           return;
         }
       } catch {
-        res.status(503).json({ error: "Reviewer authorization could not be verified." });
+        res
+          .status(503)
+          .json({ error: "Reviewer authorization could not be verified." });
         return;
       }
     }
@@ -5569,8 +6929,10 @@ async function revealInvitationCodeForReview(
       const [application] = await transaction
         .select({
           id: guestPreapplicationsTable.id,
-          assignedReviewerUserId: guestPreapplicationsTable.assignedReviewerUserId,
-          invitationCodeCiphertext: guestPreapplicationsTable.invitationCodeCiphertext,
+          assignedReviewerUserId:
+            guestPreapplicationsTable.assignedReviewerUserId,
+          invitationCodeCiphertext:
+            guestPreapplicationsTable.invitationCodeCiphertext,
           referenceCode: guestPreapplicationsTable.referenceCode,
         })
         .from(guestPreapplicationsTable)
@@ -5584,7 +6946,8 @@ async function revealInvitationCodeForReview(
       ) {
         return { kind: "forbidden" };
       }
-      storedCode = application.invitationCodeCiphertext ?? application.referenceCode;
+      storedCode =
+        application.invitationCodeCiphertext ?? application.referenceCode;
       hasLegacyPlaintext = Boolean(application.referenceCode);
       hasCiphertext = Boolean(application.invitationCodeCiphertext);
       scope = `guest:${application.id}`;
@@ -5592,10 +6955,13 @@ async function revealInvitationCodeForReview(
       const [application] = await transaction
         .select({
           id: enrollmentApplicationsTable.id,
-          assignedReviewerUserId: enrollmentApplicationsTable.assignedReviewerUserId,
-          invitationCodeCiphertext: enrollmentApplicationsTable.invitationCodeCiphertext,
+          assignedReviewerUserId:
+            enrollmentApplicationsTable.assignedReviewerUserId,
+          invitationCodeCiphertext:
+            enrollmentApplicationsTable.invitationCodeCiphertext,
           referenceCode: enrollmentApplicationsTable.referenceCode,
-          sourceGuestPreapplicationId: enrollmentApplicationsTable.sourceGuestPreapplicationId,
+          sourceGuestPreapplicationId:
+            enrollmentApplicationsTable.sourceGuestPreapplicationId,
         })
         .from(enrollmentApplicationsTable)
         .where(eq(enrollmentApplicationsTable.id, applicationId))
@@ -5608,7 +6974,8 @@ async function revealInvitationCodeForReview(
       ) {
         return { kind: "forbidden" };
       }
-      storedCode = application.invitationCodeCiphertext ?? application.referenceCode;
+      storedCode =
+        application.invitationCodeCiphertext ?? application.referenceCode;
       hasLegacyPlaintext = Boolean(application.referenceCode);
       hasCiphertext = Boolean(application.invitationCodeCiphertext);
       scope = `application:${application.id}`;
@@ -5616,18 +6983,22 @@ async function revealInvitationCodeForReview(
         const [sourceGuest] = await transaction
           .select({
             id: guestPreapplicationsTable.id,
-            invitationCodeCiphertext: guestPreapplicationsTable.invitationCodeCiphertext,
+            invitationCodeCiphertext:
+              guestPreapplicationsTable.invitationCodeCiphertext,
             referenceCode: guestPreapplicationsTable.referenceCode,
           })
           .from(guestPreapplicationsTable)
-          .where(eq(
-            guestPreapplicationsTable.id,
-            application.sourceGuestPreapplicationId,
-          ))
+          .where(
+            eq(
+              guestPreapplicationsTable.id,
+              application.sourceGuestPreapplicationId,
+            ),
+          )
           .for("update")
           .limit(1);
         if (sourceGuest) {
-          storedCode = sourceGuest.invitationCodeCiphertext ?? sourceGuest.referenceCode;
+          storedCode =
+            sourceGuest.invitationCodeCiphertext ?? sourceGuest.referenceCode;
           hasLegacyPlaintext = Boolean(sourceGuest.referenceCode);
           hasCiphertext = Boolean(sourceGuest.invitationCodeCiphertext);
           scope = `guest:${sourceGuest.id}`;
@@ -5691,7 +7062,9 @@ router.post(
     res.setHeader("X-Content-Type-Options", "nosniff");
     const params = GetAdminApplicationParams.safeParse(req.params);
     if (!params.success) {
-      res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+      res.status(404).json({
+        error: "Invitation Code is unavailable for this application.",
+      });
       return;
     }
     try {
@@ -5703,25 +7076,34 @@ router.post(
       );
       if (result.kind === "forbidden") {
         res.status(403).json({
-          error: "You are not assigned to review this application's Invitation Code.",
+          error:
+            "You are not assigned to review this application's Invitation Code.",
         });
         return;
       }
       if (result.kind === "not_found") {
-        res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+        res.status(404).json({
+          error: "Invitation Code is unavailable for this application.",
+        });
         return;
       }
       if (result.kind === "unavailable") {
-        res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+        res
+          .status(503)
+          .json({ error: "Invitation Code is temporarily unavailable." });
         return;
       }
-      res.json(RevealAdminApplicationInvitationCodeResponse.parse({
-        applicationId: params.data.applicationId,
-        code: result.code,
-        revealedAt: result.revealedAt.toISOString(),
-      }));
+      res.json(
+        RevealAdminApplicationInvitationCodeResponse.parse({
+          applicationId: params.data.applicationId,
+          code: result.code,
+          revealedAt: result.revealedAt.toISOString(),
+        }),
+      );
     } catch {
-      res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+      res
+        .status(503)
+        .json({ error: "Invitation Code is temporarily unavailable." });
     }
   },
 );
@@ -5735,7 +7117,9 @@ router.post(
     res.setHeader("X-Content-Type-Options", "nosniff");
     const params = UpdateAdminGuestPreapplicationParams.safeParse(req.params);
     if (!params.success) {
-      res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+      res.status(404).json({
+        error: "Invitation Code is unavailable for this application.",
+      });
       return;
     }
     try {
@@ -5747,25 +7131,34 @@ router.post(
       );
       if (result.kind === "forbidden") {
         res.status(403).json({
-          error: "You are not assigned to review this application's Invitation Code.",
+          error:
+            "You are not assigned to review this application's Invitation Code.",
         });
         return;
       }
       if (result.kind === "not_found") {
-        res.status(404).json({ error: "Invitation Code is unavailable for this application." });
+        res.status(404).json({
+          error: "Invitation Code is unavailable for this application.",
+        });
         return;
       }
       if (result.kind === "unavailable") {
-        res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+        res
+          .status(503)
+          .json({ error: "Invitation Code is temporarily unavailable." });
         return;
       }
-      res.json(RevealAdminGuestPreapplicationInvitationCodeResponse.parse({
-        applicationId: params.data.applicationId,
-        code: result.code,
-        revealedAt: result.revealedAt.toISOString(),
-      }));
+      res.json(
+        RevealAdminGuestPreapplicationInvitationCodeResponse.parse({
+          applicationId: params.data.applicationId,
+          code: result.code,
+          revealedAt: result.revealedAt.toISOString(),
+        }),
+      );
     } catch {
-      res.status(503).json({ error: "Invitation Code is temporarily unavailable." });
+      res
+        .status(503)
+        .json({ error: "Invitation Code is temporarily unavailable." });
     }
   },
 );
@@ -5776,7 +7169,9 @@ router.get(
   async (req, res): Promise<void> => {
     res.setHeader("Cache-Control", "private, no-store, max-age=0");
     res.setHeader("Pragma", "no-cache");
-    const params = DownloadSubmittedApplicationEvidenceParams.safeParse(req.params);
+    const params = DownloadSubmittedApplicationEvidenceParams.safeParse(
+      req.params,
+    );
     if (!params.success) {
       res.status(404).json({ error: "Uploaded evidence file not found." });
       return;
@@ -5797,10 +7192,12 @@ router.get(
           submissionStatus: guestPreapplicationsTable.submissionStatus,
         })
         .from(guestPreapplicationsTable)
-        .where(eq(
-          guestPreapplicationsTable.id,
-          application.sourceGuestPreapplicationId,
-        ))
+        .where(
+          eq(
+            guestPreapplicationsTable.id,
+            application.sourceGuestPreapplicationId,
+          ),
+        )
         .limit(1);
       if (sourceGuestApplication?.submissionStatus !== "submitted") {
         res.status(404).json({ error: "Uploaded evidence file not found." });
@@ -5809,19 +7206,23 @@ router.get(
       const [evidence] = await db
         .select()
         .from(guestPreapplicationEvidenceTable)
-        .where(and(
-          eq(guestPreapplicationEvidenceTable.id, evidenceId),
-          eq(
-            guestPreapplicationEvidenceTable.applicationId,
-            application.sourceGuestPreapplicationId,
+        .where(
+          and(
+            eq(guestPreapplicationEvidenceTable.id, evidenceId),
+            eq(
+              guestPreapplicationEvidenceTable.applicationId,
+              application.sourceGuestPreapplicationId,
+            ),
           ),
-        ))
+        )
         .limit(1);
       if (!evidence?.uploadedAt) {
         res.status(404).json({ error: "Uploaded evidence file not found." });
         return;
       }
-      const objectFile = await objectStorage.getObjectEntityFile(evidence.objectPath);
+      const objectFile = await objectStorage.getObjectEntityFile(
+        evidence.objectPath,
+      );
       const [metadata] = await objectFile.getMetadata();
       res.setHeader("Content-Type", evidence.contentType);
       res.setHeader("Content-Length", String(metadata.size));
@@ -5837,7 +7238,10 @@ router.get(
           "Failed to stream submitted application evidence",
         );
         if (res.headersSent) res.destroy(error);
-        else res.status(503).json({ error: "The evidence file could not be downloaded." });
+        else
+          res
+            .status(503)
+            .json({ error: "The evidence file could not be downloaded." });
       });
       stream.pipe(res);
     } catch (error) {
@@ -5849,7 +7253,9 @@ router.get(
         { err: error, applicationId, evidenceId },
         "Failed to open submitted application evidence",
       );
-      res.status(503).json({ error: "The evidence file could not be downloaded." });
+      res
+        .status(503)
+        .json({ error: "The evidence file could not be downloaded." });
     }
   },
 );
@@ -5866,7 +7272,9 @@ router.get(
     const events = await db
       .select()
       .from(applicationEventsTable)
-      .where(eq(applicationEventsTable.applicationId, params.data.applicationId))
+      .where(
+        eq(applicationEventsTable.applicationId, params.data.applicationId),
+      )
       .orderBy(desc(applicationEventsTable.createdAt));
     res.json(
       GetAdminApplicationHistoryResponse.parse(
@@ -5890,7 +7298,9 @@ router.post(
     const parsed = AddAdminApplicationNoteBody.safeParse(req.body);
     if (!params.success || !parsed.success) {
       res.status(400).json({
-        error: !params.success ? params.error.message : (parsed.error?.message ?? "Invalid request body"),
+        error: !params.success
+          ? params.error.message
+          : (parsed.error?.message ?? "Invalid request body"),
       });
       return;
     }
@@ -5928,149 +7338,183 @@ router.post(
   },
 );
 
-router.get("/admin/review/queue", requireReviewer, async (req, res): Promise<void> => {
-  const rawStatus = typeof req.query.status === "string" ? req.query.status.trim() : "";
-  const search = typeof req.query.search === "string"
-    ? req.query.search.trim().toLowerCase().slice(0, 200)
-    : "";
-  const allowedStatuses = new Set([
-    "draft",
-    "submitted",
-    "under_review",
-    "needs_information",
-    "approved",
-    "rejected",
-    "received",
-    "contacted",
-    "closed",
-  ]);
-  if (rawStatus && !allowedStatuses.has(rawStatus)) {
-    res.status(400).json({ error: "Unsupported review status." });
-    return;
-  }
-
-  try {
-    const [applications, guestApplications] = await Promise.all([
-      db.select()
-        .from(enrollmentApplicationsTable)
-        .orderBy(desc(enrollmentApplicationsTable.updatedAt))
-        .limit(500),
-      db.select()
-        .from(guestPreapplicationsTable)
-        .where(isNull(guestPreapplicationsTable.linkedApplicationId))
-        .orderBy(desc(guestPreapplicationsTable.updatedAt))
-        .limit(500),
+router.get(
+  "/admin/review/queue",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const rawStatus =
+      typeof req.query.status === "string" ? req.query.status.trim() : "";
+    const search =
+      typeof req.query.search === "string"
+        ? req.query.search.trim().toLowerCase().slice(0, 200)
+        : "";
+    const allowedStatuses = new Set([
+      "draft",
+      "submitted",
+      "under_review",
+      "needs_information",
+      "approved",
+      "rejected",
+      "received",
+      "contacted",
+      "closed",
     ]);
+    if (rawStatus && !allowedStatuses.has(rawStatus)) {
+      res.status(400).json({ error: "Unsupported review status." });
+      return;
+    }
 
-    const applicationItems = applications
-      .filter((application) => !rawStatus || application.status === rawStatus)
-      .map((application) => ({
-        recordType: "enrollment_application" as const,
-        id: application.id,
-        reference: application.reference,
-        status: application.status,
-        categoryId: application.categoryId,
-        categoryName: categoryName(application.categoryId),
-        applicantName: nestedString(application.answers ?? {}, "contactDetails", "fullName") || null,
-        applicantEmail: nestedString(application.answers ?? {}, "contactDetails", "email") || null,
-        submittedAt: application.submittedAt?.toISOString() ?? null,
-        createdAt: application.createdAt.toISOString(),
-        updatedAt: application.updatedAt.toISOString(),
-        reviewUrl: `/admin/applications/${application.id}`,
-      }));
+    try {
+      const [applications, guestApplications] = await Promise.all([
+        db
+          .select()
+          .from(enrollmentApplicationsTable)
+          .orderBy(desc(enrollmentApplicationsTable.updatedAt))
+          .limit(500),
+        db
+          .select()
+          .from(guestPreapplicationsTable)
+          .where(isNull(guestPreapplicationsTable.linkedApplicationId))
+          .orderBy(desc(guestPreapplicationsTable.updatedAt))
+          .limit(500),
+      ]);
 
-    const guestItems = guestApplications
-      .filter((application) =>
-        !rawStatus ||
-        application.status === rawStatus ||
-        application.submissionStatus === rawStatus,
-      )
-      .map((application) => ({
-        recordType: "guest_preapplication" as const,
-        id: application.id,
-        reference: application.reference,
-        status: application.status,
-        submissionStatus: application.submissionStatus,
-        categoryId: application.categoryId,
-        categoryName: categoryName(application.categoryId),
-        applicantName: application.fullName,
-        applicantEmail: application.email,
-        emailVerified: application.emailVerified,
-        detailsComplete: application.detailsComplete,
-        currentStep: application.currentStep,
-        createdAt: application.createdAt.toISOString(),
-        updatedAt: application.updatedAt.toISOString(),
-        reviewUrl: `/admin/guest-preapplications/${application.id}`,
-      }));
+      const applicationItems = applications
+        .filter((application) => !rawStatus || application.status === rawStatus)
+        .map((application) => ({
+          recordType: "enrollment_application" as const,
+          id: application.id,
+          reference: application.reference,
+          status: application.status,
+          categoryId: application.categoryId,
+          categoryName: categoryName(application.categoryId),
+          applicantName:
+            nestedString(
+              application.answers ?? {},
+              "contactDetails",
+              "fullName",
+            ) || null,
+          applicantEmail:
+            nestedString(
+              application.answers ?? {},
+              "contactDetails",
+              "email",
+            ) || null,
+          submittedAt: application.submittedAt?.toISOString() ?? null,
+          createdAt: application.createdAt.toISOString(),
+          updatedAt: application.updatedAt.toISOString(),
+          reviewUrl: `/admin/applications/${application.id}`,
+        }));
 
-    const items = [...applicationItems, ...guestItems]
-      .filter((item) => {
-        if (!search) return true;
-        return [
-          item.reference,
-          item.categoryName,
-          item.applicantName ?? "",
-          item.applicantEmail ?? "",
-          item.status,
-          item.recordType,
-          "submissionStatus" in item ? item.submissionStatus : "",
-        ].join(" ").toLowerCase().includes(search);
-      })
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-      .slice(0, 500);
+      const guestItems = guestApplications
+        .filter(
+          (application) =>
+            !rawStatus ||
+            application.status === rawStatus ||
+            application.submissionStatus === rawStatus,
+        )
+        .map((application) => ({
+          recordType: "guest_preapplication" as const,
+          id: application.id,
+          reference: application.reference,
+          status: application.status,
+          submissionStatus: application.submissionStatus,
+          categoryId: application.categoryId,
+          categoryName: categoryName(application.categoryId),
+          applicantName: application.fullName,
+          applicantEmail: application.email,
+          emailVerified: application.emailVerified,
+          detailsComplete: application.detailsComplete,
+          currentStep: application.currentStep,
+          createdAt: application.createdAt.toISOString(),
+          updatedAt: application.updatedAt.toISOString(),
+          reviewUrl: `/admin/guest-preapplications/${application.id}`,
+        }));
 
-    res.setHeader("Cache-Control", "private, no-store, max-age=0");
-    res.json({
-      items,
-      total: items.length,
-      counts: {
-        enrollmentApplications: applicationItems.length,
-        guestPreapplications: guestItems.length,
-      },
-    });
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to load unified staff review queue");
-    res.status(503).json({ error: "The review queue is temporarily unavailable." });
-  }
-});
+      const items = [...applicationItems, ...guestItems]
+        .filter((item) => {
+          if (!search) return true;
+          return [
+            item.reference,
+            item.categoryName,
+            item.applicantName ?? "",
+            item.applicantEmail ?? "",
+            item.status,
+            item.recordType,
+            "submissionStatus" in item ? item.submissionStatus : "",
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(search);
+        })
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+        .slice(0, 500);
 
-router.get("/admin/applications", requireReviewer, async (req, res): Promise<void> => {
-  const parsed = ListApplicationsForReviewQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const filters = [];
-  if (parsed.data.status) {
-    filters.push(
-      eq(enrollmentApplicationsTable.status, parsed.data.status as ApplicationStatus),
+      res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.json({
+        items,
+        total: items.length,
+        counts: {
+          enrollmentApplications: applicationItems.length,
+          guestPreapplications: guestItems.length,
+        },
+      });
+    } catch (error) {
+      req.log.error(
+        { err: error },
+        "Failed to load unified staff review queue",
+      );
+      res
+        .status(503)
+        .json({ error: "The review queue is temporarily unavailable." });
+    }
+  },
+);
+
+router.get(
+  "/admin/applications",
+  requireReviewer,
+  async (req, res): Promise<void> => {
+    const parsed = ListApplicationsForReviewQueryParams.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const filters = [];
+    if (parsed.data.status) {
+      filters.push(
+        eq(
+          enrollmentApplicationsTable.status,
+          parsed.data.status as ApplicationStatus,
+        ),
+      );
+    }
+    const applications = await db
+      .select()
+      .from(enrollmentApplicationsTable)
+      .where(and(...filters))
+      .orderBy(desc(enrollmentApplicationsTable.updatedAt));
+    const serialized = applications.map((application) =>
+      serializeApplication(application, false, true),
     );
-  }
-  const applications = await db
-    .select()
-    .from(enrollmentApplicationsTable)
-    .where(and(...filters))
-    .orderBy(desc(enrollmentApplicationsTable.updatedAt));
-  const serialized = applications.map((application) =>
-    serializeApplication(application, false, true),
-  );
-  const search = parsed.data.search?.trim().toLowerCase();
-  const results = search
-    ? serialized.filter((application) =>
-        [
-          application.reference,
-          application.categoryName,
-          application.applicantName ?? "",
-          application.applicantEmail ?? "",
-          application.status,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(search),
-      )
-    : serialized;
-  res.json(ListApplicationsForReviewResponse.parse(results));
-});
+    const search = parsed.data.search?.trim().toLowerCase();
+    const results = search
+      ? serialized.filter((application) =>
+          [
+            application.reference,
+            application.categoryName,
+            application.applicantName ?? "",
+            application.applicantEmail ?? "",
+            application.status,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(search),
+        )
+      : serialized;
+    res.json(ListApplicationsForReviewResponse.parse(results));
+  },
+);
 
 router.post(
   "/admin/applications/:applicationId/decision",
@@ -6097,8 +7541,14 @@ router.post(
       res.status(404).json({ error: "Application not found." });
       return;
     }
-    if (!["submitted", "under_review", "needs_information"].includes(application.status)) {
-      res.status(409).json({ error: "This application is not available for review." });
+    if (
+      !["submitted", "under_review", "needs_information"].includes(
+        application.status,
+      )
+    ) {
+      res
+        .status(409)
+        .json({ error: "This application is not available for review." });
       return;
     }
     if (
@@ -6131,7 +7581,7 @@ router.post(
       ...(application.answers ?? {}),
       __requestedSections:
         parsed.data.decision === "request_information"
-          ? parsed.data.reopenSections ?? []
+          ? (parsed.data.reopenSections ?? [])
           : [],
     };
     const updated = await db.transaction(async (transaction) => {
@@ -6162,11 +7612,16 @@ router.post(
     });
     if (!updated) {
       res.status(409).json({
-        error: "The application changed while this decision was being recorded.",
+        error:
+          "The application changed while this decision was being recorded.",
       });
       return;
     }
-    res.json(DecideApplicationResponse.parse(serializeApplication(updated, false, true)));
+    res.json(
+      DecideApplicationResponse.parse(
+        serializeApplication(updated, false, true),
+      ),
+    );
   },
 );
 
@@ -6185,23 +7640,34 @@ router.get("/admin/support/tickets", async (req, res): Promise<void> => {
       .from(enrollmentApplicationsTable),
     clerkClient.users.getUserList({ limit: 500 }),
   ]);
-  const references = new Map(applications.map((application) => [application.id, application.reference]));
-  const usersById = new Map(userPage.data.map((user) => [
-    user.id,
-    [
+  const references = new Map(
+    applications.map((application) => [application.id, application.reference]),
+  );
+  const usersById = new Map(
+    userPage.data.map((user) => [
       user.id,
-      user.username ?? "",
-      user.firstName ?? "",
-      user.lastName ?? "",
-      ...user.emailAddresses.map((address) => address.emailAddress),
-    ].join(" ").toLowerCase(),
-  ]));
-  const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+      [
+        user.id,
+        user.username ?? "",
+        user.firstName ?? "",
+        user.lastName ?? "",
+        ...user.emailAddresses.map((address) => address.emailAddress),
+      ]
+        .join(" ")
+        .toLowerCase(),
+    ]),
+  );
+  const search =
+    typeof req.query.search === "string"
+      ? req.query.search.trim().toLowerCase()
+      : "";
   const status = typeof req.query.status === "string" ? req.query.status : "";
   const serialized = tickets.map((ticket) =>
     serializeTicket(
       ticket,
-      ticket.applicationId ? references.get(ticket.applicationId) ?? null : null,
+      ticket.applicationId
+        ? (references.get(ticket.applicationId) ?? null)
+        : null,
     ),
   );
   const filtered = serialized.filter((ticket) => {
@@ -6293,7 +7759,9 @@ router.patch(
     const parsed = AssignSupportTicketBody.safeParse(req.body);
     if (!params.success || !parsed.success) {
       res.status(400).json({
-        error: !params.success ? params.error.message : (parsed.error?.message ?? "Invalid request body"),
+        error: !params.success
+          ? params.error.message
+          : (parsed.error?.message ?? "Invalid request body"),
       });
       return;
     }

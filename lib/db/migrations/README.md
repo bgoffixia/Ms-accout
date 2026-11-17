@@ -113,3 +113,28 @@ Existing `reviewer_user_id` decision history is not copied into the assignment
 columns. Roll back the app
 by stopping use of the new endpoints; leave these additive columns/indexes in
 place to preserve assignment history and avoid destructive rollback.
+
+`0006_applicant_form_content_supabase.sql` creates the separate
+`public.applicant_form_content` singleton table in Supabase for applicant-facing
+form copy. It is additive and transactional, does not touch application tables,
+enables RLS, revokes access from `PUBLIC`, `anon`, and `authenticated`, and
+grants only `SELECT`, `INSERT`, and `UPDATE` to Supabase `service_role`. The
+application runtime pins its form-content REST adapter to the exact host
+`uxmuqrzapklifcmpxclr.supabase.co`; it never falls back to `DATABASE_URL`.
+
+Before applying, independently verify the active connection host is
+`uxmuqrzapklifcmpxclr.supabase.co` for project `uxmuqrzapklifcmpxclr`
+(`ms-accout-production`, `ap-south-1`), confirm a recent restorable backup, and
+inspect the existing table schema/privileges. This workspace currently cannot
+prove that connection target or apply the migration, so do not run this SQL
+until the production Supabase connection is available and verified. The
+migration itself validates the expected columns, primary key, checks, and
+`service_role`; it aborts transactionally if a pre-existing object is
+incompatible. The initial row contains empty JSON and is inserted only when
+missing.
+
+Rollback by deploying the previous application build and leaving this additive
+table in place. Do not automatically drop it: it may contain administrator
+content. A future removal requires a separately reviewed migration, backup, and
+confirmation that no deployed version reads the table. No migration or database
+write is run automatically by the application code-generation or build steps.

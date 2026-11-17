@@ -5,117 +5,177 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import * as zod from 'zod';
-
+import * as zod from "zod";
 
 /**
  * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
-})
-
+  status: zod.string(),
+});
 
 /**
  * @summary List the four available enrollment categories
  */
 export const ListEnrollmentCategoriesResponseItem = zod.object({
-  "id": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "name": zod.string(),
-  "description": zod.string(),
-  "accent": zod.string()
-})
-export const ListEnrollmentCategoriesResponse = zod.array(ListEnrollmentCategoriesResponseItem)
-
+  id: zod.enum(["category-1", "category-2", "category-3", "category-4"]),
+  name: zod.string(),
+  description: zod.string(),
+  accent: zod.string(),
+});
+export const ListEnrollmentCategoriesResponse = zod.array(
+  ListEnrollmentCategoriesResponseItem,
+);
 
 /**
  * @summary List the signed-in applicant's applications
  */
 export const ListMyApplicationsResponseItem = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-export const ListMyApplicationsResponse = zod.array(ListMyApplicationsResponseItem)
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
+export const ListMyApplicationsResponse = zod.array(
+  ListMyApplicationsResponseItem,
+);
 
 /**
  * @summary Delete unfinished applications belonging to the signed-in applicant
  */
 export const deleteMyDraftsResponseDeletedCountMin = 0;
 
-
-
 export const DeleteMyDraftsResponse = zod.object({
-  "deletedCount": zod.number().int().min(deleteMyDraftsResponseDeletedCountMin)
-})
-
+  deletedCount: zod.number().int().min(deleteMyDraftsResponseDeletedCountMin),
+});
 
 /**
  * @summary Validate and submit a completed application without storing a draft
  */
 export const submitNewApplicationBodyReferenceCodeMax = 80;
 
-
-
 export const SubmitNewApplicationBody = zod.object({
-  "submissionId": zod.string().uuid(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "referenceCode": zod.string().max(submitNewApplicationBodyReferenceCodeMax).optional()
-})
+  submissionId: zod.string().uuid(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  answers: zod.record(zod.string(), zod.unknown()),
+  referenceCode: zod
+    .string()
+    .max(submitNewApplicationBodyReferenceCodeMax)
+    .optional(),
+});
 
 export const SubmitNewApplicationResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary Look up an applicant-owned application with its reference and private tracking key
@@ -123,220 +183,381 @@ export const SubmitNewApplicationResponse = zod.object({
 export const lookupApplicationByTrackingKeyBodyReferenceMin = 8;
 export const lookupApplicationByTrackingKeyBodyReferenceMax = 32;
 
-export const lookupApplicationByTrackingKeyBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-
+export const lookupApplicationByTrackingKeyBodyTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 
 export const LookupApplicationByTrackingKeyBody = zod.object({
-  "reference": zod.string().min(lookupApplicationByTrackingKeyBodyReferenceMin).max(lookupApplicationByTrackingKeyBodyReferenceMax),
-  "trackingKey": zod.string().regex(lookupApplicationByTrackingKeyBodyTrackingKeyRegExp)
-})
+  reference: zod
+    .string()
+    .min(lookupApplicationByTrackingKeyBodyReferenceMin)
+    .max(lookupApplicationByTrackingKeyBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(lookupApplicationByTrackingKeyBodyTrackingKeyRegExp),
+});
 
 export const lookupApplicationByTrackingKeyResponseCurrentStepMin = 0;
 export const lookupApplicationByTrackingKeyResponseCurrentStepMax = 7;
 
-
-
 export const LookupApplicationByTrackingKeyResponse = zod.object({
-  "applicationId": zod.string().uuid(),
-  "reference": zod.string(),
-  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['received', 'contacted', 'closed', 'draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "currentStep": zod.number().int().min(lookupApplicationByTrackingKeyResponseCurrentStepMin).max(lookupApplicationByTrackingKeyResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-})
-
+  applicationId: zod.string().uuid(),
+  reference: zod.string(),
+  applicationType: zod.enum(["guest_preapplication", "enrollment_application"]),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "received",
+    "contacted",
+    "closed",
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  submissionStatus: zod.enum(["draft", "submitted"]),
+  currentStep: zod
+    .number()
+    .int()
+    .min(lookupApplicationByTrackingKeyResponseCurrentStepMin)
+    .max(lookupApplicationByTrackingKeyResponseCurrentStepMax),
+  detailsComplete: zod.boolean(),
+  updatedAt: zod.coerce.date(),
+  reviewStatus: zod
+    .union([
+      zod.literal("draft"),
+      zod.literal("submitted"),
+      zod.literal("under_review"),
+      zod.literal("needs_information"),
+      zod.literal("approved"),
+      zod.literal("rejected"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicantFollowup: zod.string().nullable(),
+  outstandingRequirements: zod.array(zod.string()),
+});
 
 /**
  * @summary Create a server-saved draft for the signed-in applicant
  */
 export const CreateApplicationDraftBody = zod.object({
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4'])
-})
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+});
 
 export const CreateApplicationDraftResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary Get an application owned by the signed-in applicant
  */
 export const GetApplicationParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const GetApplicationResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary Save changes to an application draft
  */
 export const UpdateApplicationParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const updateApplicationBodyCurrentStepMin = 0;
 export const updateApplicationBodyCurrentStepMax = 7;
 
 export const updateApplicationBodyReferenceCodeMax = 80;
 
-
-
 export const UpdateApplicationBody = zod.object({
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']).optional(),
-  "currentStep": zod.number().int().min(updateApplicationBodyCurrentStepMin).max(updateApplicationBodyCurrentStepMax).optional(),
-  "answers": zod.record(zod.string(), zod.unknown()).optional(),
-  "referenceCode": zod.string().max(updateApplicationBodyReferenceCodeMax).optional()
-})
+  categoryId: zod
+    .enum(["category-1", "category-2", "category-3", "category-4"])
+    .optional(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(updateApplicationBodyCurrentStepMin)
+    .max(updateApplicationBodyCurrentStepMax)
+    .optional(),
+  answers: zod.record(zod.string(), zod.unknown()).optional(),
+  referenceCode: zod
+    .string()
+    .max(updateApplicationBodyReferenceCodeMax)
+    .optional(),
+});
 
 export const UpdateApplicationResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary Submit a completed application for review
  */
 export const SubmitApplicationParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const submitApplicationBodyReferenceCodeMax = 80;
 
-
-
 export const SubmitApplicationBody = zod.object({
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']).optional(),
-  "answers": zod.record(zod.string(), zod.unknown()).optional(),
-  "referenceCode": zod.string().max(submitApplicationBodyReferenceCodeMax).optional()
-})
+  categoryId: zod
+    .enum(["category-1", "category-2", "category-3", "category-4"])
+    .optional(),
+  answers: zod.record(zod.string(), zod.unknown()).optional(),
+  referenceCode: zod
+    .string()
+    .max(submitApplicationBodyReferenceCodeMax)
+    .optional(),
+});
 
 export const SubmitApplicationResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary Get applicant dashboard summary
  */
 export const GetApplicantSummaryResponse = zod.object({
-  "total": zod.number().int(),
-  "drafts": zod.number().int(),
-  "inReview": zod.number().int(),
-  "approved": zod.number().int(),
-  "needsAttention": zod.number().int()
-})
-
+  total: zod.number().int(),
+  drafts: zod.number().int(),
+  inReview: zod.number().int(),
+  approved: zod.number().int(),
+  needsAttention: zod.number().int(),
+});
 
 /**
  * @summary Create a guest pre-application
  */
-export const createGuestPreapplicationBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const createGuestPreapplicationBodyTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 export const createGuestPreapplicationBodyFullNameMin = 2;
 export const createGuestPreapplicationBodyFullNameMax = 160;
 
@@ -344,41 +565,59 @@ export const createGuestPreapplicationBodyEmailMax = 320;
 
 export const createGuestPreapplicationBodyPhoneMax = 40;
 
-
-
 export const CreateGuestPreapplicationBody = zod.object({
-  "submissionId": zod.string().uuid(),
-  "trackingKey": zod.string().regex(createGuestPreapplicationBodyTrackingKeyRegExp),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "fullName": zod.string().min(createGuestPreapplicationBodyFullNameMin).max(createGuestPreapplicationBodyFullNameMax),
-  "email": zod.string().email().max(createGuestPreapplicationBodyEmailMax),
-  "phone": zod.string().max(createGuestPreapplicationBodyPhoneMax).optional()
-})
+  submissionId: zod.string().uuid(),
+  trackingKey: zod
+    .string()
+    .regex(createGuestPreapplicationBodyTrackingKeyRegExp),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  fullName: zod
+    .string()
+    .min(createGuestPreapplicationBodyFullNameMin)
+    .max(createGuestPreapplicationBodyFullNameMax),
+  email: zod.string().email().max(createGuestPreapplicationBodyEmailMax),
+  phone: zod.string().max(createGuestPreapplicationBodyPhoneMax).optional(),
+});
 
-export const createGuestPreapplicationResponseTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const createGuestPreapplicationResponseTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 export const createGuestPreapplicationResponseCurrentStepMin = 0;
 export const createGuestPreapplicationResponseCurrentStepMax = 7;
 
-
-
 export const CreateGuestPreapplicationResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "trackingKey": zod.string().regex(createGuestPreapplicationResponseTrackingKeyRegExp),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(createGuestPreapplicationResponseCurrentStepMin).max(createGuestPreapplicationResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string().uuid(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  fullName: zod.string(),
+  email: zod.string().email(),
+  status: zod.enum(["received", "contacted", "closed"]),
+  submissionStatus: zod.enum(["draft", "submitted"]),
+  emailVerified: zod.boolean(),
+  trackingKey: zod
+    .string()
+    .regex(createGuestPreapplicationResponseTrackingKeyRegExp),
+  linkedApplicationId: zod.string().uuid().nullable(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(createGuestPreapplicationResponseCurrentStepMin)
+    .max(createGuestPreapplicationResponseCurrentStepMax),
+  detailsComplete: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 /**
  * @summary Replace a guest tracking key using its verified Clerk email
@@ -386,19 +625,22 @@ export const CreateGuestPreapplicationResponse = zod.object({
 export const recoverGuestTrackingKeyBodyReferenceMin = 8;
 export const recoverGuestTrackingKeyBodyReferenceMax = 32;
 
-
-
 export const RecoverGuestTrackingKeyBody = zod.object({
-  "reference": zod.string().min(recoverGuestTrackingKeyBodyReferenceMin).max(recoverGuestTrackingKeyBodyReferenceMax)
-})
+  reference: zod
+    .string()
+    .min(recoverGuestTrackingKeyBodyReferenceMin)
+    .max(recoverGuestTrackingKeyBodyReferenceMax),
+});
 
-export const recoverGuestTrackingKeyResponseTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-
+export const recoverGuestTrackingKeyResponseTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 
 export const RecoverGuestTrackingKeyResponse = zod.object({
-  "trackingKey": zod.string().regex(recoverGuestTrackingKeyResponseTrackingKeyRegExp)
-})
-
+  trackingKey: zod
+    .string()
+    .regex(recoverGuestTrackingKeyResponseTrackingKeyRegExp),
+});
 
 /**
  * @summary Restore a guest pre-application using its reference and private tracking key
@@ -406,152 +648,222 @@ export const RecoverGuestTrackingKeyResponse = zod.object({
 export const lookupGuestPreapplicationBodyReferenceMin = 8;
 export const lookupGuestPreapplicationBodyReferenceMax = 32;
 
-export const lookupGuestPreapplicationBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-
+export const lookupGuestPreapplicationBodyTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 
 export const LookupGuestPreapplicationBody = zod.object({
-  "reference": zod.string().min(lookupGuestPreapplicationBodyReferenceMin).max(lookupGuestPreapplicationBodyReferenceMax),
-  "trackingKey": zod.string().regex(lookupGuestPreapplicationBodyTrackingKeyRegExp)
-})
+  reference: zod
+    .string()
+    .min(lookupGuestPreapplicationBodyReferenceMin)
+    .max(lookupGuestPreapplicationBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(lookupGuestPreapplicationBodyTrackingKeyRegExp),
+});
 
 export const lookupGuestPreapplicationResponseCurrentStepMin = 0;
 export const lookupGuestPreapplicationResponseCurrentStepMax = 7;
 
-
-
 export const LookupGuestPreapplicationResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(lookupGuestPreapplicationResponseCurrentStepMin).max(lookupGuestPreapplicationResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-})
-
+  id: zod.string().uuid(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  fullName: zod.string(),
+  email: zod.string().email(),
+  status: zod.enum(["received", "contacted", "closed"]),
+  submissionStatus: zod.enum(["draft", "submitted"]),
+  emailVerified: zod.boolean(),
+  emailVerificationRequired: zod.boolean(),
+  linkedApplicationId: zod.string().uuid().nullable(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(lookupGuestPreapplicationResponseCurrentStepMin)
+    .max(lookupGuestPreapplicationResponseCurrentStepMax),
+  detailsComplete: zod.boolean(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  reviewStatus: zod
+    .union([
+      zod.literal("draft"),
+      zod.literal("submitted"),
+      zod.literal("under_review"),
+      zod.literal("needs_information"),
+      zod.literal("approved"),
+      zod.literal("rejected"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicantFollowup: zod.string().nullable(),
+  outstandingRequirements: zod.array(zod.string()),
+});
 
 /**
  * @summary Save guest application progress using its reference and private tracking key
  */
 export const UpdateGuestPreapplicationProgressParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const updateGuestPreapplicationProgressBodyReferenceMin = 8;
 export const updateGuestPreapplicationProgressBodyReferenceMax = 32;
 
-export const updateGuestPreapplicationProgressBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const updateGuestPreapplicationProgressBodyTrackingKeyRegExp =
+  new RegExp("^[A-Za-z0-9_-]{43}$");
 export const updateGuestPreapplicationProgressBodyCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressBodyCurrentStepMax = 7;
 
 export const updateGuestPreapplicationProgressBodyReferenceCodeMax = 80;
 
-
-
 export const UpdateGuestPreapplicationProgressBody = zod.object({
-  "reference": zod.string().min(updateGuestPreapplicationProgressBodyReferenceMin).max(updateGuestPreapplicationProgressBodyReferenceMax),
-  "trackingKey": zod.string().regex(updateGuestPreapplicationProgressBodyTrackingKeyRegExp),
-  "currentStep": zod.number().int().min(updateGuestPreapplicationProgressBodyCurrentStepMin).max(updateGuestPreapplicationProgressBodyCurrentStepMax),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "complete": zod.boolean(),
-  "referenceCode": zod.string().max(updateGuestPreapplicationProgressBodyReferenceCodeMax).optional()
-})
+  reference: zod
+    .string()
+    .min(updateGuestPreapplicationProgressBodyReferenceMin)
+    .max(updateGuestPreapplicationProgressBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(updateGuestPreapplicationProgressBodyTrackingKeyRegExp),
+  currentStep: zod
+    .number()
+    .int()
+    .min(updateGuestPreapplicationProgressBodyCurrentStepMin)
+    .max(updateGuestPreapplicationProgressBodyCurrentStepMax),
+  answers: zod.record(zod.string(), zod.unknown()),
+  complete: zod.boolean(),
+  referenceCode: zod
+    .string()
+    .max(updateGuestPreapplicationProgressBodyReferenceCodeMax)
+    .optional(),
+});
 
 export const updateGuestPreapplicationProgressResponseCurrentStepMin = 0;
 export const updateGuestPreapplicationProgressResponseCurrentStepMax = 7;
 
-
-
 export const UpdateGuestPreapplicationProgressResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(updateGuestPreapplicationProgressResponseCurrentStepMin).max(updateGuestPreapplicationProgressResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-})
-
+  id: zod.string().uuid(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  fullName: zod.string(),
+  email: zod.string().email(),
+  status: zod.enum(["received", "contacted", "closed"]),
+  submissionStatus: zod.enum(["draft", "submitted"]),
+  emailVerified: zod.boolean(),
+  emailVerificationRequired: zod.boolean(),
+  linkedApplicationId: zod.string().uuid().nullable(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(updateGuestPreapplicationProgressResponseCurrentStepMin)
+    .max(updateGuestPreapplicationProgressResponseCurrentStepMax),
+  detailsComplete: zod.boolean(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  reviewStatus: zod
+    .union([
+      zod.literal("draft"),
+      zod.literal("submitted"),
+      zod.literal("under_review"),
+      zod.literal("needs_information"),
+      zod.literal("approved"),
+      zod.literal("rejected"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicantFollowup: zod.string().nullable(),
+  outstandingRequirements: zod.array(zod.string()),
+});
 
 /**
  * @summary Correct a guest applicant email using its reference and private tracking key
  */
 export const UpdateGuestPreapplicationEmailParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const updateGuestPreapplicationEmailBodyReferenceMin = 8;
 export const updateGuestPreapplicationEmailBodyReferenceMax = 32;
 
-export const updateGuestPreapplicationEmailBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const updateGuestPreapplicationEmailBodyTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 export const updateGuestPreapplicationEmailBodyEmailMax = 320;
 
-
-
 export const UpdateGuestPreapplicationEmailBody = zod.object({
-  "reference": zod.string().min(updateGuestPreapplicationEmailBodyReferenceMin).max(updateGuestPreapplicationEmailBodyReferenceMax),
-  "trackingKey": zod.string().regex(updateGuestPreapplicationEmailBodyTrackingKeyRegExp),
-  "email": zod.string().email().max(updateGuestPreapplicationEmailBodyEmailMax)
-})
+  reference: zod
+    .string()
+    .min(updateGuestPreapplicationEmailBodyReferenceMin)
+    .max(updateGuestPreapplicationEmailBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(updateGuestPreapplicationEmailBodyTrackingKeyRegExp),
+  email: zod.string().email().max(updateGuestPreapplicationEmailBodyEmailMax),
+});
 
 export const updateGuestPreapplicationEmailResponseCurrentStepMin = 0;
 export const updateGuestPreapplicationEmailResponseCurrentStepMax = 7;
 
-
-
 export const UpdateGuestPreapplicationEmailResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(updateGuestPreapplicationEmailResponseCurrentStepMin).max(updateGuestPreapplicationEmailResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-})
-
+  id: zod.string().uuid(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  fullName: zod.string(),
+  email: zod.string().email(),
+  status: zod.enum(["received", "contacted", "closed"]),
+  submissionStatus: zod.enum(["draft", "submitted"]),
+  emailVerified: zod.boolean(),
+  emailVerificationRequired: zod.boolean(),
+  linkedApplicationId: zod.string().uuid().nullable(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(updateGuestPreapplicationEmailResponseCurrentStepMin)
+    .max(updateGuestPreapplicationEmailResponseCurrentStepMax),
+  detailsComplete: zod.boolean(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  reviewStatus: zod
+    .union([
+      zod.literal("draft"),
+      zod.literal("submitted"),
+      zod.literal("under_review"),
+      zod.literal("needs_information"),
+      zod.literal("approved"),
+      zod.literal("rejected"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicantFollowup: zod.string().nullable(),
+  outstandingRequirements: zod.array(zod.string()),
+});
 
 /**
  * @summary Prepare a private applicant evidence upload
  */
 export const RequestGuestApplicantEvidenceUploadParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const requestGuestApplicantEvidenceUploadBodyOneFileNameMax = 160;
 
@@ -562,178 +874,275 @@ export const requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax = 209715200;
 export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMin = 8;
 export const requestGuestApplicantEvidenceUploadBodyTwoReferenceMax = 32;
 
-export const requestGuestApplicantEvidenceUploadBodyTwoTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const requestGuestApplicantEvidenceUploadBodyTwoTrackingKeyRegExp =
+  new RegExp("^[A-Za-z0-9_-]{43}$");
 
-
-export const RequestGuestApplicantEvidenceUploadBody = zod.object({
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string().min(1).max(requestGuestApplicantEvidenceUploadBodyOneFileNameMax),
-  "contentType": zod.string().max(requestGuestApplicantEvidenceUploadBodyOneContentTypeMax),
-  "sizeBytes": zod.number().int().min(1).max(requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax)
-}).and(zod.object({
-  "reference": zod.string().min(requestGuestApplicantEvidenceUploadBodyTwoReferenceMin).max(requestGuestApplicantEvidenceUploadBodyTwoReferenceMax),
-  "trackingKey": zod.string().regex(requestGuestApplicantEvidenceUploadBodyTwoTrackingKeyRegExp),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate'])
-}))
+export const RequestGuestApplicantEvidenceUploadBody = zod
+  .object({
+    evidenceType: zod.enum([
+      "identity_document",
+      "verification_video",
+      "education_certificate",
+    ]),
+    evidenceSlot: zod.enum([
+      "identity_front",
+      "identity_back",
+      "verification_video",
+      "education_certificate",
+      "identity_document",
+    ]),
+    fileName: zod
+      .string()
+      .min(1)
+      .max(requestGuestApplicantEvidenceUploadBodyOneFileNameMax),
+    contentType: zod
+      .string()
+      .max(requestGuestApplicantEvidenceUploadBodyOneContentTypeMax),
+    sizeBytes: zod
+      .number()
+      .int()
+      .min(1)
+      .max(requestGuestApplicantEvidenceUploadBodyOneSizeBytesMax),
+  })
+  .and(
+    zod.object({
+      reference: zod
+        .string()
+        .min(requestGuestApplicantEvidenceUploadBodyTwoReferenceMin)
+        .max(requestGuestApplicantEvidenceUploadBodyTwoReferenceMax),
+      trackingKey: zod
+        .string()
+        .regex(requestGuestApplicantEvidenceUploadBodyTwoTrackingKeyRegExp),
+      evidenceSlot: zod.enum([
+        "identity_front",
+        "identity_back",
+        "verification_video",
+        "education_certificate",
+      ]),
+    }),
+  );
 
 export const RequestGuestApplicantEvidenceUploadResponse = zod.object({
-  "evidenceId": zod.string().uuid(),
-  "uploadUrl": zod.string().url()
-})
-
+  evidenceId: zod.string().uuid(),
+  uploadUrl: zod.string().url(),
+});
 
 /**
  * @summary Verify a private evidence upload and attach it to the guest application
  */
 export const CompleteGuestApplicantEvidenceUploadParams = zod.object({
-  "applicationId": zod.coerce.string().uuid(),
-  "evidenceId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+  evidenceId: zod.coerce.string().uuid(),
+});
 
 export const completeGuestApplicantEvidenceUploadBodyReferenceMin = 8;
 export const completeGuestApplicantEvidenceUploadBodyReferenceMax = 32;
 
-export const completeGuestApplicantEvidenceUploadBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-
+export const completeGuestApplicantEvidenceUploadBodyTrackingKeyRegExp =
+  new RegExp("^[A-Za-z0-9_-]{43}$");
 
 export const CompleteGuestApplicantEvidenceUploadBody = zod.object({
-  "reference": zod.string().min(completeGuestApplicantEvidenceUploadBodyReferenceMin).max(completeGuestApplicantEvidenceUploadBodyReferenceMax),
-  "trackingKey": zod.string().regex(completeGuestApplicantEvidenceUploadBodyTrackingKeyRegExp)
-})
+  reference: zod
+    .string()
+    .min(completeGuestApplicantEvidenceUploadBodyReferenceMin)
+    .max(completeGuestApplicantEvidenceUploadBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(completeGuestApplicantEvidenceUploadBodyTrackingKeyRegExp),
+});
 
 export const CompleteGuestApplicantEvidenceUploadResponse = zod.object({
-  "evidenceId": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate']),
-  "fileName": zod.string(),
-  "objectPath": zod.string(),
-  "uploadedAt": zod.coerce.date()
-})
-
+  evidenceId: zod.string().uuid(),
+  evidenceType: zod.enum([
+    "identity_document",
+    "verification_video",
+    "education_certificate",
+  ]),
+  evidenceSlot: zod.enum([
+    "identity_front",
+    "identity_back",
+    "verification_video",
+    "education_certificate",
+  ]),
+  fileName: zod.string(),
+  objectPath: zod.string(),
+  uploadedAt: zod.coerce.date(),
+});
 
 /**
  * @summary Submit a saved guest application before email verification
  */
 export const SubmitGuestPreapplicationParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const submitGuestPreapplicationBodyReferenceMin = 8;
 export const submitGuestPreapplicationBodyReferenceMax = 32;
 
-export const submitGuestPreapplicationBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-
+export const submitGuestPreapplicationBodyTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 
 export const SubmitGuestPreapplicationBody = zod.object({
-  "reference": zod.string().min(submitGuestPreapplicationBodyReferenceMin).max(submitGuestPreapplicationBodyReferenceMax),
-  "trackingKey": zod.string().regex(submitGuestPreapplicationBodyTrackingKeyRegExp)
-})
+  reference: zod
+    .string()
+    .min(submitGuestPreapplicationBodyReferenceMin)
+    .max(submitGuestPreapplicationBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(submitGuestPreapplicationBodyTrackingKeyRegExp),
+});
 
 export const submitGuestPreapplicationResponseCurrentStepMin = 0;
 export const submitGuestPreapplicationResponseCurrentStepMax = 7;
 
-
-
 export const SubmitGuestPreapplicationResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(submitGuestPreapplicationResponseCurrentStepMin).max(submitGuestPreapplicationResponseCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-})
-
+  id: zod.string().uuid(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  fullName: zod.string(),
+  email: zod.string().email(),
+  status: zod.enum(["received", "contacted", "closed"]),
+  submissionStatus: zod.enum(["draft", "submitted"]),
+  emailVerified: zod.boolean(),
+  emailVerificationRequired: zod.boolean(),
+  linkedApplicationId: zod.string().uuid().nullable(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(submitGuestPreapplicationResponseCurrentStepMin)
+    .max(submitGuestPreapplicationResponseCurrentStepMax),
+  detailsComplete: zod.boolean(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  reviewStatus: zod
+    .union([
+      zod.literal("draft"),
+      zod.literal("submitted"),
+      zod.literal("under_review"),
+      zod.literal("needs_information"),
+      zod.literal("approved"),
+      zod.literal("rejected"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicantFollowup: zod.string().nullable(),
+  outstandingRequirements: zod.array(zod.string()),
+});
 
 /**
  * @summary Link a submitted guest application to its verified applicant account
  */
 export const LinkGuestPreapplicationAccountParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const linkGuestPreapplicationAccountBodyReferenceMin = 8;
 export const linkGuestPreapplicationAccountBodyReferenceMax = 32;
 
-export const linkGuestPreapplicationAccountBodyTrackingKeyRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-
+export const linkGuestPreapplicationAccountBodyTrackingKeyRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{43}$",
+);
 
 export const LinkGuestPreapplicationAccountBody = zod.object({
-  "reference": zod.string().min(linkGuestPreapplicationAccountBodyReferenceMin).max(linkGuestPreapplicationAccountBodyReferenceMax),
-  "trackingKey": zod.string().regex(linkGuestPreapplicationAccountBodyTrackingKeyRegExp)
-})
+  reference: zod
+    .string()
+    .min(linkGuestPreapplicationAccountBodyReferenceMin)
+    .max(linkGuestPreapplicationAccountBodyReferenceMax),
+  trackingKey: zod
+    .string()
+    .regex(linkGuestPreapplicationAccountBodyTrackingKeyRegExp),
+});
 
 export const LinkGuestPreapplicationAccountResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary Check whether an email is allowed to use staff registration
  */
 export const checkStaffRegistrationEmailBodyEmailMax = 320;
 
-
-
 export const CheckStaffRegistrationEmailBody = zod.object({
-  "email": zod.string().email().max(checkStaffRegistrationEmailBodyEmailMax)
-})
+  email: zod.string().email().max(checkStaffRegistrationEmailBodyEmailMax),
+});
 
 export const CheckStaffRegistrationEmailResponse = zod.object({
-  "allowed": zod.boolean(),
-  "role": zod.enum(['admin', 'sub_admin']).optional()
-})
-
+  allowed: zod.boolean(),
+  role: zod.enum(["admin", "sub_admin"]).optional(),
+});
 
 /**
  * @summary Assign the allowed staff role to a verified allowlisted account
  */
 export const ClaimAllowlistedStaffAccessBody = zod.object({
-  "entrypoint": zod.enum(['admin', 'staff'])
-})
+  entrypoint: zod.enum(["admin", "staff"]),
+});
 
 export const ClaimAllowlistedStaffAccessResponse = zod.object({
-  "role": zod.enum(['admin', 'sub_admin', 'moderator']),
-  "message": zod.string()
-})
-
+  role: zod.enum(["admin", "sub_admin", "moderator"]),
+  message: zod.string(),
+});
 
 /**
  * @summary List guest pre-applications for authorized reviewers
@@ -744,75 +1153,123 @@ export const listAdminGuestPreapplicationsResponseOneCurrentStepMax = 7;
 export const listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMin = 0;
 export const listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMax = 7;
 
-
-
-export const ListAdminGuestPreapplicationsResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseOneCurrentStepMin).max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-}).and(zod.object({
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "phone": zod.string().nullable(),
-  "reviewReady": zod.boolean(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})),
-  "history": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "currentStep": zod.number().int().min(listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMin).max(listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMax),
-  "changes": zod.array(zod.object({
-  "field": zod.string(),
-  "before": zod.string(),
-  "after": zod.string()
-})),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedReviewerUserId": zod.string().nullable()
-}))
-export const ListAdminGuestPreapplicationsResponse = zod.array(ListAdminGuestPreapplicationsResponseItem)
-
+export const ListAdminGuestPreapplicationsResponseItem = zod
+  .object({
+    id: zod.string().uuid(),
+    reference: zod.string(),
+    categoryId: zod.enum([
+      "category-1",
+      "category-2",
+      "category-3",
+      "category-4",
+    ]),
+    categoryName: zod.string(),
+    fullName: zod.string(),
+    email: zod.string().email(),
+    status: zod.enum(["received", "contacted", "closed"]),
+    submissionStatus: zod.enum(["draft", "submitted"]),
+    emailVerified: zod.boolean(),
+    emailVerificationRequired: zod.boolean(),
+    linkedApplicationId: zod.string().uuid().nullable(),
+    currentStep: zod
+      .number()
+      .int()
+      .min(listAdminGuestPreapplicationsResponseOneCurrentStepMin)
+      .max(listAdminGuestPreapplicationsResponseOneCurrentStepMax),
+    detailsComplete: zod.boolean(),
+    answers: zod.record(zod.string(), zod.unknown()),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    reviewStatus: zod
+      .union([
+        zod.literal("draft"),
+        zod.literal("submitted"),
+        zod.literal("under_review"),
+        zod.literal("needs_information"),
+        zod.literal("approved"),
+        zod.literal("rejected"),
+        zod.literal(null),
+      ])
+      .nullable(),
+    applicantFollowup: zod.string().nullable(),
+    outstandingRequirements: zod.array(zod.string()),
+  })
+  .and(
+    zod.object({
+      fullName: zod.string(),
+      email: zod.string().email(),
+      phone: zod.string().nullable(),
+      reviewReady: zod.boolean(),
+      evidence: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          evidenceType: zod.enum([
+            "identity_document",
+            "verification_video",
+            "education_certificate",
+          ]),
+          evidenceSlot: zod.enum([
+            "identity_front",
+            "identity_back",
+            "verification_video",
+            "education_certificate",
+            "identity_document",
+          ]),
+          fileName: zod.string(),
+          contentType: zod.string(),
+          sizeBytes: zod.number().int(),
+          uploadedAt: zod.coerce.date().nullable(),
+          downloadUrl: zod.string().nullable(),
+        }),
+      ),
+      history: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          currentStep: zod
+            .number()
+            .int()
+            .min(
+              listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMin,
+            )
+            .max(
+              listAdminGuestPreapplicationsResponseTwoHistoryItemCurrentStepMax,
+            ),
+          changes: zod.array(
+            zod.object({
+              field: zod.string(),
+              before: zod.string(),
+              after: zod.string(),
+            }),
+          ),
+          createdAt: zod.coerce.date(),
+        }),
+      ),
+      assignedReviewerUserId: zod.string().nullable(),
+    }),
+  );
+export const ListAdminGuestPreapplicationsResponse = zod.array(
+  ListAdminGuestPreapplicationsResponseItem,
+);
 
 /**
  * @summary Reveal a guest Invitation Code to an authorized reviewer on demand
  */
 export const RevealAdminGuestPreapplicationInvitationCodeParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const revealAdminGuestPreapplicationInvitationCodeResponseCodeMax = 80;
 
-
-
 export const RevealAdminGuestPreapplicationInvitationCodeResponse = zod.object({
-  "applicationId": zod.string().uuid(),
-  "code": zod.string().max(revealAdminGuestPreapplicationInvitationCodeResponseCodeMax).describe('Returned only by an authenticated no-store reveal action for an authorized reviewer.'),
-  "revealedAt": zod.coerce.date()
-})
-
+  applicationId: zod.string().uuid(),
+  code: zod
+    .string()
+    .max(revealAdminGuestPreapplicationInvitationCodeResponseCodeMax)
+    .describe(
+      "Returned only by an authenticated no-store reveal action for an authorized reviewer.",
+    ),
+  revealedAt: zod.coerce.date(),
+});
 
 /**
  * @summary Permanently remove selected applicant records and their private evidence
@@ -821,36 +1278,40 @@ export const clearApplicantRecordsBodyGuestPreapplicationIdsMax = 100;
 
 export const clearApplicantRecordsBodyEnrollmentApplicationIdsMax = 100;
 
-
-
 export const ClearApplicantRecordsBody = zod.object({
-  "guestPreapplicationIds": zod.array(zod.string().uuid()).max(clearApplicantRecordsBodyGuestPreapplicationIdsMax),
-  "enrollmentApplicationIds": zod.array(zod.string().uuid()).max(clearApplicantRecordsBodyEnrollmentApplicationIdsMax)
-})
+  guestPreapplicationIds: zod
+    .array(zod.string().uuid())
+    .max(clearApplicantRecordsBodyGuestPreapplicationIdsMax),
+  enrollmentApplicationIds: zod
+    .array(zod.string().uuid())
+    .max(clearApplicantRecordsBodyEnrollmentApplicationIdsMax),
+});
 
 export const clearApplicantRecordsResponseClearedCountMin = 0;
 
-
-
 export const ClearApplicantRecordsResponse = zod.object({
-  "clearedCount": zod.number().int().min(clearApplicantRecordsResponseClearedCountMin),
-  "failedRecords": zod.array(zod.object({
-  "type": zod.enum(['guest_preapplication', 'enrollment_application']),
-  "id": zod.string().uuid()
-}))
-})
-
+  clearedCount: zod
+    .number()
+    .int()
+    .min(clearApplicantRecordsResponseClearedCountMin),
+  failedRecords: zod.array(
+    zod.object({
+      type: zod.enum(["guest_preapplication", "enrollment_application"]),
+      id: zod.string().uuid(),
+    }),
+  ),
+});
 
 /**
  * @summary Update guest pre-application follow-up status
  */
 export const UpdateAdminGuestPreapplicationParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const UpdateAdminGuestPreapplicationBody = zod.object({
-  "status": zod.enum(['contacted', 'closed'])
-})
+  status: zod.enum(["contacted", "closed"]),
+});
 
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMin = 0;
 export const updateAdminGuestPreapplicationResponseOneCurrentStepMax = 7;
@@ -858,63 +1319,107 @@ export const updateAdminGuestPreapplicationResponseOneCurrentStepMax = 7;
 export const updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMin = 0;
 export const updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMax = 7;
 
-
-
-export const UpdateAdminGuestPreapplicationResponse = zod.object({
-  "id": zod.string().uuid(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "status": zod.enum(['received', 'contacted', 'closed']),
-  "submissionStatus": zod.enum(['draft', 'submitted']),
-  "emailVerified": zod.boolean(),
-  "emailVerificationRequired": zod.boolean(),
-  "linkedApplicationId": zod.string().uuid().nullable(),
-  "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseOneCurrentStepMin).max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
-  "detailsComplete": zod.boolean(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "reviewStatus": zod.union([zod.literal('draft'),zod.literal('submitted'),zod.literal('under_review'),zod.literal('needs_information'),zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullable(),
-  "applicantFollowup": zod.string().nullable(),
-  "outstandingRequirements": zod.array(zod.string())
-}).and(zod.object({
-  "fullName": zod.string(),
-  "email": zod.string().email(),
-  "phone": zod.string().nullable(),
-  "reviewReady": zod.boolean(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})),
-  "history": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "currentStep": zod.number().int().min(updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMin).max(updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMax),
-  "changes": zod.array(zod.object({
-  "field": zod.string(),
-  "before": zod.string(),
-  "after": zod.string()
-})),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedReviewerUserId": zod.string().nullable()
-}))
-
+export const UpdateAdminGuestPreapplicationResponse = zod
+  .object({
+    id: zod.string().uuid(),
+    reference: zod.string(),
+    categoryId: zod.enum([
+      "category-1",
+      "category-2",
+      "category-3",
+      "category-4",
+    ]),
+    categoryName: zod.string(),
+    fullName: zod.string(),
+    email: zod.string().email(),
+    status: zod.enum(["received", "contacted", "closed"]),
+    submissionStatus: zod.enum(["draft", "submitted"]),
+    emailVerified: zod.boolean(),
+    emailVerificationRequired: zod.boolean(),
+    linkedApplicationId: zod.string().uuid().nullable(),
+    currentStep: zod
+      .number()
+      .int()
+      .min(updateAdminGuestPreapplicationResponseOneCurrentStepMin)
+      .max(updateAdminGuestPreapplicationResponseOneCurrentStepMax),
+    detailsComplete: zod.boolean(),
+    answers: zod.record(zod.string(), zod.unknown()),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    reviewStatus: zod
+      .union([
+        zod.literal("draft"),
+        zod.literal("submitted"),
+        zod.literal("under_review"),
+        zod.literal("needs_information"),
+        zod.literal("approved"),
+        zod.literal("rejected"),
+        zod.literal(null),
+      ])
+      .nullable(),
+    applicantFollowup: zod.string().nullable(),
+    outstandingRequirements: zod.array(zod.string()),
+  })
+  .and(
+    zod.object({
+      fullName: zod.string(),
+      email: zod.string().email(),
+      phone: zod.string().nullable(),
+      reviewReady: zod.boolean(),
+      evidence: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          evidenceType: zod.enum([
+            "identity_document",
+            "verification_video",
+            "education_certificate",
+          ]),
+          evidenceSlot: zod.enum([
+            "identity_front",
+            "identity_back",
+            "verification_video",
+            "education_certificate",
+            "identity_document",
+          ]),
+          fileName: zod.string(),
+          contentType: zod.string(),
+          sizeBytes: zod.number().int(),
+          uploadedAt: zod.coerce.date().nullable(),
+          downloadUrl: zod.string().nullable(),
+        }),
+      ),
+      history: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          currentStep: zod
+            .number()
+            .int()
+            .min(
+              updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMin,
+            )
+            .max(
+              updateAdminGuestPreapplicationResponseTwoHistoryItemCurrentStepMax,
+            ),
+          changes: zod.array(
+            zod.object({
+              field: zod.string(),
+              before: zod.string(),
+              after: zod.string(),
+            }),
+          ),
+          createdAt: zod.coerce.date(),
+        }),
+      ),
+      assignedReviewerUserId: zod.string().nullable(),
+    }),
+  );
 
 /**
  * @summary Request a private upload URL for guest application evidence
  */
 export const RequestGuestPreapplicationEvidenceUploadParams = zod.object({
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const requestGuestPreapplicationEvidenceUploadBodyFileNameMax = 160;
 
@@ -922,302 +1427,395 @@ export const requestGuestPreapplicationEvidenceUploadBodyContentTypeMax = 100;
 
 export const requestGuestPreapplicationEvidenceUploadBodySizeBytesMax = 209715200;
 
-
-
 export const RequestGuestPreapplicationEvidenceUploadBody = zod.object({
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']).optional(),
-  "fileName": zod.string().min(1).max(requestGuestPreapplicationEvidenceUploadBodyFileNameMax),
-  "contentType": zod.string().max(requestGuestPreapplicationEvidenceUploadBodyContentTypeMax),
-  "sizeBytes": zod.number().int().min(1).max(requestGuestPreapplicationEvidenceUploadBodySizeBytesMax)
-})
+  evidenceType: zod.enum([
+    "identity_document",
+    "verification_video",
+    "education_certificate",
+  ]),
+  evidenceSlot: zod
+    .enum([
+      "identity_front",
+      "identity_back",
+      "verification_video",
+      "education_certificate",
+      "identity_document",
+    ])
+    .optional(),
+  fileName: zod
+    .string()
+    .min(1)
+    .max(requestGuestPreapplicationEvidenceUploadBodyFileNameMax),
+  contentType: zod
+    .string()
+    .max(requestGuestPreapplicationEvidenceUploadBodyContentTypeMax),
+  sizeBytes: zod
+    .number()
+    .int()
+    .min(1)
+    .max(requestGuestPreapplicationEvidenceUploadBodySizeBytesMax),
+});
 
 export const RequestGuestPreapplicationEvidenceUploadResponse = zod.object({
-  "evidenceId": zod.string().uuid(),
-  "uploadUrl": zod.string().url()
-})
-
+  evidenceId: zod.string().uuid(),
+  uploadUrl: zod.string().url(),
+});
 
 /**
  * @summary Verify and record an uploaded guest evidence file
  */
 export const CompleteGuestPreapplicationEvidenceUploadParams = zod.object({
-  "applicationId": zod.coerce.string().uuid(),
-  "evidenceId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+  evidenceId: zod.coerce.string().uuid(),
+});
 
 export const CompleteGuestPreapplicationEvidenceUploadResponse = zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})
-
+  id: zod.string().uuid(),
+  evidenceType: zod.enum([
+    "identity_document",
+    "verification_video",
+    "education_certificate",
+  ]),
+  evidenceSlot: zod.enum([
+    "identity_front",
+    "identity_back",
+    "verification_video",
+    "education_certificate",
+    "identity_document",
+  ]),
+  fileName: zod.string(),
+  contentType: zod.string(),
+  sizeBytes: zod.number().int(),
+  uploadedAt: zod.coerce.date().nullable(),
+  downloadUrl: zod.string().nullable(),
+});
 
 /**
  * @summary Download private guest application evidence
  */
 export const DownloadGuestPreapplicationEvidenceParams = zod.object({
-  "applicationId": zod.coerce.string().uuid(),
-  "evidenceId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string().uuid(),
+  evidenceId: zod.coerce.string().uuid(),
+});
 
-export const DownloadGuestPreapplicationEvidenceResponse = zod.unknown()
-
+export const DownloadGuestPreapplicationEvidenceResponse = zod.unknown();
 
 /**
  * @summary List applications for authorized administrators
  */
 export const ListApplicationsForReviewQueryParams = zod.object({
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']).optional(),
-  "search": zod.coerce.string().optional()
-})
+  status: zod
+    .enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "needs_information",
+      "approved",
+      "rejected",
+    ])
+    .optional(),
+  search: zod.coerce.string().optional(),
+});
 
 export const ListApplicationsForReviewResponseItem = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-export const ListApplicationsForReviewResponse = zod.array(ListApplicationsForReviewResponseItem)
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
+export const ListApplicationsForReviewResponse = zod.array(
+  ListApplicationsForReviewResponseItem,
+);
 
 export const GetAdminApplicationParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
-export const GetAdminApplicationResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-}).and(zod.object({
-  "assignedReviewerUserId": zod.string().nullable()
-}))
-
+export const GetAdminApplicationResponse = zod
+  .object({
+    id: zod.string(),
+    reference: zod.string(),
+    categoryId: zod.enum([
+      "category-1",
+      "category-2",
+      "category-3",
+      "category-4",
+    ]),
+    categoryName: zod.string(),
+    status: zod.enum([
+      "draft",
+      "submitted",
+      "under_review",
+      "needs_information",
+      "approved",
+      "rejected",
+    ]),
+    currentStep: zod.number().int(),
+    answers: zod.record(zod.string(), zod.unknown()),
+    applicantName: zod.string().nullish(),
+    applicantEmail: zod.string().nullish(),
+    reviewNote: zod.string().nullish(),
+    applicantFollowup: zod.string().nullish(),
+    outstandingRequirements: zod.array(zod.string()).optional(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    submittedAt: zod.coerce.date().nullish(),
+    evidence: zod
+      .array(
+        zod.object({
+          id: zod.string().uuid(),
+          evidenceType: zod.enum([
+            "identity_document",
+            "verification_video",
+            "education_certificate",
+          ]),
+          evidenceSlot: zod.enum([
+            "identity_front",
+            "identity_back",
+            "verification_video",
+            "education_certificate",
+            "identity_document",
+          ]),
+          fileName: zod.string(),
+          contentType: zod.string(),
+          sizeBytes: zod.number().int(),
+          uploadedAt: zod.coerce.date().nullable(),
+          downloadUrl: zod.string().nullable(),
+        }),
+      )
+      .optional()
+      .describe(
+        "Present only for authorized review records linked to a submitted guest application.",
+      ),
+  })
+  .and(
+    zod.object({
+      assignedReviewerUserId: zod.string().nullable(),
+    }),
+  );
 
 /**
  * @summary Get the assigned reviewer for an application
  */
 export const GetAdminReviewerAssignmentParams = zod.object({
-  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationType: zod.enum(["guest_preapplication", "enrollment_application"]),
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const GetAdminReviewerAssignmentResponse = zod.object({
-  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
-  "applicationId": zod.string().uuid(),
-  "reviewerUserId": zod.string().nullable()
-})
-
+  applicationType: zod.enum(["guest_preapplication", "enrollment_application"]),
+  applicationId: zod.string().uuid(),
+  reviewerUserId: zod.string().nullable(),
+});
 
 /**
  * @summary Assign or unassign an authorized Sub-admin reviewer
  */
 export const SetAdminReviewerAssignmentParams = zod.object({
-  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
-  "applicationId": zod.coerce.string().uuid()
-})
+  applicationType: zod.enum(["guest_preapplication", "enrollment_application"]),
+  applicationId: zod.coerce.string().uuid(),
+});
 
 export const setAdminReviewerAssignmentBodyReviewerUserIdMax = 255;
 
-
-
 export const SetAdminReviewerAssignmentBody = zod.object({
-  "reviewerUserId": zod.string().min(1).max(setAdminReviewerAssignmentBodyReviewerUserIdMax).nullable()
-})
+  reviewerUserId: zod
+    .string()
+    .min(1)
+    .max(setAdminReviewerAssignmentBodyReviewerUserIdMax)
+    .nullable(),
+});
 
 export const SetAdminReviewerAssignmentResponse = zod.object({
-  "applicationType": zod.enum(['guest_preapplication', 'enrollment_application']),
-  "applicationId": zod.string().uuid(),
-  "reviewerUserId": zod.string().nullable()
-})
-
+  applicationType: zod.enum(["guest_preapplication", "enrollment_application"]),
+  applicationId: zod.string().uuid(),
+  reviewerUserId: zod.string().nullable(),
+});
 
 /**
  * @summary Reveal an application Invitation Code to an authorized reviewer on demand
  */
 export const RevealAdminApplicationInvitationCodeParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const revealAdminApplicationInvitationCodeResponseCodeMax = 80;
 
-
-
 export const RevealAdminApplicationInvitationCodeResponse = zod.object({
-  "applicationId": zod.string().uuid(),
-  "code": zod.string().max(revealAdminApplicationInvitationCodeResponseCodeMax).describe('Returned only by an authenticated no-store reveal action for an authorized reviewer.'),
-  "revealedAt": zod.coerce.date()
-})
-
+  applicationId: zod.string().uuid(),
+  code: zod
+    .string()
+    .max(revealAdminApplicationInvitationCodeResponseCodeMax)
+    .describe(
+      "Returned only by an authenticated no-store reveal action for an authorized reviewer.",
+    ),
+  revealedAt: zod.coerce.date(),
+});
 
 /**
  * @summary Download private evidence attached to a submitted guest application
  */
 export const DownloadSubmittedApplicationEvidenceParams = zod.object({
-  "applicationId": zod.coerce.string(),
-  "evidenceId": zod.coerce.string().uuid()
-})
+  applicationId: zod.coerce.string(),
+  evidenceId: zod.coerce.string().uuid(),
+});
 
-export const DownloadSubmittedApplicationEvidenceResponse = zod.unknown()
-
+export const DownloadSubmittedApplicationEvidenceResponse = zod.unknown();
 
 /**
  * @summary Get administrator dashboard totals
  */
 export const GetAdminOverviewResponse = zod.object({
-  "totalUsers": zod.number().int(),
-  "totalApplications": zod.number().int(),
-  "pendingApplications": zod.number().int(),
-  "underReviewApplications": zod.number().int(),
-  "approvedApplications": zod.number().int(),
-  "rejectedApplications": zod.number().int(),
-  "needsInformationApplications": zod.number().int(),
-  "unresolvedSupportRequests": zod.number().int()
-})
-
+  totalUsers: zod.number().int(),
+  totalApplications: zod.number().int(),
+  pendingApplications: zod.number().int(),
+  underReviewApplications: zod.number().int(),
+  approvedApplications: zod.number().int(),
+  rejectedApplications: zod.number().int(),
+  needsInformationApplications: zod.number().int(),
+  unresolvedSupportRequests: zod.number().int(),
+});
 
 /**
  * @summary Search and list user accounts with enrollment status
  */
 export const ListAdminUsersQueryParams = zod.object({
-  "search": zod.coerce.string().optional(),
-  "accountStatus": zod.enum(['active', 'suspended']).optional()
-})
+  search: zod.coerce.string().optional(),
+  accountStatus: zod.enum(["active", "suspended"]).optional(),
+});
 
 export const ListAdminUsersResponse = zod.object({
-  "users": zod.array(zod.object({
-  "userId": zod.string(),
-  "name": zod.string().nullable(),
-  "username": zod.string().nullable(),
-  "email": zod.string().nullable(),
-  "role": zod.enum(['applicant', 'admin', 'sub_admin', 'moderator']),
-  "accountStatus": zod.enum(['active', 'suspended']),
-  "applicationId": zod.string().nullable(),
-  "categoryId": zod.string().nullable(),
-  "categoryName": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "registrationDate": zod.coerce.date(),
-  "enrollmentStatus": zod.string().nullable()
-})),
-  "totalCount": zod.number().int()
-})
-
+  users: zod.array(
+    zod.object({
+      userId: zod.string(),
+      name: zod.string().nullable(),
+      username: zod.string().nullable(),
+      email: zod.string().nullable(),
+      role: zod.enum(["applicant", "admin", "sub_admin", "moderator"]),
+      accountStatus: zod.enum(["active", "suspended"]),
+      applicationId: zod.string().nullable(),
+      categoryId: zod.string().nullable(),
+      categoryName: zod.string().nullable(),
+      applicationReference: zod.string().nullable(),
+      registrationDate: zod.coerce.date(),
+      enrollmentStatus: zod.string().nullable(),
+    }),
+  ),
+  totalCount: zod.number().int(),
+});
 
 /**
  * @summary Invite a staff member to create an account with an approved role
  */
 export const createAdminUserInvitationBodyEmailMax = 320;
 
-
-
 export const CreateAdminUserInvitationBody = zod.object({
-  "email": zod.string().email().max(createAdminUserInvitationBodyEmailMax),
-  "role": zod.enum(['admin', 'sub_admin', 'moderator'])
-})
+  email: zod.string().email().max(createAdminUserInvitationBodyEmailMax),
+  role: zod.enum(["admin", "sub_admin", "moderator"]),
+});
 
 export const CreateAdminUserInvitationResponse = zod.object({
-  "invitationId": zod.string(),
-  "email": zod.string().email(),
-  "role": zod.enum(['admin', 'sub_admin', 'moderator']),
-  "message": zod.string()
-})
-
+  invitationId: zod.string(),
+  email: zod.string().email(),
+  role: zod.enum(["admin", "sub_admin", "moderator"]),
+  message: zod.string(),
+});
 
 export const UpdateAdminUserStatusParams = zod.object({
-  "userId": zod.coerce.string()
-})
+  userId: zod.coerce.string(),
+});
 
 export const UpdateAdminUserStatusBody = zod.object({
-  "accountStatus": zod.enum(['active', 'suspended'])
-})
+  accountStatus: zod.enum(["active", "suspended"]),
+});
 
 export const UpdateAdminUserStatusResponse = zod.object({
-  "userId": zod.string(),
-  "name": zod.string().nullable(),
-  "username": zod.string().nullable(),
-  "email": zod.string().nullable(),
-  "role": zod.enum(['applicant', 'admin', 'sub_admin', 'moderator']),
-  "accountStatus": zod.enum(['active', 'suspended']),
-  "applicationId": zod.string().nullable(),
-  "categoryId": zod.string().nullable(),
-  "categoryName": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "registrationDate": zod.coerce.date(),
-  "enrollmentStatus": zod.string().nullable()
-})
-
+  userId: zod.string(),
+  name: zod.string().nullable(),
+  username: zod.string().nullable(),
+  email: zod.string().nullable(),
+  role: zod.enum(["applicant", "admin", "sub_admin", "moderator"]),
+  accountStatus: zod.enum(["active", "suspended"]),
+  applicationId: zod.string().nullable(),
+  categoryId: zod.string().nullable(),
+  categoryName: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  registrationDate: zod.coerce.date(),
+  enrollmentStatus: zod.string().nullable(),
+});
 
 export const UpdateAdminUserRoleParams = zod.object({
-  "userId": zod.coerce.string()
-})
+  userId: zod.coerce.string(),
+});
 
 export const UpdateAdminUserRoleBody = zod.object({
-  "role": zod.enum(['applicant', 'admin', 'sub_admin', 'moderator'])
-})
+  role: zod.enum(["applicant", "admin", "sub_admin", "moderator"]),
+});
 
 export const UpdateAdminUserRoleResponse = zod.object({
-  "userId": zod.string(),
-  "name": zod.string().nullable(),
-  "username": zod.string().nullable(),
-  "email": zod.string().nullable(),
-  "role": zod.enum(['applicant', 'admin', 'sub_admin', 'moderator']),
-  "accountStatus": zod.enum(['active', 'suspended']),
-  "applicationId": zod.string().nullable(),
-  "categoryId": zod.string().nullable(),
-  "categoryName": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "registrationDate": zod.coerce.date(),
-  "enrollmentStatus": zod.string().nullable()
-})
-
+  userId: zod.string(),
+  name: zod.string().nullable(),
+  username: zod.string().nullable(),
+  email: zod.string().nullable(),
+  role: zod.enum(["applicant", "admin", "sub_admin", "moderator"]),
+  accountStatus: zod.enum(["active", "suspended"]),
+  applicationId: zod.string().nullable(),
+  categoryId: zod.string().nullable(),
+  categoryName: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  registrationDate: zod.coerce.date(),
+  enrollmentStatus: zod.string().nullable(),
+});
 
 /**
  * @summary Get public portal content and theme settings
@@ -1236,7 +1834,8 @@ export const getPortalSettingsResponseCardsItemDescriptionMax = 240;
 
 export const getPortalSettingsResponseCardsItemButtonLabelMax = 60;
 
-export const getPortalSettingsResponseCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getPortalSettingsResponseCardsItemBackgroundColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const getPortalSettingsResponseCardsItemLogoDataUrlMax = 6000000;
 
 export const getPortalSettingsResponseCardsItemEntryLogoDataUrlMax = 6000000;
@@ -1247,7 +1846,8 @@ export const getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 48;
 export const getPortalSettingsResponseCardsItemCardTitleFontSizeMin = 10;
 export const getPortalSettingsResponseCardsItemCardTitleFontSizeMax = 24;
 
-export const getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin =
+  -40;
 export const getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax = 40;
 
 export const getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMin = -40;
@@ -1256,13 +1856,16 @@ export const getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMax = 40;
 export const getPortalSettingsResponseCardsItemCardDescriptionFontSizeMin = 8;
 export const getPortalSettingsResponseCardsItemCardDescriptionFontSizeMax = 18;
 
-export const getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin =
+  -40;
 export const getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax = 40;
 
-export const getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin = -40;
+export const getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin =
+  -40;
 export const getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax = 40;
 
-export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
+export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin =
+  -120;
 export const getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
 export const getPortalSettingsResponseCardsMin = 4;
@@ -1270,71 +1873,573 @@ export const getPortalSettingsResponseCardsMax = 4;
 
 export const getPortalSettingsResponseScreenCopyMaxTwo = 500;
 
-export const getPortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const getPortalSettingsResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getPortalSettingsResponsePageThemesColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
+export const getPortalSettingsResponsePageThemesBlendColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
 export const getPortalSettingsResponsePageThemesAngleMin = 0;
 export const getPortalSettingsResponsePageThemesAngleMax = 360;
 
-
-
 export const GetPortalSettingsResponse = zod.object({
-  "hero": zod.object({
-  "title": zod.string().max(getPortalSettingsResponseHeroTitleMax),
-  "description": zod.string().max(getPortalSettingsResponseHeroDescriptionMax),
-  "getStartedLabel": zod.string().max(getPortalSettingsResponseHeroGetStartedLabelMax),
-  "loginLabel": zod.string().max(getPortalSettingsResponseHeroLoginLabelMax)
-}),
-  "cards": zod.array(zod.object({
-  "id": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "title": zod.string().max(getPortalSettingsResponseCardsItemTitleMax),
-  "description": zod.string().max(getPortalSettingsResponseCardsItemDescriptionMax),
-  "buttonLabel": zod.string().max(getPortalSettingsResponseCardsItemButtonLabelMax),
-  "backgroundColor": zod.string().regex(getPortalSettingsResponseCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(getPortalSettingsResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardTitleFontSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleFontSizeMin).max(getPortalSettingsResponseCardsItemCardTitleFontSizeMax).optional(),
-  "cardTitleHorizontalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin).max(getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax).optional(),
-  "cardTitleVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMax).optional(),
-  "cardDescriptionFontSize": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionFontSizeMin).max(getPortalSettingsResponseCardsItemCardDescriptionFontSizeMax).optional(),
-  "cardDescriptionHorizontalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin).max(getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax).optional(),
-  "cardDescriptionVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin).max(getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional()
-})).min(getPortalSettingsResponseCardsMin).max(getPortalSettingsResponseCardsMax),
-  "theme": zod.object({
-  "buttonSize": zod.enum(['compact', 'standard', 'large']),
-  "buttonPlacement": zod.enum(['left', 'center', 'right']),
-  "categoryInputTransparent": zod.boolean()
-}),
-  "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(getPortalSettingsResponseScreenCopyMaxTwo))),
-  "pageThemes": zod.record(zod.string(), zod.object({
-  "mode": zod.enum(['inherit', 'solid', 'gradient']),
-  "color": zod.string().regex(getPortalSettingsResponsePageThemesColorRegExp),
-  "blendColor": zod.string().regex(getPortalSettingsResponsePageThemesBlendColorRegExp),
-  "angle": zod.number().int().min(getPortalSettingsResponsePageThemesAngleMin).max(getPortalSettingsResponsePageThemesAngleMax)
-})).optional()
-})
+  hero: zod.object({
+    title: zod.string().max(getPortalSettingsResponseHeroTitleMax),
+    description: zod.string().max(getPortalSettingsResponseHeroDescriptionMax),
+    getStartedLabel: zod
+      .string()
+      .max(getPortalSettingsResponseHeroGetStartedLabelMax),
+    loginLabel: zod.string().max(getPortalSettingsResponseHeroLoginLabelMax),
+  }),
+  cards: zod
+    .array(
+      zod.object({
+        id: zod.enum(["category-1", "category-2", "category-3", "category-4"]),
+        title: zod.string().max(getPortalSettingsResponseCardsItemTitleMax),
+        description: zod
+          .string()
+          .max(getPortalSettingsResponseCardsItemDescriptionMax),
+        buttonLabel: zod
+          .string()
+          .max(getPortalSettingsResponseCardsItemButtonLabelMax),
+        backgroundColor: zod
+          .string()
+          .regex(getPortalSettingsResponseCardsItemBackgroundColorRegExp),
+        logoDataUrl: zod
+          .string()
+          .max(getPortalSettingsResponseCardsItemLogoDataUrlMax)
+          .nullable(),
+        entryLogoDataUrl: zod
+          .string()
+          .max(getPortalSettingsResponseCardsItemEntryLogoDataUrlMax)
+          .nullish(),
+        cardLogoAlignment: zod.enum(["left", "center", "right"]).optional(),
+        cardLogoVerticalOffset: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMin)
+          .max(getPortalSettingsResponseCardsItemCardLogoVerticalOffsetMax)
+          .optional(),
+        cardTitleFontSize: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponseCardsItemCardTitleFontSizeMin)
+          .max(getPortalSettingsResponseCardsItemCardTitleFontSizeMax)
+          .optional(),
+        cardTitleHorizontalOffset: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin)
+          .max(getPortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax)
+          .optional(),
+        cardTitleVerticalOffset: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMin)
+          .max(getPortalSettingsResponseCardsItemCardTitleVerticalOffsetMax)
+          .optional(),
+        cardDescriptionFontSize: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponseCardsItemCardDescriptionFontSizeMin)
+          .max(getPortalSettingsResponseCardsItemCardDescriptionFontSizeMax)
+          .optional(),
+        cardDescriptionHorizontalOffset: zod
+          .number()
+          .int()
+          .min(
+            getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin,
+          )
+          .max(
+            getPortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax,
+          )
+          .optional(),
+        cardDescriptionVerticalOffset: zod
+          .number()
+          .int()
+          .min(
+            getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin,
+          )
+          .max(
+            getPortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax,
+          )
+          .optional(),
+        entryLogoAlignment: zod.enum(["left", "center", "right"]).optional(),
+        entryLogoVerticalOffset: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin)
+          .max(getPortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax)
+          .optional(),
+      }),
+    )
+    .min(getPortalSettingsResponseCardsMin)
+    .max(getPortalSettingsResponseCardsMax),
+  theme: zod.object({
+    buttonSize: zod.enum(["compact", "standard", "large"]),
+    buttonPlacement: zod.enum(["left", "center", "right"]),
+    categoryInputTransparent: zod.boolean(),
+  }),
+  screenCopy: zod.record(
+    zod.string(),
+    zod.record(
+      zod.string(),
+      zod.string().max(getPortalSettingsResponseScreenCopyMaxTwo),
+    ),
+  ),
+  pageThemes: zod
+    .record(
+      zod.string(),
+      zod.object({
+        mode: zod.enum(["inherit", "solid", "gradient"]),
+        color: zod
+          .string()
+          .regex(getPortalSettingsResponsePageThemesColorRegExp),
+        blendColor: zod
+          .string()
+          .regex(getPortalSettingsResponsePageThemesBlendColorRegExp),
+        angle: zod
+          .number()
+          .int()
+          .min(getPortalSettingsResponsePageThemesAngleMin)
+          .max(getPortalSettingsResponsePageThemesAngleMax),
+      }),
+    )
+    .optional(),
+});
 
+/**
+ * @summary Get current applicant form content
+ */
+export const getApplicantFormContentResponseVersionMin = 0;
+
+export const getApplicantFormContentResponseDefaultsMaxTwo = 500;
+
+export const getApplicantFormContentResponseSavedContentMaxTwo = 500;
+
+export const GetApplicantFormContentResponse = zod.object({
+  version: zod.number().int().min(getApplicantFormContentResponseVersionMin),
+  defaults: zod
+    .record(
+      zod.string(),
+      zod.record(
+        zod.string(),
+        zod.string().max(getApplicantFormContentResponseDefaultsMaxTwo),
+      ),
+    )
+    .describe(
+      "Editable text keyed by known applicant form and copy-field identifiers.",
+    ),
+  savedContent: zod
+    .record(
+      zod.string(),
+      zod.record(
+        zod.string(),
+        zod.string().max(getApplicantFormContentResponseSavedContentMaxTwo),
+      ),
+    )
+    .describe(
+      "Editable text keyed by known applicant form and copy-field identifiers.",
+    ),
+  updatedAt: zod.coerce.date().nullable(),
+  persistenceAvailable: zod.boolean(),
+});
+
+/**
+ * @summary Get editable applicant form content and its catalog
+ */
+export const getAdminApplicantFormContentResponseOneVersionMin = 0;
+
+export const getAdminApplicantFormContentResponseOneDefaultsMaxTwo = 500;
+
+export const getAdminApplicantFormContentResponseOneSavedContentMaxTwo = 500;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemIdMax = 80;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemLabelMax = 120;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemFieldsItemKeyMax = 100;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemFieldsItemLabelMax = 120;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemFieldsItemDefaultValueMax = 500;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemFieldsItemMaxLengthMax = 500;
+
+export const getAdminApplicantFormContentResponseTwoFormsItemFieldsItemHelpTextMax = 240;
+
+export const GetAdminApplicantFormContentResponse = zod
+  .object({
+    version: zod
+      .number()
+      .int()
+      .min(getAdminApplicantFormContentResponseOneVersionMin),
+    defaults: zod
+      .record(
+        zod.string(),
+        zod.record(
+          zod.string(),
+          zod
+            .string()
+            .max(getAdminApplicantFormContentResponseOneDefaultsMaxTwo),
+        ),
+      )
+      .describe(
+        "Editable text keyed by known applicant form and copy-field identifiers.",
+      ),
+    savedContent: zod
+      .record(
+        zod.string(),
+        zod.record(
+          zod.string(),
+          zod
+            .string()
+            .max(getAdminApplicantFormContentResponseOneSavedContentMaxTwo),
+        ),
+      )
+      .describe(
+        "Editable text keyed by known applicant form and copy-field identifiers.",
+      ),
+    updatedAt: zod.coerce.date().nullable(),
+    persistenceAvailable: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      forms: zod
+        .array(
+          zod.object({
+            id: zod
+              .string()
+              .min(1)
+              .max(getAdminApplicantFormContentResponseTwoFormsItemIdMax),
+            label: zod
+              .string()
+              .min(1)
+              .max(getAdminApplicantFormContentResponseTwoFormsItemLabelMax),
+            fields: zod.array(
+              zod.object({
+                key: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    getAdminApplicantFormContentResponseTwoFormsItemFieldsItemKeyMax,
+                  ),
+                label: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    getAdminApplicantFormContentResponseTwoFormsItemFieldsItemLabelMax,
+                  ),
+                defaultValue: zod
+                  .string()
+                  .max(
+                    getAdminApplicantFormContentResponseTwoFormsItemFieldsItemDefaultValueMax,
+                  ),
+                multiline: zod.boolean(),
+                maxLength: zod
+                  .number()
+                  .int()
+                  .min(1)
+                  .max(
+                    getAdminApplicantFormContentResponseTwoFormsItemFieldsItemMaxLengthMax,
+                  ),
+                helpText: zod
+                  .string()
+                  .max(
+                    getAdminApplicantFormContentResponseTwoFormsItemFieldsItemHelpTextMax,
+                  )
+                  .optional(),
+              }),
+            ),
+          }),
+        )
+        .min(1),
+    }),
+  );
+
+/**
+ * @summary Save applicant form content with optimistic concurrency
+ */
+export const updateAdminApplicantFormContentBodyExpectedVersionMin = 0;
+
+export const updateAdminApplicantFormContentBodyContentMaxTwo = 500;
+
+export const UpdateAdminApplicantFormContentBody = zod.object({
+  expectedVersion: zod
+    .number()
+    .int()
+    .min(updateAdminApplicantFormContentBodyExpectedVersionMin),
+  content: zod
+    .record(
+      zod.string(),
+      zod.record(
+        zod.string(),
+        zod.string().max(updateAdminApplicantFormContentBodyContentMaxTwo),
+      ),
+    )
+    .describe(
+      "Editable text keyed by known applicant form and copy-field identifiers.",
+    ),
+});
+
+export const updateAdminApplicantFormContentResponseOneVersionMin = 0;
+
+export const updateAdminApplicantFormContentResponseOneDefaultsMaxTwo = 500;
+
+export const updateAdminApplicantFormContentResponseOneSavedContentMaxTwo = 500;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemIdMax = 80;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemLabelMax = 120;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemKeyMax = 100;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemLabelMax = 120;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemDefaultValueMax = 500;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemMaxLengthMax = 500;
+
+export const updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemHelpTextMax = 240;
+
+export const UpdateAdminApplicantFormContentResponse = zod
+  .object({
+    version: zod
+      .number()
+      .int()
+      .min(updateAdminApplicantFormContentResponseOneVersionMin),
+    defaults: zod
+      .record(
+        zod.string(),
+        zod.record(
+          zod.string(),
+          zod
+            .string()
+            .max(updateAdminApplicantFormContentResponseOneDefaultsMaxTwo),
+        ),
+      )
+      .describe(
+        "Editable text keyed by known applicant form and copy-field identifiers.",
+      ),
+    savedContent: zod
+      .record(
+        zod.string(),
+        zod.record(
+          zod.string(),
+          zod
+            .string()
+            .max(updateAdminApplicantFormContentResponseOneSavedContentMaxTwo),
+        ),
+      )
+      .describe(
+        "Editable text keyed by known applicant form and copy-field identifiers.",
+      ),
+    updatedAt: zod.coerce.date().nullable(),
+    persistenceAvailable: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      forms: zod
+        .array(
+          zod.object({
+            id: zod
+              .string()
+              .min(1)
+              .max(updateAdminApplicantFormContentResponseTwoFormsItemIdMax),
+            label: zod
+              .string()
+              .min(1)
+              .max(updateAdminApplicantFormContentResponseTwoFormsItemLabelMax),
+            fields: zod.array(
+              zod.object({
+                key: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemKeyMax,
+                  ),
+                label: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemLabelMax,
+                  ),
+                defaultValue: zod
+                  .string()
+                  .max(
+                    updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemDefaultValueMax,
+                  ),
+                multiline: zod.boolean(),
+                maxLength: zod
+                  .number()
+                  .int()
+                  .min(1)
+                  .max(
+                    updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemMaxLengthMax,
+                  ),
+                helpText: zod
+                  .string()
+                  .max(
+                    updateAdminApplicantFormContentResponseTwoFormsItemFieldsItemHelpTextMax,
+                  )
+                  .optional(),
+              }),
+            ),
+          }),
+        )
+        .min(1),
+    }),
+  );
+
+/**
+ * @summary Restore all applicant form content defaults
+ */
+export const resetAdminApplicantFormContentBodyExpectedVersionMin = 0;
+
+export const ResetAdminApplicantFormContentBody = zod.object({
+  expectedVersion: zod
+    .number()
+    .int()
+    .min(resetAdminApplicantFormContentBodyExpectedVersionMin),
+});
+
+export const resetAdminApplicantFormContentResponseOneVersionMin = 0;
+
+export const resetAdminApplicantFormContentResponseOneDefaultsMaxTwo = 500;
+
+export const resetAdminApplicantFormContentResponseOneSavedContentMaxTwo = 500;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemIdMax = 80;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemLabelMax = 120;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemKeyMax = 100;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemLabelMax = 120;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemDefaultValueMax = 500;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemMaxLengthMax = 500;
+
+export const resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemHelpTextMax = 240;
+
+export const ResetAdminApplicantFormContentResponse = zod
+  .object({
+    version: zod
+      .number()
+      .int()
+      .min(resetAdminApplicantFormContentResponseOneVersionMin),
+    defaults: zod
+      .record(
+        zod.string(),
+        zod.record(
+          zod.string(),
+          zod
+            .string()
+            .max(resetAdminApplicantFormContentResponseOneDefaultsMaxTwo),
+        ),
+      )
+      .describe(
+        "Editable text keyed by known applicant form and copy-field identifiers.",
+      ),
+    savedContent: zod
+      .record(
+        zod.string(),
+        zod.record(
+          zod.string(),
+          zod
+            .string()
+            .max(resetAdminApplicantFormContentResponseOneSavedContentMaxTwo),
+        ),
+      )
+      .describe(
+        "Editable text keyed by known applicant form and copy-field identifiers.",
+      ),
+    updatedAt: zod.coerce.date().nullable(),
+    persistenceAvailable: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      forms: zod
+        .array(
+          zod.object({
+            id: zod
+              .string()
+              .min(1)
+              .max(resetAdminApplicantFormContentResponseTwoFormsItemIdMax),
+            label: zod
+              .string()
+              .min(1)
+              .max(resetAdminApplicantFormContentResponseTwoFormsItemLabelMax),
+            fields: zod.array(
+              zod.object({
+                key: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemKeyMax,
+                  ),
+                label: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemLabelMax,
+                  ),
+                defaultValue: zod
+                  .string()
+                  .max(
+                    resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemDefaultValueMax,
+                  ),
+                multiline: zod.boolean(),
+                maxLength: zod
+                  .number()
+                  .int()
+                  .min(1)
+                  .max(
+                    resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemMaxLengthMax,
+                  ),
+                helpText: zod
+                  .string()
+                  .max(
+                    resetAdminApplicantFormContentResponseTwoFormsItemFieldsItemHelpTextMax,
+                  )
+                  .optional(),
+              }),
+            ),
+          }),
+        )
+        .min(1),
+    }),
+  );
 
 /**
  * @summary Get the active Invitation Code length for an account provider
  */
 export const GetProviderInvitationCodePolicyParams = zod.object({
-  "providerId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4'])
-})
+  providerId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+});
 
 export const getProviderInvitationCodePolicyResponseRequiredLengthMin = 4;
 export const getProviderInvitationCodePolicyResponseRequiredLengthMax = 12;
 
-
-
 export const GetProviderInvitationCodePolicyResponse = zod.object({
-  "providerId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "requiredLength": zod.number().int().min(getProviderInvitationCodePolicyResponseRequiredLengthMin).max(getProviderInvitationCodePolicyResponseRequiredLengthMax)
-})
-
+  providerId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  requiredLength: zod
+    .number()
+    .int()
+    .min(getProviderInvitationCodePolicyResponseRequiredLengthMin)
+    .max(getProviderInvitationCodePolicyResponseRequiredLengthMax),
+});
 
 export const updatePortalSettingsBodyHeroTitleMax = 160;
 
@@ -1350,7 +2455,8 @@ export const updatePortalSettingsBodyCardsItemDescriptionMax = 240;
 
 export const updatePortalSettingsBodyCardsItemButtonLabelMax = 60;
 
-export const updatePortalSettingsBodyCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updatePortalSettingsBodyCardsItemBackgroundColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const updatePortalSettingsBodyCardsItemLogoDataUrlMax = 6000000;
 
 export const updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax = 6000000;
@@ -1361,7 +2467,8 @@ export const updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax = 48;
 export const updatePortalSettingsBodyCardsItemCardTitleFontSizeMin = 10;
 export const updatePortalSettingsBodyCardsItemCardTitleFontSizeMax = 24;
 
-export const updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMin =
+  -40;
 export const updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMax = 40;
 
 export const updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMin = -40;
@@ -1370,10 +2477,12 @@ export const updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMax = 40;
 export const updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMin = 8;
 export const updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMax = 18;
 
-export const updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin =
+  -40;
 export const updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMax = 40;
 
-export const updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin = -40;
+export const updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin =
+  -40;
 export const updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax = 40;
 
 export const updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin = -120;
@@ -1384,52 +2493,140 @@ export const updatePortalSettingsBodyCardsMax = 4;
 
 export const updatePortalSettingsBodyScreenCopyMaxTwo = 500;
 
-export const updatePortalSettingsBodyPageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updatePortalSettingsBodyPageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updatePortalSettingsBodyPageThemesColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
+export const updatePortalSettingsBodyPageThemesBlendColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
 export const updatePortalSettingsBodyPageThemesAngleMin = 0;
 export const updatePortalSettingsBodyPageThemesAngleMax = 360;
 
-
-
 export const UpdatePortalSettingsBody = zod.object({
-  "hero": zod.object({
-  "title": zod.string().max(updatePortalSettingsBodyHeroTitleMax),
-  "description": zod.string().max(updatePortalSettingsBodyHeroDescriptionMax),
-  "getStartedLabel": zod.string().max(updatePortalSettingsBodyHeroGetStartedLabelMax),
-  "loginLabel": zod.string().max(updatePortalSettingsBodyHeroLoginLabelMax)
-}),
-  "cards": zod.array(zod.object({
-  "id": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "title": zod.string().max(updatePortalSettingsBodyCardsItemTitleMax),
-  "description": zod.string().max(updatePortalSettingsBodyCardsItemDescriptionMax),
-  "buttonLabel": zod.string().max(updatePortalSettingsBodyCardsItemButtonLabelMax),
-  "backgroundColor": zod.string().regex(updatePortalSettingsBodyCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardTitleFontSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleFontSizeMin).max(updatePortalSettingsBodyCardsItemCardTitleFontSizeMax).optional(),
-  "cardTitleHorizontalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMin).max(updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMax).optional(),
-  "cardTitleVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMax).optional(),
-  "cardDescriptionFontSize": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMin).max(updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMax).optional(),
-  "cardDescriptionHorizontalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin).max(updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMax).optional(),
-  "cardDescriptionVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax).optional()
-})).min(updatePortalSettingsBodyCardsMin).max(updatePortalSettingsBodyCardsMax),
-  "theme": zod.object({
-  "buttonSize": zod.enum(['compact', 'standard', 'large']),
-  "buttonPlacement": zod.enum(['left', 'center', 'right']),
-  "categoryInputTransparent": zod.boolean()
-}),
-  "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(updatePortalSettingsBodyScreenCopyMaxTwo))),
-  "pageThemes": zod.record(zod.string(), zod.object({
-  "mode": zod.enum(['inherit', 'solid', 'gradient']),
-  "color": zod.string().regex(updatePortalSettingsBodyPageThemesColorRegExp),
-  "blendColor": zod.string().regex(updatePortalSettingsBodyPageThemesBlendColorRegExp),
-  "angle": zod.number().int().min(updatePortalSettingsBodyPageThemesAngleMin).max(updatePortalSettingsBodyPageThemesAngleMax)
-})).optional()
-})
+  hero: zod.object({
+    title: zod.string().max(updatePortalSettingsBodyHeroTitleMax),
+    description: zod.string().max(updatePortalSettingsBodyHeroDescriptionMax),
+    getStartedLabel: zod
+      .string()
+      .max(updatePortalSettingsBodyHeroGetStartedLabelMax),
+    loginLabel: zod.string().max(updatePortalSettingsBodyHeroLoginLabelMax),
+  }),
+  cards: zod
+    .array(
+      zod.object({
+        id: zod.enum(["category-1", "category-2", "category-3", "category-4"]),
+        title: zod.string().max(updatePortalSettingsBodyCardsItemTitleMax),
+        description: zod
+          .string()
+          .max(updatePortalSettingsBodyCardsItemDescriptionMax),
+        buttonLabel: zod
+          .string()
+          .max(updatePortalSettingsBodyCardsItemButtonLabelMax),
+        backgroundColor: zod
+          .string()
+          .regex(updatePortalSettingsBodyCardsItemBackgroundColorRegExp),
+        logoDataUrl: zod
+          .string()
+          .max(updatePortalSettingsBodyCardsItemLogoDataUrlMax)
+          .nullable(),
+        entryLogoDataUrl: zod
+          .string()
+          .max(updatePortalSettingsBodyCardsItemEntryLogoDataUrlMax)
+          .nullish(),
+        cardLogoAlignment: zod.enum(["left", "center", "right"]).optional(),
+        cardLogoVerticalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMin)
+          .max(updatePortalSettingsBodyCardsItemCardLogoVerticalOffsetMax)
+          .optional(),
+        cardTitleFontSize: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyCardsItemCardTitleFontSizeMin)
+          .max(updatePortalSettingsBodyCardsItemCardTitleFontSizeMax)
+          .optional(),
+        cardTitleHorizontalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMin)
+          .max(updatePortalSettingsBodyCardsItemCardTitleHorizontalOffsetMax)
+          .optional(),
+        cardTitleVerticalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMin)
+          .max(updatePortalSettingsBodyCardsItemCardTitleVerticalOffsetMax)
+          .optional(),
+        cardDescriptionFontSize: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMin)
+          .max(updatePortalSettingsBodyCardsItemCardDescriptionFontSizeMax)
+          .optional(),
+        cardDescriptionHorizontalOffset: zod
+          .number()
+          .int()
+          .min(
+            updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMin,
+          )
+          .max(
+            updatePortalSettingsBodyCardsItemCardDescriptionHorizontalOffsetMax,
+          )
+          .optional(),
+        cardDescriptionVerticalOffset: zod
+          .number()
+          .int()
+          .min(
+            updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMin,
+          )
+          .max(
+            updatePortalSettingsBodyCardsItemCardDescriptionVerticalOffsetMax,
+          )
+          .optional(),
+        entryLogoAlignment: zod.enum(["left", "center", "right"]).optional(),
+        entryLogoVerticalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMin)
+          .max(updatePortalSettingsBodyCardsItemEntryLogoVerticalOffsetMax)
+          .optional(),
+      }),
+    )
+    .min(updatePortalSettingsBodyCardsMin)
+    .max(updatePortalSettingsBodyCardsMax),
+  theme: zod.object({
+    buttonSize: zod.enum(["compact", "standard", "large"]),
+    buttonPlacement: zod.enum(["left", "center", "right"]),
+    categoryInputTransparent: zod.boolean(),
+  }),
+  screenCopy: zod.record(
+    zod.string(),
+    zod.record(
+      zod.string(),
+      zod.string().max(updatePortalSettingsBodyScreenCopyMaxTwo),
+    ),
+  ),
+  pageThemes: zod
+    .record(
+      zod.string(),
+      zod.object({
+        mode: zod.enum(["inherit", "solid", "gradient"]),
+        color: zod
+          .string()
+          .regex(updatePortalSettingsBodyPageThemesColorRegExp),
+        blendColor: zod
+          .string()
+          .regex(updatePortalSettingsBodyPageThemesBlendColorRegExp),
+        angle: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsBodyPageThemesAngleMin)
+          .max(updatePortalSettingsBodyPageThemesAngleMax),
+      }),
+    )
+    .optional(),
+});
 
 export const updatePortalSettingsResponseHeroTitleMax = 160;
 
@@ -1445,33 +2642,40 @@ export const updatePortalSettingsResponseCardsItemDescriptionMax = 240;
 
 export const updatePortalSettingsResponseCardsItemButtonLabelMax = 60;
 
-export const updatePortalSettingsResponseCardsItemBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updatePortalSettingsResponseCardsItemBackgroundColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const updatePortalSettingsResponseCardsItemLogoDataUrlMax = 6000000;
 
 export const updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax = 6000000;
 
-export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin = -48;
+export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin =
+  -48;
 export const updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax = 48;
 
 export const updatePortalSettingsResponseCardsItemCardTitleFontSizeMin = 10;
 export const updatePortalSettingsResponseCardsItemCardTitleFontSizeMax = 24;
 
-export const updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin =
+  -40;
 export const updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax = 40;
 
-export const updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMin =
+  -40;
 export const updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMax = 40;
 
 export const updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMin = 8;
 export const updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMax = 18;
 
-export const updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin =
+  -40;
 export const updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax = 40;
 
-export const updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin = -40;
+export const updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin =
+  -40;
 export const updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax = 40;
 
-export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin = -120;
+export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin =
+  -120;
 export const updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax = 120;
 
 export const updatePortalSettingsResponseCardsMin = 4;
@@ -1479,53 +2683,145 @@ export const updatePortalSettingsResponseCardsMax = 4;
 
 export const updatePortalSettingsResponseScreenCopyMaxTwo = 500;
 
-export const updatePortalSettingsResponsePageThemesColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updatePortalSettingsResponsePageThemesBlendColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updatePortalSettingsResponsePageThemesColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
+export const updatePortalSettingsResponsePageThemesBlendColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const updatePortalSettingsResponsePageThemesAngleMin = 0;
 export const updatePortalSettingsResponsePageThemesAngleMax = 360;
 
-
-
 export const UpdatePortalSettingsResponse = zod.object({
-  "hero": zod.object({
-  "title": zod.string().max(updatePortalSettingsResponseHeroTitleMax),
-  "description": zod.string().max(updatePortalSettingsResponseHeroDescriptionMax),
-  "getStartedLabel": zod.string().max(updatePortalSettingsResponseHeroGetStartedLabelMax),
-  "loginLabel": zod.string().max(updatePortalSettingsResponseHeroLoginLabelMax)
-}),
-  "cards": zod.array(zod.object({
-  "id": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "title": zod.string().max(updatePortalSettingsResponseCardsItemTitleMax),
-  "description": zod.string().max(updatePortalSettingsResponseCardsItemDescriptionMax),
-  "buttonLabel": zod.string().max(updatePortalSettingsResponseCardsItemButtonLabelMax),
-  "backgroundColor": zod.string().regex(updatePortalSettingsResponseCardsItemBackgroundColorRegExp),
-  "logoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemLogoDataUrlMax).nullable(),
-  "entryLogoDataUrl": zod.string().max(updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax).nullish(),
-  "cardLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "cardLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax).optional(),
-  "cardTitleFontSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleFontSizeMin).max(updatePortalSettingsResponseCardsItemCardTitleFontSizeMax).optional(),
-  "cardTitleHorizontalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin).max(updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax).optional(),
-  "cardTitleVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMax).optional(),
-  "cardDescriptionFontSize": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMin).max(updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMax).optional(),
-  "cardDescriptionHorizontalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin).max(updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax).optional(),
-  "cardDescriptionVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax).optional(),
-  "entryLogoAlignment": zod.enum(['left', 'center', 'right']).optional(),
-  "entryLogoVerticalOffset": zod.number().int().min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin).max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax).optional()
-})).min(updatePortalSettingsResponseCardsMin).max(updatePortalSettingsResponseCardsMax),
-  "theme": zod.object({
-  "buttonSize": zod.enum(['compact', 'standard', 'large']),
-  "buttonPlacement": zod.enum(['left', 'center', 'right']),
-  "categoryInputTransparent": zod.boolean()
-}),
-  "screenCopy": zod.record(zod.string(), zod.record(zod.string(), zod.string().max(updatePortalSettingsResponseScreenCopyMaxTwo))),
-  "pageThemes": zod.record(zod.string(), zod.object({
-  "mode": zod.enum(['inherit', 'solid', 'gradient']),
-  "color": zod.string().regex(updatePortalSettingsResponsePageThemesColorRegExp),
-  "blendColor": zod.string().regex(updatePortalSettingsResponsePageThemesBlendColorRegExp),
-  "angle": zod.number().int().min(updatePortalSettingsResponsePageThemesAngleMin).max(updatePortalSettingsResponsePageThemesAngleMax)
-})).optional()
-})
-
+  hero: zod.object({
+    title: zod.string().max(updatePortalSettingsResponseHeroTitleMax),
+    description: zod
+      .string()
+      .max(updatePortalSettingsResponseHeroDescriptionMax),
+    getStartedLabel: zod
+      .string()
+      .max(updatePortalSettingsResponseHeroGetStartedLabelMax),
+    loginLabel: zod.string().max(updatePortalSettingsResponseHeroLoginLabelMax),
+  }),
+  cards: zod
+    .array(
+      zod.object({
+        id: zod.enum(["category-1", "category-2", "category-3", "category-4"]),
+        title: zod.string().max(updatePortalSettingsResponseCardsItemTitleMax),
+        description: zod
+          .string()
+          .max(updatePortalSettingsResponseCardsItemDescriptionMax),
+        buttonLabel: zod
+          .string()
+          .max(updatePortalSettingsResponseCardsItemButtonLabelMax),
+        backgroundColor: zod
+          .string()
+          .regex(updatePortalSettingsResponseCardsItemBackgroundColorRegExp),
+        logoDataUrl: zod
+          .string()
+          .max(updatePortalSettingsResponseCardsItemLogoDataUrlMax)
+          .nullable(),
+        entryLogoDataUrl: zod
+          .string()
+          .max(updatePortalSettingsResponseCardsItemEntryLogoDataUrlMax)
+          .nullish(),
+        cardLogoAlignment: zod.enum(["left", "center", "right"]).optional(),
+        cardLogoVerticalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMin)
+          .max(updatePortalSettingsResponseCardsItemCardLogoVerticalOffsetMax)
+          .optional(),
+        cardTitleFontSize: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsResponseCardsItemCardTitleFontSizeMin)
+          .max(updatePortalSettingsResponseCardsItemCardTitleFontSizeMax)
+          .optional(),
+        cardTitleHorizontalOffset: zod
+          .number()
+          .int()
+          .min(
+            updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMin,
+          )
+          .max(
+            updatePortalSettingsResponseCardsItemCardTitleHorizontalOffsetMax,
+          )
+          .optional(),
+        cardTitleVerticalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMin)
+          .max(updatePortalSettingsResponseCardsItemCardTitleVerticalOffsetMax)
+          .optional(),
+        cardDescriptionFontSize: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMin)
+          .max(updatePortalSettingsResponseCardsItemCardDescriptionFontSizeMax)
+          .optional(),
+        cardDescriptionHorizontalOffset: zod
+          .number()
+          .int()
+          .min(
+            updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMin,
+          )
+          .max(
+            updatePortalSettingsResponseCardsItemCardDescriptionHorizontalOffsetMax,
+          )
+          .optional(),
+        cardDescriptionVerticalOffset: zod
+          .number()
+          .int()
+          .min(
+            updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMin,
+          )
+          .max(
+            updatePortalSettingsResponseCardsItemCardDescriptionVerticalOffsetMax,
+          )
+          .optional(),
+        entryLogoAlignment: zod.enum(["left", "center", "right"]).optional(),
+        entryLogoVerticalOffset: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMin)
+          .max(updatePortalSettingsResponseCardsItemEntryLogoVerticalOffsetMax)
+          .optional(),
+      }),
+    )
+    .min(updatePortalSettingsResponseCardsMin)
+    .max(updatePortalSettingsResponseCardsMax),
+  theme: zod.object({
+    buttonSize: zod.enum(["compact", "standard", "large"]),
+    buttonPlacement: zod.enum(["left", "center", "right"]),
+    categoryInputTransparent: zod.boolean(),
+  }),
+  screenCopy: zod.record(
+    zod.string(),
+    zod.record(
+      zod.string(),
+      zod.string().max(updatePortalSettingsResponseScreenCopyMaxTwo),
+    ),
+  ),
+  pageThemes: zod
+    .record(
+      zod.string(),
+      zod.object({
+        mode: zod.enum(["inherit", "solid", "gradient"]),
+        color: zod
+          .string()
+          .regex(updatePortalSettingsResponsePageThemesColorRegExp),
+        blendColor: zod
+          .string()
+          .regex(updatePortalSettingsResponsePageThemesBlendColorRegExp),
+        angle: zod
+          .number()
+          .int()
+          .min(updatePortalSettingsResponsePageThemesAngleMin)
+          .max(updatePortalSettingsResponsePageThemesAngleMax),
+      }),
+    )
+    .optional(),
+});
 
 /**
  * @summary List Invitation Code length settings for every provider
@@ -1533,44 +2829,69 @@ export const UpdatePortalSettingsResponse = zod.object({
 export const listAdminProviderInvitationCodeSettingsResponseProvidersItemRequiredLengthMin = 4;
 export const listAdminProviderInvitationCodeSettingsResponseProvidersItemRequiredLengthMax = 12;
 
-
-
 export const ListAdminProviderInvitationCodeSettingsResponse = zod.object({
-  "providers": zod.array(zod.object({
-  "providerId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "requiredLength": zod.number().int().min(listAdminProviderInvitationCodeSettingsResponseProvidersItemRequiredLengthMin).max(listAdminProviderInvitationCodeSettingsResponseProvidersItemRequiredLengthMax),
-  "updatedAt": zod.coerce.date().nullable()
-}))
-})
-
+  providers: zod.array(
+    zod.object({
+      providerId: zod.enum([
+        "category-1",
+        "category-2",
+        "category-3",
+        "category-4",
+      ]),
+      requiredLength: zod
+        .number()
+        .int()
+        .min(
+          listAdminProviderInvitationCodeSettingsResponseProvidersItemRequiredLengthMin,
+        )
+        .max(
+          listAdminProviderInvitationCodeSettingsResponseProvidersItemRequiredLengthMax,
+        ),
+      updatedAt: zod.coerce.date().nullable(),
+    }),
+  ),
+});
 
 /**
  * @summary Update one provider's Invitation Code length
  */
 export const UpdateAdminProviderInvitationCodeSettingParams = zod.object({
-  "providerId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4'])
-})
+  providerId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+});
 
 export const updateAdminProviderInvitationCodeSettingBodyRequiredLengthMin = 4;
 export const updateAdminProviderInvitationCodeSettingBodyRequiredLengthMax = 12;
 
-
-
 export const UpdateAdminProviderInvitationCodeSettingBody = zod.object({
-  "requiredLength": zod.number().int().min(updateAdminProviderInvitationCodeSettingBodyRequiredLengthMin).max(updateAdminProviderInvitationCodeSettingBodyRequiredLengthMax)
-})
+  requiredLength: zod
+    .number()
+    .int()
+    .min(updateAdminProviderInvitationCodeSettingBodyRequiredLengthMin)
+    .max(updateAdminProviderInvitationCodeSettingBodyRequiredLengthMax),
+});
 
 export const updateAdminProviderInvitationCodeSettingResponseRequiredLengthMin = 4;
 export const updateAdminProviderInvitationCodeSettingResponseRequiredLengthMax = 12;
 
-
-
 export const UpdateAdminProviderInvitationCodeSettingResponse = zod.object({
-  "providerId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "requiredLength": zod.number().int().min(updateAdminProviderInvitationCodeSettingResponseRequiredLengthMin).max(updateAdminProviderInvitationCodeSettingResponseRequiredLengthMax),
-  "updatedAt": zod.coerce.date().nullable()
-})
-
+  providerId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  requiredLength: zod
+    .number()
+    .int()
+    .min(updateAdminProviderInvitationCodeSettingResponseRequiredLengthMin)
+    .max(updateAdminProviderInvitationCodeSettingResponseRequiredLengthMax),
+  updatedAt: zod.coerce.date().nullable(),
+});
 
 /**
  * @summary Get staff email alert settings
@@ -1581,10 +2902,12 @@ export const getAdminEmailSettingsResponseBrandingLogoUrlMax = 2048;
 
 export const getAdminEmailSettingsResponseBrandingLogoObjectPathMax = 200;
 
-
-export const getAdminEmailSettingsResponseBrandingLogoObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-export const getAdminEmailSettingsResponseBrandingAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const getAdminEmailSettingsResponseBrandingHeaderColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getAdminEmailSettingsResponseBrandingLogoObjectPathRegExp =
+  new RegExp("^/objects/email-logos/[0-9a-fA-F-]{36}$");
+export const getAdminEmailSettingsResponseBrandingAccentColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const getAdminEmailSettingsResponseBrandingHeaderColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const getAdminEmailSettingsResponseBrandingSenderNameMax = 80;
 
 export const getAdminEmailSettingsResponseBrandingSenderEmailMax = 254;
@@ -1605,51 +2928,107 @@ export const getAdminEmailSettingsResponseBrandingFooterLinkTextMax = 80;
 
 export const getAdminEmailSettingsResponseBrandingFooterLinkUrlMax = 2048;
 
-export const getAdminEmailSettingsResponseBrandingFooterLinkColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const getAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const getAdminEmailSettingsResponseBrandingFooterTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const getAdminEmailSettingsResponseBrandingFooterLinkColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const getAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const getAdminEmailSettingsResponseBrandingFooterTextColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const getAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax = 2048;
 
 export const getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax = 200;
 
-
-export const getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-
+export const getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp =
+  new RegExp("^/objects/email-logos/[0-9a-fA-F-]{36}$");
 
 export const GetAdminEmailSettingsResponse = zod.object({
-  "recipients": zod.array(zod.string().email()).max(getAdminEmailSettingsResponseRecipientsMax),
-  "alerts": zod.object({
-  "contact_received": zod.boolean(),
-  "step_saved": zod.boolean(),
-  "contact_updated": zod.boolean(),
-  "evidence_saved": zod.boolean(),
-  "application_submitted": zod.boolean()
-}),
-  "branding": zod.object({
-  "logoUrl": zod.string().url().max(getAdminEmailSettingsResponseBrandingLogoUrlMax).nullable(),
-  "logoObjectPath": zod.string().max(getAdminEmailSettingsResponseBrandingLogoObjectPathMax).regex(getAdminEmailSettingsResponseBrandingLogoObjectPathRegExp).nullable(),
-  "accentColor": zod.string().regex(getAdminEmailSettingsResponseBrandingAccentColorRegExp),
-  "headerColor": zod.string().regex(getAdminEmailSettingsResponseBrandingHeaderColorRegExp),
-  "senderName": zod.string().min(1).max(getAdminEmailSettingsResponseBrandingSenderNameMax),
-  "senderEmail": zod.string().email().max(getAdminEmailSettingsResponseBrandingSenderEmailMax),
-  "bannerMark": zod.string().max(getAdminEmailSettingsResponseBrandingBannerMarkMax),
-  "bannerTitle": zod.string().min(1).max(getAdminEmailSettingsResponseBrandingBannerTitleMax),
-  "bannerSubtitle": zod.string().max(getAdminEmailSettingsResponseBrandingBannerSubtitleMax),
-  "preheaderText": zod.string().max(getAdminEmailSettingsResponseBrandingPreheaderTextMax),
-  "messageEyebrow": zod.string().max(getAdminEmailSettingsResponseBrandingMessageEyebrowMax),
-  "footerText": zod.string().max(getAdminEmailSettingsResponseBrandingFooterTextMax),
-  "footerLinkText": zod.string().max(getAdminEmailSettingsResponseBrandingFooterLinkTextMax),
-  "footerLinkUrl": zod.string().url().max(getAdminEmailSettingsResponseBrandingFooterLinkUrlMax).nullable(),
-  "footerLinkColor": zod.string().regex(getAdminEmailSettingsResponseBrandingFooterLinkColorRegExp),
-  "footerBackgroundColor": zod.string().regex(getAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp),
-  "footerTextColor": zod.string().regex(getAdminEmailSettingsResponseBrandingFooterTextColorRegExp),
-  "footerBackgroundUrl": zod.string().url().max(getAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax).nullable(),
-  "footerBackgroundObjectPath": zod.string().max(getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax).regex(getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp).nullable()
-}),
-  "senderAddress": zod.string(),
-  "updatedAt": zod.coerce.date().nullable()
-})
-
+  recipients: zod
+    .array(zod.string().email())
+    .max(getAdminEmailSettingsResponseRecipientsMax),
+  alerts: zod.object({
+    contact_received: zod.boolean(),
+    step_saved: zod.boolean(),
+    contact_updated: zod.boolean(),
+    evidence_saved: zod.boolean(),
+    application_submitted: zod.boolean(),
+  }),
+  branding: zod.object({
+    logoUrl: zod
+      .string()
+      .url()
+      .max(getAdminEmailSettingsResponseBrandingLogoUrlMax)
+      .nullable(),
+    logoObjectPath: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingLogoObjectPathMax)
+      .regex(getAdminEmailSettingsResponseBrandingLogoObjectPathRegExp)
+      .nullable(),
+    accentColor: zod
+      .string()
+      .regex(getAdminEmailSettingsResponseBrandingAccentColorRegExp),
+    headerColor: zod
+      .string()
+      .regex(getAdminEmailSettingsResponseBrandingHeaderColorRegExp),
+    senderName: zod
+      .string()
+      .min(1)
+      .max(getAdminEmailSettingsResponseBrandingSenderNameMax),
+    senderEmail: zod
+      .string()
+      .email()
+      .max(getAdminEmailSettingsResponseBrandingSenderEmailMax),
+    bannerMark: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingBannerMarkMax),
+    bannerTitle: zod
+      .string()
+      .min(1)
+      .max(getAdminEmailSettingsResponseBrandingBannerTitleMax),
+    bannerSubtitle: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingBannerSubtitleMax),
+    preheaderText: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingPreheaderTextMax),
+    messageEyebrow: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingMessageEyebrowMax),
+    footerText: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingFooterTextMax),
+    footerLinkText: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingFooterLinkTextMax),
+    footerLinkUrl: zod
+      .string()
+      .url()
+      .max(getAdminEmailSettingsResponseBrandingFooterLinkUrlMax)
+      .nullable(),
+    footerLinkColor: zod
+      .string()
+      .regex(getAdminEmailSettingsResponseBrandingFooterLinkColorRegExp),
+    footerBackgroundColor: zod
+      .string()
+      .regex(getAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp),
+    footerTextColor: zod
+      .string()
+      .regex(getAdminEmailSettingsResponseBrandingFooterTextColorRegExp),
+    footerBackgroundUrl: zod
+      .string()
+      .url()
+      .max(getAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax)
+      .nullable(),
+    footerBackgroundObjectPath: zod
+      .string()
+      .max(getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax)
+      .regex(
+        getAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp,
+      )
+      .nullable(),
+  }),
+  senderAddress: zod.string(),
+  updatedAt: zod.coerce.date().nullable(),
+});
 
 /**
  * @summary Update staff email alert settings
@@ -1660,10 +3039,14 @@ export const updateAdminEmailSettingsBodyBrandingLogoUrlMax = 2048;
 
 export const updateAdminEmailSettingsBodyBrandingLogoObjectPathMax = 200;
 
-
-export const updateAdminEmailSettingsBodyBrandingLogoObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-export const updateAdminEmailSettingsBodyBrandingAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updateAdminEmailSettingsBodyBrandingHeaderColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsBodyBrandingLogoObjectPathRegExp =
+  new RegExp("^/objects/email-logos/[0-9a-fA-F-]{36}$");
+export const updateAdminEmailSettingsBodyBrandingAccentColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
+export const updateAdminEmailSettingsBodyBrandingHeaderColorRegExp = new RegExp(
+  "^#[0-9A-Fa-f]{6}$",
+);
 export const updateAdminEmailSettingsBodyBrandingSenderNameMax = 80;
 
 export const updateAdminEmailSettingsBodyBrandingSenderEmailMax = 254;
@@ -1684,48 +3067,105 @@ export const updateAdminEmailSettingsBodyBrandingFooterLinkTextMax = 80;
 
 export const updateAdminEmailSettingsBodyBrandingFooterLinkUrlMax = 2048;
 
-export const updateAdminEmailSettingsBodyBrandingFooterLinkColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updateAdminEmailSettingsBodyBrandingFooterBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updateAdminEmailSettingsBodyBrandingFooterTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsBodyBrandingFooterLinkColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const updateAdminEmailSettingsBodyBrandingFooterBackgroundColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const updateAdminEmailSettingsBodyBrandingFooterTextColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const updateAdminEmailSettingsBodyBrandingFooterBackgroundUrlMax = 2048;
 
 export const updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathMax = 200;
 
-
-export const updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-
+export const updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathRegExp =
+  new RegExp("^/objects/email-logos/[0-9a-fA-F-]{36}$");
 
 export const UpdateAdminEmailSettingsBody = zod.object({
-  "recipients": zod.array(zod.string().email()).max(updateAdminEmailSettingsBodyRecipientsMax),
-  "alerts": zod.object({
-  "contact_received": zod.boolean(),
-  "step_saved": zod.boolean(),
-  "contact_updated": zod.boolean(),
-  "evidence_saved": zod.boolean(),
-  "application_submitted": zod.boolean()
-}),
-  "branding": zod.object({
-  "logoUrl": zod.string().url().max(updateAdminEmailSettingsBodyBrandingLogoUrlMax).nullable(),
-  "logoObjectPath": zod.string().max(updateAdminEmailSettingsBodyBrandingLogoObjectPathMax).regex(updateAdminEmailSettingsBodyBrandingLogoObjectPathRegExp).nullable(),
-  "accentColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingAccentColorRegExp),
-  "headerColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingHeaderColorRegExp),
-  "senderName": zod.string().min(1).max(updateAdminEmailSettingsBodyBrandingSenderNameMax),
-  "senderEmail": zod.string().email().max(updateAdminEmailSettingsBodyBrandingSenderEmailMax),
-  "bannerMark": zod.string().max(updateAdminEmailSettingsBodyBrandingBannerMarkMax),
-  "bannerTitle": zod.string().min(1).max(updateAdminEmailSettingsBodyBrandingBannerTitleMax),
-  "bannerSubtitle": zod.string().max(updateAdminEmailSettingsBodyBrandingBannerSubtitleMax),
-  "preheaderText": zod.string().max(updateAdminEmailSettingsBodyBrandingPreheaderTextMax),
-  "messageEyebrow": zod.string().max(updateAdminEmailSettingsBodyBrandingMessageEyebrowMax),
-  "footerText": zod.string().max(updateAdminEmailSettingsBodyBrandingFooterTextMax),
-  "footerLinkText": zod.string().max(updateAdminEmailSettingsBodyBrandingFooterLinkTextMax),
-  "footerLinkUrl": zod.string().url().max(updateAdminEmailSettingsBodyBrandingFooterLinkUrlMax).nullable(),
-  "footerLinkColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingFooterLinkColorRegExp),
-  "footerBackgroundColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingFooterBackgroundColorRegExp),
-  "footerTextColor": zod.string().regex(updateAdminEmailSettingsBodyBrandingFooterTextColorRegExp),
-  "footerBackgroundUrl": zod.string().url().max(updateAdminEmailSettingsBodyBrandingFooterBackgroundUrlMax).nullable(),
-  "footerBackgroundObjectPath": zod.string().max(updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathMax).regex(updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathRegExp).nullable()
-})
-})
+  recipients: zod
+    .array(zod.string().email())
+    .max(updateAdminEmailSettingsBodyRecipientsMax),
+  alerts: zod.object({
+    contact_received: zod.boolean(),
+    step_saved: zod.boolean(),
+    contact_updated: zod.boolean(),
+    evidence_saved: zod.boolean(),
+    application_submitted: zod.boolean(),
+  }),
+  branding: zod.object({
+    logoUrl: zod
+      .string()
+      .url()
+      .max(updateAdminEmailSettingsBodyBrandingLogoUrlMax)
+      .nullable(),
+    logoObjectPath: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingLogoObjectPathMax)
+      .regex(updateAdminEmailSettingsBodyBrandingLogoObjectPathRegExp)
+      .nullable(),
+    accentColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsBodyBrandingAccentColorRegExp),
+    headerColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsBodyBrandingHeaderColorRegExp),
+    senderName: zod
+      .string()
+      .min(1)
+      .max(updateAdminEmailSettingsBodyBrandingSenderNameMax),
+    senderEmail: zod
+      .string()
+      .email()
+      .max(updateAdminEmailSettingsBodyBrandingSenderEmailMax),
+    bannerMark: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingBannerMarkMax),
+    bannerTitle: zod
+      .string()
+      .min(1)
+      .max(updateAdminEmailSettingsBodyBrandingBannerTitleMax),
+    bannerSubtitle: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingBannerSubtitleMax),
+    preheaderText: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingPreheaderTextMax),
+    messageEyebrow: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingMessageEyebrowMax),
+    footerText: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingFooterTextMax),
+    footerLinkText: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingFooterLinkTextMax),
+    footerLinkUrl: zod
+      .string()
+      .url()
+      .max(updateAdminEmailSettingsBodyBrandingFooterLinkUrlMax)
+      .nullable(),
+    footerLinkColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsBodyBrandingFooterLinkColorRegExp),
+    footerBackgroundColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsBodyBrandingFooterBackgroundColorRegExp),
+    footerTextColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsBodyBrandingFooterTextColorRegExp),
+    footerBackgroundUrl: zod
+      .string()
+      .url()
+      .max(updateAdminEmailSettingsBodyBrandingFooterBackgroundUrlMax)
+      .nullable(),
+    footerBackgroundObjectPath: zod
+      .string()
+      .max(updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathMax)
+      .regex(
+        updateAdminEmailSettingsBodyBrandingFooterBackgroundObjectPathRegExp,
+      )
+      .nullable(),
+  }),
+});
 
 export const updateAdminEmailSettingsResponseRecipientsMax = 10;
 
@@ -1733,10 +3173,12 @@ export const updateAdminEmailSettingsResponseBrandingLogoUrlMax = 2048;
 
 export const updateAdminEmailSettingsResponseBrandingLogoObjectPathMax = 200;
 
-
-export const updateAdminEmailSettingsResponseBrandingLogoObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-export const updateAdminEmailSettingsResponseBrandingAccentColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updateAdminEmailSettingsResponseBrandingHeaderColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsResponseBrandingLogoObjectPathRegExp =
+  new RegExp("^/objects/email-logos/[0-9a-fA-F-]{36}$");
+export const updateAdminEmailSettingsResponseBrandingAccentColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const updateAdminEmailSettingsResponseBrandingHeaderColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const updateAdminEmailSettingsResponseBrandingSenderNameMax = 80;
 
 export const updateAdminEmailSettingsResponseBrandingSenderEmailMax = 254;
@@ -1757,138 +3199,226 @@ export const updateAdminEmailSettingsResponseBrandingFooterLinkTextMax = 80;
 
 export const updateAdminEmailSettingsResponseBrandingFooterLinkUrlMax = 2048;
 
-export const updateAdminEmailSettingsResponseBrandingFooterLinkColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updateAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
-export const updateAdminEmailSettingsResponseBrandingFooterTextColorRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateAdminEmailSettingsResponseBrandingFooterLinkColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const updateAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
+export const updateAdminEmailSettingsResponseBrandingFooterTextColorRegExp =
+  new RegExp("^#[0-9A-Fa-f]{6}$");
 export const updateAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax = 2048;
 
 export const updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax = 200;
 
-
-export const updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-
+export const updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp =
+  new RegExp("^/objects/email-logos/[0-9a-fA-F-]{36}$");
 
 export const UpdateAdminEmailSettingsResponse = zod.object({
-  "recipients": zod.array(zod.string().email()).max(updateAdminEmailSettingsResponseRecipientsMax),
-  "alerts": zod.object({
-  "contact_received": zod.boolean(),
-  "step_saved": zod.boolean(),
-  "contact_updated": zod.boolean(),
-  "evidence_saved": zod.boolean(),
-  "application_submitted": zod.boolean()
-}),
-  "branding": zod.object({
-  "logoUrl": zod.string().url().max(updateAdminEmailSettingsResponseBrandingLogoUrlMax).nullable(),
-  "logoObjectPath": zod.string().max(updateAdminEmailSettingsResponseBrandingLogoObjectPathMax).regex(updateAdminEmailSettingsResponseBrandingLogoObjectPathRegExp).nullable(),
-  "accentColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingAccentColorRegExp),
-  "headerColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingHeaderColorRegExp),
-  "senderName": zod.string().min(1).max(updateAdminEmailSettingsResponseBrandingSenderNameMax),
-  "senderEmail": zod.string().email().max(updateAdminEmailSettingsResponseBrandingSenderEmailMax),
-  "bannerMark": zod.string().max(updateAdminEmailSettingsResponseBrandingBannerMarkMax),
-  "bannerTitle": zod.string().min(1).max(updateAdminEmailSettingsResponseBrandingBannerTitleMax),
-  "bannerSubtitle": zod.string().max(updateAdminEmailSettingsResponseBrandingBannerSubtitleMax),
-  "preheaderText": zod.string().max(updateAdminEmailSettingsResponseBrandingPreheaderTextMax),
-  "messageEyebrow": zod.string().max(updateAdminEmailSettingsResponseBrandingMessageEyebrowMax),
-  "footerText": zod.string().max(updateAdminEmailSettingsResponseBrandingFooterTextMax),
-  "footerLinkText": zod.string().max(updateAdminEmailSettingsResponseBrandingFooterLinkTextMax),
-  "footerLinkUrl": zod.string().url().max(updateAdminEmailSettingsResponseBrandingFooterLinkUrlMax).nullable(),
-  "footerLinkColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingFooterLinkColorRegExp),
-  "footerBackgroundColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp),
-  "footerTextColor": zod.string().regex(updateAdminEmailSettingsResponseBrandingFooterTextColorRegExp),
-  "footerBackgroundUrl": zod.string().url().max(updateAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax).nullable(),
-  "footerBackgroundObjectPath": zod.string().max(updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax).regex(updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp).nullable()
-}),
-  "senderAddress": zod.string(),
-  "updatedAt": zod.coerce.date().nullable()
-})
-
+  recipients: zod
+    .array(zod.string().email())
+    .max(updateAdminEmailSettingsResponseRecipientsMax),
+  alerts: zod.object({
+    contact_received: zod.boolean(),
+    step_saved: zod.boolean(),
+    contact_updated: zod.boolean(),
+    evidence_saved: zod.boolean(),
+    application_submitted: zod.boolean(),
+  }),
+  branding: zod.object({
+    logoUrl: zod
+      .string()
+      .url()
+      .max(updateAdminEmailSettingsResponseBrandingLogoUrlMax)
+      .nullable(),
+    logoObjectPath: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingLogoObjectPathMax)
+      .regex(updateAdminEmailSettingsResponseBrandingLogoObjectPathRegExp)
+      .nullable(),
+    accentColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsResponseBrandingAccentColorRegExp),
+    headerColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsResponseBrandingHeaderColorRegExp),
+    senderName: zod
+      .string()
+      .min(1)
+      .max(updateAdminEmailSettingsResponseBrandingSenderNameMax),
+    senderEmail: zod
+      .string()
+      .email()
+      .max(updateAdminEmailSettingsResponseBrandingSenderEmailMax),
+    bannerMark: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingBannerMarkMax),
+    bannerTitle: zod
+      .string()
+      .min(1)
+      .max(updateAdminEmailSettingsResponseBrandingBannerTitleMax),
+    bannerSubtitle: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingBannerSubtitleMax),
+    preheaderText: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingPreheaderTextMax),
+    messageEyebrow: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingMessageEyebrowMax),
+    footerText: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingFooterTextMax),
+    footerLinkText: zod
+      .string()
+      .max(updateAdminEmailSettingsResponseBrandingFooterLinkTextMax),
+    footerLinkUrl: zod
+      .string()
+      .url()
+      .max(updateAdminEmailSettingsResponseBrandingFooterLinkUrlMax)
+      .nullable(),
+    footerLinkColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsResponseBrandingFooterLinkColorRegExp),
+    footerBackgroundColor: zod
+      .string()
+      .regex(
+        updateAdminEmailSettingsResponseBrandingFooterBackgroundColorRegExp,
+      ),
+    footerTextColor: zod
+      .string()
+      .regex(updateAdminEmailSettingsResponseBrandingFooterTextColorRegExp),
+    footerBackgroundUrl: zod
+      .string()
+      .url()
+      .max(updateAdminEmailSettingsResponseBrandingFooterBackgroundUrlMax)
+      .nullable(),
+    footerBackgroundObjectPath: zod
+      .string()
+      .max(
+        updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathMax,
+      )
+      .regex(
+        updateAdminEmailSettingsResponseBrandingFooterBackgroundObjectPathRegExp,
+      )
+      .nullable(),
+  }),
+  senderAddress: zod.string(),
+  updatedAt: zod.coerce.date().nullable(),
+});
 
 /**
  * @summary Request an upload URL for the public email header logo
  */
 export const requestAdminEmailLogoUploadBodySizeBytesMax = 2097152;
 
-
-
 export const RequestAdminEmailLogoUploadBody = zod.object({
-  "contentType": zod.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
-  "sizeBytes": zod.number().int().min(1).max(requestAdminEmailLogoUploadBodySizeBytesMax)
-})
+  contentType: zod.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+  sizeBytes: zod
+    .number()
+    .int()
+    .min(1)
+    .max(requestAdminEmailLogoUploadBodySizeBytesMax),
+});
 
 export const requestAdminEmailLogoUploadResponseObjectPathMax = 200;
 
-
-export const requestAdminEmailLogoUploadResponseObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-
+export const requestAdminEmailLogoUploadResponseObjectPathRegExp = new RegExp(
+  "^/objects/email-logos/[0-9a-fA-F-]{36}$",
+);
 
 export const RequestAdminEmailLogoUploadResponse = zod.object({
-  "uploadUrl": zod.string().url(),
-  "objectPath": zod.string().max(requestAdminEmailLogoUploadResponseObjectPathMax).regex(requestAdminEmailLogoUploadResponseObjectPathRegExp)
-})
-
+  uploadUrl: zod.string().url(),
+  objectPath: zod
+    .string()
+    .max(requestAdminEmailLogoUploadResponseObjectPathMax)
+    .regex(requestAdminEmailLogoUploadResponseObjectPathRegExp),
+});
 
 /**
  * @summary Verify an uploaded email header logo
  */
 export const completeAdminEmailLogoUploadBodyObjectPathMax = 200;
 
-
-export const completeAdminEmailLogoUploadBodyObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-
+export const completeAdminEmailLogoUploadBodyObjectPathRegExp = new RegExp(
+  "^/objects/email-logos/[0-9a-fA-F-]{36}$",
+);
 
 export const CompleteAdminEmailLogoUploadBody = zod.object({
-  "objectPath": zod.string().max(completeAdminEmailLogoUploadBodyObjectPathMax).regex(completeAdminEmailLogoUploadBodyObjectPathRegExp)
-})
+  objectPath: zod
+    .string()
+    .max(completeAdminEmailLogoUploadBodyObjectPathMax)
+    .regex(completeAdminEmailLogoUploadBodyObjectPathRegExp),
+});
 
 export const completeAdminEmailLogoUploadResponseObjectPathMax = 200;
 
-
-export const completeAdminEmailLogoUploadResponseObjectPathRegExp = new RegExp('^/objects/email-logos/[0-9a-fA-F-]{36}$');
-
+export const completeAdminEmailLogoUploadResponseObjectPathRegExp = new RegExp(
+  "^/objects/email-logos/[0-9a-fA-F-]{36}$",
+);
 
 export const CompleteAdminEmailLogoUploadResponse = zod.object({
-  "objectPath": zod.string().max(completeAdminEmailLogoUploadResponseObjectPathMax).regex(completeAdminEmailLogoUploadResponseObjectPathRegExp)
-})
-
+  objectPath: zod
+    .string()
+    .max(completeAdminEmailLogoUploadResponseObjectPathMax)
+    .regex(completeAdminEmailLogoUploadResponseObjectPathRegExp),
+});
 
 /**
  * @summary Serve the configured public staff email logo
  */
-export const GetPublicStaffEmailLogoResponse = zod.unknown()
-
+export const GetPublicStaffEmailLogoResponse = zod.unknown();
 
 /**
  * @summary Serve the configured public staff email footer background
  */
-export const GetPublicStaffEmailFooterBackgroundResponse = zod.unknown()
-
+export const GetPublicStaffEmailFooterBackgroundResponse = zod.unknown();
 
 /**
  * @summary List recent staff and automated email messages
  */
 export const ListAdminEmailOutboxResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "recipientEmail": zod.string().email(),
-  "subject": zod.string(),
-  "messageText": zod.string(),
-  "eventKind": zod.union([zod.literal('contact_received'),zod.literal('step_saved'),zod.literal('contact_updated'),zod.literal('evidence_saved'),zod.literal('application_submitted'),zod.literal('manual'),zod.literal(null)]).nullable(),
-  "applicationReference": zod.string().nullable(),
-  "status": zod.enum(['sending', 'sent', 'failed']),
-  "providerMessageId": zod.string().nullable(),
-  "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
-  "providerEventAt": zod.coerce.date().nullable(),
-  "providerEvents": zod.array(zod.object({
-  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
-  "providerEventAt": zod.coerce.date()
-})),
-  "errorMessage": zod.string().nullable(),
-  "createdByUserId": zod.string().nullable(),
-  "attemptCount": zod.number().int(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListAdminEmailOutboxResponse = zod.array(ListAdminEmailOutboxResponseItem)
-
+  id: zod.string().uuid(),
+  recipientEmail: zod.string().email(),
+  subject: zod.string(),
+  messageText: zod.string(),
+  eventKind: zod
+    .union([
+      zod.literal("contact_received"),
+      zod.literal("step_saved"),
+      zod.literal("contact_updated"),
+      zod.literal("evidence_saved"),
+      zod.literal("application_submitted"),
+      zod.literal("manual"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicationReference: zod.string().nullable(),
+  status: zod.enum(["sending", "sent", "failed"]),
+  providerMessageId: zod.string().nullable(),
+  deliveryStatus: zod
+    .union([
+      zod.literal("accepted"),
+      zod.literal("delivered"),
+      zod.literal("bounced"),
+      zod.literal("complained"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  providerEventAt: zod.coerce.date().nullable(),
+  providerEvents: zod.array(
+    zod.object({
+      deliveryStatus: zod.enum(["delivered", "bounced", "complained"]),
+      providerEventAt: zod.coerce.date(),
+    }),
+  ),
+  errorMessage: zod.string().nullable(),
+  createdByUserId: zod.string().nullable(),
+  attemptCount: zod.number().int(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListAdminEmailOutboxResponse = zod.array(
+  ListAdminEmailOutboxResponseItem,
+);
 
 /**
  * @summary List reusable staff email templates
@@ -1899,18 +3429,17 @@ export const listAdminEmailTemplatesResponseSubjectMax = 200;
 
 export const listAdminEmailTemplatesResponseMessageTextMax = 10000;
 
-
-
 export const ListAdminEmailTemplatesResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "name": zod.string().max(listAdminEmailTemplatesResponseNameMax),
-  "subject": zod.string().max(listAdminEmailTemplatesResponseSubjectMax),
-  "messageText": zod.string().max(listAdminEmailTemplatesResponseMessageTextMax),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListAdminEmailTemplatesResponse = zod.array(ListAdminEmailTemplatesResponseItem)
-
+  id: zod.string().uuid(),
+  name: zod.string().max(listAdminEmailTemplatesResponseNameMax),
+  subject: zod.string().max(listAdminEmailTemplatesResponseSubjectMax),
+  messageText: zod.string().max(listAdminEmailTemplatesResponseMessageTextMax),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListAdminEmailTemplatesResponse = zod.array(
+  ListAdminEmailTemplatesResponseItem,
+);
 
 /**
  * @summary Create a reusable staff email template
@@ -1921,13 +3450,14 @@ export const createAdminEmailTemplateBodySubjectMax = 200;
 
 export const createAdminEmailTemplateBodyMessageTextMax = 10000;
 
-
-
 export const CreateAdminEmailTemplateBody = zod.object({
-  "name": zod.string().min(1).max(createAdminEmailTemplateBodyNameMax),
-  "subject": zod.string().min(1).max(createAdminEmailTemplateBodySubjectMax),
-  "messageText": zod.string().min(1).max(createAdminEmailTemplateBodyMessageTextMax)
-})
+  name: zod.string().min(1).max(createAdminEmailTemplateBodyNameMax),
+  subject: zod.string().min(1).max(createAdminEmailTemplateBodySubjectMax),
+  messageText: zod
+    .string()
+    .min(1)
+    .max(createAdminEmailTemplateBodyMessageTextMax),
+});
 
 export const createAdminEmailTemplateResponseNameMax = 80;
 
@@ -1935,24 +3465,21 @@ export const createAdminEmailTemplateResponseSubjectMax = 200;
 
 export const createAdminEmailTemplateResponseMessageTextMax = 10000;
 
-
-
 export const CreateAdminEmailTemplateResponse = zod.object({
-  "id": zod.string().uuid(),
-  "name": zod.string().max(createAdminEmailTemplateResponseNameMax),
-  "subject": zod.string().max(createAdminEmailTemplateResponseSubjectMax),
-  "messageText": zod.string().max(createAdminEmailTemplateResponseMessageTextMax),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string().uuid(),
+  name: zod.string().max(createAdminEmailTemplateResponseNameMax),
+  subject: zod.string().max(createAdminEmailTemplateResponseSubjectMax),
+  messageText: zod.string().max(createAdminEmailTemplateResponseMessageTextMax),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 /**
  * @summary Update a reusable staff email template
  */
 export const UpdateAdminEmailTemplateParams = zod.object({
-  "templateId": zod.coerce.string().uuid()
-})
+  templateId: zod.coerce.string().uuid(),
+});
 
 export const updateAdminEmailTemplateBodyNameMax = 80;
 
@@ -1960,13 +3487,14 @@ export const updateAdminEmailTemplateBodySubjectMax = 200;
 
 export const updateAdminEmailTemplateBodyMessageTextMax = 10000;
 
-
-
 export const UpdateAdminEmailTemplateBody = zod.object({
-  "name": zod.string().min(1).max(updateAdminEmailTemplateBodyNameMax),
-  "subject": zod.string().min(1).max(updateAdminEmailTemplateBodySubjectMax),
-  "messageText": zod.string().min(1).max(updateAdminEmailTemplateBodyMessageTextMax)
-})
+  name: zod.string().min(1).max(updateAdminEmailTemplateBodyNameMax),
+  subject: zod.string().min(1).max(updateAdminEmailTemplateBodySubjectMax),
+  messageText: zod
+    .string()
+    .min(1)
+    .max(updateAdminEmailTemplateBodyMessageTextMax),
+});
 
 export const updateAdminEmailTemplateResponseNameMax = 80;
 
@@ -1974,27 +3502,23 @@ export const updateAdminEmailTemplateResponseSubjectMax = 200;
 
 export const updateAdminEmailTemplateResponseMessageTextMax = 10000;
 
-
-
 export const UpdateAdminEmailTemplateResponse = zod.object({
-  "id": zod.string().uuid(),
-  "name": zod.string().max(updateAdminEmailTemplateResponseNameMax),
-  "subject": zod.string().max(updateAdminEmailTemplateResponseSubjectMax),
-  "messageText": zod.string().max(updateAdminEmailTemplateResponseMessageTextMax),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string().uuid(),
+  name: zod.string().max(updateAdminEmailTemplateResponseNameMax),
+  subject: zod.string().max(updateAdminEmailTemplateResponseSubjectMax),
+  messageText: zod.string().max(updateAdminEmailTemplateResponseMessageTextMax),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 /**
  * @summary Remove a reusable staff email template
  */
 export const DeleteAdminEmailTemplateParams = zod.object({
-  "templateId": zod.coerce.string().uuid()
-})
+  templateId: zod.coerce.string().uuid(),
+});
 
-export const DeleteAdminEmailTemplateResponse = zod.void()
-
+export const DeleteAdminEmailTemplateResponse = zod.void();
 
 /**
  * @summary Send a one-off email to external recipients
@@ -2005,38 +3529,58 @@ export const sendAdminEmailBodySubjectMax = 200;
 
 export const sendAdminEmailBodyMessageTextMax = 10000;
 
-
-
 export const SendAdminEmailBody = zod.object({
-  "requestId": zod.string().uuid(),
-  "recipients": zod.array(zod.string().email()).min(1).max(sendAdminEmailBodyRecipientsMax),
-  "subject": zod.string().min(1).max(sendAdminEmailBodySubjectMax),
-  "messageText": zod.string().min(1).max(sendAdminEmailBodyMessageTextMax)
-})
+  requestId: zod.string().uuid(),
+  recipients: zod
+    .array(zod.string().email())
+    .min(1)
+    .max(sendAdminEmailBodyRecipientsMax),
+  subject: zod.string().min(1).max(sendAdminEmailBodySubjectMax),
+  messageText: zod.string().min(1).max(sendAdminEmailBodyMessageTextMax),
+});
 
 export const SendAdminEmailResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "recipientEmail": zod.string().email(),
-  "subject": zod.string(),
-  "messageText": zod.string(),
-  "eventKind": zod.union([zod.literal('contact_received'),zod.literal('step_saved'),zod.literal('contact_updated'),zod.literal('evidence_saved'),zod.literal('application_submitted'),zod.literal('manual'),zod.literal(null)]).nullable(),
-  "applicationReference": zod.string().nullable(),
-  "status": zod.enum(['sending', 'sent', 'failed']),
-  "providerMessageId": zod.string().nullable(),
-  "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
-  "providerEventAt": zod.coerce.date().nullable(),
-  "providerEvents": zod.array(zod.object({
-  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
-  "providerEventAt": zod.coerce.date()
-})),
-  "errorMessage": zod.string().nullable(),
-  "createdByUserId": zod.string().nullable(),
-  "attemptCount": zod.number().int(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const SendAdminEmailResponse = zod.array(SendAdminEmailResponseItem)
-
+  id: zod.string().uuid(),
+  recipientEmail: zod.string().email(),
+  subject: zod.string(),
+  messageText: zod.string(),
+  eventKind: zod
+    .union([
+      zod.literal("contact_received"),
+      zod.literal("step_saved"),
+      zod.literal("contact_updated"),
+      zod.literal("evidence_saved"),
+      zod.literal("application_submitted"),
+      zod.literal("manual"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicationReference: zod.string().nullable(),
+  status: zod.enum(["sending", "sent", "failed"]),
+  providerMessageId: zod.string().nullable(),
+  deliveryStatus: zod
+    .union([
+      zod.literal("accepted"),
+      zod.literal("delivered"),
+      zod.literal("bounced"),
+      zod.literal("complained"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  providerEventAt: zod.coerce.date().nullable(),
+  providerEvents: zod.array(
+    zod.object({
+      deliveryStatus: zod.enum(["delivered", "bounced", "complained"]),
+      providerEventAt: zod.coerce.date(),
+    }),
+  ),
+  errorMessage: zod.string().nullable(),
+  createdByUserId: zod.string().nullable(),
+  attemptCount: zod.number().int(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const SendAdminEmailResponse = zod.array(SendAdminEmailResponseItem);
 
 /**
  * @summary Get staff SMS sender settings
@@ -2050,20 +3594,24 @@ export const getAdminSmsSettingsResponseDailyLimitMax = 100000;
 
 export const getAdminSmsSettingsResponseDailyUsageCountMin = 0;
 
-
-
 export const GetAdminSmsSettingsResponse = zod.object({
-  "baseUrl": zod.string().max(getAdminSmsSettingsResponseBaseUrlMax),
-  "senderId": zod.string().max(getAdminSmsSettingsResponseSenderIdMax),
-  "credentialConfigured": zod.boolean(),
-  "deliveryReportUrl": zod.string().url().nullable(),
-  "deliveryReportsConfigured": zod.boolean(),
-  "dailyLimit": zod.number().int().min(getAdminSmsSettingsResponseDailyLimitMin).max(getAdminSmsSettingsResponseDailyLimitMax),
-  "dailyUsageCount": zod.number().int().min(getAdminSmsSettingsResponseDailyUsageCountMin),
-  "canConfigure": zod.boolean(),
-  "updatedAt": zod.coerce.date().nullable()
-})
-
+  baseUrl: zod.string().max(getAdminSmsSettingsResponseBaseUrlMax),
+  senderId: zod.string().max(getAdminSmsSettingsResponseSenderIdMax),
+  credentialConfigured: zod.boolean(),
+  deliveryReportUrl: zod.string().url().nullable(),
+  deliveryReportsConfigured: zod.boolean(),
+  dailyLimit: zod
+    .number()
+    .int()
+    .min(getAdminSmsSettingsResponseDailyLimitMin)
+    .max(getAdminSmsSettingsResponseDailyLimitMax),
+  dailyUsageCount: zod
+    .number()
+    .int()
+    .min(getAdminSmsSettingsResponseDailyUsageCountMin),
+  canConfigure: zod.boolean(),
+  updatedAt: zod.coerce.date().nullable(),
+});
 
 /**
  * @summary Update staff SMS sender settings
@@ -2073,18 +3621,32 @@ export const updateAdminSmsSettingsBodyBaseUrlMax = 255;
 export const updateAdminSmsSettingsBodySenderIdMin = 3;
 export const updateAdminSmsSettingsBodySenderIdMax = 11;
 
-
-export const updateAdminSmsSettingsBodySenderIdRegExp = new RegExp('^[A-Za-z0-9]+$');
+export const updateAdminSmsSettingsBodySenderIdRegExp = new RegExp(
+  "^[A-Za-z0-9]+$",
+);
 export const updateAdminSmsSettingsBodyDailyLimitMin = 0;
 export const updateAdminSmsSettingsBodyDailyLimitMax = 100000;
 
-
-
 export const UpdateAdminSmsSettingsBody = zod.object({
-  "baseUrl": zod.string().url().min(1).max(updateAdminSmsSettingsBodyBaseUrlMax).optional(),
-  "senderId": zod.string().min(updateAdminSmsSettingsBodySenderIdMin).max(updateAdminSmsSettingsBodySenderIdMax).regex(updateAdminSmsSettingsBodySenderIdRegExp).optional(),
-  "dailyLimit": zod.number().int().min(updateAdminSmsSettingsBodyDailyLimitMin).max(updateAdminSmsSettingsBodyDailyLimitMax).optional()
-})
+  baseUrl: zod
+    .string()
+    .url()
+    .min(1)
+    .max(updateAdminSmsSettingsBodyBaseUrlMax)
+    .optional(),
+  senderId: zod
+    .string()
+    .min(updateAdminSmsSettingsBodySenderIdMin)
+    .max(updateAdminSmsSettingsBodySenderIdMax)
+    .regex(updateAdminSmsSettingsBodySenderIdRegExp)
+    .optional(),
+  dailyLimit: zod
+    .number()
+    .int()
+    .min(updateAdminSmsSettingsBodyDailyLimitMin)
+    .max(updateAdminSmsSettingsBodyDailyLimitMax)
+    .optional(),
+});
 
 export const updateAdminSmsSettingsResponseBaseUrlMax = 255;
 
@@ -2095,20 +3657,24 @@ export const updateAdminSmsSettingsResponseDailyLimitMax = 100000;
 
 export const updateAdminSmsSettingsResponseDailyUsageCountMin = 0;
 
-
-
 export const UpdateAdminSmsSettingsResponse = zod.object({
-  "baseUrl": zod.string().max(updateAdminSmsSettingsResponseBaseUrlMax),
-  "senderId": zod.string().max(updateAdminSmsSettingsResponseSenderIdMax),
-  "credentialConfigured": zod.boolean(),
-  "deliveryReportUrl": zod.string().url().nullable(),
-  "deliveryReportsConfigured": zod.boolean(),
-  "dailyLimit": zod.number().int().min(updateAdminSmsSettingsResponseDailyLimitMin).max(updateAdminSmsSettingsResponseDailyLimitMax),
-  "dailyUsageCount": zod.number().int().min(updateAdminSmsSettingsResponseDailyUsageCountMin),
-  "canConfigure": zod.boolean(),
-  "updatedAt": zod.coerce.date().nullable()
-})
-
+  baseUrl: zod.string().max(updateAdminSmsSettingsResponseBaseUrlMax),
+  senderId: zod.string().max(updateAdminSmsSettingsResponseSenderIdMax),
+  credentialConfigured: zod.boolean(),
+  deliveryReportUrl: zod.string().url().nullable(),
+  deliveryReportsConfigured: zod.boolean(),
+  dailyLimit: zod
+    .number()
+    .int()
+    .min(updateAdminSmsSettingsResponseDailyLimitMin)
+    .max(updateAdminSmsSettingsResponseDailyLimitMax),
+  dailyUsageCount: zod
+    .number()
+    .int()
+    .min(updateAdminSmsSettingsResponseDailyUsageCountMin),
+  canConfigure: zod.boolean(),
+  updatedAt: zod.coerce.date().nullable(),
+});
 
 /**
  * @summary Send one SMS through Infobip
@@ -2116,173 +3682,201 @@ export const UpdateAdminSmsSettingsResponse = zod.object({
 export const sendAdminSmsBodyRecipientPhoneMin = 9;
 export const sendAdminSmsBodyRecipientPhoneMax = 16;
 
-
-export const sendAdminSmsBodyRecipientPhoneRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+export const sendAdminSmsBodyRecipientPhoneRegExp = new RegExp(
+  "^\\+[1-9][0-9]{7,14}$",
+);
 export const sendAdminSmsBodyMessageTextMax = 1600;
 
-
-
 export const SendAdminSmsBody = zod.object({
-  "recipientPhone": zod.string().min(sendAdminSmsBodyRecipientPhoneMin).max(sendAdminSmsBodyRecipientPhoneMax).regex(sendAdminSmsBodyRecipientPhoneRegExp),
-  "messageText": zod.string().min(1).max(sendAdminSmsBodyMessageTextMax)
-})
+  recipientPhone: zod
+    .string()
+    .min(sendAdminSmsBodyRecipientPhoneMin)
+    .max(sendAdminSmsBodyRecipientPhoneMax)
+    .regex(sendAdminSmsBodyRecipientPhoneRegExp),
+  messageText: zod.string().min(1).max(sendAdminSmsBodyMessageTextMax),
+});
 
 export const SendAdminSmsResponse = zod.object({
-  "id": zod.string().uuid(),
-  "recipientPhone": zod.string(),
-  "senderId": zod.string(),
-  "messageText": zod.string(),
-  "status": zod.enum(['sending', 'accepted', 'delivered', 'failed']),
-  "providerMessageId": zod.string().nullable(),
-  "providerStatus": zod.string().nullable(),
-  "providerStatusGroup": zod.string().nullable(),
-  "providerStatusAt": zod.coerce.date().nullable(),
-  "acceptedAt": zod.coerce.date().nullable(),
-  "errorMessage": zod.string().nullable(),
-  "createdByUserId": zod.string().nullable(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string().uuid(),
+  recipientPhone: zod.string(),
+  senderId: zod.string(),
+  messageText: zod.string(),
+  status: zod.enum(["sending", "accepted", "delivered", "failed"]),
+  providerMessageId: zod.string().nullable(),
+  providerStatus: zod.string().nullable(),
+  providerStatusGroup: zod.string().nullable(),
+  providerStatusAt: zod.coerce.date().nullable(),
+  acceptedAt: zod.coerce.date().nullable(),
+  errorMessage: zod.string().nullable(),
+  createdByUserId: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 /**
  * @summary List recent staff SMS attempts
  */
 export const ListAdminSmsActivityResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "recipientPhone": zod.string(),
-  "senderId": zod.string(),
-  "messageText": zod.string(),
-  "status": zod.enum(['sending', 'accepted', 'delivered', 'failed']),
-  "providerMessageId": zod.string().nullable(),
-  "providerStatus": zod.string().nullable(),
-  "providerStatusGroup": zod.string().nullable(),
-  "providerStatusAt": zod.coerce.date().nullable(),
-  "acceptedAt": zod.coerce.date().nullable(),
-  "errorMessage": zod.string().nullable(),
-  "createdByUserId": zod.string().nullable(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListAdminSmsActivityResponse = zod.array(ListAdminSmsActivityResponseItem)
-
+  id: zod.string().uuid(),
+  recipientPhone: zod.string(),
+  senderId: zod.string(),
+  messageText: zod.string(),
+  status: zod.enum(["sending", "accepted", "delivered", "failed"]),
+  providerMessageId: zod.string().nullable(),
+  providerStatus: zod.string().nullable(),
+  providerStatusGroup: zod.string().nullable(),
+  providerStatusAt: zod.coerce.date().nullable(),
+  acceptedAt: zod.coerce.date().nullable(),
+  errorMessage: zod.string().nullable(),
+  createdByUserId: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListAdminSmsActivityResponse = zod.array(
+  ListAdminSmsActivityResponseItem,
+);
 
 /**
  * Requires an Infobip HMAC-SHA256 signature in the X-Hub-Signature header.
  * @summary Receive Infobip SMS delivery reports
  */
 export const ReceiveInfobipSmsDeliveryReportBody = zod.object({
-  "results": zod.array(zod.object({
-  "messageId": zod.string().optional(),
-  "callbackData": zod.string().optional(),
-  "doneAt": zod.coerce.date().optional(),
-  "status": zod.object({
-  "groupName": zod.string().optional(),
-  "name": zod.string().optional(),
-  "description": zod.string().optional()
-}).optional()
-}))
-})
+  results: zod.array(
+    zod.object({
+      messageId: zod.string().optional(),
+      callbackData: zod.string().optional(),
+      doneAt: zod.coerce.date().optional(),
+      status: zod
+        .object({
+          groupName: zod.string().optional(),
+          name: zod.string().optional(),
+          description: zod.string().optional(),
+        })
+        .optional(),
+    }),
+  ),
+});
 
-export const ReceiveInfobipSmsDeliveryReportResponse = zod.unknown()
-
+export const ReceiveInfobipSmsDeliveryReportResponse = zod.unknown();
 
 /**
  * @summary Retry a failed staff or automated email
  */
 export const RetryAdminEmailParams = zod.object({
-  "messageId": zod.coerce.string().uuid()
-})
+  messageId: zod.coerce.string().uuid(),
+});
 
 export const RetryAdminEmailResponse = zod.object({
-  "id": zod.string().uuid(),
-  "recipientEmail": zod.string().email(),
-  "subject": zod.string(),
-  "messageText": zod.string(),
-  "eventKind": zod.union([zod.literal('contact_received'),zod.literal('step_saved'),zod.literal('contact_updated'),zod.literal('evidence_saved'),zod.literal('application_submitted'),zod.literal('manual'),zod.literal(null)]).nullable(),
-  "applicationReference": zod.string().nullable(),
-  "status": zod.enum(['sending', 'sent', 'failed']),
-  "providerMessageId": zod.string().nullable(),
-  "deliveryStatus": zod.union([zod.literal('accepted'),zod.literal('delivered'),zod.literal('bounced'),zod.literal('complained'),zod.literal(null)]).nullable(),
-  "providerEventAt": zod.coerce.date().nullable(),
-  "providerEvents": zod.array(zod.object({
-  "deliveryStatus": zod.enum(['delivered', 'bounced', 'complained']),
-  "providerEventAt": zod.coerce.date()
-})),
-  "errorMessage": zod.string().nullable(),
-  "createdByUserId": zod.string().nullable(),
-  "attemptCount": zod.number().int(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string().uuid(),
+  recipientEmail: zod.string().email(),
+  subject: zod.string(),
+  messageText: zod.string(),
+  eventKind: zod
+    .union([
+      zod.literal("contact_received"),
+      zod.literal("step_saved"),
+      zod.literal("contact_updated"),
+      zod.literal("evidence_saved"),
+      zod.literal("application_submitted"),
+      zod.literal("manual"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  applicationReference: zod.string().nullable(),
+  status: zod.enum(["sending", "sent", "failed"]),
+  providerMessageId: zod.string().nullable(),
+  deliveryStatus: zod
+    .union([
+      zod.literal("accepted"),
+      zod.literal("delivered"),
+      zod.literal("bounced"),
+      zod.literal("complained"),
+      zod.literal(null),
+    ])
+    .nullable(),
+  providerEventAt: zod.coerce.date().nullable(),
+  providerEvents: zod.array(
+    zod.object({
+      deliveryStatus: zod.enum(["delivered", "bounced", "complained"]),
+      providerEventAt: zod.coerce.date(),
+    }),
+  ),
+  errorMessage: zod.string().nullable(),
+  createdByUserId: zod.string().nullable(),
+  attemptCount: zod.number().int(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 export const GetAdminApplicationHistoryParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const GetAdminApplicationHistoryResponseItem = zod.object({
-  "id": zod.string(),
-  "eventType": zod.string(),
-  "note": zod.string().nullable(),
-  "createdAt": zod.coerce.date(),
-  "actorUserId": zod.string()
-})
-export const GetAdminApplicationHistoryResponse = zod.array(GetAdminApplicationHistoryResponseItem)
-
+  id: zod.string(),
+  eventType: zod.string(),
+  note: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  actorUserId: zod.string(),
+});
+export const GetAdminApplicationHistoryResponse = zod.array(
+  GetAdminApplicationHistoryResponseItem,
+);
 
 export const AddAdminApplicationNoteParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const addAdminApplicationNoteBodyNoteMax = 4000;
 
-
-
 export const AddAdminApplicationNoteBody = zod.object({
-  "note": zod.string().min(1).max(addAdminApplicationNoteBodyNoteMax)
-})
+  note: zod.string().min(1).max(addAdminApplicationNoteBodyNoteMax),
+});
 
 export const AddAdminApplicationNoteResponse = zod.object({
-  "id": zod.string(),
-  "eventType": zod.string(),
-  "note": zod.string().nullable(),
-  "createdAt": zod.coerce.date(),
-  "actorUserId": zod.string()
-})
-
+  id: zod.string(),
+  eventType: zod.string(),
+  note: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  actorUserId: zod.string(),
+});
 
 /**
  * @summary Retrieve saved guest application revisions for authorized reviewers
  */
 export const GetAdminGuestApplicationHistoryParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const getAdminGuestApplicationHistoryResponseCurrentStepMin = 0;
 export const getAdminGuestApplicationHistoryResponseCurrentStepMax = 7;
 
-
-
 export const GetAdminGuestApplicationHistoryResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "currentStep": zod.number().int().min(getAdminGuestApplicationHistoryResponseCurrentStepMin).max(getAdminGuestApplicationHistoryResponseCurrentStepMax),
-  "changes": zod.array(zod.object({
-  "field": zod.string(),
-  "before": zod.string(),
-  "after": zod.string()
-})),
-  "createdAt": zod.coerce.date()
-})
-export const GetAdminGuestApplicationHistoryResponse = zod.array(GetAdminGuestApplicationHistoryResponseItem)
-
+  id: zod.string().uuid(),
+  currentStep: zod
+    .number()
+    .int()
+    .min(getAdminGuestApplicationHistoryResponseCurrentStepMin)
+    .max(getAdminGuestApplicationHistoryResponseCurrentStepMax),
+  changes: zod.array(
+    zod.object({
+      field: zod.string(),
+      before: zod.string(),
+      after: zod.string(),
+    }),
+  ),
+  createdAt: zod.coerce.date(),
+});
+export const GetAdminGuestApplicationHistoryResponse = zod.array(
+  GetAdminGuestApplicationHistoryResponseItem,
+);
 
 /**
  * @summary Approve, reject, or request more information
  */
 export const DecideApplicationParams = zod.object({
-  "applicationId": zod.coerce.string()
-})
+  applicationId: zod.coerce.string(),
+});
 
 export const decideApplicationBodyNoteMax = 4000;
 
@@ -2291,69 +3885,119 @@ export const decideApplicationBodyReopenSectionsItemMax = 6;
 
 export const decideApplicationBodyReopenSectionsMax = 7;
 
-
-
 export const DecideApplicationBody = zod.object({
-  "decision": zod.enum(['approve', 'reject', 'request_information', 'mark_under_review']),
-  "note": zod.string().max(decideApplicationBodyNoteMax).optional(),
-  "reopenSections": zod.array(zod.number().int().min(decideApplicationBodyReopenSectionsItemMin).max(decideApplicationBodyReopenSectionsItemMax)).min(1).max(decideApplicationBodyReopenSectionsMax).optional()
-})
+  decision: zod.enum([
+    "approve",
+    "reject",
+    "request_information",
+    "mark_under_review",
+  ]),
+  note: zod.string().max(decideApplicationBodyNoteMax).optional(),
+  reopenSections: zod
+    .array(
+      zod
+        .number()
+        .int()
+        .min(decideApplicationBodyReopenSectionsItemMin)
+        .max(decideApplicationBodyReopenSectionsItemMax),
+    )
+    .min(1)
+    .max(decideApplicationBodyReopenSectionsMax)
+    .optional(),
+});
 
 export const DecideApplicationResponse = zod.object({
-  "id": zod.string(),
-  "reference": zod.string(),
-  "categoryId": zod.enum(['category-1', 'category-2', 'category-3', 'category-4']),
-  "categoryName": zod.string(),
-  "status": zod.enum(['draft', 'submitted', 'under_review', 'needs_information', 'approved', 'rejected']),
-  "currentStep": zod.number().int(),
-  "answers": zod.record(zod.string(), zod.unknown()),
-  "applicantName": zod.string().nullish(),
-  "applicantEmail": zod.string().nullish(),
-  "reviewNote": zod.string().nullish(),
-  "applicantFollowup": zod.string().nullish(),
-  "outstandingRequirements": zod.array(zod.string()).optional(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date(),
-  "submittedAt": zod.coerce.date().nullish(),
-  "evidence": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "evidenceType": zod.enum(['identity_document', 'verification_video', 'education_certificate']),
-  "evidenceSlot": zod.enum(['identity_front', 'identity_back', 'verification_video', 'education_certificate', 'identity_document']),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "sizeBytes": zod.number().int(),
-  "uploadedAt": zod.coerce.date().nullable(),
-  "downloadUrl": zod.string().nullable()
-})).optional().describe('Present only for authorized review records linked to a submitted guest application.')
-})
-
+  id: zod.string(),
+  reference: zod.string(),
+  categoryId: zod.enum([
+    "category-1",
+    "category-2",
+    "category-3",
+    "category-4",
+  ]),
+  categoryName: zod.string(),
+  status: zod.enum([
+    "draft",
+    "submitted",
+    "under_review",
+    "needs_information",
+    "approved",
+    "rejected",
+  ]),
+  currentStep: zod.number().int(),
+  answers: zod.record(zod.string(), zod.unknown()),
+  applicantName: zod.string().nullish(),
+  applicantEmail: zod.string().nullish(),
+  reviewNote: zod.string().nullish(),
+  applicantFollowup: zod.string().nullish(),
+  outstandingRequirements: zod.array(zod.string()).optional(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  submittedAt: zod.coerce.date().nullish(),
+  evidence: zod
+    .array(
+      zod.object({
+        id: zod.string().uuid(),
+        evidenceType: zod.enum([
+          "identity_document",
+          "verification_video",
+          "education_certificate",
+        ]),
+        evidenceSlot: zod.enum([
+          "identity_front",
+          "identity_back",
+          "verification_video",
+          "education_certificate",
+          "identity_document",
+        ]),
+        fileName: zod.string(),
+        contentType: zod.string(),
+        sizeBytes: zod.number().int(),
+        uploadedAt: zod.coerce.date().nullable(),
+        downloadUrl: zod.string().nullable(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Present only for authorized review records linked to a submitted guest application.",
+    ),
+});
 
 /**
  * @summary List the signed-in applicant's support requests
  */
 export const ListMySupportTicketsResponseItem = zod.object({
-  "id": zod.string(),
-  "applicantUserId": zod.string(),
-  "applicationId": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "subject": zod.string(),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string(),
-  "messages": zod.array(zod.object({
-  "id": zod.string(),
-  "actorUserId": zod.string(),
-  "actorRole": zod.enum(['applicant', 'administrator']),
-  "body": zod.string(),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedToUserId": zod.string().nullable(),
-  "status": zod.enum(['open', 'in_progress', 'resolved', 'answered', 'closed']),
-  "response": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListMySupportTicketsResponse = zod.array(ListMySupportTicketsResponseItem)
-
+  id: zod.string(),
+  applicantUserId: zod.string(),
+  applicationId: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  subject: zod.string(),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod.string(),
+  messages: zod.array(
+    zod.object({
+      id: zod.string(),
+      actorUserId: zod.string(),
+      actorRole: zod.enum(["applicant", "administrator"]),
+      body: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  assignedToUserId: zod.string().nullable(),
+  status: zod.enum(["open", "in_progress", "resolved", "answered", "closed"]),
+  response: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMySupportTicketsResponse = zod.array(
+  ListMySupportTicketsResponseItem,
+);
 
 /**
  * @summary Create a support request
@@ -2364,172 +4008,214 @@ export const createSupportTicketBodySubjectMax = 200;
 export const createSupportTicketBodyMessageMin = 5;
 export const createSupportTicketBodyMessageMax = 5000;
 
-
-
 export const CreateSupportTicketBody = zod.object({
-  "applicationId": zod.string().nullish(),
-  "subject": zod.string().min(createSupportTicketBodySubjectMin).max(createSupportTicketBodySubjectMax),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string().min(createSupportTicketBodyMessageMin).max(createSupportTicketBodyMessageMax)
-})
+  applicationId: zod.string().nullish(),
+  subject: zod
+    .string()
+    .min(createSupportTicketBodySubjectMin)
+    .max(createSupportTicketBodySubjectMax),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod
+    .string()
+    .min(createSupportTicketBodyMessageMin)
+    .max(createSupportTicketBodyMessageMax),
+});
 
 export const CreateSupportTicketResponse = zod.object({
-  "id": zod.string(),
-  "applicantUserId": zod.string(),
-  "applicationId": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "subject": zod.string(),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string(),
-  "messages": zod.array(zod.object({
-  "id": zod.string(),
-  "actorUserId": zod.string(),
-  "actorRole": zod.enum(['applicant', 'administrator']),
-  "body": zod.string(),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedToUserId": zod.string().nullable(),
-  "status": zod.enum(['open', 'in_progress', 'resolved', 'answered', 'closed']),
-  "response": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string(),
+  applicantUserId: zod.string(),
+  applicationId: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  subject: zod.string(),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod.string(),
+  messages: zod.array(
+    zod.object({
+      id: zod.string(),
+      actorUserId: zod.string(),
+      actorRole: zod.enum(["applicant", "administrator"]),
+      body: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  assignedToUserId: zod.string().nullable(),
+  status: zod.enum(["open", "in_progress", "resolved", "answered", "closed"]),
+  response: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 export const AddApplicantSupportMessageParams = zod.object({
-  "ticketId": zod.coerce.string()
-})
+  ticketId: zod.coerce.string(),
+});
 
 export const addApplicantSupportMessageBodyMessageMax = 5000;
 
-
-
 export const AddApplicantSupportMessageBody = zod.object({
-  "message": zod.string().min(1).max(addApplicantSupportMessageBodyMessageMax)
-})
+  message: zod.string().min(1).max(addApplicantSupportMessageBodyMessageMax),
+});
 
 export const AddApplicantSupportMessageResponse = zod.object({
-  "id": zod.string(),
-  "applicantUserId": zod.string(),
-  "applicationId": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "subject": zod.string(),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string(),
-  "messages": zod.array(zod.object({
-  "id": zod.string(),
-  "actorUserId": zod.string(),
-  "actorRole": zod.enum(['applicant', 'administrator']),
-  "body": zod.string(),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedToUserId": zod.string().nullable(),
-  "status": zod.enum(['open', 'in_progress', 'resolved', 'answered', 'closed']),
-  "response": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string(),
+  applicantUserId: zod.string(),
+  applicationId: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  subject: zod.string(),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod.string(),
+  messages: zod.array(
+    zod.object({
+      id: zod.string(),
+      actorUserId: zod.string(),
+      actorRole: zod.enum(["applicant", "administrator"]),
+      body: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  assignedToUserId: zod.string().nullable(),
+  status: zod.enum(["open", "in_progress", "resolved", "answered", "closed"]),
+  response: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 /**
  * @summary List support requests for authorized administrators
  */
 export const ListSupportTicketsForAdminQueryParams = zod.object({
-  "search": zod.coerce.string().optional(),
-  "status": zod.enum(['open', 'in_progress', 'resolved']).optional()
-})
+  search: zod.coerce.string().optional(),
+  status: zod.enum(["open", "in_progress", "resolved"]).optional(),
+});
 
 export const ListSupportTicketsForAdminResponseItem = zod.object({
-  "id": zod.string(),
-  "applicantUserId": zod.string(),
-  "applicationId": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "subject": zod.string(),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string(),
-  "messages": zod.array(zod.object({
-  "id": zod.string(),
-  "actorUserId": zod.string(),
-  "actorRole": zod.enum(['applicant', 'administrator']),
-  "body": zod.string(),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedToUserId": zod.string().nullable(),
-  "status": zod.enum(['open', 'in_progress', 'resolved', 'answered', 'closed']),
-  "response": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-export const ListSupportTicketsForAdminResponse = zod.array(ListSupportTicketsForAdminResponseItem)
-
+  id: zod.string(),
+  applicantUserId: zod.string(),
+  applicationId: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  subject: zod.string(),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod.string(),
+  messages: zod.array(
+    zod.object({
+      id: zod.string(),
+      actorUserId: zod.string(),
+      actorRole: zod.enum(["applicant", "administrator"]),
+      body: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  assignedToUserId: zod.string().nullable(),
+  status: zod.enum(["open", "in_progress", "resolved", "answered", "closed"]),
+  response: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListSupportTicketsForAdminResponse = zod.array(
+  ListSupportTicketsForAdminResponseItem,
+);
 
 /**
  * @summary Reply to and manage a support request
  */
 export const ReplyToSupportTicketParams = zod.object({
-  "ticketId": zod.coerce.string()
-})
+  ticketId: zod.coerce.string(),
+});
 
 export const replyToSupportTicketBodyResponseMax = 5000;
 
-
-
 export const ReplyToSupportTicketBody = zod.object({
-  "response": zod.string().min(1).max(replyToSupportTicketBodyResponseMax),
-  "status": zod.enum(['open', 'in_progress', 'resolved'])
-})
+  response: zod.string().min(1).max(replyToSupportTicketBodyResponseMax),
+  status: zod.enum(["open", "in_progress", "resolved"]),
+});
 
 export const ReplyToSupportTicketResponse = zod.object({
-  "id": zod.string(),
-  "applicantUserId": zod.string(),
-  "applicationId": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "subject": zod.string(),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string(),
-  "messages": zod.array(zod.object({
-  "id": zod.string(),
-  "actorUserId": zod.string(),
-  "actorRole": zod.enum(['applicant', 'administrator']),
-  "body": zod.string(),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedToUserId": zod.string().nullable(),
-  "status": zod.enum(['open', 'in_progress', 'resolved', 'answered', 'closed']),
-  "response": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
+  id: zod.string(),
+  applicantUserId: zod.string(),
+  applicationId: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  subject: zod.string(),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod.string(),
+  messages: zod.array(
+    zod.object({
+      id: zod.string(),
+      actorUserId: zod.string(),
+      actorRole: zod.enum(["applicant", "administrator"]),
+      body: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  assignedToUserId: zod.string().nullable(),
+  status: zod.enum(["open", "in_progress", "resolved", "answered", "closed"]),
+  response: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
 
 export const AssignSupportTicketParams = zod.object({
-  "ticketId": zod.coerce.string()
-})
+  ticketId: zod.coerce.string(),
+});
 
 export const AssignSupportTicketBody = zod.object({
-  "assigneeUserId": zod.string().nullable()
-})
+  assigneeUserId: zod.string().nullable(),
+});
 
 export const AssignSupportTicketResponse = zod.object({
-  "id": zod.string(),
-  "applicantUserId": zod.string(),
-  "applicationId": zod.string().nullable(),
-  "applicationReference": zod.string().nullable(),
-  "subject": zod.string(),
-  "category": zod.enum(['enrollment', 'account', 'technical', 'documents', 'other']),
-  "message": zod.string(),
-  "messages": zod.array(zod.object({
-  "id": zod.string(),
-  "actorUserId": zod.string(),
-  "actorRole": zod.enum(['applicant', 'administrator']),
-  "body": zod.string(),
-  "createdAt": zod.coerce.date()
-})),
-  "assignedToUserId": zod.string().nullable(),
-  "status": zod.enum(['open', 'in_progress', 'resolved', 'answered', 'closed']),
-  "response": zod.string().nullish(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-})
-
-
+  id: zod.string(),
+  applicantUserId: zod.string(),
+  applicationId: zod.string().nullable(),
+  applicationReference: zod.string().nullable(),
+  subject: zod.string(),
+  category: zod.enum([
+    "enrollment",
+    "account",
+    "technical",
+    "documents",
+    "other",
+  ]),
+  message: zod.string(),
+  messages: zod.array(
+    zod.object({
+      id: zod.string(),
+      actorUserId: zod.string(),
+      actorRole: zod.enum(["applicant", "administrator"]),
+      body: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  assignedToUserId: zod.string().nullable(),
+  status: zod.enum(["open", "in_progress", "resolved", "answered", "closed"]),
+  response: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
