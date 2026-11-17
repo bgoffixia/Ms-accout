@@ -30,7 +30,6 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   guestMode?: boolean;
-  onRecoverAccessCode?: () => void;
   uploadEvidence?: (
     file: File,
     evidenceSlot: 'identity_front' | 'identity_back' | 'verification_video' | 'education_certificate',
@@ -235,7 +234,7 @@ type LocalImage = { file: File; url: string };
 export function EnrollmentWizard({
   application, categories, status, storageAvailable, maxUploadBytes, isSaving, isSubmitting, error,
   reopenedSections, screenCopy = {}, categoryCards = [], saveStep, submit,
-  onBackToCategoryEntry, pageThemes, evidenceLater = false, guestMode = false, onRecoverAccessCode, uploadEvidence, updateContactEmail,
+  onBackToCategoryEntry, pageThemes, evidenceLater = false, guestMode = false, uploadEvidence, updateContactEmail,
 }: EnrollmentWizardProps) {
   const activeSteps = evidenceLater ? [0, 1, 2, 3, 6, 7] : stageTitles.map((_title, index) => index);
   const normalizeStep = (candidate: number) => {
@@ -587,8 +586,6 @@ export function EnrollmentWizard({
 
   const categoryEntryScreenId = `category-entry-${application.categoryId.replace(/^category-/, '')}`;
   const categoryEntryCopy = screenCopy[categoryEntryScreenId] ?? {};
-  const referenceCodeVisible = categoryEntryCopy.referenceCodeVisible !== 'false';
-  const referenceCodeLabel = categoryEntryCopy.referenceCodeLabel?.trim() || 'Reference Code';
   const categoryEntry = (categoryEntryFieldsByCategory[application.categoryId] ?? Object.keys(categoryEntryLabels))
     .map((key) => {
       const labelKey = key === 'name' ? 'nameLabel' : key === 'nickname' ? 'nicknameLabel' : 'surnameLabel';
@@ -701,10 +698,6 @@ export function EnrollmentWizard({
       <p>{categoryDescription}</p></div>
     </div>
     {categoryEntry.length > 0 && <div className="ew-category-details">{categoryEntry.map((item) => renderReviewField(item.label, item.value, `category-${item.key}`))}</div>}
-    {referenceCodeVisible && <>
-      <div className="ew-category-details">{renderReviewField(referenceCodeLabel, application.referenceCode || 'Not provided', 'reference-code')}</div>
-      <p className="ew-reference-code-note">This is ordinary tracking metadata, not a sign-in, identity verification, or authorization factor.</p>
-    </>}
   </section>;
 
   const uploadProgress = Math.min(100, Math.round((recordingSeconds / 12) * 100));
@@ -717,7 +710,7 @@ export function EnrollmentWizard({
       </Link>
       <div className="ew-top-meta"><span className={`ew-draft-status ${status === 'draft' ? '' : 'submitted'}`} data-testid="status-application">{evidenceLater ? 'details in progress' : status.replaceAll('_', ' ')}</span>
         <span className="ew-reference" data-testid="text-application-reference">{application.reference}</span>
-        {onRecoverAccessCode && <button type="button" className="ew-access-code-reset" onClick={onRecoverAccessCode} data-testid="button-reset-access-code">Forgot access code?</button>}</div>
+        </div>
     </header>
     <div className="ew-layout">
       <aside className="ew-rail">
@@ -941,7 +934,7 @@ export function EnrollmentWizard({
                     }} data-testid="input-correct-contact-email" />
                 </label>
                 {emailCorrectionError && <p className="ew-field-error" role="alert" data-testid="error-correct-contact-email">{emailCorrectionError}</p>}
-                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Status access uses your reference and six-digit application access code.</p>}
+                {emailCorrectionSaved && <p className="ew-email-correction-success" role="status" data-testid="success-correct-contact-email">Email updated. Your Clerk account continues to protect access to this application.</p>}
                 <button type="button" className="ew-button ew-button-quiet" onClick={() => void correctContactEmail()}
                   disabled={isSaving || contactEmailInput.trim().toLowerCase() === (application.applicantEmail ?? '').trim().toLowerCase()}
                   data-testid="button-save-contact-email">Save contact email</button>

@@ -3,7 +3,7 @@ name: Staff access
 description: Allowlisted staff self-registration and role-specific access boundaries.
 ---
 
-Two specifically authorized accounts may self-register through the staff route only after server-side allowlist and verified-email checks. Admin and Sub-admin roles can review applicant enrollment records; only Admin can manage portal settings and staff users. Other staff accounts remain invitation-only, with roles assigned from server-controlled invitation metadata. Never treat a hidden URL as authorization.
+Two specifically authorized accounts may self-register through the staff route only after server-side allowlist and verified-primary-email checks. Resolve their Admin/Sub-admin roles from the normalized primary email on the server; never grant those roles from browser input or mutable role metadata, and do not add development-only allowlist exceptions. Explicitly invited moderators retain support-only access. Admin and Sub-admin roles can review applicant enrollment records; only Admin can manage portal settings and staff users. Other staff accounts remain invitation-only, with roles assigned from server-controlled invitation metadata. Never treat a hidden URL as authorization.
 
 Present submitted applications and saved guest drafts together in one Applicants workspace for both reviewer roles. Keep `/admin/pre-applications` as an alias so existing notification links continue to open the unified page.
 
@@ -21,4 +21,4 @@ Only administrators may view or change automated email alert recipients/event to
 
 **How to apply:** Hide admin-only controls and routes in the UI, and enforce role checks or redacted responses in the API. Preserve separate sub-admin capabilities that the user did not restrict.
 
-**How to apply:** Keep the allowlist and role mapping on the server, require verified primary email before role assignment, enforce restrictions in API routes, omit staff links from public applicant layouts, keep all other staff role assignment invitation-only, and keep the unified applicant workspace protected.
+**How to apply:** Keep the allowlist and role mapping on the server, require verified primary email before role assignment, derive Admin/Sub-admin authorization from that identity on every request, enforce restrictions in API routes, omit staff links from public applicant layouts, keep other staff roles invitation-based, and keep the unified applicant workspace protected.

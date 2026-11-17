@@ -8,7 +8,6 @@ import {
   jsonb,
   pgEnum,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -55,8 +54,10 @@ export const guestPreapplicationsTable = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     submissionId: uuid("submission_id").notNull().unique(),
     reference: text("reference").notNull().unique(),
+    // Historical tracking-key hash retained for existing guest records and
+    // explicit verified-email recovery. Applicant access-code hashes are not
+    // mapped here, so ordinary Drizzle selections cannot read them.
     accessKeyHash: text("access_key_hash").unique(),
-    applicantAccessCodeHash: text("applicant_access_code_hash"),
     categoryId: text("category_id").notNull(),
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
@@ -74,6 +75,9 @@ export const guestPreapplicationsTable = pgTable(
     emailVerified: boolean("email_verified").notNull().default(false),
     clerkUserId: text("clerk_user_id"),
     linkedApplicationId: uuid("linked_application_id"),
+    assignedReviewerUserId: text("assigned_reviewer_user_id"),
+    invitationCodeCiphertext: text("invitation_code_ciphertext"),
+    // Legacy plaintext is retained only until the reviewed backfill completes.
     referenceCode: text("reference_code"),
     updatedByUserId: text("updated_by_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -170,14 +174,16 @@ export const enrollmentApplicationsTable = pgTable(
     categoryId: text("category_id").notNull(),
     status: applicationStatus("status").notNull().default("draft"),
     currentStep: integer("current_step").notNull().default(0),
+    invitationCodeCiphertext: text("invitation_code_ciphertext"),
+    // Legacy plaintext is retained only until the reviewed backfill completes.
     referenceCode: text("reference_code"),
-    applicantAccessCodeHash: text("applicant_access_code_hash"),
     answers: jsonb("answers")
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
     reviewNote: text("review_note"),
     reviewerUserId: text("reviewer_user_id"),
+    assignedReviewerUserId: text("assigned_reviewer_user_id"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -195,33 +201,6 @@ export const enrollmentApplicationsTable = pgTable(
     ),
   ],
 );
-
-export const applicantAccessCodeAttemptsTable = pgTable(
-  "applicant_access_code_attempts",
-  {
-    referenceKey: text("reference_key").notNull(),
-    ipKey: text("ip_key").notNull(),
-    failedAttempts: integer("failed_attempts").notNull().default(0),
-    windowStartedAt: timestamp("window_started_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    lockedUntil: timestamp("locked_until", { withTimezone: true }),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({
-      name: "applicant_access_code_attempts_pk",
-      columns: [table.referenceKey, table.ipKey],
-    }),
-    index("applicant_access_code_attempts_updated_idx").on(table.updatedAt),
-    check(
-      "applicant_access_code_attempts_failed_attempts_check",
-      sql`${table.failedAttempts} >= 0`,
-    ),
-  ],
-).enableRLS();
 
 export const applicationEventsTable = pgTable(
   "application_events",
@@ -243,6 +222,35 @@ export const applicationEventsTable = pgTable(
     index("application_events_application_idx").on(table.applicationId),
   ],
 );
+
+export const invitationCodeRevealAuditTable = pgTable(
+  "invitation_code_reveal_audit",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    applicationType: text("application_type").notNull(),
+    applicationId: uuid("application_id").notNull(),
+    actorUserId: text("actor_user_id").notNull(),
+    action: text("action").notNull().default("view_invitation_code"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "invitation_code_reveal_audit_application_type_check",
+      sql`${table.applicationType} IN ('guest_preapplication', 'enrollment_application')`,
+    ),
+    check(
+      "invitation_code_reveal_audit_action_check",
+      sql`${table.action} = 'view_invitation_code'`,
+    ),
+    index("invitation_code_reveal_audit_application_idx").on(
+      table.applicationType,
+      table.applicationId,
+      table.createdAt,
+    ),
+  ],
+).enableRLS();
 
 export const supportTicketsTable = pgTable(
   "enrollment_support_tickets",

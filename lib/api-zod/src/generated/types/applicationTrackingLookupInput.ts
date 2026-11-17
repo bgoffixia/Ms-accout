@@ -6,16 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface LegacyGuestAccessUpgradeInput {
+export interface ApplicationTrackingLookupInput {
   /**
      * @minLength 8
      * @maxLength 32
      */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
-  legacyAccessKey: string;
-  /** @pattern ^[0-9]{6}$ */
-  accessCode: string;
-  /** @pattern ^[0-9]{6}$ */
-  confirmAccessCode: string;
+  trackingKey: string;
 }
