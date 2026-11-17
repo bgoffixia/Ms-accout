@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, FormEvent } from "react";
 import { ArrowLeft, ArrowRight, ChevronDown, MapPin, Menu, Phone, X } from "lucide-react";
@@ -25,8 +25,9 @@ type CategoryEntryFormProps = {
   guestMode?: boolean;
   categoryInputTransparent?: boolean;
   referenceCodeVisible?: boolean;
-  referenceCodeLabel?: string;
-  savedReferenceCode?: string | null;
+  invitationCodeLength?: number;
+  invitationCodePolicyLoading?: boolean;
+  invitationCodePolicyError?: string;
   screenCopy?: Record<string, string>;
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
@@ -49,8 +50,9 @@ export function CategoryEntryForm({
   guestMode = false,
   categoryInputTransparent = true,
   referenceCodeVisible = true,
-  referenceCodeLabel = "Reference Code",
-  savedReferenceCode = "",
+  invitationCodeLength = 8,
+  invitationCodePolicyLoading = false,
+  invitationCodePolicyError = "",
   screenCopy = {},
   pageTheme,
   entryLogoDataUrl,
@@ -78,12 +80,13 @@ export function CategoryEntryForm({
   const [name, setName] = useState(() => savedValue(savedAnswers, "name"));
   const [nickname, setNickname] = useState(() => savedValue(savedAnswers, "nickname"));
   const [surname, setSurname] = useState(() => savedValue(savedAnswers, "surname"));
-  const [referenceCode, setReferenceCode] = useState(savedReferenceCode ?? "");
+  const [referenceCode, setReferenceCode] = useState("");
   const [categoryOneMenuOpen, setCategoryOneMenuOpen] = useState(false);
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
   const [categoryThreeMenuOpen, setCategoryThreeMenuOpen] = useState(false);
   const [validationError, setValidationError] = useState("");
   const isReferenceCodeStep = referenceCodeVisible && step === lastStep;
+  const invitationCodeInputRef = useRef<HTMLInputElement>(null);
   const activeLogoAlignment = entryLogoAlignment;
   const logoAlignment = ["left", "center", "right"].includes(activeLogoAlignment) ? activeLogoAlignment : "center";
   const activeLogoVerticalOffset = entryLogoVerticalOffset;
@@ -93,6 +96,16 @@ export function CategoryEntryForm({
   const logoVerticalOffset = Number.isFinite(parsedLogoVerticalOffset)
     ? Math.max(-120, Math.min(120, parsedLogoVerticalOffset))
     : 0;
+  const normalizedInvitationCodeLength =
+    Number.isInteger(invitationCodeLength) && invitationCodeLength >= 4 && invitationCodeLength <= 12
+      ? invitationCodeLength
+      : 8;
+
+  useEffect(() => {
+    if (isReferenceCodeStep) {
+      invitationCodeInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [isReferenceCodeStep]);
 
   const moveForward = () => {
     setValidationError("");
@@ -133,20 +146,20 @@ export function CategoryEntryForm({
       return false;
     }
     const normalizedReferenceCode = referenceCode.trim();
-    const includesSecretTerm =
-      /\b(?:pin|password|passcode|otp|one[-\s]?time|verification code)\b/i.test(normalizedReferenceCode);
-    if (
-      normalizedReferenceCode &&
-      (
-        normalizedReferenceCode.length > 80 ||
-        !/^[A-Za-z0-9][A-Za-z0-9 _./-]*$/.test(normalizedReferenceCode) ||
-        !/[A-Za-z]/.test(normalizedReferenceCode) ||
-        /^[0-9\s./-]+$/.test(normalizedReferenceCode) ||
-        includesSecretTerm
-      )
-    ) {
-      setValidationError("Use a non-secret tracking reference with letters and numbers. Do not enter a password or verification code.");
-      return false;
+    if (normalizedReferenceCode) {
+      if (invitationCodePolicyLoading || invitationCodePolicyError) {
+        setValidationError("Invitation Code requirements could not be checked. Try again.");
+        return false;
+      }
+      if (
+        !/^\d+$/.test(normalizedReferenceCode) ||
+        normalizedReferenceCode.length !== normalizedInvitationCodeLength
+      ) {
+        setValidationError(
+          `Enter exactly ${normalizedInvitationCodeLength} digits for this provider's Invitation Code.`,
+        );
+        return false;
+      }
     }
     onComplete({
       name: showName ? name.trim() : "",
@@ -163,7 +176,7 @@ export function CategoryEntryForm({
   };
 
   const defaultHeading = isReferenceCodeStep
-    ? referenceCodeLabel
+    ? "Invitation Code"
     : isCategoryTwo
       ? step === 0
         ? "Enter Name"
@@ -373,30 +386,92 @@ export function CategoryEntryForm({
                   </div>
                 )}
                 <h2 id="reference-code-heading" className="reference-code-entry-title">
-                  {screenCopy.referenceCodeLabel || referenceCodeLabel}
+                  Invitation Code
                 </h2>
                 <p className="reference-code-entry-explanation">
-                  Optional, non-secret tracking metadata only. It is never used to sign in, verify identity, or unlock your application.
+                  If you were given an Invitation Code for this account provider, enter it here. It does not replace your private application tracking key.
                 </p>
                 <label className="entry-field reference-code-field" htmlFor="reference-code">
-                  <span>{screenCopy.referenceCodeLabel || referenceCodeLabel}</span>
+                  <span>Invitation Code · {normalizedInvitationCodeLength} digits</span>
                   <input
                     id="reference-code"
                     className="entry-line-input"
-                    type="text"
+                    ref={invitationCodeInputRef}
+                    type="password"
+                    inputMode="none"
                     autoComplete="off"
-                    maxLength={80}
+                    readOnly
+                    maxLength={normalizedInvitationCodeLength}
                     value={referenceCode}
-                    onChange={(event) => {
-                      setValidationError("");
-                      setReferenceCode(event.target.value);
-                    }}
-                    aria-describedby="reference-code-safety"
+                    aria-label={`Invitation Code, ${normalizedInvitationCodeLength} digits`}
+                    aria-describedby="invitation-code-status invitation-code-safety"
                     data-testid="input-reference-code"
                   />
                 </label>
-                <p id="reference-code-safety" className="reference-code-entry-safety">
-                  Do not enter a PIN, password, one-time code, or other secret here.
+                <div className="invitation-code-keypad" role="group" aria-label="Invitation Code numeric keypad">
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+                    <button
+                      key={digit}
+                      type="button"
+                      className="invitation-code-key"
+                      aria-label={`Digit ${digit}`}
+                      data-testid={`button-invitation-code-digit-${digit}`}
+                      disabled={invitationCodePolicyLoading || Boolean(invitationCodePolicyError) || referenceCode.length >= normalizedInvitationCodeLength}
+                      onClick={() => {
+                        setValidationError("");
+                        setReferenceCode((current) => `${current}${digit}`.slice(0, normalizedInvitationCodeLength));
+                      }}
+                    >
+                      {digit}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="invitation-code-key invitation-code-key-action"
+                    aria-label="Clear Invitation Code"
+                    data-testid="button-invitation-code-clear"
+                    disabled={!referenceCode}
+                    onClick={() => {
+                      setValidationError("");
+                      setReferenceCode("");
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="invitation-code-key"
+                    aria-label="Digit 0"
+                    data-testid="button-invitation-code-digit-0"
+                    disabled={invitationCodePolicyLoading || Boolean(invitationCodePolicyError) || referenceCode.length >= normalizedInvitationCodeLength}
+                    onClick={() => {
+                      setValidationError("");
+                      setReferenceCode((current) => `${current}0`.slice(0, normalizedInvitationCodeLength));
+                    }}
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    className="invitation-code-key invitation-code-key-action"
+                    aria-label="Delete last Invitation Code digit"
+                    data-testid="button-invitation-code-backspace"
+                    disabled={!referenceCode}
+                    onClick={() => {
+                      setValidationError("");
+                      setReferenceCode((current) => current.slice(0, -1));
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+                <p id="invitation-code-status" className="invitation-code-status" aria-live="polite" data-testid="text-invitation-code-status">
+                  {`${referenceCode.length} of ${normalizedInvitationCodeLength} digits entered`}
+                </p>
+                {invitationCodePolicyLoading && <p className="reference-code-entry-safety" role="status">Loading provider code requirements…</p>}
+                {invitationCodePolicyError && <p className="reference-code-entry-safety" role="alert">{invitationCodePolicyError}</p>}
+                <p id="invitation-code-safety" className="reference-code-entry-safety">
+                  Stored encrypted for authorized reviewers only. It is not used to sign in or access your status.
                 </p>
               </section>
             )}
@@ -455,7 +530,7 @@ export function CategoryEntryForm({
           <details className="category-two-reference-privacy">
             <summary>Privacy Policy</summary>
             <p>{guestMode
-              ? "Your application details are saved for authorized reviewers. The optional Reference Code is ordinary tracking metadata, not a sign-in or verification factor."
+              ? "Your application details are saved for authorized reviewers. Invitation Codes are encrypted and visible only through an audited reviewer action."
               : "Your application is available to authorized enrollment staff. Never enter account passwords, PINs, or one-time verification codes in this form."}</p>
           </details>
           <span className="category-two-reference-version">Secure enrollment</span>

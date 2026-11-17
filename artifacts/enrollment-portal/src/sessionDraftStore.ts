@@ -25,8 +25,6 @@ export function createSessionDraft(
     categoryName: category.name,
     status: "draft",
     currentStep: 0,
-    referenceCode: null,
-    accessCodeConfigured: false,
     answers: {},
     applicantName: null,
     applicantEmail: null,
@@ -103,7 +101,6 @@ export function changeSessionDraftCategory(
       categoryName: category.name,
       answers: {},
       currentStep: 0,
-      referenceCode: null,
       updatedAt: new Date().toISOString(),
     },
   };

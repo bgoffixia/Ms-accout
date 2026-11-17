@@ -17,4 +17,6 @@ export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   reviewReady: boolean;
   evidence: AdminGuestPreapplicationEvidence[];
   history: GuestPreapplicationRevision[];
+  /** @nullable */
+  assignedReviewerUserId: string | null;
 });

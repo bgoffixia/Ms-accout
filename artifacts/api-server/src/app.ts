@@ -11,8 +11,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
-// Trust the single managed ingress proxy so req.ip reflects the applicant's
-// client address for access-code throttling, not the shared proxy address.
+// Trust only the managed ingress proxy, which validates the forwarded client address.
 app.set("trust proxy", 1);
 
 app.use(

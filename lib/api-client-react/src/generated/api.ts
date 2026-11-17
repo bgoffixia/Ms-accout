@@ -20,7 +20,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AccessCodeConfiguredResponse,
   AdminEmailLogoUploadCompleteInput,
   AdminEmailLogoUploadCompleteResponse,
   AdminEmailLogoUploadInput,
@@ -31,10 +30,12 @@ import type {
   AdminEmailSettingsUpdate,
   AdminEmailTemplate,
   AdminEmailTemplateInput,
+  AdminEnrollmentApplication,
   AdminGuestPreapplication,
   AdminGuestPreapplicationEvidence,
   AdminGuestPreapplicationStatusUpdate,
   AdminOverview,
+  AdminProviderInvitationCodeSettings,
   AdminSmsMessage,
   AdminSmsSendInput,
   AdminSmsSendResponse,
@@ -46,15 +47,15 @@ import type {
   AdminUserList,
   AdminUserRoleUpdate,
   AdminUserStatusUpdate,
-  ApplicantAccessCodeInput,
   ApplicantRecordsClearResult,
   ApplicantSummary,
-  ApplicationAccessLookupInput,
   ApplicationAccessStatus,
   ApplicationDecision,
   ApplicationDraftInput,
   ApplicationEvent,
   ApplicationNoteInput,
+  ApplicationReviewerAssignment,
+  ApplicationTrackingLookupInput,
   ApplicationUpdate,
   ClearApplicantRecordsInput,
   DeleteMyApplicationDraftsResponse,
@@ -73,14 +74,22 @@ import type {
   GuestPreapplicationProgressInput,
   GuestPreapplicationRevision,
   GuestPreapplicationStatus,
+  GuestTrackingKeyRecoveryInput,
+  GuestTrackingKeyRecoveryResponse,
   HealthStatus,
   InfobipSmsDeliveryReport,
-  LegacyGuestAccessUpgradeInput,
+  InvitationCodeLengthUpdate,
+  InvitationCodeProviderId,
+  InvitationCodeReveal,
   ListAdminUsersParams,
   ListApplicationsForReviewParams,
   ListSupportTicketsForAdminParams,
   NewApplicationSubmissionInput,
   PortalSettings,
+  ProviderInvitationCodePolicy,
+  ProviderInvitationCodeSetting,
+  SetApplicationReviewerAssignmentInput,
+  StaffAccessClaimInput,
   StaffAccessClaimResponse,
   StaffRegistrationCheckInput,
   StaffRegistrationCheckResponse,
@@ -512,18 +521,18 @@ export const useSubmitNewApplication = <TError = ErrorType<unknown>,
       return useMutation(getSubmitNewApplicationMutationOptions(options));
     }
 
-export const getLookupApplicationWithAccessCodeUrl = () => {
+export const getLookupApplicationByTrackingKeyUrl = () => {
 
 
 
 
-  return `/api/applications/access/lookup`
+  return `/api/applications/tracking/lookup`
 }
 
 /**
- * @summary Look up an applicant-owned application with its reference and access code
+ * @summary Look up an applicant-owned application with its reference and private tracking key
  */
-export const lookupApplicationWithAccessCode = async (applicationAccessLookupInput: ApplicationAccessLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicationAccessStatus> => {
+export const lookupApplicationByTrackingKey = async (applicationTrackingLookupInput: ApplicationTrackingLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicationAccessStatus> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -539,12 +548,12 @@ export const lookupApplicationWithAccessCode = async (applicationAccessLookupInp
     }
     return headers;
   };
-return customFetch<ApplicationAccessStatus>(getLookupApplicationWithAccessCodeUrl(),
+return customFetch<ApplicationAccessStatus>(getLookupApplicationByTrackingKeyUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(applicationAccessLookupInput)
+    body: JSON.stringify(applicationTrackingLookupInput)
   }
 );}
 
@@ -552,13 +561,13 @@ return customFetch<ApplicationAccessStatus>(getLookupApplicationWithAccessCodeUr
 
 
 
-export const getLookupApplicationWithAccessCodeMutationKey = () => ['lookupApplicationWithAccessCode'] as const;
+export const getLookupApplicationByTrackingKeyMutationKey = () => ['lookupApplicationByTrackingKey'] as const;
 
-export const getLookupApplicationWithAccessCodeMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, TError,LookupApplicationWithAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, TError,LookupApplicationWithAccessCodeMutationVariables, TContext> => {
+export const getLookupApplicationByTrackingKeyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, TError,LookupApplicationByTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, TError,LookupApplicationByTrackingKeyMutationVariables, TContext> => {
 
-const mutationKey = getLookupApplicationWithAccessCodeMutationKey();
+const mutationKey = getLookupApplicationByTrackingKeyMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -568,10 +577,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, LookupApplicationWithAccessCodeMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, LookupApplicationByTrackingKeyMutationVariables> = (props) => {
           const {data} = props ?? {};
 
-          return  lookupApplicationWithAccessCode(data,requestOptions)
+          return  lookupApplicationByTrackingKey(data,requestOptions)
         }
 
 
@@ -581,23 +590,23 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type LookupApplicationWithAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>>
-    export type LookupApplicationWithAccessCodeMutationBody = BodyType<ApplicationAccessLookupInput>
-    export type LookupApplicationWithAccessCodeMutationError = ErrorType<void>
-    export type LookupApplicationWithAccessCodeMutationVariables = {data: BodyType<ApplicationAccessLookupInput>}
+    export type LookupApplicationByTrackingKeyMutationResult = NonNullable<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>>
+    export type LookupApplicationByTrackingKeyMutationBody = BodyType<ApplicationTrackingLookupInput>
+    export type LookupApplicationByTrackingKeyMutationError = ErrorType<void>
+    export type LookupApplicationByTrackingKeyMutationVariables = {data: BodyType<ApplicationTrackingLookupInput>}
 
     /**
- * @summary Look up an applicant-owned application with its reference and access code
+ * @summary Look up an applicant-owned application with its reference and private tracking key
  */
-export const useLookupApplicationWithAccessCode = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>, TError,LookupApplicationWithAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useLookupApplicationByTrackingKey = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>, TError,LookupApplicationByTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof lookupApplicationWithAccessCode>>,
+        Awaited<ReturnType<typeof lookupApplicationByTrackingKey>>,
         TError,
-        LookupApplicationWithAccessCodeMutationVariables,
+        LookupApplicationByTrackingKeyMutationVariables,
         TContext
       > => {
-      return useMutation(getLookupApplicationWithAccessCodeMutationOptions(options));
+      return useMutation(getLookupApplicationByTrackingKeyMutationOptions(options));
     }
 
 export const getCreateApplicationDraftUrl = () => {
@@ -854,95 +863,6 @@ export const useUpdateApplication = <TError = ErrorType<unknown>,
       return useMutation(getUpdateApplicationMutationOptions(options));
     }
 
-export const getUpdateMyApplicationAccessCodeUrl = (applicationId: string,) => {
-
-
-
-
-  return `/api/applications/${applicationId}/access-code`
-}
-
-/**
- * @summary Set or explicitly recover the signed-in owner's application access code
- */
-export const updateMyApplicationAccessCode = async (applicationId: string,
-    applicantAccessCodeInput: ApplicantAccessCodeInput, options?: Parameters<typeof customFetch>[1]): Promise<AccessCodeConfiguredResponse> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return customFetch<AccessCodeConfiguredResponse>(getUpdateMyApplicationAccessCodeUrl(applicationId),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(applicantAccessCodeInput)
-  }
-);}
-
-
-
-
-
-export const getUpdateMyApplicationAccessCodeMutationKey = () => ['updateMyApplicationAccessCode'] as const;
-
-export const getUpdateMyApplicationAccessCodeMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, TError,UpdateMyApplicationAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, TError,UpdateMyApplicationAccessCodeMutationVariables, TContext> => {
-
-const mutationKey = getUpdateMyApplicationAccessCodeMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, UpdateMyApplicationAccessCodeMutationVariables> = (props) => {
-          const {applicationId,data} = props ?? {};
-
-          return  updateMyApplicationAccessCode(applicationId,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateMyApplicationAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>>
-    export type UpdateMyApplicationAccessCodeMutationBody = BodyType<ApplicantAccessCodeInput>
-    export type UpdateMyApplicationAccessCodeMutationError = ErrorType<void>
-    export type UpdateMyApplicationAccessCodeMutationVariables = {applicationId: string;data: BodyType<ApplicantAccessCodeInput>}
-
-    /**
- * @summary Set or explicitly recover the signed-in owner's application access code
- */
-export const useUpdateMyApplicationAccessCode = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyApplicationAccessCode>>, TError,UpdateMyApplicationAccessCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof updateMyApplicationAccessCode>>,
-        TError,
-        UpdateMyApplicationAccessCodeMutationVariables,
-        TContext
-      > => {
-      return useMutation(getUpdateMyApplicationAccessCodeMutationOptions(options));
-    }
-
 export const getSubmitApplicationUrl = (applicationId: string,) => {
 
 
@@ -1197,18 +1117,18 @@ export const useCreateGuestPreapplication = <TError = ErrorType<unknown>,
       return useMutation(getCreateGuestPreapplicationMutationOptions(options));
     }
 
-export const getUpgradeLegacyGuestAccessKeyUrl = () => {
+export const getRecoverGuestTrackingKeyUrl = () => {
 
 
 
 
-  return `/api/guest/preapplications/access-code/upgrade`
+  return `/api/guest/preapplications/tracking-key/recover`
 }
 
 /**
- * @summary Explicitly replace a legacy guest tracking key with an applicant access code
+ * @summary Replace a guest tracking key using its verified Clerk email
  */
-export const upgradeLegacyGuestAccessKey = async (legacyGuestAccessUpgradeInput: LegacyGuestAccessUpgradeInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
+export const recoverGuestTrackingKey = async (guestTrackingKeyRecoveryInput: GuestTrackingKeyRecoveryInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestTrackingKeyRecoveryResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1224,12 +1144,12 @@ export const upgradeLegacyGuestAccessKey = async (legacyGuestAccessUpgradeInput:
     }
     return headers;
   };
-return customFetch<GuestPreapplicationStatus>(getUpgradeLegacyGuestAccessKeyUrl(),
+return customFetch<GuestTrackingKeyRecoveryResponse>(getRecoverGuestTrackingKeyUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(legacyGuestAccessUpgradeInput)
+    body: JSON.stringify(guestTrackingKeyRecoveryInput)
   }
 );}
 
@@ -1237,13 +1157,13 @@ return customFetch<GuestPreapplicationStatus>(getUpgradeLegacyGuestAccessKeyUrl(
 
 
 
-export const getUpgradeLegacyGuestAccessKeyMutationKey = () => ['upgradeLegacyGuestAccessKey'] as const;
+export const getRecoverGuestTrackingKeyMutationKey = () => ['recoverGuestTrackingKey'] as const;
 
-export const getUpgradeLegacyGuestAccessKeyMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, TError,UpgradeLegacyGuestAccessKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, TError,UpgradeLegacyGuestAccessKeyMutationVariables, TContext> => {
+export const getRecoverGuestTrackingKeyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, TError,RecoverGuestTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, TError,RecoverGuestTrackingKeyMutationVariables, TContext> => {
 
-const mutationKey = getUpgradeLegacyGuestAccessKeyMutationKey();
+const mutationKey = getRecoverGuestTrackingKeyMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1253,10 +1173,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, UpgradeLegacyGuestAccessKeyMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, RecoverGuestTrackingKeyMutationVariables> = (props) => {
           const {data} = props ?? {};
 
-          return  upgradeLegacyGuestAccessKey(data,requestOptions)
+          return  recoverGuestTrackingKey(data,requestOptions)
         }
 
 
@@ -1266,23 +1186,23 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type UpgradeLegacyGuestAccessKeyMutationResult = NonNullable<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>>
-    export type UpgradeLegacyGuestAccessKeyMutationBody = BodyType<LegacyGuestAccessUpgradeInput>
-    export type UpgradeLegacyGuestAccessKeyMutationError = ErrorType<void>
-    export type UpgradeLegacyGuestAccessKeyMutationVariables = {data: BodyType<LegacyGuestAccessUpgradeInput>}
+    export type RecoverGuestTrackingKeyMutationResult = NonNullable<Awaited<ReturnType<typeof recoverGuestTrackingKey>>>
+    export type RecoverGuestTrackingKeyMutationBody = BodyType<GuestTrackingKeyRecoveryInput>
+    export type RecoverGuestTrackingKeyMutationError = ErrorType<void>
+    export type RecoverGuestTrackingKeyMutationVariables = {data: BodyType<GuestTrackingKeyRecoveryInput>}
 
     /**
- * @summary Explicitly replace a legacy guest tracking key with an applicant access code
+ * @summary Replace a guest tracking key using its verified Clerk email
  */
-export const useUpgradeLegacyGuestAccessKey = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>, TError,UpgradeLegacyGuestAccessKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useRecoverGuestTrackingKey = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverGuestTrackingKey>>, TError,RecoverGuestTrackingKeyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof upgradeLegacyGuestAccessKey>>,
+        Awaited<ReturnType<typeof recoverGuestTrackingKey>>,
         TError,
-        UpgradeLegacyGuestAccessKeyMutationVariables,
+        RecoverGuestTrackingKeyMutationVariables,
         TContext
       > => {
-      return useMutation(getUpgradeLegacyGuestAccessKeyMutationOptions(options));
+      return useMutation(getRecoverGuestTrackingKeyMutationOptions(options));
     }
 
 export const getLookupGuestPreapplicationUrl = () => {
@@ -1294,7 +1214,7 @@ export const getLookupGuestPreapplicationUrl = () => {
 }
 
 /**
- * @summary Look up guest pre-application status with its applicant-owned access code
+ * @summary Restore a guest pre-application using its reference and private tracking key
  */
 export const lookupGuestPreapplication = async (guestPreapplicationLookupInput: GuestPreapplicationLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
 
@@ -1360,7 +1280,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type LookupGuestPreapplicationMutationVariables = {data: BodyType<GuestPreapplicationLookupInput>}
 
     /**
- * @summary Look up guest pre-application status with its applicant-owned access code
+ * @summary Restore a guest pre-application using its reference and private tracking key
  */
 export const useLookupGuestPreapplication = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupGuestPreapplication>>, TError,LookupGuestPreapplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1382,7 +1302,7 @@ export const getUpdateGuestPreapplicationProgressUrl = (applicationId: string,) 
 }
 
 /**
- * @summary Save guest application progress using its access code
+ * @summary Save guest application progress using its reference and private tracking key
  */
 export const updateGuestPreapplicationProgress = async (applicationId: string,
     guestPreapplicationProgressInput: GuestPreapplicationProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
@@ -1449,7 +1369,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateGuestPreapplicationProgressMutationVariables = {applicationId: string;data: BodyType<GuestPreapplicationProgressInput>}
 
     /**
- * @summary Save guest application progress using its access code
+ * @summary Save guest application progress using its reference and private tracking key
  */
 export const useUpdateGuestPreapplicationProgress = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationProgress>>, TError,UpdateGuestPreapplicationProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1471,7 +1391,7 @@ export const getUpdateGuestPreapplicationEmailUrl = (applicationId: string,) => 
 }
 
 /**
- * @summary Correct a guest applicant email using its access code
+ * @summary Correct a guest applicant email using its reference and private tracking key
  */
 export const updateGuestPreapplicationEmail = async (applicationId: string,
     guestPreapplicationEmailUpdate: GuestPreapplicationEmailUpdate, options?: Parameters<typeof customFetch>[1]): Promise<GuestPreapplicationStatus> => {
@@ -1538,7 +1458,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateGuestPreapplicationEmailMutationVariables = {applicationId: string;data: BodyType<GuestPreapplicationEmailUpdate>}
 
     /**
- * @summary Correct a guest applicant email using its access code
+ * @summary Correct a guest applicant email using its reference and private tracking key
  */
 export const useUpdateGuestPreapplicationEmail = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGuestPreapplicationEmail>>, TError,UpdateGuestPreapplicationEmailMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -2008,14 +1928,28 @@ export const getClaimAllowlistedStaffAccessUrl = () => {
 /**
  * @summary Assign the allowed staff role to a verified allowlisted account
  */
-export const claimAllowlistedStaffAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessClaimResponse> => {
+export const claimAllowlistedStaffAccess = async (staffAccessClaimInput: StaffAccessClaimInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessClaimResponse> => {
 
-  return customFetch<StaffAccessClaimResponse>(getClaimAllowlistedStaffAccessUrl(),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StaffAccessClaimResponse>(getClaimAllowlistedStaffAccessUrl(),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(staffAccessClaimInput)
   }
 );}
 
@@ -2026,8 +1960,8 @@ export const claimAllowlistedStaffAccess = async ( options?: Parameters<typeof c
 export const getClaimAllowlistedStaffAccessMutationKey = () => ['claimAllowlistedStaffAccess'] as const;
 
 export const getClaimAllowlistedStaffAccessMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,ClaimAllowlistedStaffAccessMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,ClaimAllowlistedStaffAccessMutationVariables, TContext> => {
 
 const mutationKey = getClaimAllowlistedStaffAccessMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2039,10 +1973,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, ClaimAllowlistedStaffAccessMutationVariables> = (props) => {
+          const {data} = props ?? {};
 
-
-          return  claimAllowlistedStaffAccess(requestOptions)
+          return  claimAllowlistedStaffAccess(data,requestOptions)
         }
 
 
@@ -2053,19 +1987,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ClaimAllowlistedStaffAccessMutationResult = NonNullable<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>>
-
+    export type ClaimAllowlistedStaffAccessMutationBody = BodyType<StaffAccessClaimInput>
     export type ClaimAllowlistedStaffAccessMutationError = ErrorType<void>
-
+    export type ClaimAllowlistedStaffAccessMutationVariables = {data: BodyType<StaffAccessClaimInput>}
 
     /**
  * @summary Assign the allowed staff role to a verified allowlisted account
  */
 export const useClaimAllowlistedStaffAccess = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>, TError,ClaimAllowlistedStaffAccessMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof claimAllowlistedStaffAccess>>,
         TError,
-        void,
+        ClaimAllowlistedStaffAccessMutationVariables,
         TContext
       > => {
       return useMutation(getClaimAllowlistedStaffAccessMutationOptions(options));
@@ -2147,6 +2081,80 @@ export function useListAdminGuestPreapplications<TData = Awaited<ReturnType<type
 
 
 
+
+export const getRevealAdminGuestPreapplicationInvitationCodeUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/admin/guest-preapplications/${applicationId}/invitation-code/reveal`
+}
+
+/**
+ * @summary Reveal a guest Invitation Code to an authorized reviewer on demand
+ */
+export const revealAdminGuestPreapplicationInvitationCode = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<InvitationCodeReveal> => {
+
+  return customFetch<InvitationCodeReveal>(getRevealAdminGuestPreapplicationInvitationCodeUrl(applicationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevealAdminGuestPreapplicationInvitationCodeMutationKey = () => ['revealAdminGuestPreapplicationInvitationCode'] as const;
+
+export const getRevealAdminGuestPreapplicationInvitationCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revealAdminGuestPreapplicationInvitationCode>>, TError,RevealAdminGuestPreapplicationInvitationCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revealAdminGuestPreapplicationInvitationCode>>, TError,RevealAdminGuestPreapplicationInvitationCodeMutationVariables, TContext> => {
+
+const mutationKey = getRevealAdminGuestPreapplicationInvitationCodeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revealAdminGuestPreapplicationInvitationCode>>, RevealAdminGuestPreapplicationInvitationCodeMutationVariables> = (props) => {
+          const {applicationId} = props ?? {};
+
+          return  revealAdminGuestPreapplicationInvitationCode(applicationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevealAdminGuestPreapplicationInvitationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof revealAdminGuestPreapplicationInvitationCode>>>
+
+    export type RevealAdminGuestPreapplicationInvitationCodeMutationError = ErrorType<void>
+    export type RevealAdminGuestPreapplicationInvitationCodeMutationVariables = {applicationId: string}
+
+    /**
+ * @summary Reveal a guest Invitation Code to an authorized reviewer on demand
+ */
+export const useRevealAdminGuestPreapplicationInvitationCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revealAdminGuestPreapplicationInvitationCode>>, TError,RevealAdminGuestPreapplicationInvitationCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revealAdminGuestPreapplicationInvitationCode>>,
+        TError,
+        RevealAdminGuestPreapplicationInvitationCodeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevealAdminGuestPreapplicationInvitationCodeMutationOptions(options));
+    }
 
 export const getClearApplicantRecordsUrl = () => {
 
@@ -2664,9 +2672,9 @@ export const getGetAdminApplicationUrl = (applicationId: string,) => {
   return `/api/admin/applications/${applicationId}`
 }
 
-export const getAdminApplication = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<EnrollmentApplication> => {
+export const getAdminApplication = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminEnrollmentApplication> => {
 
-  return customFetch<EnrollmentApplication>(getGetAdminApplicationUrl(applicationId),
+  return customFetch<AdminEnrollmentApplication>(getGetAdminApplicationUrl(applicationId),
   {
     ...options,
     method: 'GET'
@@ -2726,6 +2734,253 @@ export function useGetAdminApplication<TData = Awaited<ReturnType<typeof getAdmi
 
 
 
+
+export const getGetAdminReviewerAssignmentUrl = (applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string,) => {
+
+
+
+
+  return `/api/admin/reviewer-assignments/${applicationType}/${applicationId}`
+}
+
+/**
+ * @summary Get the assigned reviewer for an application
+ */
+export const getAdminReviewerAssignment = async (applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<ApplicationReviewerAssignment> => {
+
+  return customFetch<ApplicationReviewerAssignment>(getGetAdminReviewerAssignmentUrl(applicationType,applicationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminReviewerAssignmentQueryKey = (applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string,) => {
+    return [
+    `/api/admin/reviewer-assignments/${applicationType}/${applicationId}`
+    ] as const;
+    }
+
+
+export const getGetAdminReviewerAssignmentQueryOptions = <TData = Awaited<ReturnType<typeof getAdminReviewerAssignment>>, TError = ErrorType<void>>(applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminReviewerAssignment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminReviewerAssignmentQueryKey(applicationType,applicationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminReviewerAssignment>>> = ({ signal }) => getAdminReviewerAssignment(applicationType,applicationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: applicationType !== null && applicationType !== undefined && applicationId !== null && applicationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminReviewerAssignment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminReviewerAssignmentQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminReviewerAssignment>>>
+export type GetAdminReviewerAssignmentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the assigned reviewer for an application
+ */
+
+export function useGetAdminReviewerAssignment<TData = Awaited<ReturnType<typeof getAdminReviewerAssignment>>, TError = ErrorType<void>>(
+ applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminReviewerAssignment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminReviewerAssignmentQueryOptions(applicationType,applicationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetAdminReviewerAssignmentUrl = (applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string,) => {
+
+
+
+
+  return `/api/admin/reviewer-assignments/${applicationType}/${applicationId}`
+}
+
+/**
+ * @summary Assign or unassign an authorized Sub-admin reviewer
+ */
+export const setAdminReviewerAssignment = async (applicationType: 'guest_preapplication' | 'enrollment_application',
+    applicationId: string,
+    setApplicationReviewerAssignmentInput: SetApplicationReviewerAssignmentInput, options?: Parameters<typeof customFetch>[1]): Promise<ApplicationReviewerAssignment> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ApplicationReviewerAssignment>(getSetAdminReviewerAssignmentUrl(applicationType,applicationId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setApplicationReviewerAssignmentInput)
+  }
+);}
+
+
+
+
+
+export const getSetAdminReviewerAssignmentMutationKey = () => ['setAdminReviewerAssignment'] as const;
+
+export const getSetAdminReviewerAssignmentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminReviewerAssignment>>, TError,SetAdminReviewerAssignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminReviewerAssignment>>, TError,SetAdminReviewerAssignmentMutationVariables, TContext> => {
+
+const mutationKey = getSetAdminReviewerAssignmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminReviewerAssignment>>, SetAdminReviewerAssignmentMutationVariables> = (props) => {
+          const {applicationType,applicationId,data} = props ?? {};
+
+          return  setAdminReviewerAssignment(applicationType,applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminReviewerAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminReviewerAssignment>>>
+    export type SetAdminReviewerAssignmentMutationBody = BodyType<SetApplicationReviewerAssignmentInput>
+    export type SetAdminReviewerAssignmentMutationError = ErrorType<void>
+    export type SetAdminReviewerAssignmentMutationVariables = {applicationType: 'guest_preapplication' | 'enrollment_application';applicationId: string;data: BodyType<SetApplicationReviewerAssignmentInput>}
+
+    /**
+ * @summary Assign or unassign an authorized Sub-admin reviewer
+ */
+export const useSetAdminReviewerAssignment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminReviewerAssignment>>, TError,SetAdminReviewerAssignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminReviewerAssignment>>,
+        TError,
+        SetAdminReviewerAssignmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetAdminReviewerAssignmentMutationOptions(options));
+    }
+
+export const getRevealAdminApplicationInvitationCodeUrl = (applicationId: string,) => {
+
+
+
+
+  return `/api/admin/applications/${applicationId}/invitation-code/reveal`
+}
+
+/**
+ * @summary Reveal an application Invitation Code to an authorized reviewer on demand
+ */
+export const revealAdminApplicationInvitationCode = async (applicationId: string, options?: Parameters<typeof customFetch>[1]): Promise<InvitationCodeReveal> => {
+
+  return customFetch<InvitationCodeReveal>(getRevealAdminApplicationInvitationCodeUrl(applicationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevealAdminApplicationInvitationCodeMutationKey = () => ['revealAdminApplicationInvitationCode'] as const;
+
+export const getRevealAdminApplicationInvitationCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revealAdminApplicationInvitationCode>>, TError,RevealAdminApplicationInvitationCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revealAdminApplicationInvitationCode>>, TError,RevealAdminApplicationInvitationCodeMutationVariables, TContext> => {
+
+const mutationKey = getRevealAdminApplicationInvitationCodeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revealAdminApplicationInvitationCode>>, RevealAdminApplicationInvitationCodeMutationVariables> = (props) => {
+          const {applicationId} = props ?? {};
+
+          return  revealAdminApplicationInvitationCode(applicationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevealAdminApplicationInvitationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof revealAdminApplicationInvitationCode>>>
+
+    export type RevealAdminApplicationInvitationCodeMutationError = ErrorType<void>
+    export type RevealAdminApplicationInvitationCodeMutationVariables = {applicationId: string}
+
+    /**
+ * @summary Reveal an application Invitation Code to an authorized reviewer on demand
+ */
+export const useRevealAdminApplicationInvitationCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revealAdminApplicationInvitationCode>>, TError,RevealAdminApplicationInvitationCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revealAdminApplicationInvitationCode>>,
+        TError,
+        RevealAdminApplicationInvitationCodeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevealAdminApplicationInvitationCodeMutationOptions(options));
+    }
 
 export const getDownloadSubmittedApplicationEvidenceUrl = (applicationId: string,
     evidenceId: string,) => {
@@ -3301,6 +3556,83 @@ export function useGetPortalSettings<TData = Awaited<ReturnType<typeof getPortal
 
 
 
+export const getGetProviderInvitationCodePolicyUrl = (providerId: InvitationCodeProviderId,) => {
+
+
+
+
+  return `/api/invitation-code-settings/${providerId}`
+}
+
+/**
+ * @summary Get the active Invitation Code length for an account provider
+ */
+export const getProviderInvitationCodePolicy = async (providerId: InvitationCodeProviderId, options?: Parameters<typeof customFetch>[1]): Promise<ProviderInvitationCodePolicy> => {
+
+  return customFetch<ProviderInvitationCodePolicy>(getGetProviderInvitationCodePolicyUrl(providerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProviderInvitationCodePolicyQueryKey = (providerId: InvitationCodeProviderId,) => {
+    return [
+    `/api/invitation-code-settings/${providerId}`
+    ] as const;
+    }
+
+
+export const getGetProviderInvitationCodePolicyQueryOptions = <TData = Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>, TError = ErrorType<void>>(providerId: InvitationCodeProviderId, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProviderInvitationCodePolicyQueryKey(providerId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>> = ({ signal }) => getProviderInvitationCodePolicy(providerId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: providerId !== null && providerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProviderInvitationCodePolicyQueryResult = NonNullable<Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>>
+export type GetProviderInvitationCodePolicyQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the active Invitation Code length for an account provider
+ */
+
+export function useGetProviderInvitationCodePolicy<TData = Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>, TError = ErrorType<void>>(
+ providerId: InvitationCodeProviderId, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProviderInvitationCodePolicy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProviderInvitationCodePolicyQueryOptions(providerId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getUpdatePortalSettingsUrl = () => {
 
 
@@ -3381,6 +3713,172 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getUpdatePortalSettingsMutationOptions(options));
+    }
+
+export const getListAdminProviderInvitationCodeSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/invitation-code-settings`
+}
+
+/**
+ * @summary List Invitation Code length settings for every provider
+ */
+export const listAdminProviderInvitationCodeSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminProviderInvitationCodeSettings> => {
+
+  return customFetch<AdminProviderInvitationCodeSettings>(getListAdminProviderInvitationCodeSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminProviderInvitationCodeSettingsQueryKey = () => {
+    return [
+    `/api/admin/invitation-code-settings`
+    ] as const;
+    }
+
+
+export const getListAdminProviderInvitationCodeSettingsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminProviderInvitationCodeSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>> = ({ signal }) => listAdminProviderInvitationCodeSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminProviderInvitationCodeSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>>
+export type ListAdminProviderInvitationCodeSettingsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List Invitation Code length settings for every provider
+ */
+
+export function useListAdminProviderInvitationCodeSettings<TData = Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminProviderInvitationCodeSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminProviderInvitationCodeSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminProviderInvitationCodeSettingUrl = (providerId: InvitationCodeProviderId,) => {
+
+
+
+
+  return `/api/admin/invitation-code-settings/${providerId}`
+}
+
+/**
+ * @summary Update one provider's Invitation Code length
+ */
+export const updateAdminProviderInvitationCodeSetting = async (providerId: InvitationCodeProviderId,
+    invitationCodeLengthUpdate: InvitationCodeLengthUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ProviderInvitationCodeSetting> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ProviderInvitationCodeSetting>(getUpdateAdminProviderInvitationCodeSettingUrl(providerId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(invitationCodeLengthUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminProviderInvitationCodeSettingMutationKey = () => ['updateAdminProviderInvitationCodeSetting'] as const;
+
+export const getUpdateAdminProviderInvitationCodeSettingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminProviderInvitationCodeSetting>>, TError,UpdateAdminProviderInvitationCodeSettingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminProviderInvitationCodeSetting>>, TError,UpdateAdminProviderInvitationCodeSettingMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminProviderInvitationCodeSettingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminProviderInvitationCodeSetting>>, UpdateAdminProviderInvitationCodeSettingMutationVariables> = (props) => {
+          const {providerId,data} = props ?? {};
+
+          return  updateAdminProviderInvitationCodeSetting(providerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminProviderInvitationCodeSettingMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminProviderInvitationCodeSetting>>>
+    export type UpdateAdminProviderInvitationCodeSettingMutationBody = BodyType<InvitationCodeLengthUpdate>
+    export type UpdateAdminProviderInvitationCodeSettingMutationError = ErrorType<void>
+    export type UpdateAdminProviderInvitationCodeSettingMutationVariables = {providerId: InvitationCodeProviderId;data: BodyType<InvitationCodeLengthUpdate>}
+
+    /**
+ * @summary Update one provider's Invitation Code length
+ */
+export const useUpdateAdminProviderInvitationCodeSetting = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminProviderInvitationCodeSetting>>, TError,UpdateAdminProviderInvitationCodeSettingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminProviderInvitationCodeSetting>>,
+        TError,
+        UpdateAdminProviderInvitationCodeSettingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminProviderInvitationCodeSettingMutationOptions(options));
     }
 
 export const getGetAdminEmailSettingsUrl = () => {

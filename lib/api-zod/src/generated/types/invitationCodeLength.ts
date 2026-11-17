@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AccessCodeConfiguredResponse {
-  accessCodeConfigured: boolean;
-}
+/**
+ * @minimum 4
+ * @maximum 12
+ */
+export type InvitationCodeLength = number;
