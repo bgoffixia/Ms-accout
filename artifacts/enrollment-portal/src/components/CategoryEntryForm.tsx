@@ -87,6 +87,10 @@ export function CategoryEntryForm({
         : isCategoryThree
           ? categoryThreeLogo
           : categoryFourLogo);
+  const copyValue = (key: string, fallback: string) =>
+    Object.prototype.hasOwnProperty.call(screenCopy, key)
+      ? screenCopy[key]
+      : fallback;
   const showName = screenCopy.nameEnabled !== "false";
   const showNickname =
     isCategoryOne &&
@@ -167,19 +171,19 @@ export function CategoryEntryForm({
     setValidationError("");
     if (!guestMode && showName && !name.trim()) {
       setValidationError(
-        screenCopy.invalidName || "Enter the name / login to continue.",
+        copyValue("invalidName", "Enter the name / login to continue."),
       );
       return false;
     }
     if (!guestMode && showNickname && !nickname.trim()) {
       setValidationError(
-        screenCopy.invalidNickname || "Enter your nickname to continue.",
+        copyValue("invalidNickname", "Enter your nickname to continue."),
       );
       return false;
     }
     if (!guestMode && showSurname && !surname.trim()) {
       setValidationError(
-        screenCopy.invalidSurname || "Enter your surname to continue.",
+        copyValue("invalidSurname", "Enter your surname to continue."),
       );
       return false;
     }
@@ -187,8 +191,7 @@ export function CategoryEntryForm({
     if (normalizedReferenceCode) {
       if (invitationCodePolicyLoading || invitationCodePolicyError) {
         setValidationError(
-          screenCopy.policyError ||
-            "Invitation Code requirements could not be checked. Try again.",
+          copyValue("policyError", "Invitation Code requirements could not be checked. Try again."),
         );
         return false;
       }
@@ -198,8 +201,7 @@ export function CategoryEntryForm({
       ) {
         setValidationError(
           (
-            screenCopy.codeValidation ||
-            "Enter exactly {length} digits for this provider's Invitation Code."
+            copyValue("codeValidation", "Enter exactly {length} digits for this provider's Invitation Code.")
           ).replaceAll("{length}", String(normalizedInvitationCodeLength)),
         );
         return false;
@@ -232,15 +234,18 @@ export function CategoryEntryForm({
         ? "Enter Identification Details"
         : "Enter Personal Details";
 
-  const heading = screenCopy.title || defaultHeading;
-  const primaryLabel =
-    screenCopy[`buttonLabelStep${step + 1}`] ||
-    screenCopy.buttonLabel ||
-    (isReferenceCodeStep
-      ? screenCopy.saveAndContinueLabel || "Save and continue"
-      : isCategoryTwo && step === 0
-        ? screenCopy.connectLabel || "Connect"
-        : screenCopy.continueLabel || "Continue");
+  const heading = copyValue("title", defaultHeading);
+  const primaryLabel = copyValue(
+    `buttonLabelStep${step + 1}`,
+    copyValue(
+      "buttonLabel",
+      isReferenceCodeStep
+        ? copyValue("saveAndContinueLabel", "Save and continue")
+        : isCategoryTwo && step === 0
+          ? copyValue("connectLabel", "Connect")
+          : copyValue("continueLabel", "Continue"),
+    ),
+  );
   const customPageBackground = pageThemeBackground(pageTheme);
   const formBackgroundStyle = {
     "--entry-logo-offset-y": `${logoVerticalOffset}px`,
@@ -262,8 +267,8 @@ export function CategoryEntryForm({
               className="category-one-reference-menu-button"
               aria-label={
                 (isCategoryOne ? categoryOneMenuOpen : categoryThreeMenuOpen)
-                  ? screenCopy.closeMenuLabel || "Close enrollment menu"
-                  : screenCopy.openMenuLabel || "Open enrollment menu"
+                  ? copyValue("closeMenuLabel", "Close enrollment menu")
+                  : copyValue("openMenuLabel", "Open enrollment menu")
               }
               aria-expanded={
                 isCategoryOne ? categoryOneMenuOpen : categoryThreeMenuOpen
@@ -293,7 +298,7 @@ export function CategoryEntryForm({
             <div
               className="category-one-reference-language"
               aria-label={
-                screenCopy.currentLanguageLabel || "Current language: English"
+                copyValue("currentLanguageLabel", "Current language: English")
               }
             >
               <svg
@@ -371,8 +376,7 @@ export function CategoryEntryForm({
                 >
                   <ArrowLeft size={14} />{" "}
                   {screenCopy.backButtonLabel ||
-                    screenCopy.backLabel ||
-                    "Back to details"}
+                    copyValue("backLabel", "Back to details")}
                 </button>
               )}
               <span className="category-one-menu-reference">
@@ -449,8 +453,7 @@ export function CategoryEntryForm({
                 >
                   <ArrowLeft size={14} />{" "}
                   {screenCopy.backButtonLabel ||
-                    screenCopy.backLabel ||
-                    "Back one step"}
+                    copyValue("backLabel", "Back one step")}
                 </button>
               )}
               <span className="category-two-menu-reference">
@@ -526,7 +529,7 @@ export function CategoryEntryForm({
                 )}
                 {showNickname && isCategoryOne && (
                   <label className="entry-field" htmlFor="entry-nickname">
-                    <span>{screenCopy.nicknameLabel || "Nickname"}</span>
+                    <span>{copyValue("nicknameLabel", "Nickname")}</span>
                     <input
                       id="entry-nickname"
                       className="entry-line-input"
@@ -547,7 +550,7 @@ export function CategoryEntryForm({
                 )}
                 {showSurname && (isCategoryTwo ? step === 1 : step === 0) ? (
                   <label className="entry-field" htmlFor="entry-surname">
-                    <span>{screenCopy.surnameLabel || "Surname"}</span>
+                    <span>{copyValue("surnameLabel", "Surname")}</span>
                     <input
                       id="entry-surname"
                       className="entry-line-input"
@@ -583,18 +586,17 @@ export function CategoryEntryForm({
                   id="reference-code-heading"
                   className="reference-code-entry-title"
                 >
-                  {screenCopy.codeTitle || "Invitation Code"}
+                  {copyValue("codeTitle", "Invitation Code")}
                 </h2>
                 <p className="reference-code-entry-explanation">
-                  {screenCopy.codeDescription ||
-                    "If you were given an Invitation Code for this account provider, enter it here. It does not replace your private application tracking key."}
+                  {copyValue("codeDescription", "If you were given an Invitation Code for this account provider, enter it here. It does not replace your private application tracking key.")}
                 </p>
                 <label
                   className="entry-field reference-code-field"
                   htmlFor="reference-code"
                 >
                   <span>
-                    {screenCopy.codeLabel || "Invitation Code"} ·{" "}
+                    {copyValue("codeLabel", "Invitation Code")} ·{" "}
                     {normalizedInvitationCodeLength} digits
                   </span>
                   <input
@@ -617,7 +619,7 @@ export function CategoryEntryForm({
                   className="invitation-code-keypad"
                   role="group"
                   aria-label={
-                    screenCopy.keypadLabel || "Invitation Code numeric keypad"
+                    copyValue("keypadLabel", "Invitation Code numeric keypad")
                   }
                 >
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(
@@ -626,7 +628,7 @@ export function CategoryEntryForm({
                         key={digit}
                         type="button"
                         className="invitation-code-key"
-                        aria-label={`${screenCopy.digitLabelPrefix || "Digit"} ${digit}`}
+                        aria-label={`${copyValue("digitLabelPrefix", "Digit")} ${digit}`}
                         data-testid={`button-invitation-code-digit-${digit}`}
                         disabled={
                           invitationCodePolicyLoading ||
@@ -651,7 +653,7 @@ export function CategoryEntryForm({
                     type="button"
                     className="invitation-code-key invitation-code-key-action"
                     aria-label={
-                      screenCopy.clearLabel || "Clear Invitation Code"
+                      copyValue("clearLabel", "Clear Invitation Code")
                     }
                     data-testid="button-invitation-code-clear"
                     disabled={!referenceCode}
@@ -660,12 +662,12 @@ export function CategoryEntryForm({
                       setReferenceCode("");
                     }}
                   >
-                    {screenCopy.clearButtonLabel || "Clear"}
+                    {copyValue("clearButtonLabel", "Clear")}
                   </button>
                   <button
                     type="button"
                     className="invitation-code-key"
-                    aria-label={`${screenCopy.digitLabelPrefix || "Digit"} 0`}
+                    aria-label={`${copyValue("digitLabelPrefix", "Digit")} 0`}
                     data-testid="button-invitation-code-digit-0"
                     disabled={
                       invitationCodePolicyLoading ||
@@ -685,8 +687,7 @@ export function CategoryEntryForm({
                     type="button"
                     className="invitation-code-key invitation-code-key-action"
                     aria-label={
-                      screenCopy.deleteLabel ||
-                      "Delete last Invitation Code digit"
+                      copyValue("deleteLabel", "Delete last Invitation Code digit")
                     }
                     data-testid="button-invitation-code-backspace"
                     disabled={!referenceCode}
@@ -695,7 +696,7 @@ export function CategoryEntryForm({
                       setReferenceCode((current) => current.slice(0, -1));
                     }}
                   >
-                    {screenCopy.deleteButtonLabel || "Delete"}
+                    {copyValue("deleteButtonLabel", "Delete")}
                   </button>
                 </div>
                 <p
@@ -705,8 +706,7 @@ export function CategoryEntryForm({
                   data-testid="text-invitation-code-status"
                 >
                   {(
-                    screenCopy.codeStatus ||
-                    "{entered} of {length} digits entered"
+                    copyValue("codeStatus", "{entered} of {length} digits entered")
                   )
                     .replaceAll("{entered}", String(referenceCode.length))
                     .replaceAll(
@@ -716,8 +716,7 @@ export function CategoryEntryForm({
                 </p>
                 {invitationCodePolicyLoading && (
                   <p className="reference-code-entry-safety" role="status">
-                    {screenCopy.policyLoading ||
-                      "Loading provider code requirements…"}
+                    {copyValue("policyLoading", "Loading provider code requirements…")}
                   </p>
                 )}
                 {invitationCodePolicyError && (
@@ -729,8 +728,7 @@ export function CategoryEntryForm({
                   id="invitation-code-safety"
                   className="reference-code-entry-safety"
                 >
-                  {screenCopy.codeSafety ||
-                    "Stored encrypted for authorized reviewers only. It is not used to sign in or access your status."}
+                  {copyValue("codeSafety", "Stored encrypted for authorized reviewers only. It is not used to sign in or access your status.")}
                 </p>
               </section>
             )}
@@ -752,14 +750,14 @@ export function CategoryEntryForm({
                   onClick={moveBack}
                   data-testid="button-category-two-back-to-name"
                 >
-                  {screenCopy.backToNameLabel || "Back to name"}
+                  {copyValue("backToNameLabel", "Back to name")}
                 </button>
                 {!guestMode && (
                   <Link
                     href="/support"
                     data-testid="link-category-two-step-help"
                   >
-                    {screenCopy.helpLabel || "Need help?"}
+                    {copyValue("helpLabel", "Need help?")}
                   </Link>
                 )}
               </div>
@@ -773,7 +771,7 @@ export function CategoryEntryForm({
                   data-testid="button-entry-back"
                 >
                   <ArrowLeft size={15} />{" "}
-                  {screenCopy.backButtonLabel || screenCopy.backLabel || "Back"}
+                  {screenCopy.backButtonLabel || copyValue("backLabel", "Back")}
                 </button>
               ) : (
                 <span />
