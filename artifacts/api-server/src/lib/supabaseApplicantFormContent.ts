@@ -17,6 +17,7 @@ export type ApplicantFormContentEnvironment = {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
+  supabase_service_role?: string;
 };
 
 export class ApplicantFormContentPersistenceError extends Error {
@@ -37,10 +38,12 @@ export class ApplicantFormContentPersistenceError extends Error {
 
 function getProjectConfig(environment: ApplicantFormContentEnvironment) {
   const configuredUrl = environment.SUPABASE_URL?.trim();
-  const serviceKey =
+  const legacyServiceRoleKey =
     environment.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    environment.SUPABASE_SECRET_KEY?.trim();
-  if (!configuredUrl || !serviceKey) {
+    environment.supabase_service_role?.trim();
+  const apiKey =
+    legacyServiceRoleKey || environment.SUPABASE_SECRET_KEY?.trim();
+  if (!configuredUrl || !apiKey) {
     throw new ApplicantFormContentPersistenceError(
       "Production form-content persistence is not configured.",
       "not_configured",
@@ -72,7 +75,7 @@ function getProjectConfig(environment: ApplicantFormContentEnvironment) {
     );
   }
 
-  return { baseUrl: url.origin, serviceKey };
+  return { baseUrl: url.origin, apiKey, authorizationToken: legacyServiceRoleKey };
 }
 
 function parseRow(value: unknown): ApplicantFormContentRow {
@@ -117,18 +120,22 @@ async function requestSupabase(
   environment: ApplicantFormContentEnvironment,
   fetcher: typeof fetch,
 ): Promise<Response> {
-  const { baseUrl, serviceKey } = getProjectConfig(environment);
-  let response: Response;
+  const { baseUrl, apiKey, authorizationToken } = getProjectConfig(environment);
+  let response;
   try {
+    const headers = new Headers(init.headers);
+    headers.set("apikey", apiKey);
+    headers.set("Content-Type", "application/json");
+    if (authorizationToken) {
+      headers.set("Authorization", `Bearer ${authorizationToken}`);
+    } else {
+      // Supabase sb_secret_* keys are opaque API keys, not JWTs.
+      headers.delete("Authorization");
+    }
     response = await fetcher(`${baseUrl}/rest/v1/${TABLE}${path}`, {
       ...init,
       cache: "no-store",
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-        ...(init.headers ?? {}),
-      },
+      headers,
     });
   } catch {
     throw new ApplicantFormContentPersistenceError(
