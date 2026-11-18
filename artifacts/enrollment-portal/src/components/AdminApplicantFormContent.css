@@ -1070,3 +1070,41 @@
     animation-duration: 0.01ms;
   }
 }
+
+
+.fce-published-copy {
+  display: grid;
+  gap: 3px;
+  margin: -1px 0 8px;
+  color: #829397;
+  font-size: 8px;
+  line-height: 1.45;
+}
+.fce-published-copy strong {
+  overflow-wrap: anywhere;
+  color: #536c72;
+  font-size: 9px;
+  font-weight: 550;
+}
+.fce-clear-field {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  margin-top: 5px;
+  padding: 0 8px;
+  border: 1px solid #e1e8e5;
+  border-radius: 6px;
+  color: #6d7f83;
+  background: #f8faf8;
+  font: 600 8px var(--app-font-sans, sans-serif);
+  cursor: pointer;
+}
+.fce-clear-field:hover:not(:disabled) {
+  border-color: #c9d9d1;
+  color: #3e6d60;
+  background: #eff5f0;
+}
+.fce-clear-field:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

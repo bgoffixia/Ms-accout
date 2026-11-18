@@ -528,11 +528,19 @@ export function EnrollmentWizard({
   const generalCopy = screenCopy["workflow-general"] ?? {};
   const configuredText = (index: number, key: string, fallback: string) =>
     copyForStep(index)[key] ?? generalCopy[key] ?? fallback;
-  const titleForStep = (index: number) =>
-    copyForStep(index).title || stageTitles[index];
-  const fieldLabel = (index: number, path: string, fallback: string) =>
-    copyForStep(index)[`field_${path.replaceAll(".", "_")}`]?.trim() ||
-    fallback;
+  const titleForStep = (index: number) => {
+    const copy = copyForStep(index);
+    return Object.prototype.hasOwnProperty.call(copy, "title")
+      ? copy.title
+      : stageTitles[index];
+  };
+  const fieldLabel = (index: number, path: string, fallback: string) => {
+    const copy = copyForStep(index);
+    const key = `field_${path.replaceAll(".", "_")}`;
+    return Object.prototype.hasOwnProperty.call(copy, key)
+      ? copy[key]
+      : fallback;
+  };
   const fieldCopyProps = (index: number, path: string) => {
     const key = path.replaceAll(".", "_");
     return {
