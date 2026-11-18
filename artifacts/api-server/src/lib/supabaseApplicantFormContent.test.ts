@@ -78,6 +78,7 @@ describe("Supabase applicant form content persistence", () => {
   });
 
   it("uses SUPABASE_SECRET_KEY as an apikey without a JWT bearer header", async () => {
+    const opaqueSecret = "unit-test-opaque-secret";
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse([
         {
@@ -89,21 +90,20 @@ describe("Supabase applicant form content persistence", () => {
       ]),
     );
 
-    await readApplicantFormContentRow({
+    const row = await readApplicantFormContentRow({
       environment: {
         SUPABASE_URL: productionEnvironment.SUPABASE_URL,
-        SUPABASE_SECRET_KEY: "unit-test-secret-fallback",
+        SUPABASE_SECRET_KEY: opaqueSecret,
       },
       fetcher,
     });
 
     const [, init] = fetcher.mock.calls[0]!;
-    expect(new Headers(init?.headers).get("apikey")).toBe(
-      "unit-test-secret-fallback",
-    );
-    expect(new Headers(init?.headers).get("Authorization")).toBeNull();
+    const headers = new Headers(init?.headers);
+    expect(headers.get("apikey")).toBe(opaqueSecret);
+    expect(headers.get("Authorization")).toBeNull();
+    expect(JSON.stringify(row)).not.toContain(opaqueSecret);
   });
-
 
   it("uses the existing lowercase legacy service-role JWT for bearer auth", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
@@ -150,15 +150,51 @@ describe("Supabase applicant form content persistence", () => {
     await readApplicantFormContentRow({
       environment: {
         ...productionEnvironment,
+        SUPABASE_SERVICE_ROLE_KEY: "unit-test-service-role-jwt",
+        supabase_service_role: "unit-test-legacy-jwt",
         SUPABASE_SECRET_KEY: "unit-test-secret-fallback",
       },
       fetcher,
     });
 
     const [, init] = fetcher.mock.calls[0]!;
-    expect(new Headers(init?.headers).get("Authorization")).toBe(
-      "Bearer unit-test-only-key",
+    const headers = new Headers(init?.headers);
+    expect(headers.get("apikey")).toBe("unit-test-service-role-jwt");
+    expect(headers.get("Authorization")).toBe(
+      "Bearer unit-test-service-role-jwt",
     );
+    expect(headers.get("Authorization")).not.toContain(
+      "unit-test-secret-fallback",
+    );
+  });
+
+  it("does not expose selected credentials in persistence errors", async () => {
+    const opaqueSecret = "unit-test-error-secret";
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new Error(`network failure ${opaqueSecret}`));
+
+    try {
+      await expect(
+        readApplicantFormContentRow({
+          environment: {
+            SUPABASE_URL: productionEnvironment.SUPABASE_URL,
+            SUPABASE_SECRET_KEY: opaqueSecret,
+          },
+          fetcher,
+        }),
+      ).rejects.toThrow(
+        "Production form-content storage could not be reached.",
+      );
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it("uses a version-checked update and rejects unknown form fields", async () => {

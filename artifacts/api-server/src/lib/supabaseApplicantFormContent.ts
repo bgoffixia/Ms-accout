@@ -16,8 +16,8 @@ export type ApplicantFormContentRow = {
 export type ApplicantFormContentEnvironment = {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
-  SUPABASE_SECRET_KEY?: string;
   supabase_service_role?: string;
+  SUPABASE_SECRET_KEY?: string;
 };
 
 export class ApplicantFormContentPersistenceError extends Error {
@@ -75,7 +75,11 @@ function getProjectConfig(environment: ApplicantFormContentEnvironment) {
     );
   }
 
-  return { baseUrl: url.origin, apiKey, authorizationToken: legacyServiceRoleKey };
+  return {
+    baseUrl: url.origin,
+    apiKey,
+    authorizationToken: legacyServiceRoleKey,
+  };
 }
 
 function parseRow(value: unknown): ApplicantFormContentRow {
