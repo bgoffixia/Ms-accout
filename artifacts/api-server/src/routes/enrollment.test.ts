@@ -1,20 +1,62 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { createHash, createHmac } from "node:crypto";
-import { decryptInvitationCode, encryptInvitationCode } from "../lib/invitationCodeCrypto";
+import {
+  decryptInvitationCode,
+  encryptInvitationCode,
+} from "../lib/invitationCodeCrypto";
 
 const mockState = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>[]>(),
   users: new Map<string, Record<string, unknown>>(),
   storageObjects: new Map<string, { contentType: string; bytes: Buffer }>(),
   uploadCount: 0,
-  emailRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
-  emailResponses: [] as Array<{ ok: boolean; status: number; body?: { id?: string } }>,
-  emailSearchRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
-  emailSearchResponses: [] as Array<{ ok: boolean; status: number; body?: { messages?: Array<{ id?: string }> } }>,
-  emailDeliveryListRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
-  emailDeliveryListResponses: [] as Array<{ ok: boolean; status: number; body?: { messages?: Array<{ id?: string }> } }>,
-  emailDeliveryMessageRequests: [] as Array<{ service: string; path: string; options: Record<string, any> }>,
-  emailDeliveryMessageResponses: new Map<string, { ok: boolean; status: number; body?: unknown }>(),
+  emailRequests: [] as Array<{
+    service: string;
+    path: string;
+    options: Record<string, any>;
+  }>,
+  emailResponses: [] as Array<{
+    ok: boolean;
+    status: number;
+    body?: { id?: string };
+  }>,
+  emailSearchRequests: [] as Array<{
+    service: string;
+    path: string;
+    options: Record<string, any>;
+  }>,
+  emailSearchResponses: [] as Array<{
+    ok: boolean;
+    status: number;
+    body?: { messages?: Array<{ id?: string }> };
+  }>,
+  emailDeliveryListRequests: [] as Array<{
+    service: string;
+    path: string;
+    options: Record<string, any>;
+  }>,
+  emailDeliveryListResponses: [] as Array<{
+    ok: boolean;
+    status: number;
+    body?: { messages?: Array<{ id?: string }> };
+  }>,
+  emailDeliveryMessageRequests: [] as Array<{
+    service: string;
+    path: string;
+    options: Record<string, any>;
+  }>,
+  emailDeliveryMessageResponses: new Map<
+    string,
+    { ok: boolean; status: number; body?: unknown }
+  >(),
   smsRequests: [] as Array<{ url: string; init: RequestInit }>,
   failNextUpdateTable: null as string | null,
   failNextInsertTable: null as string | null,
@@ -31,8 +73,12 @@ const mockState = vi.hoisted(() => ({
     };
     return {
       guestPreapplicationsTable: makeTable("guest_preapplications"),
-      guestPreapplicationEvidenceTable: makeTable("guest_preapplication_evidence"),
-      guestPreapplicationRevisionsTable: makeTable("guest_preapplication_revisions"),
+      guestPreapplicationEvidenceTable: makeTable(
+        "guest_preapplication_evidence",
+      ),
+      guestPreapplicationRevisionsTable: makeTable(
+        "guest_preapplication_revisions",
+      ),
       enrollmentApplicationsTable: makeTable("enrollment_applications"),
       applicationEventsTable: makeTable("application_events"),
       portalSettingsTable: makeTable("portal_settings"),
@@ -43,8 +89,12 @@ const mockState = vi.hoisted(() => ({
       staffEmailTemplatesTable: makeTable("staff_email_templates"),
       staffSmsSettingsTable: makeTable("staff_sms_settings"),
       staffSmsOutboxTable: makeTable("staff_sms_outbox"),
-      providerInvitationCodeSettingsTable: makeTable("provider_invitation_code_settings"),
-      providerInvitationCodeSettingAuditTable: makeTable("provider_invitation_code_setting_audit"),
+      providerInvitationCodeSettingsTable: makeTable(
+        "provider_invitation_code_settings",
+      ),
+      providerInvitationCodeSettingAuditTable: makeTable(
+        "provider_invitation_code_setting_audit",
+      ),
       invitationCodeRevealAuditTable: makeTable("invitation_code_reveal_audit"),
     };
   })(),
@@ -61,7 +111,9 @@ function parseGmailMessage(request: { options: Record<string, any> }) {
     if (start < 0) return "";
     const bodyStart = start + marker.length;
     const bodyEnd = mime.indexOf(`\r\n--${boundary}`, bodyStart);
-    const encoded = mime.slice(bodyStart, bodyEnd < 0 ? undefined : bodyEnd).replace(/\s/g, "");
+    const encoded = mime
+      .slice(bodyStart, bodyEnd < 0 ? undefined : bodyEnd)
+      .replace(/\s/g, "");
     return Buffer.from(encoded, "base64").toString("utf8");
   };
   const subject = mime.match(/^Subject: =\?UTF-8\?B\?([^?]+)\?=$/m)?.[1];
@@ -81,9 +133,7 @@ function matches(row: Record<string, unknown>, expression: any): boolean {
   if (expression.type === "or") {
     return expression.expressions.some((item: any) => matches(row, item));
   }
-  const value = expression.left?.name
-    ? row[expression.left.name]
-    : undefined;
+  const value = expression.left?.name ? row[expression.left.name] : undefined;
   switch (expression.type) {
     case "eq":
       return value === expression.right;
@@ -192,15 +242,19 @@ function makeDatabase() {
       let limit = Number.POSITIVE_INFINITY;
       let orderColumns: any[] = [];
       const run = () => {
-        const rows = tableRows(tableName).filter((row) => matches(row, condition));
+        const rows = tableRows(tableName).filter((row) =>
+          matches(row, condition),
+        );
         if (orderColumns.length) {
           rows.sort((left, right) => {
             for (const order of orderColumns) {
               const column = order.column ?? order;
               const leftValue = left[column.name];
               const rightValue = right[column.name];
-              const leftComparable: any = leftValue instanceof Date ? leftValue.getTime() : leftValue;
-              const rightComparable: any = rightValue instanceof Date ? rightValue.getTime() : rightValue;
+              const leftComparable: any =
+                leftValue instanceof Date ? leftValue.getTime() : leftValue;
+              const rightComparable: any =
+                rightValue instanceof Date ? rightValue.getTime() : rightValue;
               if (leftComparable === rightComparable) continue;
               const comparison = leftComparable < rightComparable ? -1 : 1;
               return order.direction === "desc" ? -comparison : comparison;
@@ -230,7 +284,10 @@ function makeDatabase() {
           limit = value;
           return Promise.resolve(run());
         },
-        then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+        then(
+          resolve: (value: unknown) => unknown,
+          reject: (reason: unknown) => unknown,
+        ) {
           return Promise.resolve(run()).then(resolve, reject);
         },
       };
@@ -244,7 +301,9 @@ function makeDatabase() {
       const run = () => {
         if (mockState.failNextInsertTable === tableName) {
           mockState.failNextInsertTable = null;
-          throw new Error(`Simulated temporary insert failure for ${tableName}`);
+          throw new Error(
+            `Simulated temporary insert failure for ${tableName}`,
+          );
         }
         const rows = tableRows(tableName);
         const uniqueFields: Record<string, string[]> = {
@@ -259,24 +318,37 @@ function makeDatabase() {
           staff_sms_settings: ["key"],
           staff_email_outbox: ["idempotencyKey"],
         };
-        const conflict = (uniqueFields[tableName] ?? []).some((field) =>
-          values[field] != null && rows.some((row) => row[field] === values[field]),
+        const conflict = (uniqueFields[tableName] ?? []).some(
+          (field) =>
+            values[field] != null &&
+            rows.some((row) => row[field] === values[field]),
         );
         if (conflict) {
           if (ignoreConflict) return [];
           if (upsert) {
             const targetNames = Array.isArray(upsert.target)
               ? upsert.target.map((target: any) => target.name)
-              : upsert.target?.name ? [upsert.target.name] : [];
-            const targetName = targetNames.length === 1 ? targetNames[0] : undefined;
-            const field = targetName ?? uniqueFields[tableName]?.find((name) =>
-              values[name] != null && rows.some((row) => row[name] === values[name]),
-            );
+              : upsert.target?.name
+                ? [upsert.target.name]
+                : [];
+            const targetName =
+              targetNames.length === 1 ? targetNames[0] : undefined;
+            const field =
+              targetName ??
+              uniqueFields[tableName]?.find(
+                (name) =>
+                  values[name] != null &&
+                  rows.some((row) => row[name] === values[name]),
+              );
             const existing = field
               ? rows.find((row) => row[field] === values[field])
               : targetNames.length > 1
-                ? rows.find((row) => targetNames.every((name: string) => row[name] === values[name]))
-              : undefined;
+                ? rows.find((row) =>
+                    targetNames.every(
+                      (name: string) => row[name] === values[name],
+                    ),
+                  )
+                : undefined;
             if (existing) {
               Object.assign(existing, upsert.set);
               return [existing];
@@ -304,7 +376,10 @@ function makeDatabase() {
         returning() {
           return Promise.resolve(run());
         },
-        then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+        then(
+          resolve: (value: unknown) => unknown,
+          reject: (reason: unknown) => unknown,
+        ) {
           return Promise.resolve(run()).then(resolve, reject);
         },
       };
@@ -317,9 +392,13 @@ function makeDatabase() {
       const run = () => {
         if (mockState.failNextUpdateTable === tableName) {
           mockState.failNextUpdateTable = null;
-          throw new Error(`Simulated temporary update failure for ${tableName}`);
+          throw new Error(
+            `Simulated temporary update failure for ${tableName}`,
+          );
         }
-        const updated = tableRows(tableName).filter((row) => matches(row, condition));
+        const updated = tableRows(tableName).filter((row) =>
+          matches(row, condition),
+        );
         for (const row of updated) Object.assign(row, values);
         return updated;
       };
@@ -335,7 +414,10 @@ function makeDatabase() {
         returning() {
           return Promise.resolve(run());
         },
-        then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+        then(
+          resolve: (value: unknown) => unknown,
+          reject: (reason: unknown) => unknown,
+        ) {
           return Promise.resolve(run()).then(resolve, reject);
         },
       };
@@ -352,13 +434,22 @@ function makeDatabase() {
         returning(shape?: Record<string, any>) {
           const rows = tableRows(tableName);
           const removed = rows.filter((row) => matches(row, condition));
-          mockState.rows.set(tableName, rows.filter((row) => !matches(row, condition)));
+          mockState.rows.set(
+            tableName,
+            rows.filter((row) => !matches(row, condition)),
+          );
           return Promise.resolve(removed.map((row) => selected(row, shape)));
         },
-        then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+        then(
+          resolve: (value: unknown) => unknown,
+          reject: (reason: unknown) => unknown,
+        ) {
           const rows = tableRows(tableName);
           const removed = rows.filter((row) => matches(row, condition));
-          mockState.rows.set(tableName, rows.filter((row) => !matches(row, condition)));
+          mockState.rows.set(
+            tableName,
+            rows.filter((row) => !matches(row, condition)),
+          );
           return Promise.resolve(removed).then(resolve, reject);
         },
       };
@@ -391,13 +482,21 @@ vi.mock("drizzle-orm", () => ({
   count: () => ({ type: "count" }),
   desc: (column: unknown) => ({ column, direction: "desc" }),
   eq: (left: unknown, right: unknown) => ({ type: "eq", left, right }),
-  inArray: (left: unknown, right: unknown[]) => ({ type: "inArray", left, right }),
+  inArray: (left: unknown, right: unknown[]) => ({
+    type: "inArray",
+    left,
+    right,
+  }),
   isNotNull: (left: unknown) => ({ type: "isNotNull", left }),
   isNull: (left: unknown) => ({ type: "isNull", left }),
   lt: (left: unknown, right: unknown) => ({ type: "lt", left, right }),
   ne: (left: unknown, right: unknown) => ({ type: "ne", left, right }),
   or: (...expressions: any[]) => ({ type: "or", expressions }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ type: "sql", strings, values }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    type: "sql",
+    strings,
+    values,
+  }),
 }));
 
 vi.mock("@workspace/db", () => ({
@@ -414,8 +513,9 @@ vi.mock("@clerk/express", () => ({
         const user = mockState.users.get(userId);
         if (!user) throw new Error("User not found");
         const previousMetadata =
-          typeof user.publicMetadata === "object" && user.publicMetadata !== null
-            ? user.publicMetadata as Record<string, unknown>
+          typeof user.publicMetadata === "object" &&
+          user.publicMetadata !== null
+            ? (user.publicMetadata as Record<string, unknown>)
             : {};
         const updated = {
           ...user,
@@ -426,7 +526,9 @@ vi.mock("@clerk/express", () => ({
       }),
     },
   },
-  getAuth: vi.fn((request: any) => ({ userId: request.headers["x-test-user"] ?? null })),
+  getAuth: vi.fn((request: any) => ({
+    userId: request.headers["x-test-user"] ?? null,
+  })),
 }));
 
 vi.mock("@replit/connectors-sdk", () => ({
@@ -526,10 +628,12 @@ vi.mock("../lib/objectStorage", () => ({
         },
       };
       return {
-        getMetadata: async () => [{
-          size: String(object.bytes.length),
-          contentType: object.contentType,
-        }],
+        getMetadata: async () => [
+          {
+            size: String(object.bytes.length),
+            contentType: object.contentType,
+          },
+        ],
         download: async ({ start, end }: { start: number; end: number }) => [
           object.bytes.subarray(start, end + 1),
         ],
@@ -550,7 +654,9 @@ import { resetWorkspaceEmailDeliverySyncCache } from "../lib/staffEmail";
 const trackingKey = "A".repeat(43);
 const contactEmail = "applicant@example.test";
 const privatePng = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-const privateMp4 = Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
+const privateMp4 = Buffer.from([
+  0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109,
+]);
 
 describe("guest application verification and persistence", () => {
   const app = express();
@@ -564,30 +670,36 @@ describe("guest application verification and persistence", () => {
     process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "test-bucket";
     process.env.SESSION_SECRET = "test-session-secret";
     process.env.REPLIT_DOMAINS = "portal.example.test";
-    app.use(express.json({
-      verify(request, _response, body) {
-        if (
-          request.url?.startsWith("/api/webhooks/infobip/sms")
-        ) {
-          (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(body);
-        }
-      },
-    }));
+    app.use(
+      express.json({
+        verify(request, _response, body) {
+          if (request.url?.startsWith("/api/webhooks/infobip/sms")) {
+            (request as typeof request & { rawBody?: Buffer }).rawBody =
+              Buffer.from(body);
+          }
+        },
+      }),
+    );
     app.use((request: any, _response: any, next: () => void) => {
-      request.log = { error: () => undefined, warn: () => undefined, info: () => undefined };
+      request.log = {
+        error: () => undefined,
+        warn: () => undefined,
+        info: () => undefined,
+      };
       next();
     });
     app.use("/api", router);
     server = app.listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const address = server.address();
-    if (!address || typeof address === "string") throw new Error("Test server did not bind a TCP port.");
+    if (!address || typeof address === "string")
+      throw new Error("Test server did not bind a TCP port.");
     baseUrl = `http://127.0.0.1:${address.port}/api`;
   });
 
   afterAll(async () => {
     await new Promise<void>((resolve, reject) =>
-      server.close((error) => error ? reject(error) : resolve()),
+      server.close((error) => (error ? reject(error) : resolve())),
     );
   });
 
@@ -610,7 +722,8 @@ describe("guest application verification and persistence", () => {
       "provider_invitation_code_settings",
       "provider_invitation_code_setting_audit",
       "invitation_code_reveal_audit",
-    ]) mockState.rows.set(name, []);
+    ])
+      mockState.rows.set(name, []);
     mockState.users.clear();
     mockState.storageObjects.clear();
     mockState.uploadCount = 0;
@@ -694,7 +807,11 @@ describe("guest application verification and persistence", () => {
     });
   });
 
-  async function request(path: string, init: RequestInit = {}, userId?: string): Promise<{ response: Response; body: any }> {
+  async function request(
+    path: string,
+    init: RequestInit = {},
+    userId?: string,
+  ): Promise<{ response: Response; body: any }> {
     const headers = new Headers(init.headers);
     if (init.body) headers.set("Content-Type", "application/json");
     if (userId) headers.set("x-test-user", userId);
@@ -733,12 +850,19 @@ describe("guest application verification and persistence", () => {
 
     const loaded = await request("/portal/settings");
     expect(loaded.response.status).toBe(200);
-    expect(loaded.body.hero.description).toBe("Administrator-configured hero description.");
-    expect(loaded.body.screenCopy.landing.description).toBe("Administrator-configured hero description.");
+    expect(loaded.body.hero.description).toBe(
+      "Administrator-configured hero description.",
+    );
+    expect(loaded.body.screenCopy.landing.description).toBe(
+      "Administrator-configured hero description.",
+    );
 
     const attemptedAdminOverride = {
       ...loaded.body,
-      hero: { ...loaded.body.hero, description: "New public landing-page description." },
+      hero: {
+        ...loaded.body.hero,
+        description: "New public landing-page description.",
+      },
       screenCopy: {
         ...loaded.body.screenCopy,
         landing: {
@@ -747,24 +871,40 @@ describe("guest application verification and persistence", () => {
         },
       },
     };
-    const denied = await request("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify(attemptedAdminOverride),
-    }, "reviewer");
+    const denied = await request(
+      "/admin/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify(attemptedAdminOverride),
+      },
+      "reviewer",
+    );
     expect(denied.response.status).toBe(403);
 
-    const saved = await request("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify(attemptedAdminOverride),
-    }, "administrator");
+    const saved = await request(
+      "/admin/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify(attemptedAdminOverride),
+      },
+      "administrator",
+    );
     expect(saved.response.status).toBe(200);
-    expect(saved.body.hero.description).toBe("New public landing-page description.");
-    expect(saved.body.screenCopy.landing.description).toBe("New public landing-page description.");
+    expect(saved.body.hero.description).toBe(
+      "New public landing-page description.",
+    );
+    expect(saved.body.screenCopy.landing.description).toBe(
+      "New public landing-page description.",
+    );
 
     const publicSettings = await request("/portal/settings");
     expect(publicSettings.response.status).toBe(200);
-    expect(publicSettings.body.hero.description).toBe("New public landing-page description.");
-    expect(publicSettings.body.screenCopy.landing.description).toBe("New public landing-page description.");
+    expect(publicSettings.body.hero.description).toBe(
+      "New public landing-page description.",
+    );
+    expect(publicSettings.body.screenCopy.landing.description).toBe(
+      "New public landing-page description.",
+    );
   });
 
   it("normalizes legacy applicant label overrides to Invitation Code", async () => {
@@ -780,61 +920,103 @@ describe("guest application verification and persistence", () => {
         },
       },
     };
-    const saved = await request("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify(settings),
-    }, "administrator");
+    const saved = await request(
+      "/admin/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      },
+      "administrator",
+    );
 
     expect(saved.response.status).toBe(200);
     expect(saved.body.screenCopy["category-entry-1"]).toMatchObject({
       referenceCodeVisible: "false",
       referenceCodeLabel: "Invitation Code",
     });
-    const persisted = mockState.rows.get("portal_settings")?.find((row) => row.key === "portal");
-    expect((persisted?.value as any).screenCopy["category-entry-1"]).toMatchObject({
+    const persisted = mockState.rows
+      .get("portal_settings")
+      ?.find((row) => row.key === "portal");
+    expect(
+      (persisted?.value as any).screenCopy["category-entry-1"],
+    ).toMatchObject({
       referenceCodeVisible: "false",
       referenceCodeLabel: "Invitation Code",
     });
     const publicSettings = await request("/portal/settings");
-    expect(publicSettings.body.screenCopy["category-entry-1"].referenceCodeLabel).toBe("Invitation Code");
+    expect(
+      publicSettings.body.screenCopy["category-entry-1"].referenceCodeLabel,
+    ).toBe("Invitation Code");
   });
 
   it("restricts Invitation Code settings to primary admins and validates providers and bounds", async () => {
-    expect((await request("/admin/invitation-code-settings")).response.status).toBe(401);
-    expect((await request("/admin/invitation-code-settings", {}, "reviewer")).response.status).toBe(403);
-    expect((await request("/admin/invitation-code-settings", {}, "moderator")).response.status).toBe(403);
+    expect(
+      (await request("/admin/invitation-code-settings")).response.status,
+    ).toBe(401);
+    expect(
+      (await request("/admin/invitation-code-settings", {}, "reviewer"))
+        .response.status,
+    ).toBe(403);
+    expect(
+      (await request("/admin/invitation-code-settings", {}, "moderator"))
+        .response.status,
+    ).toBe(403);
 
-    const defaults = await request("/admin/invitation-code-settings", {}, "administrator");
+    const defaults = await request(
+      "/admin/invitation-code-settings",
+      {},
+      "administrator",
+    );
     expect(defaults.response.status).toBe(200);
     expect(defaults.body.providers).toHaveLength(4);
-    expect(defaults.body.providers.every((provider: any) => provider.requiredLength === 8)).toBe(true);
+    expect(
+      defaults.body.providers.every(
+        (provider: any) => provider.requiredLength === 8,
+      ),
+    ).toBe(true);
 
-    const unknownProvider = await request("/admin/invitation-code-settings/category-5", {
-      method: "PUT",
-      body: JSON.stringify({ requiredLength: 8 }),
-    }, "administrator");
+    const unknownProvider = await request(
+      "/admin/invitation-code-settings/category-5",
+      {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength: 8 }),
+      },
+      "administrator",
+    );
     expect(unknownProvider.response.status).toBe(400);
 
     for (const requiredLength of [3, 13, 8.5, "8"]) {
-      const invalidLength = await request("/admin/invitation-code-settings/category-1", {
-        method: "PUT",
-        body: JSON.stringify({ requiredLength }),
-      }, "administrator");
+      const invalidLength = await request(
+        "/admin/invitation-code-settings/category-1",
+        {
+          method: "PUT",
+          body: JSON.stringify({ requiredLength }),
+        },
+        "administrator",
+      );
       expect(invalidLength.response.status).toBe(400);
     }
 
-    const deniedWrite = await request("/admin/invitation-code-settings/category-1", {
-      method: "PUT",
-      body: JSON.stringify({ requiredLength: 10 }),
-    }, "reviewer");
+    const deniedWrite = await request(
+      "/admin/invitation-code-settings/category-1",
+      {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength: 10 }),
+      },
+      "reviewer",
+    );
     expect(deniedWrite.response.status).toBe(403);
   });
 
   it("persists provider lengths independently and audits changes atomically", async () => {
-    const saveFirstProvider = await request("/admin/invitation-code-settings/category-1", {
-      method: "PUT",
-      body: JSON.stringify({ requiredLength: 10 }),
-    }, "administrator");
+    const saveFirstProvider = await request(
+      "/admin/invitation-code-settings/category-1",
+      {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength: 10 }),
+      },
+      "administrator",
+    );
     expect(saveFirstProvider.response.status).toBe(200);
     expect(saveFirstProvider.body).toMatchObject({
       providerId: "category-1",
@@ -848,9 +1030,21 @@ describe("guest application verification and persistence", () => {
     expect(firstPolicy.response.headers.get("cache-control")).toBe("no-store");
     expect(secondPolicy.body.requiredLength).toBe(8);
 
-    const settings = await request("/admin/invitation-code-settings", {}, "administrator");
-    expect(settings.body.providers.find((item: any) => item.providerId === "category-1").requiredLength).toBe(10);
-    expect(settings.body.providers.find((item: any) => item.providerId === "category-2").requiredLength).toBe(8);
+    const settings = await request(
+      "/admin/invitation-code-settings",
+      {},
+      "administrator",
+    );
+    expect(
+      settings.body.providers.find(
+        (item: any) => item.providerId === "category-1",
+      ).requiredLength,
+    ).toBe(10);
+    expect(
+      settings.body.providers.find(
+        (item: any) => item.providerId === "category-2",
+      ).requiredLength,
+    ).toBe(8);
 
     const audit = mockState.rows.get("provider_invitation_code_setting_audit");
     expect(audit).toHaveLength(1);
@@ -863,96 +1057,130 @@ describe("guest application verification and persistence", () => {
     expect(audit?.[0]).toHaveProperty("changedAt");
     expect(JSON.stringify(audit)).not.toMatch(/codeValue|invitationCode/);
 
-    const noOpSave = await request("/admin/invitation-code-settings/category-1", {
-      method: "PUT",
-      body: JSON.stringify({ requiredLength: 10 }),
-    }, "administrator");
+    const noOpSave = await request(
+      "/admin/invitation-code-settings/category-1",
+      {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength: 10 }),
+      },
+      "administrator",
+    );
     expect(noOpSave.response.status).toBe(200);
-    expect(mockState.rows.get("provider_invitation_code_setting_audit")).toHaveLength(1);
+    expect(
+      mockState.rows.get("provider_invitation_code_setting_audit"),
+    ).toHaveLength(1);
 
     mockState.failNextInsertTable = "provider_invitation_code_setting_audit";
-    const failedAuditSave = await request("/admin/invitation-code-settings/category-1", {
-      method: "PUT",
-      body: JSON.stringify({ requiredLength: 12 }),
-    }, "administrator");
+    const failedAuditSave = await request(
+      "/admin/invitation-code-settings/category-1",
+      {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength: 12 }),
+      },
+      "administrator",
+    );
     expect(failedAuditSave.response.status).toBe(503);
-    expect(mockState.rows.get("provider_invitation_code_settings")?.[0].requiredLength).toBe(10);
-    expect(mockState.rows.get("provider_invitation_code_setting_audit")).toHaveLength(1);
+    expect(
+      mockState.rows.get("provider_invitation_code_settings")?.[0]
+        .requiredLength,
+    ).toBe(10);
+    expect(
+      mockState.rows.get("provider_invitation_code_setting_audit"),
+    ).toHaveLength(1);
   });
 
   it("enforces each active provider length while preserving unchanged legacy values", async () => {
-    const config = await request("/admin/invitation-code-settings/category-1", {
-      method: "PUT",
-      body: JSON.stringify({ requiredLength: 10 }),
-    }, "administrator");
+    const config = await request(
+      "/admin/invitation-code-settings/category-1",
+      {
+        method: "PUT",
+        body: JSON.stringify({ requiredLength: 10 }),
+      },
+      "administrator",
+    );
     expect(config.response.status).toBe(200);
 
     const created = await createGuestDraft();
     expect(created.body).not.toHaveProperty("referenceCode");
 
-    const wrongLength = await request(`/guest/preapplications/${created.body.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey,
-        currentStep: 1,
-        answers: {},
-        complete: false,
-        referenceCode: "12345678",
-      }),
-    });
+    const wrongLength = await request(
+      `/guest/preapplications/${created.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey,
+          currentStep: 1,
+          answers: {},
+          complete: false,
+          referenceCode: "12345678",
+        }),
+      },
+    );
     expect(wrongLength.response.status).toBe(400);
     expect(wrongLength.body.error).toContain("10-digit Invitation Code");
 
-    const accepted = await request(`/guest/preapplications/${created.body.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey,
-        currentStep: 1,
-        answers: {},
-        complete: false,
-        referenceCode: "1234567890",
-      }),
-    });
+    const accepted = await request(
+      `/guest/preapplications/${created.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey,
+          currentStep: 1,
+          answers: {},
+          complete: false,
+          referenceCode: "1234567890",
+        }),
+      },
+    );
     expect(accepted.response.status).toBe(200);
 
-    const legacyApplication = mockState.rows.get("guest_preapplications")?.find(
-      (row) => row.id === created.body.id,
-    );
-    if (!legacyApplication) throw new Error("Expected the legacy guest application.");
+    const legacyApplication = mockState.rows
+      .get("guest_preapplications")
+      ?.find((row) => row.id === created.body.id);
+    if (!legacyApplication)
+      throw new Error("Expected the legacy guest application.");
     legacyApplication.invitationCodeCiphertext = null;
     legacyApplication.referenceCode = "CASE-4826";
-    const unchangedLegacyCode = await request(`/guest/preapplications/${created.body.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey,
-        currentStep: 1,
-        answers: {},
-        complete: false,
-        referenceCode: "CASE-4826",
-      }),
-    });
+    const unchangedLegacyCode = await request(
+      `/guest/preapplications/${created.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey,
+          currentStep: 1,
+          answers: {},
+          complete: false,
+          referenceCode: "CASE-4826",
+        }),
+      },
+    );
     expect(unchangedLegacyCode.response.status).toBe(200);
     expect(unchangedLegacyCode.body).not.toHaveProperty("referenceCode");
     expect(legacyApplication.referenceCode).toBeNull();
-    expect(decryptInvitationCode(
-      legacyApplication.invitationCodeCiphertext,
-      `guest:${legacyApplication.id}`,
-    )).toBe("CASE-4826");
+    expect(
+      decryptInvitationCode(
+        legacyApplication.invitationCodeCiphertext,
+        `guest:${legacyApplication.id}`,
+      ),
+    ).toBe("CASE-4826");
 
-    const changedLegacyCode = await request(`/guest/preapplications/${created.body.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey,
-        currentStep: 1,
-        answers: {},
-        complete: false,
-        referenceCode: "CASE-4827",
-      }),
-    });
+    const changedLegacyCode = await request(
+      `/guest/preapplications/${created.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey,
+          currentStep: 1,
+          answers: {},
+          complete: false,
+          referenceCode: "CASE-4827",
+        }),
+      },
+    );
     expect(changedLegacyCode.response.status).toBe(400);
   });
 
@@ -997,28 +1225,38 @@ describe("guest application verification and persistence", () => {
 
     const unverifiedClaim = await request(
       "/staff/access-claim",
-      { method: "POST", body: JSON.stringify({ entrypoint: "admin", role: "admin" }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ entrypoint: "admin", role: "admin" }),
+      },
       "unverified-allowlisted-admin",
     );
     expect(unverifiedClaim.response.status).toBe(403);
 
     const forgedRoleClaim = await request(
       "/staff/access-claim",
-      { method: "POST", body: JSON.stringify({ entrypoint: "admin", role: "admin" }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ entrypoint: "admin", role: "admin" }),
+      },
       "unlisted-forged-admin",
     );
     expect(forgedRoleClaim.response.status).toBe(403);
 
     const adminClaim = await request(
       "/staff/access-claim",
-      { method: "POST", body: JSON.stringify({ entrypoint: "admin", role: "sub_admin" }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ entrypoint: "admin", role: "sub_admin" }),
+      },
       "administrator",
     );
     expect(adminClaim.body.role).toBe("admin");
     expect(
-      (mockState.users.get("administrator")?.publicMetadata as
-        | Record<string, unknown>
-        | undefined)?.role,
+      (
+        mockState.users.get("administrator")?.publicMetadata as
+          Record<string, unknown> | undefined
+      )?.role,
     ).toBe("admin");
     const adminOnStaffRoute = await request(
       "/staff/access-claim",
@@ -1032,14 +1270,18 @@ describe("guest application verification and persistence", () => {
 
     const subAdminClaim = await request(
       "/staff/access-claim",
-      { method: "POST", body: JSON.stringify({ entrypoint: "staff", role: "admin" }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ entrypoint: "staff", role: "admin" }),
+      },
       "reviewer",
     );
     expect(subAdminClaim.body.role).toBe("sub_admin");
     expect(
-      (mockState.users.get("reviewer")?.publicMetadata as
-        | Record<string, unknown>
-        | undefined)?.role,
+      (
+        mockState.users.get("reviewer")?.publicMetadata as
+          Record<string, unknown> | undefined
+      )?.role,
     ).toBe("sub_admin");
 
     const subAdminOnAdminRoute = await request(
@@ -1061,13 +1303,29 @@ describe("guest application verification and persistence", () => {
   });
 
   it("derives protected access from verified Clerk identity and preserves role boundaries", async () => {
-    expect((await request("/admin/users", {}, "administrator")).response.status).toBe(200);
-    expect((await request("/admin/invitation-code-settings", {}, "administrator")).response.status).toBe(200);
+    expect(
+      (await request("/admin/users", {}, "administrator")).response.status,
+    ).toBe(200);
+    expect(
+      (await request("/admin/invitation-code-settings", {}, "administrator"))
+        .response.status,
+    ).toBe(200);
 
-    expect((await request("/admin/users", {}, "reviewer")).response.status).toBe(403);
-    expect((await request("/admin/invitation-code-settings", {}, "reviewer")).response.status).toBe(403);
-    expect((await request("/admin/users", {}, "unlisted-forged-admin")).response.status).toBe(403);
-    expect((await request("/admin/users", {}, "unverified-allowlisted-admin")).response.status).toBe(403);
+    expect(
+      (await request("/admin/users", {}, "reviewer")).response.status,
+    ).toBe(403);
+    expect(
+      (await request("/admin/invitation-code-settings", {}, "reviewer"))
+        .response.status,
+    ).toBe(403);
+    expect(
+      (await request("/admin/users", {}, "unlisted-forged-admin")).response
+        .status,
+    ).toBe(403);
+    expect(
+      (await request("/admin/users", {}, "unverified-allowlisted-admin"))
+        .response.status,
+    ).toBe(403);
 
     const escalation = await request(
       "/admin/users/applicant-verified/role",
@@ -1079,9 +1337,10 @@ describe("guest application verification and persistence", () => {
     );
     expect(escalation.response.status).toBe(403);
     expect(
-      (mockState.users.get("applicant-verified")?.publicMetadata as
-        | Record<string, unknown>
-        | undefined)?.role,
+      (
+        mockState.users.get("applicant-verified")?.publicMetadata as
+          Record<string, unknown> | undefined
+      )?.role,
     ).not.toBe("admin");
   });
 
@@ -1100,7 +1359,10 @@ describe("guest application verification and persistence", () => {
         body: JSON.stringify({
           reference,
           trackingKey,
-          evidenceType: evidenceSlot === "verification_video" ? "verification_video" : "identity_document",
+          evidenceType:
+            evidenceSlot === "verification_video"
+              ? "verification_video"
+              : "identity_document",
           evidenceSlot,
           fileName,
           contentType,
@@ -1138,18 +1400,21 @@ describe("guest application verification and persistence", () => {
   }
 
   it("notifies the sub-admin when a new guest contact record is created without putting applicant PII in the email", async () => {
-    mockState.rows.set("staff_email_settings", [newRow("staff_email_settings", {
-      key: "global",
-      branding: {
-        senderName: "Security Verification",
-        bannerMark: "SV",
-        bannerTitle: "Security Verification",
-        bannerSubtitle: "ENROLLMENT PORTAL",
-        preheaderText: "A message from the Security Verification Enrollment Portal team.",
-        footerText: "Enrollment Portal staff communications",
-        footerLinkText: "Visit the enrollment portal",
-      },
-    })]);
+    mockState.rows.set("staff_email_settings", [
+      newRow("staff_email_settings", {
+        key: "global",
+        branding: {
+          senderName: "Security Verification",
+          bannerMark: "SV",
+          bannerTitle: "Security Verification",
+          bannerSubtitle: "ENROLLMENT PORTAL",
+          preheaderText:
+            "A message from the Security Verification Enrollment Portal team.",
+          footerText: "Enrollment Portal staff communications",
+          footerLinkText: "Visit the enrollment portal",
+        },
+      }),
+    ]);
     const created = await createGuestDraft();
     expect(mockState.emailRequests).toHaveLength(1);
     const sent = mockState.emailRequests[0];
@@ -1177,7 +1442,9 @@ describe("guest application verification and persistence", () => {
     expect(created.body.trackingKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(created.body.trackingKey).toBe(trackingKey);
     expect(created.body).not.toHaveProperty("accessKeyHash");
-    expect(stored?.accessKeyHash).toBe(createHash("sha256").update(trackingKey).digest("hex"));
+    expect(stored?.accessKeyHash).toBe(
+      createHash("sha256").update(trackingKey).digest("hex"),
+    );
     expect(stored?.accessKeyHash).not.toContain(trackingKey);
     if (stored) {
       stored.answers = {
@@ -1200,7 +1467,11 @@ describe("guest application verification and persistence", () => {
     });
     expect(found.body).not.toHaveProperty("answers");
 
-    const reviewers = await request("/admin/guest-preapplications", {}, "reviewer");
+    const reviewers = await request(
+      "/admin/guest-preapplications",
+      {},
+      "reviewer",
+    );
     expect(reviewers.response.status).toBe(200);
     expect(reviewers.body[0]).not.toHaveProperty("accessKeyHash");
     expect(JSON.stringify(reviewers.body)).not.toContain("legacy-secret");
@@ -1216,7 +1487,10 @@ describe("guest application verification and persistence", () => {
     });
     const wrongKey = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, trackingKey: "B".repeat(43) }),
+      body: JSON.stringify({
+        reference: created.body.reference,
+        trackingKey: "B".repeat(43),
+      }),
     });
     const unknownReference = await request("/applications/tracking/lookup", {
       method: "POST",
@@ -1229,12 +1503,22 @@ describe("guest application verification and persistence", () => {
 
     const oldAccessLookup = await request("/applications/access/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference: created.body.reference, accessCode: "314159" }),
+      body: JSON.stringify({
+        reference: created.body.reference,
+        accessCode: "314159",
+      }),
     });
-    const removedResetRoute = await request(`/applications/${crypto.randomUUID()}/access-code`, {
-      method: "PATCH",
-      body: JSON.stringify({ accessCode: "314159", confirmAccessCode: "314159" }),
-    }, "applicant-verified");
+    const removedResetRoute = await request(
+      `/applications/${crypto.randomUUID()}/access-code`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          accessCode: "314159",
+          confirmAccessCode: "314159",
+        }),
+      },
+      "applicant-verified",
+    );
     expect([401, 404]).toContain(oldAccessLookup.response.status);
     expect(removedResetRoute.response.status).toBe(404);
   });
@@ -1259,10 +1543,12 @@ describe("guest application verification and persistence", () => {
     const stored = mockState.rows.get("guest_preapplications")?.[0];
     expect(stored?.referenceCode).toBeNull();
     expect(stored?.invitationCodeCiphertext).not.toContain(enteredCode);
-    expect(decryptInvitationCode(
-      stored?.invitationCodeCiphertext,
-      `guest:${created.body.id}`,
-    )).toBe(enteredCode);
+    expect(
+      decryptInvitationCode(
+        stored?.invitationCodeCiphertext,
+        `guest:${created.body.id}`,
+      ),
+    ).toBe(enteredCode);
 
     const publicLookup = await request("/applications/tracking/lookup", {
       method: "POST",
@@ -1274,7 +1560,11 @@ describe("guest application verification and persistence", () => {
     expect(publicLookup.response.status).toBe(200);
     expect(JSON.stringify(publicLookup.body)).not.toContain(enteredCode);
 
-    const reviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
+    const reviewerList = await request(
+      "/admin/guest-preapplications",
+      {},
+      "reviewer",
+    );
     expect(reviewerList.response.status).toBe(200);
     expect(JSON.stringify(reviewerList.body)).not.toContain(enteredCode);
     stored!.assignedReviewerUserId = "reviewer";
@@ -1329,7 +1619,9 @@ describe("guest application verification and persistence", () => {
       "reviewer",
     );
     expect(revealed.response.status).toBe(200);
-    expect(revealed.response.headers.get("cache-control")).toContain("no-store");
+    expect(revealed.response.headers.get("cache-control")).toContain(
+      "no-store",
+    );
     expect(revealed.body).toMatchObject({
       applicationId: created.body.id,
       code: enteredCode,
@@ -1345,14 +1637,16 @@ describe("guest application verification and persistence", () => {
     expect(audit?.[0].createdAt).toBeInstanceOf(Date);
     expect(revealed.body.revealedAt).toEqual(expect.any(String));
     expect(JSON.stringify(audit)).not.toContain(enteredCode);
-    const migratedLegacyRow = mockState.rows.get("guest_preapplications")?.find(
-      (row) => row.id === created.body.id,
-    );
+    const migratedLegacyRow = mockState.rows
+      .get("guest_preapplications")
+      ?.find((row) => row.id === created.body.id);
     expect(migratedLegacyRow?.referenceCode).toBeNull();
-    expect(decryptInvitationCode(
-      migratedLegacyRow?.invitationCodeCiphertext,
-      `guest:${created.body.id}`,
-    )).toBe(enteredCode);
+    expect(
+      decryptInvitationCode(
+        migratedLegacyRow?.invitationCodeCiphertext,
+        `guest:${created.body.id}`,
+      ),
+    ).toBe(enteredCode);
 
     await request(
       `/admin/guest-preapplications/${created.body.id}/invitation-code/reveal`,
@@ -1374,12 +1668,12 @@ describe("guest application verification and persistence", () => {
       email: contactEmail,
     });
     mockState.rows.get("guest_preapplications")?.push(unassigned);
-    const assignedRow = mockState.rows.get("guest_preapplications")?.find(
-      (row) => row.id === assigned.body.id,
-    );
-    const unassignedRow = mockState.rows.get("guest_preapplications")?.find(
-      (row) => row.id === unassignedId,
-    );
+    const assignedRow = mockState.rows
+      .get("guest_preapplications")
+      ?.find((row) => row.id === assigned.body.id);
+    const unassignedRow = mockState.rows
+      .get("guest_preapplications")
+      ?.find((row) => row.id === unassignedId);
     expect(assignedRow).toBeDefined();
     expect(unassignedRow).toBeDefined();
     assignedRow!.assignedReviewerUserId = "reviewer";
@@ -1400,7 +1694,9 @@ describe("guest application verification and persistence", () => {
     expect(assignedReveal.body.code).toBe("11112222");
     expect(crossApplicationReveal.response.status).toBe(403);
     expect(crossApplicationReveal.body).not.toHaveProperty("code");
-    expect(JSON.stringify(crossApplicationReveal.body)).not.toContain("33334444");
+    expect(JSON.stringify(crossApplicationReveal.body)).not.toContain(
+      "33334444",
+    );
     expect(mockState.rows.get("invitation_code_reveal_audit")).toHaveLength(1);
 
     const adminReveal = await request(
@@ -1418,33 +1714,47 @@ describe("guest application verification and persistence", () => {
     const endpoint = `/admin/reviewer-assignments/guest_preapplication/${created.body.id}`;
 
     const subAdminRead = await request(endpoint, {}, "reviewer");
-    const subAdminAssign = await request(endpoint, {
-      method: "PUT",
-      body: JSON.stringify({ reviewerUserId: "reviewer" }),
-    }, "reviewer");
+    const subAdminAssign = await request(
+      endpoint,
+      {
+        method: "PUT",
+        body: JSON.stringify({ reviewerUserId: "reviewer" }),
+      },
+      "reviewer",
+    );
     expect(subAdminRead.response.status).toBe(403);
     expect(subAdminAssign.response.status).toBe(403);
 
-    const invalidReviewer = await request(endpoint, {
-      method: "PUT",
-      body: JSON.stringify({ reviewerUserId: "unlisted-forged-admin" }),
-    }, "administrator");
+    const invalidReviewer = await request(
+      endpoint,
+      {
+        method: "PUT",
+        body: JSON.stringify({ reviewerUserId: "unlisted-forged-admin" }),
+      },
+      "administrator",
+    );
     expect(invalidReviewer.response.status).toBe(403);
-    expect(mockState.rows.get("guest_preapplications")?.[0]?.assignedReviewerUserId).toBeNull();
+    expect(
+      mockState.rows.get("guest_preapplications")?.[0]?.assignedReviewerUserId,
+    ).toBeNull();
 
-    const assignment = await request(endpoint, {
-      method: "PUT",
-      body: JSON.stringify({ reviewerUserId: "reviewer" }),
-    }, "administrator");
+    const assignment = await request(
+      endpoint,
+      {
+        method: "PUT",
+        body: JSON.stringify({ reviewerUserId: "reviewer" }),
+      },
+      "administrator",
+    );
     expect(assignment.response.status).toBe(200);
     expect(assignment.body).toMatchObject({
       applicationType: "guest_preapplication",
       applicationId: created.body.id,
       reviewerUserId: "reviewer",
     });
-    const assignedRow = mockState.rows.get("guest_preapplications")?.find(
-      (row) => row.id === created.body.id,
-    );
+    const assignedRow = mockState.rows
+      .get("guest_preapplications")
+      ?.find((row) => row.id === created.body.id);
     if (assignedRow) assignedRow.referenceCode = "99887766";
 
     const loaded = await request(endpoint, {}, "administrator");
@@ -1462,24 +1772,30 @@ describe("guest application verification and persistence", () => {
   it("keeps signed-in Invitation Codes out of lists and ordinary detail responses", async () => {
     const applicationId = crypto.randomUUID();
     const legacyCode = "LEGACY-4826";
-    mockState.rows.set("enrollment_applications", [newRow("enrollment_applications", {
-      id: applicationId,
-      reference: "ENR-REVIEW-0001",
-      clerkUserId: "applicant-verified",
-      sourceGuestPreapplicationId: null,
-      categoryId: "category-1",
-      status: "submitted",
-      currentStep: 7,
-      referenceCode: legacyCode,
-      invitationCodeCiphertext: null,
-      answers: {},
-      reviewNote: null,
-      reviewerUserId: null,
-      submittedAt: new Date(),
-    })]);
+    mockState.rows.set("enrollment_applications", [
+      newRow("enrollment_applications", {
+        id: applicationId,
+        reference: "ENR-REVIEW-0001",
+        clerkUserId: "applicant-verified",
+        sourceGuestPreapplicationId: null,
+        categoryId: "category-1",
+        status: "submitted",
+        currentStep: 7,
+        referenceCode: legacyCode,
+        invitationCodeCiphertext: null,
+        answers: {},
+        reviewNote: null,
+        reviewerUserId: null,
+        submittedAt: new Date(),
+      }),
+    ]);
 
     const list = await request("/admin/applications", {}, "reviewer");
-    const detail = await request(`/admin/applications/${applicationId}`, {}, "reviewer");
+    const detail = await request(
+      `/admin/applications/${applicationId}`,
+      {},
+      "reviewer",
+    );
     expect(list.response.status).toBe(200);
     expect(detail.response.status).toBe(200);
     expect(JSON.stringify(list.body)).not.toContain(legacyCode);
@@ -1497,11 +1813,15 @@ describe("guest application verification and persistence", () => {
     const stored = mockState.rows.get("enrollment_applications")?.[0];
     expect(stored?.referenceCode).toBeNull();
     expect(stored?.invitationCodeCiphertext).not.toContain(legacyCode);
-    expect(decryptInvitationCode(
-      stored?.invitationCodeCiphertext,
-      `application:${applicationId}`,
-    )).toBe(legacyCode);
-    expect(JSON.stringify(mockState.rows.get("invitation_code_reveal_audit"))).not.toContain(legacyCode);
+    expect(
+      decryptInvitationCode(
+        stored?.invitationCodeCiphertext,
+        `application:${applicationId}`,
+      ),
+    ).toBe(legacyCode);
+    expect(
+      JSON.stringify(mockState.rows.get("invitation_code_reveal_audit")),
+    ).not.toContain(legacyCode);
 
     const wrongRecordType = await request(
       `/admin/guest-preapplications/${applicationId}/invitation-code/reveal`,
@@ -1526,23 +1846,34 @@ describe("guest application verification and persistence", () => {
     });
     mockState.rows.get("guest_preapplications")!.push(legacyRow);
 
-    const denied = await request("/guest/preapplications/tracking-key/recover", {
-      method: "POST",
-      body: JSON.stringify({ reference }),
-    });
+    const denied = await request(
+      "/guest/preapplications/tracking-key/recover",
+      {
+        method: "POST",
+        body: JSON.stringify({ reference }),
+      },
+    );
     expect(denied.response.status).toBe(401);
 
-    const mismatchedEmail = await request("/guest/preapplications/tracking-key/recover", {
-      method: "POST",
-      body: JSON.stringify({ reference }),
-    }, "applicant-mismatch");
+    const mismatchedEmail = await request(
+      "/guest/preapplications/tracking-key/recover",
+      {
+        method: "POST",
+        body: JSON.stringify({ reference }),
+      },
+      "applicant-mismatch",
+    );
     expect(mismatchedEmail.response.status).toBe(404);
     expect((legacyRow as any).accessKeyHash).toBeNull();
 
-    const recovered = await request("/guest/preapplications/tracking-key/recover", {
-      method: "POST",
-      body: JSON.stringify({ reference }),
-    }, "applicant-verified");
+    const recovered = await request(
+      "/guest/preapplications/tracking-key/recover",
+      {
+        method: "POST",
+        body: JSON.stringify({ reference }),
+      },
+      "applicant-verified",
+    );
     expect(recovered.response.status).toBe(200);
     expect(recovered.body.trackingKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect((legacyRow as any).accessKeyHash).toBe(
@@ -1551,14 +1882,21 @@ describe("guest application verification and persistence", () => {
     expect((legacyRow as any).applicantAccessCodeHash).toBe(oldHash);
     const lookup = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference, trackingKey: recovered.body.trackingKey }),
+      body: JSON.stringify({
+        reference,
+        trackingKey: recovered.body.trackingKey,
+      }),
     });
     expect(lookup.response.status).toBe(200);
 
-    const replaced = await request("/guest/preapplications/tracking-key/recover", {
-      method: "POST",
-      body: JSON.stringify({ reference }),
-    }, "applicant-verified");
+    const replaced = await request(
+      "/guest/preapplications/tracking-key/recover",
+      {
+        method: "POST",
+        body: JSON.stringify({ reference }),
+      },
+      "applicant-verified",
+    );
     expect(replaced.response.status).toBe(200);
     expect(replaced.body.trackingKey).not.toBe(recovered.body.trackingKey);
     expect((legacyRow as any).accessKeyHash).toBe(
@@ -1568,18 +1906,28 @@ describe("guest application verification and persistence", () => {
 
     const invalidatedKey = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference, trackingKey: recovered.body.trackingKey }),
+      body: JSON.stringify({
+        reference,
+        trackingKey: recovered.body.trackingKey,
+      }),
     });
     const replacementKeyWorks = await request("/applications/tracking/lookup", {
       method: "POST",
-      body: JSON.stringify({ reference, trackingKey: replaced.body.trackingKey }),
+      body: JSON.stringify({
+        reference,
+        trackingKey: replaced.body.trackingKey,
+      }),
     });
     expect(invalidatedKey.response.status).toBe(404);
     expect(replacementKeyWorks.response.status).toBe(200);
   });
 
   it("uses the connected Workspace account as the sender", async () => {
-    const settings = await request("/admin/email/settings", {}, "administrator");
+    const settings = await request(
+      "/admin/email/settings",
+      {},
+      "administrator",
+    );
     expect(settings.response.status).toBe(200);
     expect(settings.body.senderAddress).toBe("infomail@vu-gov.cc");
     expect(settings.body.branding.senderEmail).toBe("infomail@vu-gov.cc");
@@ -1589,16 +1937,28 @@ describe("guest application verification and persistence", () => {
     expect(sent.response.status).toBe(201);
     expect(gmailRequestRecord.service).toBe("google-mail");
     expect(gmailRequestRecord.path).toBe("/gmail/v1/users/me/messages/send");
-    expect(gmailRequestRecord.options.headers["Content-Type"]).toBe("application/json");
-    expect(parseGmailMessage(gmailRequestRecord).mime).toContain("From: =?UTF-8?B?");
+    expect(gmailRequestRecord.options.headers["Content-Type"]).toBe(
+      "application/json",
+    );
+    expect(parseGmailMessage(gmailRequestRecord).mime).toContain(
+      "From: =?UTF-8?B?",
+    );
   });
 
   it("hides automated alert settings from sub-admin reviewers", async () => {
     const signedOut = await request("/admin/email/settings");
-    const applicant = await request("/admin/email/settings", {}, "applicant-verified");
+    const applicant = await request(
+      "/admin/email/settings",
+      {},
+      "applicant-verified",
+    );
     const moderator = await request("/admin/email/settings", {}, "moderator");
     const reviewer = await request("/admin/email/settings", {}, "reviewer");
-    const administrator = await request("/admin/email/settings", {}, "administrator");
+    const administrator = await request(
+      "/admin/email/settings",
+      {},
+      "administrator",
+    );
 
     expect(signedOut.response.status).toBe(401);
     expect(applicant.response.status).toBe(403);
@@ -1626,17 +1986,21 @@ describe("guest application verification and persistence", () => {
       evidence_saved: false,
       application_submitted: false,
     };
-    const updated = await request("/admin/email/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        recipients: ["unauthorized@example.test"],
-        alerts: changedAlerts,
-        branding: {
-          ...before.body.branding,
-          bannerTitle: "Updated by reviewer",
-        },
-      }),
-    }, "reviewer");
+    const updated = await request(
+      "/admin/email/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          recipients: ["unauthorized@example.test"],
+          alerts: changedAlerts,
+          branding: {
+            ...before.body.branding,
+            bannerTitle: "Updated by reviewer",
+          },
+        }),
+      },
+      "reviewer",
+    );
     expect(updated.response.status).toBe(200);
     expect(updated.body.recipients).toEqual([]);
     expect(updated.body.alerts).toEqual(changedAlerts);
@@ -1651,8 +2015,16 @@ describe("guest application verification and persistence", () => {
   it("allows only admins to change the Infobip base URL and daily SMS limit", async () => {
     delete process.env.INFOBIP_API_KEY;
     const signedOut = await request("/admin/email/sms/settings");
-    const applicant = await request("/admin/email/sms/settings", {}, "applicant-verified");
-    const moderator = await request("/admin/email/sms/settings", {}, "moderator");
+    const applicant = await request(
+      "/admin/email/sms/settings",
+      {},
+      "applicant-verified",
+    );
+    const moderator = await request(
+      "/admin/email/sms/settings",
+      {},
+      "moderator",
+    );
     const reviewer = await request("/admin/email/sms/settings", {}, "reviewer");
     expect(signedOut.response.status).toBe(401);
     expect(applicant.response.status).toBe(403);
@@ -1667,57 +2039,85 @@ describe("guest application verification and persistence", () => {
     );
     expect(reviewer.body.deliveryReportsConfigured).toBe(false);
 
-    const administrator = await request("/admin/email/sms/settings", {}, "administrator");
+    const administrator = await request(
+      "/admin/email/sms/settings",
+      {},
+      "administrator",
+    );
     expect(administrator.response.status).toBe(200);
     expect(administrator.body.canConfigure).toBe(true);
 
-    const reviewerBaseUrlChange = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com",
-        senderId: "SECVERIFY",
-      }),
-    }, "reviewer");
+    const reviewerBaseUrlChange = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com",
+          senderId: "SECVERIFY",
+        }),
+      },
+      "reviewer",
+    );
     expect(reviewerBaseUrlChange.response.status).toBe(403);
 
-    const reviewerLimitChange = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({ dailyLimit: 200 }),
-    }, "reviewer");
+    const reviewerLimitChange = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({ dailyLimit: 200 }),
+      },
+      "reviewer",
+    );
     expect(reviewerLimitChange.response.status).toBe(403);
 
-    const unsafeUrl = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "http://127.0.0.1:8080",
-        senderId: "SECVERIFY",
-      }),
-    }, "administrator");
+    const unsafeUrl = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "http://127.0.0.1:8080",
+          senderId: "SECVERIFY",
+        }),
+      },
+      "administrator",
+    );
     expect(unsafeUrl.response.status).toBe(400);
 
-    const invalidSender = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com",
-        senderId: "SV-PORTAL",
-      }),
-    }, "administrator");
+    const invalidSender = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com",
+          senderId: "SV-PORTAL",
+        }),
+      },
+      "administrator",
+    );
     expect(invalidSender.response.status).toBe(400);
 
-    const excessiveLimit = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({ dailyLimit: 100001 }),
-    }, "administrator");
+    const excessiveLimit = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({ dailyLimit: 100001 }),
+      },
+      "administrator",
+    );
     expect(excessiveLimit.response.status).toBe(400);
 
-    const saved = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com/",
-        senderId: "SECVERIFY",
-        dailyLimit: 2,
-      }),
-    }, "administrator");
+    const saved = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com/",
+          senderId: "SECVERIFY",
+          dailyLimit: 2,
+        }),
+      },
+      "administrator",
+    );
     expect(saved.response.status).toBe(200);
     expect(saved.body.baseUrl).toBe("https://tenant.api.infobip.com");
     expect(saved.body.senderId).toBe("SECVERIFY");
@@ -1726,71 +2126,98 @@ describe("guest application verification and persistence", () => {
     expect(saved.body.credentialConfigured).toBe(false);
     expect(saved.body.deliveryReportsConfigured).toBe(false);
 
-    const reviewerSenderChange = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({ senderId: "REVIEWID" }),
-    }, "reviewer");
+    const reviewerSenderChange = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({ senderId: "REVIEWID" }),
+      },
+      "reviewer",
+    );
     expect(reviewerSenderChange.response.status).toBe(200);
-    expect(reviewerSenderChange.body.baseUrl).toBe("https://tenant.api.infobip.com");
+    expect(reviewerSenderChange.body.baseUrl).toBe(
+      "https://tenant.api.infobip.com",
+    );
     expect(reviewerSenderChange.body.senderId).toBe("REVIEWID");
     expect(reviewerSenderChange.body.dailyLimit).toBe(2);
     expect(reviewerSenderChange.body.canConfigure).toBe(false);
   });
 
   it("sends a single reviewer SMS through Infobip without exposing its API key", async () => {
-    const saved = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com",
-        senderId: "SECVERIFY",
-      }),
-    }, "administrator");
+    const saved = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com",
+          senderId: "SECVERIFY",
+        }),
+      },
+      "administrator",
+    );
     expect(saved.response.status).toBe(200);
 
     const originalFetch = globalThis.fetch;
-    const providerFetch = vi.fn(async (
-      input: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1],
-    ) => {
-      const url = String(input);
-      if (url.startsWith("https://tenant.api.infobip.com/")) {
-        mockState.smsRequests.push({ url, init: init ?? {} });
-        return new Response(JSON.stringify({
-          messages: [{ messageId: "infobip-message-123" }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      return originalFetch(input, init);
-    });
+    const providerFetch = vi.fn(
+      async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        const url = String(input);
+        if (url.startsWith("https://tenant.api.infobip.com/")) {
+          mockState.smsRequests.push({ url, init: init ?? {} });
+          return new Response(
+            JSON.stringify({
+              messages: [{ messageId: "infobip-message-123" }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        return originalFetch(input, init);
+      },
+    );
     vi.stubGlobal("fetch", providerFetch);
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
     process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
     try {
-      const applicant = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "Your enrollment status has been updated.",
-        }),
-      }, "applicant-verified");
+      const applicant = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "Your enrollment status has been updated.",
+          }),
+        },
+        "applicant-verified",
+      );
       expect(applicant.response.status).toBe(403);
 
-      const invalidPhone = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "08012345678",
-          messageText: "Your enrollment status has been updated.",
-        }),
-      }, "reviewer");
+      const invalidPhone = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "08012345678",
+            messageText: "Your enrollment status has been updated.",
+          }),
+        },
+        "reviewer",
+      );
       expect(invalidPhone.response.status).toBe(400);
       expect(mockState.smsRequests).toHaveLength(0);
 
-      const sent = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "Your enrollment status has been updated.",
-        }),
-      }, "reviewer");
+      const sent = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "Your enrollment status has been updated.",
+          }),
+        },
+        "reviewer",
+      );
       expect(sent.response.status).toBe(201);
       expect(sent.body).toMatchObject({
         id: expect.any(String),
@@ -1800,7 +2227,9 @@ describe("guest application verification and persistence", () => {
         providerMessageId: "infobip-message-123",
       });
       expect(JSON.stringify(sent.body)).not.toContain("test-infobip-api-key");
-      expect(JSON.stringify(sent.body)).not.toContain("test-infobip-dlr-secret");
+      expect(JSON.stringify(sent.body)).not.toContain(
+        "test-infobip-dlr-secret",
+      );
       expect(mockState.rows.get("staff_sms_outbox")).toHaveLength(1);
       expect(mockState.rows.get("staff_sms_outbox")?.[0]).toMatchObject({
         recipientPhone: "+2348012345678",
@@ -1815,23 +2244,28 @@ describe("guest application verification and persistence", () => {
       });
       expect(mockState.smsRequests).toHaveLength(1);
       const providerRequest = mockState.smsRequests[0]!;
-      expect(providerRequest.url).toBe("https://tenant.api.infobip.com/sms/3/messages");
-      expect(new Headers(providerRequest.init.headers).get("authorization"))
-        .toBe("App test-infobip-api-key");
+      expect(providerRequest.url).toBe(
+        "https://tenant.api.infobip.com/sms/3/messages",
+      );
+      expect(
+        new Headers(providerRequest.init.headers).get("authorization"),
+      ).toBe("App test-infobip-api-key");
       expect(JSON.parse(String(providerRequest.init.body))).toEqual({
-        messages: [{
-          sender: "SECVERIFY",
-          destinations: [{ to: "2348012345678" }],
-          content: { text: "Your enrollment status has been updated." },
-          webhooks: {
-            delivery: {
-              url: "https://portal.example.test/api/webhooks/infobip/sms",
-              intermediateReport: false,
+        messages: [
+          {
+            sender: "SECVERIFY",
+            destinations: [{ to: "2348012345678" }],
+            content: { text: "Your enrollment status has been updated." },
+            webhooks: {
+              delivery: {
+                url: "https://portal.example.test/api/webhooks/infobip/sms",
+                intermediateReport: false,
+              },
+              contentType: "application/json",
+              callbackData: sent.body.id,
             },
-            contentType: "application/json",
-            callbackData: sent.body.id,
           },
-        }],
+        ],
       });
     } finally {
       vi.unstubAllGlobals();
@@ -1843,71 +2277,102 @@ describe("guest application verification and persistence", () => {
   it("enforces the shared daily SMS limit and lets only an admin raise it", async () => {
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
     process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
-    const configured = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com",
-        senderId: "SECVERIFY",
-        dailyLimit: 1,
-      }),
-    }, "administrator");
+    const configured = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com",
+          senderId: "SECVERIFY",
+          dailyLimit: 1,
+        }),
+      },
+      "administrator",
+    );
     expect(configured.response.status).toBe(200);
 
     const originalFetch = globalThis.fetch;
-    const providerFetch = vi.fn(async (
-      input: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1],
-    ) => {
-      if (String(input).startsWith("https://tenant.api.infobip.com/")) {
-        mockState.smsRequests.push({ url: String(input), init: init ?? {} });
-        return new Response(JSON.stringify({
-          messages: [{ messageId: `message-${mockState.smsRequests.length}` }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      return originalFetch(input, init);
-    });
+    const providerFetch = vi.fn(
+      async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        if (String(input).startsWith("https://tenant.api.infobip.com/")) {
+          mockState.smsRequests.push({ url: String(input), init: init ?? {} });
+          return new Response(
+            JSON.stringify({
+              messages: [
+                { messageId: `message-${mockState.smsRequests.length}` },
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        return originalFetch(input, init);
+      },
+    );
     vi.stubGlobal("fetch", providerFetch);
     try {
-      const firstSend = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "First message",
-        }),
-      }, "reviewer");
+      const firstSend = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "First message",
+          }),
+        },
+        "reviewer",
+      );
       expect(firstSend.response.status).toBe(201);
 
-      const cappedSend = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "This must not reach Infobip",
-        }),
-      }, "reviewer");
+      const cappedSend = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "This must not reach Infobip",
+          }),
+        },
+        "reviewer",
+      );
       expect(cappedSend.response.status).toBe(429);
       expect(cappedSend.body.error).toContain("Daily SMS limit reached (1/1)");
       expect(mockState.smsRequests).toHaveLength(1);
       expect(mockState.rows.get("staff_sms_outbox")).toHaveLength(1);
 
-      const forbiddenRaise = await request("/admin/email/sms/settings", {
-        method: "PUT",
-        body: JSON.stringify({ dailyLimit: 2 }),
-      }, "reviewer");
+      const forbiddenRaise = await request(
+        "/admin/email/sms/settings",
+        {
+          method: "PUT",
+          body: JSON.stringify({ dailyLimit: 2 }),
+        },
+        "reviewer",
+      );
       expect(forbiddenRaise.response.status).toBe(403);
 
-      const raised = await request("/admin/email/sms/settings", {
-        method: "PUT",
-        body: JSON.stringify({ dailyLimit: 2 }),
-      }, "administrator");
+      const raised = await request(
+        "/admin/email/sms/settings",
+        {
+          method: "PUT",
+          body: JSON.stringify({ dailyLimit: 2 }),
+        },
+        "administrator",
+      );
       expect(raised.response.status).toBe(200);
 
-      const secondSend = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "Second allowed message",
-        }),
-      }, "reviewer");
+      const secondSend = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "Second allowed message",
+          }),
+        },
+        "reviewer",
+      );
       expect(secondSend.response.status).toBe(201);
       expect(mockState.smsRequests).toHaveLength(2);
       expect(mockState.rows.get("staff_sms_settings")?.[0]).toMatchObject({
@@ -1924,36 +2389,52 @@ describe("guest application verification and persistence", () => {
   it("restricts SMS activity to reviewers and applies only signed terminal delivery reports", async () => {
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
     process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
-    const saved = await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com",
-        senderId: "SECVERIFY",
-      }),
-    }, "administrator");
+    const saved = await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com",
+          senderId: "SECVERIFY",
+        }),
+      },
+      "administrator",
+    );
     expect(saved.response.status).toBe(200);
 
     const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", vi.fn(async (
-      input: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1],
-    ) => {
-      if (String(input).startsWith("https://tenant.api.infobip.com/")) {
-        return new Response(JSON.stringify({
-          messages: [{ messageId: "infobip-report-message-id" }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      return originalFetch(input, init);
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (
+          input: Parameters<typeof fetch>[0],
+          init?: Parameters<typeof fetch>[1],
+        ) => {
+          if (String(input).startsWith("https://tenant.api.infobip.com/")) {
+            return new Response(
+              JSON.stringify({
+                messages: [{ messageId: "infobip-report-message-id" }],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            );
+          }
+          return originalFetch(input, init);
+        },
+      ),
+    );
     let created: { response: Response; body: any };
     try {
-      created = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "Delivery report test",
-        }),
-      }, "reviewer");
+      created = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "Delivery report test",
+          }),
+        },
+        "reviewer",
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -1966,12 +2447,14 @@ describe("guest application verification and persistence", () => {
         .digest("hex");
       return { body, headers: { "X-Hub-Signature": signature } };
     };
-    const report = signedReport([{
-      messageId: "infobip-report-message-id",
-      callbackData: created.body.id,
-      doneAt: "2026-10-22T12:34:56.000Z",
-      status: { groupName: "DELIVERED", name: "DELIVERED_TO_HANDSET" },
-    }]);
+    const report = signedReport([
+      {
+        messageId: "infobip-report-message-id",
+        callbackData: created.body.id,
+        doneAt: "2026-10-22T12:34:56.000Z",
+        status: { groupName: "DELIVERED", name: "DELIVERED_TO_HANDSET" },
+      },
+    ]);
     const invalidSignature = await request("/webhooks/infobip/sms", {
       method: "POST",
       headers: { "X-Hub-Signature": "sha256=bad" },
@@ -1994,18 +2477,22 @@ describe("guest application verification and persistence", () => {
       providerStatusAt: new Date("2026-10-22T12:34:56.000Z"),
     });
 
-    const lateFailure = signedReport([{
-      messageId: "infobip-report-message-id",
-      callbackData: created.body.id,
-      doneAt: "2026-10-22T12:35:56.000Z",
-      status: { groupName: "UNDELIVERABLE", name: "UNDELIVERABLE" },
-    }]);
+    const lateFailure = signedReport([
+      {
+        messageId: "infobip-report-message-id",
+        callbackData: created.body.id,
+        doneAt: "2026-10-22T12:35:56.000Z",
+        status: { groupName: "UNDELIVERABLE", name: "UNDELIVERABLE" },
+      },
+    ]);
     await request("/webhooks/infobip/sms", {
       method: "POST",
       headers: lateFailure.headers,
       body: lateFailure.body,
     });
-    expect(mockState.rows.get("staff_sms_outbox")?.[0].status).toBe("delivered");
+    expect(mockState.rows.get("staff_sms_outbox")?.[0].status).toBe(
+      "delivered",
+    );
 
     const failedAttempt = newRow("staff_sms_outbox", {
       recipientPhone: "+2348012345679",
@@ -2014,16 +2501,18 @@ describe("guest application verification and persistence", () => {
       status: "accepted",
     });
     mockState.rows.get("staff_sms_outbox")?.push(failedAttempt);
-    const failedReport = signedReport([{
-      callbackData: failedAttempt.id,
-      messageId: "infobip-carrier-failure",
-      doneAt: "2026-10-22T12:40:00.000Z",
-      status: {
-        groupName: "UNDELIVERABLE",
-        name: "UNDELIVERABLE",
-        description: "Destination unavailable",
+    const failedReport = signedReport([
+      {
+        callbackData: failedAttempt.id,
+        messageId: "infobip-carrier-failure",
+        doneAt: "2026-10-22T12:40:00.000Z",
+        status: {
+          groupName: "UNDELIVERABLE",
+          name: "UNDELIVERABLE",
+          description: "Destination unavailable",
+        },
       },
-    }]);
+    ]);
     const carrierFailed = await request("/webhooks/infobip/sms", {
       method: "POST",
       headers: failedReport.headers,
@@ -2042,12 +2531,14 @@ describe("guest application verification and persistence", () => {
       status: "accepted",
     });
     mockState.rows.get("staff_sms_outbox")?.push(retryableAttempt);
-    const retryableReport = signedReport([{
-      callbackData: retryableAttempt.id,
-      messageId: "infobip-database-retry",
-      doneAt: "2026-10-22T12:45:00.000Z",
-      status: { groupName: "DELIVERED", name: "DELIVERED_TO_HANDSET" },
-    }]);
+    const retryableReport = signedReport([
+      {
+        callbackData: retryableAttempt.id,
+        messageId: "infobip-database-retry",
+        doneAt: "2026-10-22T12:45:00.000Z",
+        status: { groupName: "DELIVERED", name: "DELIVERED_TO_HANDSET" },
+      },
+    ]);
     mockState.failNextUpdateTable = "staff_sms_outbox";
     const temporaryDatabaseFailure = await request("/webhooks/infobip/sms", {
       method: "POST",
@@ -2055,22 +2546,32 @@ describe("guest application verification and persistence", () => {
       body: retryableReport.body,
     });
     expect(temporaryDatabaseFailure.response.status).toBe(503);
-    expect((retryableAttempt as Record<string, unknown>).status).toBe("accepted");
+    expect((retryableAttempt as Record<string, unknown>).status).toBe(
+      "accepted",
+    );
     const retriedWebhook = await request("/webhooks/infobip/sms", {
       method: "POST",
       headers: retryableReport.headers,
       body: retryableReport.body,
     });
     expect(retriedWebhook.response.status).toBe(200);
-    expect((retryableAttempt as Record<string, unknown>).status).toBe("delivered");
+    expect((retryableAttempt as Record<string, unknown>).status).toBe(
+      "delivered",
+    );
 
     const signedOut = await request("/admin/email/sms/activity");
-    const applicant = await request("/admin/email/sms/activity", {}, "applicant-verified");
+    const applicant = await request(
+      "/admin/email/sms/activity",
+      {},
+      "applicant-verified",
+    );
     const reviewer = await request("/admin/email/sms/activity", {}, "reviewer");
     expect(signedOut.response.status).toBe(401);
     expect(applicant.response.status).toBe(403);
     expect(reviewer.response.status).toBe(200);
-    expect(reviewer.body.find((record: any) => record.id === created.body.id)).toMatchObject({
+    expect(
+      reviewer.body.find((record: any) => record.id === created.body.id),
+    ).toMatchObject({
       id: created.body.id,
       recipientPhone: "+2348012345678",
       status: "delivered",
@@ -2081,37 +2582,51 @@ describe("guest application verification and persistence", () => {
   });
 
   it("records provider rejections as failed without retrying or losing the SMS activity", async () => {
-    await request("/admin/email/sms/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        baseUrl: "https://tenant.api.infobip.com",
-        senderId: "SECVERIFY",
-      }),
-    }, "administrator");
+    await request(
+      "/admin/email/sms/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          baseUrl: "https://tenant.api.infobip.com",
+          senderId: "SECVERIFY",
+        }),
+      },
+      "administrator",
+    );
     process.env.INFOBIP_API_KEY = "test-infobip-api-key";
     process.env.INFOBIP_DLR_WEBHOOK_SECRET = "test-infobip-dlr-secret";
     const originalFetch = globalThis.fetch;
-    const providerFetch = vi.fn(async (
-      input: Parameters<typeof fetch>[0],
-      init?: Parameters<typeof fetch>[1],
-    ) => {
-      if (String(input).startsWith("https://tenant.api.infobip.com/")) {
-        mockState.smsRequests.push({ url: String(input), init: {} });
-        return new Response(JSON.stringify({}), { status: 422 });
-      }
-      return originalFetch(input, init);
-    });
+    const providerFetch = vi.fn(
+      async (
+        input: Parameters<typeof fetch>[0],
+        init?: Parameters<typeof fetch>[1],
+      ) => {
+        if (String(input).startsWith("https://tenant.api.infobip.com/")) {
+          mockState.smsRequests.push({ url: String(input), init: {} });
+          return new Response(JSON.stringify({}), { status: 422 });
+        }
+        return originalFetch(input, init);
+      },
+    );
     vi.stubGlobal("fetch", providerFetch);
     try {
-      const failed = await request("/admin/email/sms/send", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientPhone: "+2348012345678",
-          messageText: "Rejected attempt",
-        }),
-      }, "reviewer");
+      const failed = await request(
+        "/admin/email/sms/send",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            recipientPhone: "+2348012345678",
+            messageText: "Rejected attempt",
+          }),
+        },
+        "reviewer",
+      );
       expect(failed.response.status).toBe(400);
-      const activity = await request("/admin/email/sms/activity", {}, "reviewer");
+      const activity = await request(
+        "/admin/email/sms/activity",
+        {},
+        "reviewer",
+      );
       expect(activity.body[0]).toMatchObject({
         recipientPhone: "+2348012345678",
         status: "failed",
@@ -2125,88 +2640,140 @@ describe("guest application verification and persistence", () => {
   });
 
   it("allows reviewers to upload a verified public email logo and serves only the configured image", async () => {
-    const applicant = await request("/admin/email/logo/upload-url", {
-      method: "POST",
-      body: JSON.stringify({ contentType: "image/png", sizeBytes: privatePng.length }),
-    }, "applicant-verified");
+    const applicant = await request(
+      "/admin/email/logo/upload-url",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          contentType: "image/png",
+          sizeBytes: privatePng.length,
+        }),
+      },
+      "applicant-verified",
+    );
     expect(applicant.response.status).toBe(403);
 
-    const unsupported = await request("/admin/email/logo/upload-url", {
-      method: "POST",
-      body: JSON.stringify({ contentType: "image/svg+xml", sizeBytes: 20 }),
-    }, "administrator");
+    const unsupported = await request(
+      "/admin/email/logo/upload-url",
+      {
+        method: "POST",
+        body: JSON.stringify({ contentType: "image/svg+xml", sizeBytes: 20 }),
+      },
+      "administrator",
+    );
     expect(unsupported.response.status).toBe(400);
 
-    const prepared = await request("/admin/email/logo/upload-url", {
-      method: "POST",
-      body: JSON.stringify({ contentType: "image/png", sizeBytes: privatePng.length }),
-    }, "reviewer");
+    const prepared = await request(
+      "/admin/email/logo/upload-url",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          contentType: "image/png",
+          sizeBytes: privatePng.length,
+        }),
+      },
+      "reviewer",
+    );
     expect(prepared.response.status).toBe(200);
-    expect(prepared.body.objectPath).toMatch(/^\/objects\/email-logos\/[0-9a-f-]{36}$/);
+    expect(prepared.body.objectPath).toMatch(
+      /^\/objects\/email-logos\/[0-9a-f-]{36}$/,
+    );
     mockState.storageObjects.set(prepared.body.objectPath, {
       contentType: "image/png",
       bytes: privatePng,
     });
 
-    const complete = await request("/admin/email/logo/complete", {
-      method: "POST",
-      body: JSON.stringify({ objectPath: prepared.body.objectPath }),
-    }, "reviewer");
+    const complete = await request(
+      "/admin/email/logo/complete",
+      {
+        method: "POST",
+        body: JSON.stringify({ objectPath: prepared.body.objectPath }),
+      },
+      "reviewer",
+    );
     expect(complete.response.status).toBe(200);
 
-    const footerPrepared = await request("/admin/email/logo/upload-url", {
-      method: "POST",
-      body: JSON.stringify({ contentType: "image/png", sizeBytes: privatePng.length }),
-    }, "reviewer");
+    const footerPrepared = await request(
+      "/admin/email/logo/upload-url",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          contentType: "image/png",
+          sizeBytes: privatePng.length,
+        }),
+      },
+      "reviewer",
+    );
     expect(footerPrepared.response.status).toBe(200);
     mockState.storageObjects.set(footerPrepared.body.objectPath, {
       contentType: "image/png",
       bytes: privatePng,
     });
-    const footerComplete = await request("/admin/email/logo/complete", {
-      method: "POST",
-      body: JSON.stringify({ objectPath: footerPrepared.body.objectPath }),
-    }, "reviewer");
+    const footerComplete = await request(
+      "/admin/email/logo/complete",
+      {
+        method: "POST",
+        body: JSON.stringify({ objectPath: footerPrepared.body.objectPath }),
+      },
+      "reviewer",
+    );
     expect(footerComplete.response.status).toBe(200);
 
     const defaults = await request("/admin/email/settings", {}, "reviewer");
-    const saved = await request("/admin/email/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        ...defaults.body,
-        branding: {
-          ...defaults.body.branding,
-          logoUrl: "https://portal.example.test/api/public/email/logo",
-          logoObjectPath: prepared.body.objectPath,
-          footerBackgroundUrl: "https://portal.example.test/api/public/email/footer-background",
-          footerBackgroundObjectPath: footerPrepared.body.objectPath,
-        },
-      }),
-    }, "reviewer");
+    const saved = await request(
+      "/admin/email/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          ...defaults.body,
+          branding: {
+            ...defaults.body.branding,
+            logoUrl: "https://portal.example.test/api/public/email/logo",
+            logoObjectPath: prepared.body.objectPath,
+            footerBackgroundUrl:
+              "https://portal.example.test/api/public/email/footer-background",
+            footerBackgroundObjectPath: footerPrepared.body.objectPath,
+          },
+        }),
+      },
+      "reviewer",
+    );
     expect(saved.response.status).toBe(200);
     const publicLogo = await request("/public/email/logo");
     expect(publicLogo.response.status).toBe(200);
     expect(publicLogo.response.headers.get("content-type")).toBe("image/png");
-    expect(publicLogo.response.headers.get("cache-control")).toContain("public");
+    expect(publicLogo.response.headers.get("cache-control")).toContain(
+      "public",
+    );
     const publicFooterImage = await request("/public/email/footer-background");
     expect(publicFooterImage.response.status).toBe(200);
-    expect(publicFooterImage.response.headers.get("content-type")).toBe("image/png");
+    expect(publicFooterImage.response.headers.get("content-type")).toBe(
+      "image/png",
+    );
   });
 
   it("keeps reusable templates staff-only and supports create, edit, reuse, and remove", async () => {
-    const applicant = await request("/admin/email/templates", {}, "applicant-verified");
+    const applicant = await request(
+      "/admin/email/templates",
+      {},
+      "applicant-verified",
+    );
     const moderator = await request("/admin/email/templates", {}, "moderator");
     expect(applicant.response.status).toBe(403);
     expect(moderator.response.status).toBe(403);
 
-    const created = await request("/admin/email/templates", {
-      method: "POST",
-      body: JSON.stringify({
-        name: "Missing details",
-        subject: "Please review <your> application",
-        messageText: "Hello,\nPlease update your details & evidence.",
-      }),
-    }, "reviewer");
+    const created = await request(
+      "/admin/email/templates",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Missing details",
+          subject: "Please review <your> application",
+          messageText: "Hello,\nPlease update your details & evidence.",
+        }),
+      },
+      "reviewer",
+    );
     expect(created.response.status, JSON.stringify(created.body)).toBe(201);
     expect(created.body.name).toBe("Missing details");
     expect(created.body.createdByUserId).toBeUndefined();
@@ -2216,51 +2783,85 @@ describe("guest application verification and persistence", () => {
     expect(listed.body).toHaveLength(1);
     expect(listed.body[0].id).toBe(created.body.id);
 
-    const updated = await request(`/admin/email/templates/${created.body.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        name: "Updated details",
-        subject: "A revised <subject>",
-        messageText: "A revised message with <details> & updates.",
-      }),
-    }, "reviewer");
+    const updated = await request(
+      `/admin/email/templates/${created.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: "Updated details",
+          subject: "A revised <subject>",
+          messageText: "A revised message with <details> & updates.",
+        }),
+      },
+      "reviewer",
+    );
     expect(updated.response.status).toBe(200);
     expect(updated.body.name).toBe("Updated details");
 
-    const sent = await request("/admin/email/send", {
-      method: "POST",
-      body: JSON.stringify({
-        requestId: crypto.randomUUID(),
-        recipients: ["applicant@example.test"],
-        subject: updated.body.subject,
-        messageText: updated.body.messageText,
-      }),
-    }, "reviewer");
+    const sent = await request(
+      "/admin/email/send",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          requestId: crypto.randomUUID(),
+          recipients: ["applicant@example.test"],
+          subject: updated.body.subject,
+          messageText: updated.body.messageText,
+        }),
+      },
+      "reviewer",
+    );
     expect(sent.response.status).toBe(201);
     const outgoingHtml = parseGmailMessage(mockState.emailRequests[0]).html;
     expect(outgoingHtml).toContain("A revised &lt;subject&gt;");
-    expect(outgoingHtml).toContain("A revised message with &lt;details&gt; &amp; updates.");
-    expect(outgoingHtml).not.toContain("A revised message with <details> & updates.");
+    expect(outgoingHtml).toContain(
+      "A revised message with &lt;details&gt; &amp; updates.",
+    );
+    expect(outgoingHtml).not.toContain(
+      "A revised message with <details> & updates.",
+    );
 
-    const invalidContent = await request(`/admin/email/templates/${created.body.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ name: " ", subject: "Subject", messageText: "Body" }),
-    }, "reviewer");
+    const invalidContent = await request(
+      `/admin/email/templates/${created.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: " ",
+          subject: "Subject",
+          messageText: "Body",
+        }),
+      },
+      "reviewer",
+    );
     expect(invalidContent.response.status).toBe(400);
 
-    const removed = await request(`/admin/email/templates/${created.body.id}`, {
-      method: "DELETE",
-    }, "reviewer");
+    const removed = await request(
+      `/admin/email/templates/${created.body.id}`,
+      {
+        method: "DELETE",
+      },
+      "reviewer",
+    );
     expect(removed.response.status).toBe(204);
-    expect((await request("/admin/email/templates", {}, "reviewer")).body).toEqual([]);
-    const missing = await request(`/admin/email/templates/${created.body.id}`, {
-      method: "DELETE",
-    }, "reviewer");
+    expect(
+      (await request("/admin/email/templates", {}, "reviewer")).body,
+    ).toEqual([]);
+    const missing = await request(
+      `/admin/email/templates/${created.body.id}`,
+      {
+        method: "DELETE",
+      },
+      "reviewer",
+    );
     expect(missing.response.status).toBe(404);
   });
 
   it("saves alert recipients and sends one-off email separately to each recipient", async () => {
-    const defaults = await request("/admin/email/settings", {}, "administrator");
+    const defaults = await request(
+      "/admin/email/settings",
+      {},
+      "administrator",
+    );
     const branding = {
       ...defaults.body.branding,
       logoUrl: null,
@@ -2283,66 +2884,100 @@ describe("guest application verification and persistence", () => {
       footerBackgroundUrl: "https://images.example.test/footer.jpg",
       footerBackgroundObjectPath: null,
     };
-    const saved = await request("/admin/email/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        recipients: ["reviewer@example.test", "other@example.test"],
-        alerts: {
-          contact_received: true,
-          step_saved: false,
-          contact_updated: true,
-          evidence_saved: false,
-          application_submitted: true,
-        },
-        branding,
-      }),
-    }, "administrator");
+    const saved = await request(
+      "/admin/email/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          recipients: ["reviewer@example.test", "other@example.test"],
+          alerts: {
+            contact_received: true,
+            step_saved: false,
+            contact_updated: true,
+            evidence_saved: false,
+            application_submitted: true,
+          },
+          branding,
+        }),
+      },
+      "administrator",
+    );
     expect(saved.response.status).toBe(200);
-    expect(saved.body.recipients).toEqual(["reviewer@example.test", "other@example.test"]);
+    expect(saved.body.recipients).toEqual([
+      "reviewer@example.test",
+      "other@example.test",
+    ]);
     expect(saved.body.alerts.step_saved).toBe(false);
     expect(saved.body.branding).toEqual(branding);
     expect(saved.body.senderAddress).toBe("infomail@vu-gov.cc");
-    const unalignedSender = await request("/admin/email/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        recipients: saved.body.recipients,
-        alerts: saved.body.alerts,
-        branding: { ...saved.body.branding, senderEmail: "enrollment@example.test" },
-      }),
-    }, "administrator");
+    const unalignedSender = await request(
+      "/admin/email/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          recipients: saved.body.recipients,
+          alerts: saved.body.alerts,
+          branding: {
+            ...saved.body.branding,
+            senderEmail: "enrollment@example.test",
+          },
+        }),
+      },
+      "administrator",
+    );
     expect(unalignedSender.response.status).toBe(400);
     expect(unalignedSender.body.error).toContain("connected Google Workspace");
-    const wrongWorkspaceAlias = await request("/admin/email/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        recipients: saved.body.recipients,
-        alerts: saved.body.alerts,
-        branding: { ...saved.body.branding, senderEmail: "enrollment@vu-gov.cc" },
-      }),
-    }, "administrator");
+    const wrongWorkspaceAlias = await request(
+      "/admin/email/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          recipients: saved.body.recipients,
+          alerts: saved.body.alerts,
+          branding: {
+            ...saved.body.branding,
+            senderEmail: "enrollment@vu-gov.cc",
+          },
+        }),
+      },
+      "administrator",
+    );
     expect(wrongWorkspaceAlias.response.status).toBe(400);
-    const insecureLogo = await request("/admin/email/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        recipients: saved.body.recipients,
-        alerts: saved.body.alerts,
-        branding: { ...saved.body.branding, logoUrl: "http://images.example.test/logo.png" },
-      }),
-    }, "administrator");
+    const insecureLogo = await request(
+      "/admin/email/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          recipients: saved.body.recipients,
+          alerts: saved.body.alerts,
+          branding: {
+            ...saved.body.branding,
+            logoUrl: "http://images.example.test/logo.png",
+          },
+        }),
+      },
+      "administrator",
+    );
     expect(insecureLogo.response.status).toBe(400);
 
-    const sent = await request("/admin/email/send", {
-      method: "POST",
-      body: JSON.stringify({
-        requestId: crypto.randomUUID(),
-        recipients: ["one@example.test", "two@example.test"],
-        subject: "Portal <update>",
-        messageText: "A short staff update & <details>.",
-      }),
-    }, "reviewer");
+    const sent = await request(
+      "/admin/email/send",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          requestId: crypto.randomUUID(),
+          recipients: ["one@example.test", "two@example.test"],
+          subject: "Portal <update>",
+          messageText: "A short staff update & <details>.",
+        }),
+      },
+      "reviewer",
+    );
     expect(sent.response.status).toBe(201);
     expect(sent.body).toHaveLength(2);
-    expect(sent.body.every((message: any) => message.status === "sent")).toBe(true);
+    expect(sent.body.every((message: any) => message.status === "sent")).toBe(
+      true,
+    );
     expect(mockState.emailRequests).toHaveLength(2);
     const firstMessage = parseGmailMessage(mockState.emailRequests[0]);
     const secondMessage = parseGmailMessage(mockState.emailRequests[1]);
@@ -2358,14 +2993,20 @@ describe("guest application verification and persistence", () => {
     expect(firstMessage.html).toContain("background:#ffffff");
     expect(firstMessage.html).toContain("color:#102b46");
     expect(firstMessage.html).toContain("background-color:#334455");
-    expect(firstMessage.html).toContain("background-image:url(\"https://images.example.test/footer.jpg\")");
+    expect(firstMessage.html).toContain(
+      'background-image:url("https://images.example.test/footer.jpg")',
+    );
     expect(firstMessage.html).toContain("background:#8800aa");
     expect(firstMessage.html).toContain("color:#eeeeee");
-    expect(firstMessage.html).toContain("Enrollment Team · Application updates");
+    expect(firstMessage.html).toContain(
+      "Enrollment Team · Application updates",
+    );
     expect(firstMessage.html).toContain('href="https://portal.example.test"');
     expect(firstMessage.html).toContain(">Open the portal</a>");
     expect(firstMessage.text).toContain("Application updates");
-    expect(firstMessage.text).toContain("Open the portal: https://portal.example.test");
+    expect(firstMessage.text).toContain(
+      "Open the portal: https://portal.example.test",
+    );
     const emailHtml = firstMessage.html;
     expect(emailHtml).toContain("Portal &lt;update&gt;");
     expect(emailHtml).toContain("A short staff update &amp; &lt;details&gt;.");
@@ -2381,10 +3022,17 @@ describe("guest application verification and persistence", () => {
   });
 
   it("does not expose the removed Resend webhook route", async () => {
-    const result = await request("/webhooks/resend", {
-      method: "POST",
-      body: JSON.stringify({ type: "email.delivered", data: { email_id: "legacy-id" } }),
-    }, "administrator");
+    const result = await request(
+      "/webhooks/resend",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          type: "email.delivered",
+          data: { email_id: "legacy-id" },
+        }),
+      },
+      "administrator",
+    );
     expect(result.response.status).toBe(404);
   });
 
@@ -2393,18 +3041,19 @@ describe("guest application verification and persistence", () => {
     const bouncedKey = "gmail-dsn-bounced";
     const rfcMessageId = (key: string) =>
       `${createHash("sha256").update(key).digest("hex")}@vu-gov.cc`;
-    const makePending = (idempotencyKey: string) => newRow("staff_email_outbox", {
-      idempotencyKey,
-      recipientEmail: `${idempotencyKey}@example.test`,
-      subject: "Gmail delivery status test",
-      messageText: "Test message",
-      eventKind: "manual",
-      status: "sent",
-      providerMessageId: `gmail-api-${idempotencyKey}`,
-      deliveryStatus: "accepted",
-      providerEventAt: null,
-      attemptCount: 1,
-    });
+    const makePending = (idempotencyKey: string) =>
+      newRow("staff_email_outbox", {
+        idempotencyKey,
+        recipientEmail: `${idempotencyKey}@example.test`,
+        subject: "Gmail delivery status test",
+        messageText: "Test message",
+        eventKind: "manual",
+        status: "sent",
+        providerMessageId: `gmail-api-${idempotencyKey}`,
+        deliveryStatus: "accepted",
+        providerEventAt: null,
+        attemptCount: 1,
+      });
     mockState.rows.set("staff_email_outbox", [
       makePending(deliveredKey),
       makePending(bouncedKey),
@@ -2429,7 +3078,11 @@ describe("guest application verification and persistence", () => {
         },
       },
     );
-    const makeDsn = (key: string, action: "delivered" | "failed", internalDate: number) => ({
+    const makeDsn = (
+      key: string,
+      action: "delivered" | "failed",
+      internalDate: number,
+    ) => ({
       internalDate: String(internalDate),
       payload: {
         mimeType: "multipart/report",
@@ -2445,7 +3098,9 @@ describe("guest application verification and persistence", () => {
           {
             mimeType: "message/rfc822",
             headers: [{ name: "Message-ID", value: `<${rfcMessageId(key)}>` }],
-            body: { data: Buffer.from("Original message").toString("base64url") },
+            body: {
+              data: Buffer.from("Original message").toString("base64url"),
+            },
           },
         ],
       },
@@ -2466,30 +3121,47 @@ describe("guest application verification and persistence", () => {
       body: makeDsn(bouncedKey, "failed", bouncedAt),
     });
 
-    const temporaryFailure = await request("/admin/email/outbox", {}, "reviewer");
+    const temporaryFailure = await request(
+      "/admin/email/outbox",
+      {},
+      "reviewer",
+    );
     expect(temporaryFailure.response.status).toBe(200);
-    expect(temporaryFailure.body.map((message: any) => message.deliveryStatus))
-      .toEqual(["accepted", "accepted"]);
+    expect(
+      temporaryFailure.body.map((message: any) => message.deliveryStatus),
+    ).toEqual(["accepted", "accepted"]);
 
     const refreshed = await request("/admin/email/outbox", {}, "reviewer");
     expect(refreshed.response.status).toBe(200);
     const refreshedByRecipient = Object.fromEntries(
       refreshed.body.map((message: any) => [message.recipientEmail, message]),
     );
-    expect(Object.fromEntries(
-      Object.entries(refreshedByRecipient).map(([email, message]: [string, any]) => [email, message.deliveryStatus]),
-    )).toEqual({
+    expect(
+      Object.fromEntries(
+        Object.entries(refreshedByRecipient).map(
+          ([email, message]: [string, any]) => [email, message.deliveryStatus],
+        ),
+      ),
+    ).toEqual({
       "gmail-dsn-delivered@example.test": "delivered",
       "gmail-dsn-bounced@example.test": "bounced",
     });
-    expect(Object.fromEntries(
-      Object.entries(refreshedByRecipient).map(([email, message]: [string, any]) => [email, message.providerEvents.length]),
-    )).toEqual({
+    expect(
+      Object.fromEntries(
+        Object.entries(refreshedByRecipient).map(
+          ([email, message]: [string, any]) => [
+            email,
+            message.providerEvents.length,
+          ],
+        ),
+      ),
+    ).toEqual({
       "gmail-dsn-delivered@example.test": 2,
       "gmail-dsn-bounced@example.test": 1,
     });
-    expect(refreshedByRecipient["gmail-dsn-delivered@example.test"].providerEventAt)
-      .toBe(new Date(deliveredAt).toISOString());
+    expect(
+      refreshedByRecipient["gmail-dsn-delivered@example.test"].providerEventAt,
+    ).toBe(new Date(deliveredAt).toISOString());
     expect(mockState.emailDeliveryListRequests).toHaveLength(2);
     expect(mockState.emailDeliveryMessageRequests).toHaveLength(3);
 
@@ -2505,37 +3177,53 @@ describe("guest application verification and persistence", () => {
         ],
       },
     });
-    const duplicateNotices = await request("/admin/email/outbox", {}, "reviewer");
+    const duplicateNotices = await request(
+      "/admin/email/outbox",
+      {},
+      "reviewer",
+    );
     expect(duplicateNotices.response.status).toBe(200);
-    expect(duplicateNotices.body.map((message: any) => message.providerEvents.length))
-      .toEqual([2, 1]);
+    expect(
+      duplicateNotices.body.map(
+        (message: any) => message.providerEvents.length,
+      ),
+    ).toEqual([2, 1]);
     expect(mockState.emailDeliveryMessageRequests).toHaveLength(3);
     expect(mockState.rows.get("staff_email_provider_events")).toHaveLength(3);
   });
 
   it("records provider failures and allows an authorized reviewer to retry them", async () => {
     mockState.emailResponses.push({ ok: false, status: 500 });
-    const sent = await request("/admin/email/send", {
-      method: "POST",
-      body: JSON.stringify({
-        requestId: crypto.randomUUID(),
-        recipients: ["retry@example.test"],
-        subject: "Retry test",
-        messageText: "This will be retried.",
-      }),
-    }, "reviewer");
+    const sent = await request(
+      "/admin/email/send",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          requestId: crypto.randomUUID(),
+          recipients: ["retry@example.test"],
+          subject: "Retry test",
+          messageText: "This will be retried.",
+        }),
+      },
+      "reviewer",
+    );
     expect(sent.response.status, JSON.stringify(sent.body)).toBe(201);
     expect(sent.body[0].status).toBe("failed");
-    const retried = await request(`/admin/email/outbox/${sent.body[0].id}/retry`, {
-      method: "POST",
-    }, "reviewer");
+    const retried = await request(
+      `/admin/email/outbox/${sent.body[0].id}/retry`,
+      {
+        method: "POST",
+      },
+      "reviewer",
+    );
     expect(retried.response.status).toBe(200);
     expect(retried.body.status).toBe("sent");
     expect(retried.body.attemptCount).toBe(2);
     expect(mockState.emailSearchRequests).toHaveLength(1);
     expect(mockState.emailRequests).toHaveLength(2);
-    expect(parseGmailMessage(mockState.emailRequests[0]).mime)
-      .toBe(parseGmailMessage(mockState.emailRequests[1]).mime);
+    expect(parseGmailMessage(mockState.emailRequests[0]).mime).toBe(
+      parseGmailMessage(mockState.emailRequests[1]).mime,
+    );
   });
 
   it("checks Gmail Sent before retrying an uncertain send", async () => {
@@ -2545,20 +3233,28 @@ describe("guest application verification and persistence", () => {
       status: 200,
       body: { messages: [{ id: "gmail-already-sent-id" }] },
     });
-    const sent = await request("/admin/email/send", {
-      method: "POST",
-      body: JSON.stringify({
-        requestId: crypto.randomUUID(),
-        recipients: ["uncertain@example.test"],
-        subject: "Check sent status",
-        messageText: "Do not send this twice.",
-      }),
-    }, "reviewer");
+    const sent = await request(
+      "/admin/email/send",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          requestId: crypto.randomUUID(),
+          recipients: ["uncertain@example.test"],
+          subject: "Check sent status",
+          messageText: "Do not send this twice.",
+        }),
+      },
+      "reviewer",
+    );
     expect(sent.body[0].status).toBe("failed");
 
-    const retried = await request(`/admin/email/outbox/${sent.body[0].id}/retry`, {
-      method: "POST",
-    }, "reviewer");
+    const retried = await request(
+      `/admin/email/outbox/${sent.body[0].id}/retry`,
+      {
+        method: "POST",
+      },
+      "reviewer",
+    );
 
     expect(retried.response.status).toBe(200);
     expect(retried.body.status).toBe("sent");
@@ -2576,14 +3272,22 @@ describe("guest application verification and persistence", () => {
       subject: "Idempotency check",
       messageText: "This message should only be handed to the provider once.",
     };
-    const first = await request("/admin/email/send", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }, "reviewer");
-    const duplicate = await request("/admin/email/send", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }, "reviewer");
+    const first = await request(
+      "/admin/email/send",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+      "reviewer",
+    );
+    const duplicate = await request(
+      "/admin/email/send",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+      "reviewer",
+    );
 
     expect(first.response.status).toBe(201);
     expect(duplicate.response.status).toBe(201);
@@ -2607,10 +3311,13 @@ describe("guest application verification and persistence", () => {
       body: JSON.stringify(progress),
     });
     expect(saved.response.status).toBe(200);
-    expect(mockState.rows.get("guest_preapplication_revisions")).toHaveLength(1);
+    expect(mockState.rows.get("guest_preapplication_revisions")).toHaveLength(
+      1,
+    );
     expect(mockState.emailRequests).toHaveLength(2);
-    expect(parseGmailMessage(mockState.emailRequests[1]).text)
-      .toContain("Next of kin");
+    expect(parseGmailMessage(mockState.emailRequests[1]).text).toContain(
+      "Next of kin",
+    );
 
     const retry = await request(`/guest/preapplications/${created.body.id}`, {
       method: "PATCH",
@@ -2623,23 +3330,32 @@ describe("guest application verification and persistence", () => {
   it("updates the canonical and answer contact emails while leaving the application unverified", async () => {
     const created = await createGuestDraft();
     expect(created.response.status).toBe(201);
-    const corrected = await request(`/guest/preapplications/${created.body.id}/email`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey,
-        email: "Corrected.Applicant@Example.Test",
-      }),
-    });
+    const corrected = await request(
+      `/guest/preapplications/${created.body.id}/email`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey,
+          email: "Corrected.Applicant@Example.Test",
+        }),
+      },
+    );
 
     expect(corrected.response.status).toBe(200);
     expect(corrected.body).toMatchObject({
       email: "corrected.applicant@example.test",
       emailVerified: false,
       submissionStatus: "draft",
-      answers: { personalInformation: { email: "corrected.applicant@example.test" } },
+      answers: {
+        personalInformation: { email: "corrected.applicant@example.test" },
+      },
     });
-    const reviewerDrafts = await request("/admin/guest-preapplications", {}, "reviewer");
+    const reviewerDrafts = await request(
+      "/admin/guest-preapplications",
+      {},
+      "reviewer",
+    );
     expect(reviewerDrafts.response.status).toBe(200);
     expect(reviewerDrafts.body[0]).toMatchObject({
       email: "corrected.applicant@example.test",
@@ -2650,14 +3366,17 @@ describe("guest application verification and persistence", () => {
 
   it("rejects contact email changes when the private tracking key is incorrect", async () => {
     const created = await createGuestDraft();
-    const response = await request(`/guest/preapplications/${created.body.id}/email`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey: "B".repeat(43),
-        email: "corrected@example.test",
-      }),
-    });
+    const response = await request(
+      `/guest/preapplications/${created.body.id}/email`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey: "B".repeat(43),
+          email: "corrected@example.test",
+        }),
+      },
+    );
 
     expect(response.response.status).toBe(404);
     expect(mockState.rows.get("guest_preapplications")?.[0]).toMatchObject({
@@ -2674,14 +3393,17 @@ describe("guest application verification and persistence", () => {
     savedDraft.submissionStatus = "submitted";
     savedDraft.emailVerified = true;
 
-    const response = await request(`/guest/preapplications/${created.body.id}/email`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference: created.body.reference,
-        trackingKey,
-        email: "corrected@example.test",
-      }),
-    });
+    const response = await request(
+      `/guest/preapplications/${created.body.id}/email`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference: created.body.reference,
+          trackingKey,
+          email: "corrected@example.test",
+        }),
+      },
+    );
 
     expect(response.response.status).toBe(409);
     expect(savedDraft).toMatchObject({
@@ -2697,33 +3419,37 @@ describe("guest application verification and persistence", () => {
     const recordCount = 305;
 
     for (let index = 0; index < recordCount; index += 1) {
-      guestRows.push(newRow("guest_preapplications", {
-        id: crypto.randomUUID(),
-        reference: `GUEST-${String(index).padStart(4, "0")}`,
-        categoryId: "category-1",
-        fullName: `Guest Applicant ${index}`,
-        email: `guest-${index}@example.test`,
-        status: "received",
-        submissionStatus: "draft",
-        answers: {},
-      }));
-      enrollmentRows.push(newRow("enrollment_applications", {
-        id: crypto.randomUUID(),
-        reference: `ENROLL-${String(index).padStart(4, "0")}`,
-        categoryId: "category-1",
-        status: "draft",
-        currentStep: 3,
-        referenceCode: null,
-        answers: {
-          contactDetails: {
-            fullName: `Enrollment Applicant ${index}`,
-            email: `enrollment-${index}@example.test`,
+      guestRows.push(
+        newRow("guest_preapplications", {
+          id: crypto.randomUUID(),
+          reference: `GUEST-${String(index).padStart(4, "0")}`,
+          categoryId: "category-1",
+          fullName: `Guest Applicant ${index}`,
+          email: `guest-${index}@example.test`,
+          status: "received",
+          submissionStatus: "draft",
+          answers: {},
+        }),
+      );
+      enrollmentRows.push(
+        newRow("enrollment_applications", {
+          id: crypto.randomUUID(),
+          reference: `ENROLL-${String(index).padStart(4, "0")}`,
+          categoryId: "category-1",
+          status: "draft",
+          currentStep: 3,
+          referenceCode: null,
+          answers: {
+            contactDetails: {
+              fullName: `Enrollment Applicant ${index}`,
+              email: `enrollment-${index}@example.test`,
+            },
           },
-        },
-        reviewNote: null,
-        submittedAt: null,
-        sourceGuestPreapplicationId: null,
-      }));
+          reviewNote: null,
+          submittedAt: null,
+          sourceGuestPreapplicationId: null,
+        }),
+      );
     }
 
     const [guestList, enrollmentList] = await Promise.all([
@@ -2733,10 +3459,18 @@ describe("guest application verification and persistence", () => {
 
     expect(guestList.response.status).toBe(200);
     expect(guestList.body).toHaveLength(recordCount);
-    expect(guestList.body.some((application: any) => application.reference === "GUEST-0304")).toBe(true);
+    expect(
+      guestList.body.some(
+        (application: any) => application.reference === "GUEST-0304",
+      ),
+    ).toBe(true);
     expect(enrollmentList.response.status).toBe(200);
     expect(enrollmentList.body).toHaveLength(recordCount);
-    expect(enrollmentList.body.some((application: any) => application.reference === "ENROLL-0304")).toBe(true);
+    expect(
+      enrollmentList.body.some(
+        (application: any) => application.reference === "ENROLL-0304",
+      ),
+    ).toBe(true);
   });
 
   it("keeps guest drafts and private evidence available through verification failures and links one successful submission", async () => {
@@ -2752,22 +3486,28 @@ describe("guest application verification and persistence", () => {
       }),
     });
     expect(created.response.status).toBe(201);
-    const { id: applicationId, reference } = created.body as { id: string; reference: string };
+    const { id: applicationId, reference } = created.body as {
+      id: string;
+      reference: string;
+    };
     expect(created.body.fullName).toBe("Test Applicant");
     expect(created.body.categoryId).toBe("category-1");
     expect(created.body.emailVerified).toBe(false);
 
-    const initialProgress = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 3,
-        answers: { name: "Test Applicant", nickname: "TA" },
-        complete: false,
-        referenceCode: "80421357",
-      }),
-    });
+    const initialProgress = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 3,
+          answers: { name: "Test Applicant", nickname: "TA" },
+          complete: false,
+          referenceCode: "80421357",
+        }),
+      },
+    );
     expect(initialProgress.response.status).toBe(200);
     expect(initialProgress.body.currentStep).toBe(3);
     expect(initialProgress.body).not.toHaveProperty("referenceCode");
@@ -2827,28 +3567,48 @@ describe("guest application verification and persistence", () => {
         objectPath: videoPath,
       },
     };
-    const completeProgress = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 7,
-        answers,
-        complete: true,
-      }),
-    });
-    expect(completeProgress.response.status, JSON.stringify(completeProgress.body)).toBe(200);
+    const completeProgress = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 7,
+          answers,
+          complete: true,
+        }),
+      },
+    );
+    expect(
+      completeProgress.response.status,
+      JSON.stringify(completeProgress.body),
+    ).toBe(200);
     expect(completeProgress.body.detailsComplete).toBe(true);
     expect(completeProgress.body).not.toHaveProperty("referenceCode");
 
-    const anonymousReviewerCheck = await request("/admin/guest-preapplications");
+    const anonymousReviewerCheck = await request(
+      "/admin/guest-preapplications",
+    );
     expect(anonymousReviewerCheck.response.status).toBe(401);
-    const applicantReviewerCheck = await request("/admin/guest-preapplications", {}, "applicant-unverified");
+    const applicantReviewerCheck = await request(
+      "/admin/guest-preapplications",
+      {},
+      "applicant-unverified",
+    );
     expect(applicantReviewerCheck.response.status).toBe(403);
-    const adminReviewerCheck = await request("/admin/guest-preapplications", {}, "administrator");
+    const adminReviewerCheck = await request(
+      "/admin/guest-preapplications",
+      {},
+      "administrator",
+    );
     expect(adminReviewerCheck.response.status).toBe(200);
     expect(adminReviewerCheck.body).toHaveLength(1);
-    const subAdminUserManagement = await request("/admin/users", {}, "reviewer");
+    const subAdminUserManagement = await request(
+      "/admin/users",
+      {},
+      "reviewer",
+    );
     expect(subAdminUserManagement.response.status).toBe(403);
     const subAdminSettings = await request(
       "/admin/settings",
@@ -2856,7 +3616,11 @@ describe("guest application verification and persistence", () => {
       "reviewer",
     );
     expect(subAdminSettings.response.status).toBe(403);
-    const visibleDraft = await request("/admin/guest-preapplications", {}, "reviewer");
+    const visibleDraft = await request(
+      "/admin/guest-preapplications",
+      {},
+      "reviewer",
+    );
     expect(visibleDraft.response.status).toBe(200);
     expect(visibleDraft.body).toHaveLength(1);
     expect(visibleDraft.body[0]).toMatchObject({
@@ -2885,7 +3649,9 @@ describe("guest application verification and persistence", () => {
       workInformation: { employmentStatus: "student" },
     });
     expect(visibleDraft.body[0].evidence).toHaveLength(2);
-    expect(visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl)).toBe(true);
+    expect(
+      visibleDraft.body[0].evidence.every((item: any) => item.downloadUrl),
+    ).toBe(true);
     expect(JSON.stringify(visibleDraft.body)).not.toContain("80421357");
     const removedGuestPinRoute = await request(
       `/admin/guest-preapplications/${applicationId}/pin`,
@@ -2896,23 +3662,37 @@ describe("guest application verification and persistence", () => {
 
     const privateFilePath = `/admin/guest-preapplications/${applicationId}/evidence/${visibleDraft.body[0].evidence[0].id}/file`;
     expect((await request(privateFilePath)).response.status).toBe(401);
-    expect((await request(privateFilePath, {}, "applicant-unverified")).response.status).toBe(403);
+    expect(
+      (await request(privateFilePath, {}, "applicant-unverified")).response
+        .status,
+    ).toBe(403);
     const adminDraftDownload = await fetch(`${baseUrl}${privateFilePath}`, {
       headers: { "x-test-user": "administrator" },
     });
     expect(adminDraftDownload.status).toBe(200);
-    expect(Buffer.from(await adminDraftDownload.arrayBuffer()).length).toBeGreaterThan(0);
+    expect(
+      Buffer.from(await adminDraftDownload.arrayBuffer()).length,
+    ).toBeGreaterThan(0);
     const reviewerDownload = await fetch(`${baseUrl}${privateFilePath}`, {
       headers: { "x-test-user": "reviewer" },
     });
     expect(reviewerDownload.status).toBe(200);
     expect(reviewerDownload.headers.get("cache-control")).toContain("no-store");
-    expect(Buffer.from(await reviewerDownload.arrayBuffer()).length).toBeGreaterThan(0);
+    expect(
+      Buffer.from(await reviewerDownload.arrayBuffer()).length,
+    ).toBeGreaterThan(0);
 
-    const correctedEmail = await request(`/guest/preapplications/${applicationId}/email`, {
-      method: "PATCH",
-        body: JSON.stringify({ reference, trackingKey, email: "corrected@example.test" }),
-    });
+    const correctedEmail = await request(
+      `/guest/preapplications/${applicationId}/email`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          email: "corrected@example.test",
+        }),
+      },
+    );
     expect(correctedEmail.response.status).toBe(200);
     expect(correctedEmail.body.email).toBe("corrected@example.test");
     mockState.users.set("applicant-corrected-verified", {
@@ -2936,10 +3716,10 @@ describe("guest application verification and persistence", () => {
       linkedApplicationId: null,
     });
 
-    const unverifiedStatus = await request(
-      "/guest/preapplications/lookup",
-      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
-    );
+    const unverifiedStatus = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, trackingKey }),
+    });
     expect(unverifiedStatus.response.status).toBe(200);
     expect(unverifiedStatus.body).toMatchObject({
       submissionStatus: "submitted",
@@ -2952,11 +3732,12 @@ describe("guest application verification and persistence", () => {
     const guestRecord = mockState.rows.get("guest_preapplications")?.[0];
     const priorReviewStatus = guestRecord?.status;
     if (guestRecord) guestRecord.status = "contacted";
-    const inReviewStatus = await request(
-      "/guest/preapplications/lookup",
-      { method: "POST", body: JSON.stringify({ reference, trackingKey }) },
-    );
-    if (guestRecord && priorReviewStatus) guestRecord.status = priorReviewStatus;
+    const inReviewStatus = await request("/guest/preapplications/lookup", {
+      method: "POST",
+      body: JSON.stringify({ reference, trackingKey }),
+    });
+    if (guestRecord && priorReviewStatus)
+      guestRecord.status = priorReviewStatus;
     expect(inReviewStatus.response.status).toBe(200);
     expect(inReviewStatus.body).toMatchObject({
       status: "contacted",
@@ -2977,7 +3758,11 @@ describe("guest application verification and persistence", () => {
     expect(originalEmailSubmit.response.status).toBe(403);
     expect(mockState.rows.get("enrollment_applications")).toHaveLength(0);
 
-    const afterFailures = await request("/admin/guest-preapplications", {}, "reviewer");
+    const afterFailures = await request(
+      "/admin/guest-preapplications",
+      {},
+      "reviewer",
+    );
     expect(afterFailures.response.status).toBe(200);
     expect(afterFailures.body).toHaveLength(1);
     expect(afterFailures.body[0].id).toBe(applicationId);
@@ -3020,15 +3805,21 @@ describe("guest application verification and persistence", () => {
     expect(linkedRecord).not.toHaveProperty("applicantAccessCodeHash");
     expect(successfulLink.body).not.toHaveProperty("applicantAccessCodeHash");
     expect(storedDraft?.referenceCode).toBeNull();
-    expect(decryptInvitationCode(
-      storedDraft?.invitationCodeCiphertext,
-      `guest:${applicationId}`,
-    )).toBe("80421357");
+    expect(
+      decryptInvitationCode(
+        storedDraft?.invitationCodeCiphertext,
+        `guest:${applicationId}`,
+      ),
+    ).toBe("80421357");
     expect(linkedRecord?.referenceCode).toBeNull();
     expect(linkedRecord?.invitationCodeCiphertext).toBeNull();
     expect(storedDraft).not.toHaveProperty("pinHash");
     expect(storedDraft).not.toHaveProperty("pinEncrypted");
-    const finalReviewerList = await request("/admin/guest-preapplications", {}, "reviewer");
+    const finalReviewerList = await request(
+      "/admin/guest-preapplications",
+      {},
+      "reviewer",
+    );
     expect(finalReviewerList.response.status).toBe(200);
     expect(finalReviewerList.body).toHaveLength(0);
 
@@ -3039,32 +3830,58 @@ describe("guest application verification and persistence", () => {
     );
     expect(finalReviewerRecord.response.status).toBe(200);
     expect(finalReviewerRecord.body.evidence).toHaveLength(2);
-    expect(finalReviewerRecord.body.evidence.every((item: any) =>
-      item.downloadUrl === `/api/admin/applications/${successfulLink.body.id}/evidence/${item.id}/file`,
-    )).toBe(true);
-    expect(JSON.stringify(finalReviewerRecord.body.evidence)).not.toContain("objectPath");
-    expect(JSON.stringify(finalReviewerRecord.body)).not.toContain("/objects/test/");
+    expect(
+      finalReviewerRecord.body.evidence.every(
+        (item: any) =>
+          item.downloadUrl ===
+          `/api/admin/applications/${successfulLink.body.id}/evidence/${item.id}/file`,
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(finalReviewerRecord.body.evidence)).not.toContain(
+      "objectPath",
+    );
+    expect(JSON.stringify(finalReviewerRecord.body)).not.toContain(
+      "/objects/test/",
+    );
     const removedApplicationPinRoute = await request(
       `/admin/applications/${successfulLink.body.id}/pin`,
       {},
       "reviewer",
     );
     expect(removedApplicationPinRoute.response.status).toBe(404);
-    const submittedEvidencePath = finalReviewerRecord.body.evidence[0].downloadUrl.replace("/api", "");
+    const submittedEvidencePath =
+      finalReviewerRecord.body.evidence[0].downloadUrl.replace("/api", "");
     expect((await request(submittedEvidencePath)).response.status).toBe(401);
-    expect((await request(submittedEvidencePath, {}, "applicant-verified")).response.status).toBe(403);
-    const adminSubmittedEvidenceDownload = await fetch(`${baseUrl}${submittedEvidencePath}`, {
-      headers: { "x-test-user": "administrator" },
-    });
+    expect(
+      (await request(submittedEvidencePath, {}, "applicant-verified")).response
+        .status,
+    ).toBe(403);
+    const adminSubmittedEvidenceDownload = await fetch(
+      `${baseUrl}${submittedEvidencePath}`,
+      {
+        headers: { "x-test-user": "administrator" },
+      },
+    );
     expect(adminSubmittedEvidenceDownload.status).toBe(200);
-    expect(Buffer.from(await adminSubmittedEvidenceDownload.arrayBuffer()).length).toBeGreaterThan(0);
-    const submittedEvidenceDownload = await fetch(`${baseUrl}${submittedEvidencePath}`, {
-      headers: { "x-test-user": "reviewer" },
-    });
+    expect(
+      Buffer.from(await adminSubmittedEvidenceDownload.arrayBuffer()).length,
+    ).toBeGreaterThan(0);
+    const submittedEvidenceDownload = await fetch(
+      `${baseUrl}${submittedEvidencePath}`,
+      {
+        headers: { "x-test-user": "reviewer" },
+      },
+    );
     expect(submittedEvidenceDownload.status).toBe(200);
-    expect(submittedEvidenceDownload.headers.get("cache-control")).toContain("no-store");
-    expect(submittedEvidenceDownload.headers.get("content-disposition")).toContain("attachment");
-    expect(Buffer.from(await submittedEvidenceDownload.arrayBuffer()).length).toBeGreaterThan(0);
+    expect(submittedEvidenceDownload.headers.get("cache-control")).toContain(
+      "no-store",
+    );
+    expect(
+      submittedEvidenceDownload.headers.get("content-disposition"),
+    ).toContain("attachment");
+    expect(
+      Buffer.from(await submittedEvidenceDownload.arrayBuffer()).length,
+    ).toBeGreaterThan(0);
     const missingEvidenceDownload = await request(
       `/admin/applications/${successfulLink.body.id}/evidence/${crypto.randomUUID()}/file`,
       {},
@@ -3077,12 +3894,18 @@ describe("guest application verification and persistence", () => {
       "administrator",
     );
     expect(adminSubmittedRecord.response.status).toBe(200);
-    expect(adminSubmittedRecord.body.applicantEmail).toBe("corrected@example.test");
-    expect((await request(
-      `/admin/applications/${successfulLink.body.id}`,
-      {},
-      "applicant-verified",
-    )).response.status).toBe(403);
+    expect(adminSubmittedRecord.body.applicantEmail).toBe(
+      "corrected@example.test",
+    );
+    expect(
+      (
+        await request(
+          `/admin/applications/${successfulLink.body.id}`,
+          {},
+          "applicant-verified",
+        )
+      ).response.status,
+    ).toBe(403);
     expect(finalReviewerRecord.body).toMatchObject({
       applicantName: "Test Applicant",
       applicantEmail: "corrected@example.test",
@@ -3107,7 +3930,9 @@ describe("guest application verification and persistence", () => {
     );
     expect(linkedReveal.response.status).toBe(200);
     expect(linkedReveal.body.code).toBe("80421357");
-    expect(mockState.rows.get("invitation_code_reveal_audit")?.[0]).toMatchObject({
+    expect(
+      mockState.rows.get("invitation_code_reveal_audit")?.[0],
+    ).toMatchObject({
       applicationType: "enrollment_application",
       applicationId: successfulLink.body.id,
       actorUserId: "reviewer",
@@ -3126,85 +3951,118 @@ describe("guest application verification and persistence", () => {
       }),
     });
     expect(created.response.status).toBe(201);
-    const { id: applicationId, reference } = created.body as { id: string; reference: string };
+    const { id: applicationId, reference } = created.body as {
+      id: string;
+      reference: string;
+    };
     const submitBody = JSON.stringify({ reference, trackingKey });
 
-    const wrongLengthInvitationCode = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 1,
-        complete: false,
-        answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
-        referenceCode: "739102",
-      }),
-    });
+    const wrongLengthInvitationCode = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 1,
+          complete: false,
+          answers: {
+            personalInformation: { firstName: "Initial", email: contactEmail },
+          },
+          referenceCode: "739102",
+        }),
+      },
+    );
     expect(wrongLengthInvitationCode.response.status).toBe(400);
-    expect(wrongLengthInvitationCode.body.error).toContain("8-digit Invitation Code");
+    expect(wrongLengthInvitationCode.body.error).toContain(
+      "8-digit Invitation Code",
+    );
 
-    const pinLikeCode = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 1,
-        complete: false,
-        referenceCode: "PIN-739102",
-      }),
-    });
+    const pinLikeCode = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 1,
+          complete: false,
+          referenceCode: "PIN-739102",
+        }),
+      },
+    );
     expect(pinLikeCode.response.status).toBe(400);
 
-    const legacyPinInput = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 1,
-        complete: false,
-        answers: { personalInformation: { firstName: "Initial", email: contactEmail } },
-        pin: "739102",
-      }),
-    });
+    const legacyPinInput = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 1,
+          complete: false,
+          answers: {
+            personalInformation: { firstName: "Initial", email: contactEmail },
+          },
+          pin: "739102",
+        }),
+      },
+    );
     expect(legacyPinInput.response.status).toBe(400);
     expect(legacyPinInput.body.error).toContain("Legacy PIN inputs");
 
-    const plaintextCodeAnswer = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 1,
-        complete: false,
-        answers: { personalInformation: { firstName: "Initial", accessCode: trackingKey } },
-      }),
-    });
+    const plaintextCodeAnswer = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 1,
+          complete: false,
+          answers: {
+            personalInformation: {
+              firstName: "Initial",
+              accessCode: trackingKey,
+            },
+          },
+        }),
+      },
+    );
     expect(plaintextCodeAnswer.response.status).toBe(400);
-    expect(JSON.stringify(mockState.rows.get("guest_preapplications"))).not.toContain(trackingKey);
+    expect(
+      JSON.stringify(mockState.rows.get("guest_preapplications")),
+    ).not.toContain(trackingKey);
 
-    const savedPartial = await request(`/guest/preapplications/${applicationId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        reference,
-        trackingKey,
-        currentStep: 1,
-        complete: false,
-        answers: {
-          personalInformation: { firstName: "Partial", email: contactEmail },
-        },
-        referenceCode: "80421357",
-      }),
-    });
+    const savedPartial = await request(
+      `/guest/preapplications/${applicationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reference,
+          trackingKey,
+          currentStep: 1,
+          complete: false,
+          answers: {
+            personalInformation: { firstName: "Partial", email: contactEmail },
+          },
+          referenceCode: "80421357",
+        }),
+      },
+    );
     expect(savedPartial.response.status).toBe(200);
     expect(savedPartial.body.detailsComplete).toBe(false);
     expect(savedPartial.body).not.toHaveProperty("referenceCode");
     const storedDraft = mockState.rows.get("guest_preapplications")?.[0];
     expect(storedDraft?.referenceCode).toBeNull();
     expect(storedDraft?.invitationCodeCiphertext).not.toContain("80421357");
-    expect(decryptInvitationCode(
-      storedDraft?.invitationCodeCiphertext,
-      `guest:${applicationId}`,
-    )).toBe("80421357");
+    expect(
+      decryptInvitationCode(
+        storedDraft?.invitationCodeCiphertext,
+        `guest:${applicationId}`,
+      ),
+    ).toBe("80421357");
     expect(storedDraft).not.toHaveProperty("pinHash");
     expect(storedDraft).not.toHaveProperty("pinEncrypted");
 
@@ -3229,13 +4087,24 @@ describe("guest application verification and persistence", () => {
     expect(linked.response.status).toBe(200);
     expect(linked.body.status).toBe("submitted");
 
-    const savedRevisionRows = mockState.rows.get("guest_preapplication_revisions") ?? [];
+    const savedRevisionRows =
+      mockState.rows.get("guest_preapplication_revisions") ?? [];
     expect(savedRevisionRows.length).toBeGreaterThan(0);
     expect(JSON.stringify(savedRevisionRows)).not.toContain("80421357");
-    expect(JSON.stringify(savedRevisionRows)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
+    expect(JSON.stringify(savedRevisionRows)).not.toMatch(
+      /pinHash|pinEncrypted|\"pin\"/i,
+    );
     (savedRevisionRows[0].changes as any[]).push(
-      { field: "personalInformation.pin", before: "legacy-secret", after: "739102" },
-      { field: "personalInformation.accessCode", before: "old-code", after: trackingKey },
+      {
+        field: "personalInformation.pin",
+        before: "legacy-secret",
+        after: "739102",
+      },
+      {
+        field: "personalInformation.accessCode",
+        before: "old-code",
+        after: trackingKey,
+      },
     );
     const reviewerHistory = await request(
       `/admin/applications/${linked.body.id}/guest-history`,
@@ -3244,14 +4113,20 @@ describe("guest application verification and persistence", () => {
     );
     expect(reviewerHistory.response.status).toBe(200);
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("80421357");
-    expect(JSON.stringify(reviewerHistory.body)).not.toMatch(/pinHash|pinEncrypted|\"pin\"/i);
+    expect(JSON.stringify(reviewerHistory.body)).not.toMatch(
+      /pinHash|pinEncrypted|\"pin\"/i,
+    );
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("legacy-secret");
     expect(JSON.stringify(reviewerHistory.body)).not.toContain("old-code");
     expect(JSON.stringify(reviewerHistory.body)).not.toContain(trackingKey);
-    expect(JSON.stringify(reviewerHistory.body)).toContain('"field":"Saved progress step"');
-    expect(reviewerHistory.body.some((revision: any) =>
-      revision.changes.some((change: any) => change.after === "Partial"),
-    )).toBe(true);
+    expect(JSON.stringify(reviewerHistory.body)).toContain(
+      '"field":"Saved progress step"',
+    );
+    expect(
+      reviewerHistory.body.some((revision: any) =>
+        revision.changes.some((change: any) => change.after === "Partial"),
+      ),
+    ).toBe(true);
 
     const reviewerApplication = await request(
       `/admin/applications/${linked.body.id}`,
@@ -3302,12 +4177,19 @@ describe("guest application verification and persistence", () => {
       reviewStatus: "submitted",
     });
     expect(tracked.body.outstandingRequirements.length).toBeGreaterThan(0);
-    const referenceOnlyOrWrongKey = await request("/guest/preapplications/lookup", {
-      method: "POST",
-      body: JSON.stringify({ reference: "CASE-739102", trackingKey }),
-    });
+    const referenceOnlyOrWrongKey = await request(
+      "/guest/preapplications/lookup",
+      {
+        method: "POST",
+        body: JSON.stringify({ reference: "CASE-739102", trackingKey }),
+      },
+    );
     expect(referenceOnlyOrWrongKey.response.status).toBe(404);
-    const removedPinRoute = await request(`/admin/applications/${linked.body.id}/pin`, {}, "reviewer");
+    const removedPinRoute = await request(
+      `/admin/applications/${linked.body.id}/pin`,
+      {},
+      "reviewer",
+    );
     expect(removedPinRoute.response.status).toBe(404);
   });
 
@@ -3326,21 +4208,27 @@ describe("guest application verification and persistence", () => {
       submissionStatus: "draft",
       linkedApplicationId: null,
       updatedAt: old,
-      answers: { proofOfIdentity: { frontObjectPath: "/objects/test/old-complete" } },
+      answers: {
+        proofOfIdentity: { frontObjectPath: "/objects/test/old-complete" },
+      },
     }) as Record<string, unknown>;
     const activeDraft = newRow("guest_preapplications", {
       id: "active-draft",
       submissionStatus: "draft",
       linkedApplicationId: null,
       updatedAt: now,
-      answers: { proofOfIdentity: { frontObjectPath: "/objects/test/current-file" } },
+      answers: {
+        proofOfIdentity: { frontObjectPath: "/objects/test/current-file" },
+      },
     });
     const submittedApplication = newRow("guest_preapplications", {
       id: "submitted-draft",
       submissionStatus: "submitted",
       linkedApplicationId: "enrollment-application",
       updatedAt: old,
-      answers: { proofOfIdentity: { frontObjectPath: "/objects/test/submitted-file" } },
+      answers: {
+        proofOfIdentity: { frontObjectPath: "/objects/test/submitted-file" },
+      },
     });
     mockState.rows.set("guest_preapplications", [
       uploadDraft,
@@ -3419,11 +4307,21 @@ describe("guest application verification and persistence", () => {
       currentEvidence,
       submittedEvidence,
     ]);
-    expect(mockState.storageObjects.has("/objects/test/expired-upload")).toBe(false);
-    expect(mockState.storageObjects.has("/objects/test/old-complete")).toBe(false);
-    expect(mockState.storageObjects.has("/objects/test/replaced-file")).toBe(false);
-    expect(mockState.storageObjects.has("/objects/test/current-file")).toBe(true);
-    expect(mockState.storageObjects.has("/objects/test/submitted-file")).toBe(true);
+    expect(mockState.storageObjects.has("/objects/test/expired-upload")).toBe(
+      false,
+    );
+    expect(mockState.storageObjects.has("/objects/test/old-complete")).toBe(
+      false,
+    );
+    expect(mockState.storageObjects.has("/objects/test/replaced-file")).toBe(
+      false,
+    );
+    expect(mockState.storageObjects.has("/objects/test/current-file")).toBe(
+      true,
+    );
+    expect(mockState.storageObjects.has("/objects/test/submitted-file")).toBe(
+      true,
+    );
     expect(inactiveDraft.answers).toEqual({ proofOfIdentity: {} });
   });
 
@@ -3477,21 +4375,206 @@ describe("guest application verification and persistence", () => {
       guestPreapplicationIds: [],
       enrollmentApplicationIds: [enrollmentId],
     };
-    const denied = await request("/admin/applicants/clear", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }, "applicant-unverified");
+    const denied = await request(
+      "/admin/applicants/clear",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+      "applicant-unverified",
+    );
     expect(denied.response.status).toBe(403);
 
-    const cleared = await request("/admin/applicants/clear", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }, "reviewer");
+    const cleared = await request(
+      "/admin/applicants/clear",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+      "reviewer",
+    );
     expect(cleared.response.status, JSON.stringify(cleared.body)).toBe(200);
     expect(cleared.body).toEqual({ clearedCount: 1, failedRecords: [] });
     expect(mockState.rows.get("guest_preapplications")).toEqual([]);
     expect(mockState.rows.get("enrollment_applications")).toEqual([]);
     expect(mockState.rows.get("guest_preapplication_evidence")).toEqual([]);
     expect(mockState.storageObjects.has(evidencePath)).toBe(false);
+  });
+
+  it("serves applicant form content from the pinned production project and restricts changes to the primary admin", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalUrl = process.env.SUPABASE_URL;
+    const originalServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const tableUrl =
+      "https://uxmuqrzapklifcmpxclr.supabase.co/rest/v1/applicant_form_content";
+    let storedRow = {
+      config_key: "applicant-forms",
+      content: {},
+      version: 0,
+      updated_by_user_id: null as string | null,
+      updated_at: "2026-11-17T12:00:00.000Z",
+    };
+    process.env.SUPABASE_URL = "https://uxmuqrzapklifcmpxclr.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-only-service-role-key";
+    globalThis.fetch = (async (
+      input: Parameters<typeof fetch>[0],
+      init?: RequestInit,
+    ) => {
+      const url = String(input);
+      if (!url.startsWith(tableUrl)) return originalFetch(input, init);
+      if ((init?.method ?? "GET") === "GET") {
+        return new Response(JSON.stringify([storedRow]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      const requestUrl = new URL(url);
+      if (
+        Number(requestUrl.searchParams.get("version")?.replace(/^eq\./, "")) !==
+        storedRow.version
+      ) {
+        return new Response("[]", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      const body = JSON.parse(String(init?.body)) as {
+        content: Record<string, Record<string, string>>;
+        version: number;
+        updated_by_user_id: string;
+        updated_at: string;
+      };
+      storedRow = {
+        ...storedRow,
+        content: body.content,
+        version: body.version,
+        updated_by_user_id: body.updated_by_user_id,
+        updated_at: body.updated_at,
+      };
+      return new Response(JSON.stringify([storedRow]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const publicContent = await request("/applicant/form-content");
+      expect(publicContent.response.status).toBe(200);
+      expect(publicContent.body.defaults["applicant-contact"].title).toBe(
+        "Your contact details",
+      );
+      expect(publicContent.response.headers.get("cache-control")).toContain(
+        "no-store",
+      );
+
+      const subAdminRead = await request("/admin/form-content", {}, "reviewer");
+      const subAdminWrite = await request(
+        "/admin/form-content",
+        {
+          method: "PUT",
+          body: JSON.stringify({ expectedVersion: 0, content: {} }),
+        },
+        "reviewer",
+      );
+      expect(subAdminRead.response.status).toBe(403);
+      expect(subAdminWrite.response.status).toBe(403);
+
+      const applicantWrite = await request(
+        "/admin/form-content",
+        {
+          method: "PUT",
+          body: JSON.stringify({ expectedVersion: 0, content: {} }),
+        },
+        "applicant-verified",
+      );
+      expect(applicantWrite.response.status).toBe(403);
+
+      const adminSnapshot = await request(
+        "/admin/form-content",
+        {},
+        "administrator",
+      );
+      expect(
+        adminSnapshot.response.status,
+        JSON.stringify(adminSnapshot.body),
+      ).toBe(200);
+      expect(adminSnapshot.body.persistenceAvailable).toBe(true);
+      const update = await request(
+        "/admin/form-content",
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            expectedVersion: 0,
+            content: {
+              "applicant-contact": { title: "Contact details, updated" },
+            },
+          }),
+        },
+        "administrator",
+      );
+      expect(update.response.status, JSON.stringify(update.body)).toBe(200);
+      expect(update.body.savedContent["applicant-contact"].title).toBe(
+        "Contact details, updated",
+      );
+      expect(update.body.version).toBe(1);
+      expect(storedRow.version).toBe(1);
+      expect(storedRow.updated_by_user_id).toBe("administrator");
+      const afterRefresh = await request("/applicant/form-content");
+      expect(afterRefresh.body.savedContent["applicant-contact"].title).toBe(
+        "Contact details, updated",
+      );
+
+      const conflict = await request(
+        "/admin/form-content",
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            expectedVersion: 0,
+            content: { "applicant-contact": { title: "Stale content" } },
+          }),
+        },
+        "administrator",
+      );
+      expect(conflict.response.status).toBe(409);
+
+      const invalidField = await request(
+        "/admin/form-content",
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            expectedVersion: 1,
+            content: {
+              "applicant-contact": { unknownCopyField: "not allowed" },
+            },
+          }),
+        },
+        "administrator",
+      );
+      expect(invalidField.response.status).toBe(400);
+
+      const reset = await request(
+        "/admin/form-content/reset",
+        {
+          method: "POST",
+          body: JSON.stringify({ expectedVersion: 1 }),
+        },
+        "administrator",
+      );
+      expect(reset.response.status, JSON.stringify(reset.body)).toBe(200);
+      expect(reset.body.savedContent["applicant-contact"].title).toBe(
+        "Your contact details",
+      );
+
+      process.env.SUPABASE_URL = "https://wrong-project.supabase.co";
+      const wrongTarget = await request("/applicant/form-content");
+      expect(wrongTarget.response.status).toBe(503);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalUrl === undefined) delete process.env.SUPABASE_URL;
+      else process.env.SUPABASE_URL = originalUrl;
+      if (originalServiceKey === undefined)
+        delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      else process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceKey;
+    }
   });
 });

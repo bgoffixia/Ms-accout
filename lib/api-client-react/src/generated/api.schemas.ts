@@ -9,14 +9,14 @@ export interface HealthStatus {
   status: string;
 }
 
-export type EnrollmentCategoryId = typeof EnrollmentCategoryId[keyof typeof EnrollmentCategoryId];
-
+export type EnrollmentCategoryId =
+  (typeof EnrollmentCategoryId)[keyof typeof EnrollmentCategoryId];
 
 export const EnrollmentCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export interface EnrollmentCategory {
@@ -26,23 +26,23 @@ export interface EnrollmentCategory {
   accent: string;
 }
 
-export type GuestPreapplicationStatusValue = typeof GuestPreapplicationStatusValue[keyof typeof GuestPreapplicationStatusValue];
-
+export type GuestPreapplicationStatusValue =
+  (typeof GuestPreapplicationStatusValue)[keyof typeof GuestPreapplicationStatusValue];
 
 export const GuestPreapplicationStatusValue = {
-  received: 'received',
-  contacted: 'contacted',
-  closed: 'closed',
+  received: "received",
+  contacted: "contacted",
+  closed: "closed",
 } as const;
 
-export type GuestPreapplicationInputCategoryId = typeof GuestPreapplicationInputCategoryId[keyof typeof GuestPreapplicationInputCategoryId];
-
+export type GuestPreapplicationInputCategoryId =
+  (typeof GuestPreapplicationInputCategoryId)[keyof typeof GuestPreapplicationInputCategoryId];
 
 export const GuestPreapplicationInputCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export interface GuestPreapplicationInput {
@@ -51,9 +51,9 @@ export interface GuestPreapplicationInput {
   trackingKey: string;
   categoryId: GuestPreapplicationInputCategoryId;
   /**
-     * @minLength 2
-     * @maxLength 160
-     */
+   * @minLength 2
+   * @maxLength 160
+   */
   fullName: string;
   /** @maxLength 320 */
   email: string;
@@ -63,9 +63,9 @@ export interface GuestPreapplicationInput {
 
 export interface ApplicationTrackingLookupInput {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
@@ -73,9 +73,9 @@ export interface ApplicationTrackingLookupInput {
 
 export interface GuestPreapplicationLookupInput {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
@@ -83,9 +83,9 @@ export interface GuestPreapplicationLookupInput {
 
 export interface GuestTrackingKeyRecoveryInput {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
 }
 
@@ -94,60 +94,61 @@ export interface GuestTrackingKeyRecoveryResponse {
   trackingKey: string;
 }
 
-export type ApplicationAccessStatusApplicationType = typeof ApplicationAccessStatusApplicationType[keyof typeof ApplicationAccessStatusApplicationType];
-
+export type ApplicationAccessStatusApplicationType =
+  (typeof ApplicationAccessStatusApplicationType)[keyof typeof ApplicationAccessStatusApplicationType];
 
 export const ApplicationAccessStatusApplicationType = {
-  guest_preapplication: 'guest_preapplication',
-  enrollment_application: 'enrollment_application',
+  guest_preapplication: "guest_preapplication",
+  enrollment_application: "enrollment_application",
 } as const;
 
-export type ApplicationAccessStatusCategoryId = typeof ApplicationAccessStatusCategoryId[keyof typeof ApplicationAccessStatusCategoryId];
-
+export type ApplicationAccessStatusCategoryId =
+  (typeof ApplicationAccessStatusCategoryId)[keyof typeof ApplicationAccessStatusCategoryId];
 
 export const ApplicationAccessStatusCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
-export type ApplicationAccessStatusStatus = typeof ApplicationAccessStatusStatus[keyof typeof ApplicationAccessStatusStatus];
-
+export type ApplicationAccessStatusStatus =
+  (typeof ApplicationAccessStatusStatus)[keyof typeof ApplicationAccessStatusStatus];
 
 export const ApplicationAccessStatusStatus = {
-  received: 'received',
-  contacted: 'contacted',
-  closed: 'closed',
-  draft: 'draft',
-  submitted: 'submitted',
-  under_review: 'under_review',
-  needs_information: 'needs_information',
-  approved: 'approved',
-  rejected: 'rejected',
+  received: "received",
+  contacted: "contacted",
+  closed: "closed",
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  needs_information: "needs_information",
+  approved: "approved",
+  rejected: "rejected",
 } as const;
 
-export type ApplicationAccessStatusSubmissionStatus = typeof ApplicationAccessStatusSubmissionStatus[keyof typeof ApplicationAccessStatusSubmissionStatus];
-
+export type ApplicationAccessStatusSubmissionStatus =
+  (typeof ApplicationAccessStatusSubmissionStatus)[keyof typeof ApplicationAccessStatusSubmissionStatus];
 
 export const ApplicationAccessStatusSubmissionStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
+  draft: "draft",
+  submitted: "submitted",
 } as const;
 
 /**
  * @nullable
  */
-export type ApplicationAccessStatusReviewStatus = typeof ApplicationAccessStatusReviewStatus[keyof typeof ApplicationAccessStatusReviewStatus] | null;
-
+export type ApplicationAccessStatusReviewStatus =
+  | (typeof ApplicationAccessStatusReviewStatus)[keyof typeof ApplicationAccessStatusReviewStatus]
+  | null;
 
 export const ApplicationAccessStatusReviewStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
-  under_review: 'under_review',
-  needs_information: 'needs_information',
-  approved: 'approved',
-  rejected: 'rejected',
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  needs_information: "needs_information",
+  approved: "approved",
+  rejected: "rejected",
 } as const;
 
 export interface ApplicationAccessStatus {
@@ -159,9 +160,9 @@ export interface ApplicationAccessStatus {
   status: ApplicationAccessStatusStatus;
   submissionStatus: ApplicationAccessStatusSubmissionStatus;
   /**
-     * @minimum 0
-     * @maximum 7
-     */
+   * @minimum 0
+   * @maximum 7
+   */
   currentStep: number;
   detailsComplete: boolean;
   updatedAt: string;
@@ -172,22 +173,22 @@ export interface ApplicationAccessStatus {
   outstandingRequirements: string[];
 }
 
-export type GuestPreapplicationCreatedCategoryId = typeof GuestPreapplicationCreatedCategoryId[keyof typeof GuestPreapplicationCreatedCategoryId];
-
+export type GuestPreapplicationCreatedCategoryId =
+  (typeof GuestPreapplicationCreatedCategoryId)[keyof typeof GuestPreapplicationCreatedCategoryId];
 
 export const GuestPreapplicationCreatedCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
-export type GuestPreapplicationCreatedSubmissionStatus = typeof GuestPreapplicationCreatedSubmissionStatus[keyof typeof GuestPreapplicationCreatedSubmissionStatus];
-
+export type GuestPreapplicationCreatedSubmissionStatus =
+  (typeof GuestPreapplicationCreatedSubmissionStatus)[keyof typeof GuestPreapplicationCreatedSubmissionStatus];
 
 export const GuestPreapplicationCreatedSubmissionStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
+  draft: "draft",
+  submitted: "submitted",
 } as const;
 
 export interface GuestPreapplicationCreated {
@@ -204,31 +205,31 @@ export interface GuestPreapplicationCreated {
   trackingKey: string;
   linkedApplicationId: string | null;
   /**
-     * @minimum 0
-     * @maximum 7
-     */
+   * @minimum 0
+   * @maximum 7
+   */
   currentStep: number;
   detailsComplete: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type GuestPreapplicationStatusCategoryId = typeof GuestPreapplicationStatusCategoryId[keyof typeof GuestPreapplicationStatusCategoryId];
-
+export type GuestPreapplicationStatusCategoryId =
+  (typeof GuestPreapplicationStatusCategoryId)[keyof typeof GuestPreapplicationStatusCategoryId];
 
 export const GuestPreapplicationStatusCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
-export type GuestPreapplicationStatusSubmissionStatus = typeof GuestPreapplicationStatusSubmissionStatus[keyof typeof GuestPreapplicationStatusSubmissionStatus];
-
+export type GuestPreapplicationStatusSubmissionStatus =
+  (typeof GuestPreapplicationStatusSubmissionStatus)[keyof typeof GuestPreapplicationStatusSubmissionStatus];
 
 export const GuestPreapplicationStatusSubmissionStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
+  draft: "draft",
+  submitted: "submitted",
 } as const;
 
 export type GuestPreapplicationStatusAnswers = { [key: string]: unknown };
@@ -236,16 +237,17 @@ export type GuestPreapplicationStatusAnswers = { [key: string]: unknown };
 /**
  * @nullable
  */
-export type GuestPreapplicationStatusReviewStatus = typeof GuestPreapplicationStatusReviewStatus[keyof typeof GuestPreapplicationStatusReviewStatus] | null;
-
+export type GuestPreapplicationStatusReviewStatus =
+  | (typeof GuestPreapplicationStatusReviewStatus)[keyof typeof GuestPreapplicationStatusReviewStatus]
+  | null;
 
 export const GuestPreapplicationStatusReviewStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
-  under_review: 'under_review',
-  needs_information: 'needs_information',
-  approved: 'approved',
-  rejected: 'rejected',
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  needs_information: "needs_information",
+  approved: "approved",
+  rejected: "rejected",
 } as const;
 
 export interface GuestPreapplicationStatus {
@@ -262,9 +264,9 @@ export interface GuestPreapplicationStatus {
   /** @nullable */
   linkedApplicationId: string | null;
   /**
-     * @minimum 0
-     * @maximum 7
-     */
+   * @minimum 0
+   * @maximum 7
+   */
   currentStep: number;
   detailsComplete: boolean;
   answers: GuestPreapplicationStatusAnswers;
@@ -286,28 +288,30 @@ export type GuestPreapplicationRevisionChangesItem = {
 export interface GuestPreapplicationRevision {
   id: string;
   /**
-     * @minimum 0
-     * @maximum 7
-     */
+   * @minimum 0
+   * @maximum 7
+   */
   currentStep: number;
   changes: GuestPreapplicationRevisionChangesItem[];
   createdAt: string;
 }
 
-export type GuestPreapplicationProgressInputAnswers = { [key: string]: unknown };
+export type GuestPreapplicationProgressInputAnswers = {
+  [key: string]: unknown;
+};
 
 export interface GuestPreapplicationProgressInput {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
   /**
-     * @minimum 0
-     * @maximum 7
-     */
+   * @minimum 0
+   * @maximum 7
+   */
   currentStep: number;
   answers: GuestPreapplicationProgressInputAnswers;
   complete: boolean;
@@ -317,9 +321,9 @@ export interface GuestPreapplicationProgressInput {
 
 export interface GuestApplicationAccessInput {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
@@ -327,9 +331,9 @@ export interface GuestApplicationAccessInput {
 
 export interface GuestPreapplicationEmailUpdate {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
@@ -337,24 +341,24 @@ export interface GuestPreapplicationEmailUpdate {
   email: string;
 }
 
-export type AdminGuestPreapplicationEvidenceEvidenceType = typeof AdminGuestPreapplicationEvidenceEvidenceType[keyof typeof AdminGuestPreapplicationEvidenceEvidenceType];
-
+export type AdminGuestPreapplicationEvidenceEvidenceType =
+  (typeof AdminGuestPreapplicationEvidenceEvidenceType)[keyof typeof AdminGuestPreapplicationEvidenceEvidenceType];
 
 export const AdminGuestPreapplicationEvidenceEvidenceType = {
-  identity_document: 'identity_document',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
+  identity_document: "identity_document",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
 } as const;
 
-export type AdminGuestPreapplicationEvidenceEvidenceSlot = typeof AdminGuestPreapplicationEvidenceEvidenceSlot[keyof typeof AdminGuestPreapplicationEvidenceEvidenceSlot];
-
+export type AdminGuestPreapplicationEvidenceEvidenceSlot =
+  (typeof AdminGuestPreapplicationEvidenceEvidenceSlot)[keyof typeof AdminGuestPreapplicationEvidenceEvidenceSlot];
 
 export const AdminGuestPreapplicationEvidenceEvidenceSlot = {
-  identity_front: 'identity_front',
-  identity_back: 'identity_back',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
-  identity_document: 'identity_document',
+  identity_front: "identity_front",
+  identity_back: "identity_back",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
+  identity_document: "identity_document",
 } as const;
 
 export interface AdminGuestPreapplicationEvidence {
@@ -370,7 +374,7 @@ export interface AdminGuestPreapplicationEvidence {
   downloadUrl: string | null;
 }
 
-export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
+export type AdminGuestPreapplication = GuestPreapplicationStatus & {
   fullName: string;
   email: string;
   /** @nullable */
@@ -380,14 +384,14 @@ export type AdminGuestPreapplication = GuestPreapplicationStatus & ({
   history: GuestPreapplicationRevision[];
   /** @nullable */
   assignedReviewerUserId: string | null;
-});
+};
 
-export type ApplicationReviewerAssignmentApplicationType = typeof ApplicationReviewerAssignmentApplicationType[keyof typeof ApplicationReviewerAssignmentApplicationType];
-
+export type ApplicationReviewerAssignmentApplicationType =
+  (typeof ApplicationReviewerAssignmentApplicationType)[keyof typeof ApplicationReviewerAssignmentApplicationType];
 
 export const ApplicationReviewerAssignmentApplicationType = {
-  guest_preapplication: 'guest_preapplication',
-  enrollment_application: 'enrollment_application',
+  guest_preapplication: "guest_preapplication",
+  enrollment_application: "enrollment_application",
 } as const;
 
 export interface ApplicationReviewerAssignment {
@@ -399,65 +403,65 @@ export interface ApplicationReviewerAssignment {
 
 export interface SetApplicationReviewerAssignmentInput {
   /**
-     * @minLength 1
-     * @maxLength 255
-     * @nullable
-     */
+   * @minLength 1
+   * @maxLength 255
+   * @nullable
+   */
   reviewerUserId: string | null;
 }
 
-export type GuestEvidenceUploadInputEvidenceType = typeof GuestEvidenceUploadInputEvidenceType[keyof typeof GuestEvidenceUploadInputEvidenceType];
-
+export type GuestEvidenceUploadInputEvidenceType =
+  (typeof GuestEvidenceUploadInputEvidenceType)[keyof typeof GuestEvidenceUploadInputEvidenceType];
 
 export const GuestEvidenceUploadInputEvidenceType = {
-  identity_document: 'identity_document',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
+  identity_document: "identity_document",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
 } as const;
 
-export type GuestEvidenceUploadInputEvidenceSlot = typeof GuestEvidenceUploadInputEvidenceSlot[keyof typeof GuestEvidenceUploadInputEvidenceSlot];
-
+export type GuestEvidenceUploadInputEvidenceSlot =
+  (typeof GuestEvidenceUploadInputEvidenceSlot)[keyof typeof GuestEvidenceUploadInputEvidenceSlot];
 
 export const GuestEvidenceUploadInputEvidenceSlot = {
-  identity_front: 'identity_front',
-  identity_back: 'identity_back',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
-  identity_document: 'identity_document',
+  identity_front: "identity_front",
+  identity_back: "identity_back",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
+  identity_document: "identity_document",
 } as const;
 
 export interface GuestEvidenceUploadInput {
   evidenceType: GuestEvidenceUploadInputEvidenceType;
   evidenceSlot?: GuestEvidenceUploadInputEvidenceSlot;
   /**
-     * @minLength 1
-     * @maxLength 160
-     */
+   * @minLength 1
+   * @maxLength 160
+   */
   fileName: string;
   /** @maxLength 100 */
   contentType: string;
   /**
-     * @minimum 1
-     * @maximum 209715200
-     */
+   * @minimum 1
+   * @maximum 209715200
+   */
   sizeBytes: number;
 }
 
-export type GuestApplicantEvidenceUploadInputEvidenceSlot = typeof GuestApplicantEvidenceUploadInputEvidenceSlot[keyof typeof GuestApplicantEvidenceUploadInputEvidenceSlot];
-
+export type GuestApplicantEvidenceUploadInputEvidenceSlot =
+  (typeof GuestApplicantEvidenceUploadInputEvidenceSlot)[keyof typeof GuestApplicantEvidenceUploadInputEvidenceSlot];
 
 export const GuestApplicantEvidenceUploadInputEvidenceSlot = {
-  identity_front: 'identity_front',
-  identity_back: 'identity_back',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
+  identity_front: "identity_front",
+  identity_back: "identity_back",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
 } as const;
 
 export type GuestApplicantEvidenceUploadInput = GuestEvidenceUploadInput & {
   /**
-     * @minLength 8
-     * @maxLength 32
-     */
+   * @minLength 8
+   * @maxLength 32
+   */
   reference: string;
   /** @pattern ^[A-Za-z0-9_-]{43}$ */
   trackingKey: string;
@@ -469,23 +473,23 @@ export interface GuestEvidenceUploadUrl {
   uploadUrl: string;
 }
 
-export type GuestApplicantEvidenceUploadedEvidenceType = typeof GuestApplicantEvidenceUploadedEvidenceType[keyof typeof GuestApplicantEvidenceUploadedEvidenceType];
-
+export type GuestApplicantEvidenceUploadedEvidenceType =
+  (typeof GuestApplicantEvidenceUploadedEvidenceType)[keyof typeof GuestApplicantEvidenceUploadedEvidenceType];
 
 export const GuestApplicantEvidenceUploadedEvidenceType = {
-  identity_document: 'identity_document',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
+  identity_document: "identity_document",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
 } as const;
 
-export type GuestApplicantEvidenceUploadedEvidenceSlot = typeof GuestApplicantEvidenceUploadedEvidenceSlot[keyof typeof GuestApplicantEvidenceUploadedEvidenceSlot];
-
+export type GuestApplicantEvidenceUploadedEvidenceSlot =
+  (typeof GuestApplicantEvidenceUploadedEvidenceSlot)[keyof typeof GuestApplicantEvidenceUploadedEvidenceSlot];
 
 export const GuestApplicantEvidenceUploadedEvidenceSlot = {
-  identity_front: 'identity_front',
-  identity_back: 'identity_back',
-  verification_video: 'verification_video',
-  education_certificate: 'education_certificate',
+  identity_front: "identity_front",
+  identity_back: "identity_back",
+  verification_video: "verification_video",
+  education_certificate: "education_certificate",
 } as const;
 
 export interface GuestApplicantEvidenceUploaded {
@@ -497,38 +501,38 @@ export interface GuestApplicantEvidenceUploaded {
   uploadedAt: string;
 }
 
-export type AdminGuestPreapplicationStatusUpdateStatus = typeof AdminGuestPreapplicationStatusUpdateStatus[keyof typeof AdminGuestPreapplicationStatusUpdateStatus];
-
+export type AdminGuestPreapplicationStatusUpdateStatus =
+  (typeof AdminGuestPreapplicationStatusUpdateStatus)[keyof typeof AdminGuestPreapplicationStatusUpdateStatus];
 
 export const AdminGuestPreapplicationStatusUpdateStatus = {
-  contacted: 'contacted',
-  closed: 'closed',
+  contacted: "contacted",
+  closed: "closed",
 } as const;
 
 export interface AdminGuestPreapplicationStatusUpdate {
   status: AdminGuestPreapplicationStatusUpdateStatus;
 }
 
-export type ApplicationStatus = typeof ApplicationStatus[keyof typeof ApplicationStatus];
-
+export type ApplicationStatus =
+  (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
 
 export const ApplicationStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
-  under_review: 'under_review',
-  needs_information: 'needs_information',
-  approved: 'approved',
-  rejected: 'rejected',
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  needs_information: "needs_information",
+  approved: "approved",
+  rejected: "rejected",
 } as const;
 
-export type EnrollmentApplicationCategoryId = typeof EnrollmentApplicationCategoryId[keyof typeof EnrollmentApplicationCategoryId];
-
+export type EnrollmentApplicationCategoryId =
+  (typeof EnrollmentApplicationCategoryId)[keyof typeof EnrollmentApplicationCategoryId];
 
 export const EnrollmentApplicationCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export type EnrollmentApplicationAnswers = { [key: string]: unknown };
@@ -558,33 +562,33 @@ export interface EnrollmentApplication {
   evidence?: AdminGuestPreapplicationEvidence[];
 }
 
-export type AdminEnrollmentApplication = EnrollmentApplication & ({
+export type AdminEnrollmentApplication = EnrollmentApplication & {
   /** @nullable */
   assignedReviewerUserId: string | null;
-});
+};
 
-export type ApplicationInputCategoryId = typeof ApplicationInputCategoryId[keyof typeof ApplicationInputCategoryId];
-
+export type ApplicationInputCategoryId =
+  (typeof ApplicationInputCategoryId)[keyof typeof ApplicationInputCategoryId];
 
 export const ApplicationInputCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export interface ApplicationInput {
   categoryId: ApplicationInputCategoryId;
 }
 
-export type NewApplicationSubmissionInputCategoryId = typeof NewApplicationSubmissionInputCategoryId[keyof typeof NewApplicationSubmissionInputCategoryId];
-
+export type NewApplicationSubmissionInputCategoryId =
+  (typeof NewApplicationSubmissionInputCategoryId)[keyof typeof NewApplicationSubmissionInputCategoryId];
 
 export const NewApplicationSubmissionInputCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export type NewApplicationSubmissionInputAnswers = { [key: string]: unknown };
@@ -597,17 +601,19 @@ export interface NewApplicationSubmissionInput {
   referenceCode?: string;
 }
 
-export type ExistingApplicationSubmissionInputCategoryId = typeof ExistingApplicationSubmissionInputCategoryId[keyof typeof ExistingApplicationSubmissionInputCategoryId];
-
+export type ExistingApplicationSubmissionInputCategoryId =
+  (typeof ExistingApplicationSubmissionInputCategoryId)[keyof typeof ExistingApplicationSubmissionInputCategoryId];
 
 export const ExistingApplicationSubmissionInputCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
-export type ExistingApplicationSubmissionInputAnswers = { [key: string]: unknown };
+export type ExistingApplicationSubmissionInputAnswers = {
+  [key: string]: unknown;
+};
 
 export interface ExistingApplicationSubmissionInput {
   categoryId?: ExistingApplicationSubmissionInputCategoryId;
@@ -621,12 +627,12 @@ export interface DeleteMyApplicationDraftsResponse {
   deletedCount: number;
 }
 
-export type ApplicantRecordIdentifierType = typeof ApplicantRecordIdentifierType[keyof typeof ApplicantRecordIdentifierType];
-
+export type ApplicantRecordIdentifierType =
+  (typeof ApplicantRecordIdentifierType)[keyof typeof ApplicantRecordIdentifierType];
 
 export const ApplicantRecordIdentifierType = {
-  guest_preapplication: 'guest_preapplication',
-  enrollment_application: 'enrollment_application',
+  guest_preapplication: "guest_preapplication",
+  enrollment_application: "enrollment_application",
 } as const;
 
 export interface ApplicantRecordIdentifier {
@@ -647,14 +653,14 @@ export interface ApplicantRecordsClearResult {
   failedRecords: ApplicantRecordIdentifier[];
 }
 
-export type ApplicationUpdateCategoryId = typeof ApplicationUpdateCategoryId[keyof typeof ApplicationUpdateCategoryId];
-
+export type ApplicationUpdateCategoryId =
+  (typeof ApplicationUpdateCategoryId)[keyof typeof ApplicationUpdateCategoryId];
 
 export const ApplicationUpdateCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export type ApplicationUpdateAnswers = { [key: string]: unknown };
@@ -662,37 +668,37 @@ export type ApplicationUpdateAnswers = { [key: string]: unknown };
 export interface ApplicationUpdate {
   categoryId?: ApplicationUpdateCategoryId;
   /**
-     * @minimum 0
-     * @maximum 7
-     */
+   * @minimum 0
+   * @maximum 7
+   */
   currentStep?: number;
   answers?: ApplicationUpdateAnswers;
   /** @maxLength 80 */
   referenceCode?: string;
 }
 
-export type ApplicationDraftInputCategoryId = typeof ApplicationDraftInputCategoryId[keyof typeof ApplicationDraftInputCategoryId];
-
+export type ApplicationDraftInputCategoryId =
+  (typeof ApplicationDraftInputCategoryId)[keyof typeof ApplicationDraftInputCategoryId];
 
 export const ApplicationDraftInputCategoryId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 export interface ApplicationDraftInput {
   categoryId: ApplicationDraftInputCategoryId;
 }
 
-export type ApplicationDecisionDecision = typeof ApplicationDecisionDecision[keyof typeof ApplicationDecisionDecision];
-
+export type ApplicationDecisionDecision =
+  (typeof ApplicationDecisionDecision)[keyof typeof ApplicationDecisionDecision];
 
 export const ApplicationDecisionDecision = {
-  approve: 'approve',
-  reject: 'reject',
-  request_information: 'request_information',
-  mark_under_review: 'mark_under_review',
+  approve: "approve",
+  reject: "reject",
+  request_information: "request_information",
+  mark_under_review: "mark_under_review",
 } as const;
 
 export interface ApplicationDecision {
@@ -700,19 +706,19 @@ export interface ApplicationDecision {
   /** @maxLength 4000 */
   note?: string;
   /**
-     * @minItems 1
-     * @maxItems 7
-     * @items.minimum 0
-     * @items.maximum 6
-     */
+   * @minItems 1
+   * @maxItems 7
+   * @items.minimum 0
+   * @items.maximum 6
+   */
   reopenSections?: number[];
 }
 
 export interface ApplicationNoteInput {
   /**
-     * @minLength 1
-     * @maxLength 4000
-     */
+   * @minLength 1
+   * @maxLength 4000
+   */
   note: string;
 }
 
@@ -728,9 +734,9 @@ export interface ApplicationEvent {
 export interface InvitationCodeReveal {
   applicationId: string;
   /**
-     * Returned only by an authenticated no-store reveal action for an authorized reviewer.
-     * @maxLength 80
-     */
+   * Returned only by an authenticated no-store reveal action for an authorized reviewer.
+   * @maxLength 80
+   */
   code: string;
   revealedAt: string;
 }
@@ -746,22 +752,21 @@ export interface AdminOverview {
   unresolvedSupportRequests: number;
 }
 
-export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];
-
+export type AdminUserRole = (typeof AdminUserRole)[keyof typeof AdminUserRole];
 
 export const AdminUserRole = {
-  applicant: 'applicant',
-  admin: 'admin',
-  sub_admin: 'sub_admin',
-  moderator: 'moderator',
+  applicant: "applicant",
+  admin: "admin",
+  sub_admin: "sub_admin",
+  moderator: "moderator",
 } as const;
 
-export type AdminUserAccountStatus = typeof AdminUserAccountStatus[keyof typeof AdminUserAccountStatus];
-
+export type AdminUserAccountStatus =
+  (typeof AdminUserAccountStatus)[keyof typeof AdminUserAccountStatus];
 
 export const AdminUserAccountStatus = {
-  active: 'active',
-  suspended: 'suspended',
+  active: "active",
+  suspended: "suspended",
 } as const;
 
 export interface AdminUser {
@@ -792,26 +797,26 @@ export interface AdminUserList {
   totalCount: number;
 }
 
-export type AdminUserStatusUpdateAccountStatus = typeof AdminUserStatusUpdateAccountStatus[keyof typeof AdminUserStatusUpdateAccountStatus];
-
+export type AdminUserStatusUpdateAccountStatus =
+  (typeof AdminUserStatusUpdateAccountStatus)[keyof typeof AdminUserStatusUpdateAccountStatus];
 
 export const AdminUserStatusUpdateAccountStatus = {
-  active: 'active',
-  suspended: 'suspended',
+  active: "active",
+  suspended: "suspended",
 } as const;
 
 export interface AdminUserStatusUpdate {
   accountStatus: AdminUserStatusUpdateAccountStatus;
 }
 
-export type AdminUserRoleUpdateRole = typeof AdminUserRoleUpdateRole[keyof typeof AdminUserRoleUpdateRole];
-
+export type AdminUserRoleUpdateRole =
+  (typeof AdminUserRoleUpdateRole)[keyof typeof AdminUserRoleUpdateRole];
 
 export const AdminUserRoleUpdateRole = {
-  applicant: 'applicant',
-  admin: 'admin',
-  sub_admin: 'sub_admin',
-  moderator: 'moderator',
+  applicant: "applicant",
+  admin: "admin",
+  sub_admin: "sub_admin",
+  moderator: "moderator",
 } as const;
 
 export interface AdminUserRoleUpdate {
@@ -823,12 +828,12 @@ export interface StaffRegistrationCheckInput {
   email: string;
 }
 
-export type StaffRegistrationCheckResponseRole = typeof StaffRegistrationCheckResponseRole[keyof typeof StaffRegistrationCheckResponseRole];
-
+export type StaffRegistrationCheckResponseRole =
+  (typeof StaffRegistrationCheckResponseRole)[keyof typeof StaffRegistrationCheckResponseRole];
 
 export const StaffRegistrationCheckResponseRole = {
-  admin: 'admin',
-  sub_admin: 'sub_admin',
+  admin: "admin",
+  sub_admin: "sub_admin",
 } as const;
 
 export interface StaffRegistrationCheckResponse {
@@ -836,25 +841,25 @@ export interface StaffRegistrationCheckResponse {
   role?: StaffRegistrationCheckResponseRole;
 }
 
-export type StaffAccessClaimInputEntrypoint = typeof StaffAccessClaimInputEntrypoint[keyof typeof StaffAccessClaimInputEntrypoint];
-
+export type StaffAccessClaimInputEntrypoint =
+  (typeof StaffAccessClaimInputEntrypoint)[keyof typeof StaffAccessClaimInputEntrypoint];
 
 export const StaffAccessClaimInputEntrypoint = {
-  admin: 'admin',
-  staff: 'staff',
+  admin: "admin",
+  staff: "staff",
 } as const;
 
 export interface StaffAccessClaimInput {
   entrypoint: StaffAccessClaimInputEntrypoint;
 }
 
-export type StaffAccessClaimResponseRole = typeof StaffAccessClaimResponseRole[keyof typeof StaffAccessClaimResponseRole];
-
+export type StaffAccessClaimResponseRole =
+  (typeof StaffAccessClaimResponseRole)[keyof typeof StaffAccessClaimResponseRole];
 
 export const StaffAccessClaimResponseRole = {
-  admin: 'admin',
-  sub_admin: 'sub_admin',
-  moderator: 'moderator',
+  admin: "admin",
+  sub_admin: "sub_admin",
+  moderator: "moderator",
 } as const;
 
 export interface StaffAccessClaimResponse {
@@ -862,13 +867,13 @@ export interface StaffAccessClaimResponse {
   message: string;
 }
 
-export type AdminUserInvitationInputRole = typeof AdminUserInvitationInputRole[keyof typeof AdminUserInvitationInputRole];
-
+export type AdminUserInvitationInputRole =
+  (typeof AdminUserInvitationInputRole)[keyof typeof AdminUserInvitationInputRole];
 
 export const AdminUserInvitationInputRole = {
-  admin: 'admin',
-  sub_admin: 'sub_admin',
-  moderator: 'moderator',
+  admin: "admin",
+  sub_admin: "sub_admin",
+  moderator: "moderator",
 } as const;
 
 export interface AdminUserInvitationInput {
@@ -877,13 +882,13 @@ export interface AdminUserInvitationInput {
   role: AdminUserInvitationInputRole;
 }
 
-export type AdminUserInvitationResponseRole = typeof AdminUserInvitationResponseRole[keyof typeof AdminUserInvitationResponseRole];
-
+export type AdminUserInvitationResponseRole =
+  (typeof AdminUserInvitationResponseRole)[keyof typeof AdminUserInvitationResponseRole];
 
 export const AdminUserInvitationResponseRole = {
-  admin: 'admin',
-  sub_admin: 'sub_admin',
-  moderator: 'moderator',
+  admin: "admin",
+  sub_admin: "sub_admin",
+  moderator: "moderator",
 } as const;
 
 export interface AdminUserInvitationResponse {
@@ -904,32 +909,32 @@ export type PortalSettingsHero = {
   loginLabel: string;
 };
 
-export type PortalSettingsCardsItemId = typeof PortalSettingsCardsItemId[keyof typeof PortalSettingsCardsItemId];
-
+export type PortalSettingsCardsItemId =
+  (typeof PortalSettingsCardsItemId)[keyof typeof PortalSettingsCardsItemId];
 
 export const PortalSettingsCardsItemId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
-export type PortalSettingsCardsItemCardLogoAlignment = typeof PortalSettingsCardsItemCardLogoAlignment[keyof typeof PortalSettingsCardsItemCardLogoAlignment];
-
+export type PortalSettingsCardsItemCardLogoAlignment =
+  (typeof PortalSettingsCardsItemCardLogoAlignment)[keyof typeof PortalSettingsCardsItemCardLogoAlignment];
 
 export const PortalSettingsCardsItemCardLogoAlignment = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
+  left: "left",
+  center: "center",
+  right: "right",
 } as const;
 
-export type PortalSettingsCardsItemEntryLogoAlignment = typeof PortalSettingsCardsItemEntryLogoAlignment[keyof typeof PortalSettingsCardsItemEntryLogoAlignment];
-
+export type PortalSettingsCardsItemEntryLogoAlignment =
+  (typeof PortalSettingsCardsItemEntryLogoAlignment)[keyof typeof PortalSettingsCardsItemEntryLogoAlignment];
 
 export const PortalSettingsCardsItemEntryLogoAlignment = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
+  left: "left",
+  center: "center",
+  right: "right",
 } as const;
 
 export type PortalSettingsCardsItem = {
@@ -943,75 +948,75 @@ export type PortalSettingsCardsItem = {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   backgroundColor: string;
   /**
-     * @maxLength 6000000
-     * @nullable
-     */
+   * @maxLength 6000000
+   * @nullable
+   */
   logoDataUrl: string | null;
   /**
-     * @maxLength 6000000
-     * @nullable
-     */
+   * @maxLength 6000000
+   * @nullable
+   */
   entryLogoDataUrl?: string | null;
   cardLogoAlignment?: PortalSettingsCardsItemCardLogoAlignment;
   /**
-     * @minimum -48
-     * @maximum 48
-     */
+   * @minimum -48
+   * @maximum 48
+   */
   cardLogoVerticalOffset?: number;
   /**
-     * @minimum 10
-     * @maximum 24
-     */
+   * @minimum 10
+   * @maximum 24
+   */
   cardTitleFontSize?: number;
   /**
-     * @minimum -40
-     * @maximum 40
-     */
+   * @minimum -40
+   * @maximum 40
+   */
   cardTitleHorizontalOffset?: number;
   /**
-     * @minimum -40
-     * @maximum 40
-     */
+   * @minimum -40
+   * @maximum 40
+   */
   cardTitleVerticalOffset?: number;
   /**
-     * @minimum 8
-     * @maximum 18
-     */
+   * @minimum 8
+   * @maximum 18
+   */
   cardDescriptionFontSize?: number;
   /**
-     * @minimum -40
-     * @maximum 40
-     */
+   * @minimum -40
+   * @maximum 40
+   */
   cardDescriptionHorizontalOffset?: number;
   /**
-     * @minimum -40
-     * @maximum 40
-     */
+   * @minimum -40
+   * @maximum 40
+   */
   cardDescriptionVerticalOffset?: number;
   entryLogoAlignment?: PortalSettingsCardsItemEntryLogoAlignment;
   /**
-     * @minimum -120
-     * @maximum 120
-     */
+   * @minimum -120
+   * @maximum 120
+   */
   entryLogoVerticalOffset?: number;
 };
 
-export type PortalSettingsThemeButtonSize = typeof PortalSettingsThemeButtonSize[keyof typeof PortalSettingsThemeButtonSize];
-
+export type PortalSettingsThemeButtonSize =
+  (typeof PortalSettingsThemeButtonSize)[keyof typeof PortalSettingsThemeButtonSize];
 
 export const PortalSettingsThemeButtonSize = {
-  compact: 'compact',
-  standard: 'standard',
-  large: 'large',
+  compact: "compact",
+  standard: "standard",
+  large: "large",
 } as const;
 
-export type PortalSettingsThemeButtonPlacement = typeof PortalSettingsThemeButtonPlacement[keyof typeof PortalSettingsThemeButtonPlacement];
-
+export type PortalSettingsThemeButtonPlacement =
+  (typeof PortalSettingsThemeButtonPlacement)[keyof typeof PortalSettingsThemeButtonPlacement];
 
 export const PortalSettingsThemeButtonPlacement = {
-  left: 'left',
-  center: 'center',
-  right: 'right',
+  left: "left",
+  center: "center",
+  right: "right",
 } as const;
 
 export type PortalSettingsTheme = {
@@ -1020,15 +1025,17 @@ export type PortalSettingsTheme = {
   categoryInputTransparent: boolean;
 };
 
-export type PortalSettingsScreenCopy = {[key: string]: {[key: string]: string}};
+export type PortalSettingsScreenCopy = {
+  [key: string]: { [key: string]: string };
+};
 
-export type PortalPageThemeMode = typeof PortalPageThemeMode[keyof typeof PortalPageThemeMode];
-
+export type PortalPageThemeMode =
+  (typeof PortalPageThemeMode)[keyof typeof PortalPageThemeMode];
 
 export const PortalPageThemeMode = {
-  inherit: 'inherit',
-  solid: 'solid',
-  gradient: 'gradient',
+  inherit: "inherit",
+  solid: "solid",
+  gradient: "gradient",
 } as const;
 
 export interface PortalPageTheme {
@@ -1038,34 +1045,104 @@ export interface PortalPageTheme {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   blendColor: string;
   /**
-     * @minimum 0
-     * @maximum 360
-     */
+   * @minimum 0
+   * @maximum 360
+   */
   angle: number;
 }
 
-export type PortalSettingsPageThemes = {[key: string]: PortalPageTheme};
+export type PortalSettingsPageThemes = { [key: string]: PortalPageTheme };
 
 export interface PortalSettings {
   hero: PortalSettingsHero;
   /**
-     * @minItems 4
-     * @maxItems 4
-     */
+   * @minItems 4
+   * @maxItems 4
+   */
   cards: PortalSettingsCardsItem[];
   theme: PortalSettingsTheme;
   screenCopy: PortalSettingsScreenCopy;
   pageThemes?: PortalSettingsPageThemes;
 }
 
-export type InvitationCodeProviderId = typeof InvitationCodeProviderId[keyof typeof InvitationCodeProviderId];
+/**
+ * Editable text keyed by known applicant form and copy-field identifiers.
+ */
+export interface ApplicantFormContent {
+  [key: string]: { [key: string]: string };
+}
 
+export interface ApplicantFormContentSnapshot {
+  /** @minimum 0 */
+  version: number;
+  defaults: ApplicantFormContent;
+  savedContent: ApplicantFormContent;
+  /** @nullable */
+  updatedAt: string | null;
+  persistenceAvailable: boolean;
+}
+
+export interface ApplicantFormContentField {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  key: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  label: string;
+  /** @maxLength 500 */
+  defaultValue: string;
+  multiline: boolean;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  maxLength: number;
+  /** @maxLength 240 */
+  helpText?: string;
+}
+
+export interface ApplicantFormDefinition {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  id: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  label: string;
+  fields: ApplicantFormContentField[];
+}
+
+export type AdminApplicantFormContent = ApplicantFormContentSnapshot & {
+  /** @minItems 1 */
+  forms: ApplicantFormDefinition[];
+};
+
+export interface ApplicantFormContentUpdate {
+  /** @minimum 0 */
+  expectedVersion: number;
+  content: ApplicantFormContent;
+}
+
+export interface ApplicantFormContentResetInput {
+  /** @minimum 0 */
+  expectedVersion: number;
+}
+
+export type InvitationCodeProviderId =
+  (typeof InvitationCodeProviderId)[keyof typeof InvitationCodeProviderId];
 
 export const InvitationCodeProviderId = {
-  'category-1': 'category-1',
-  'category-2': 'category-2',
-  'category-3': 'category-3',
-  'category-4': 'category-4',
+  "category-1": "category-1",
+  "category-2": "category-2",
+  "category-3": "category-3",
+  "category-4": "category-4",
 } as const;
 
 /**
@@ -1102,34 +1179,34 @@ export interface ApplicantSummary {
   needsAttention: number;
 }
 
-export type SupportTicketCategory = typeof SupportTicketCategory[keyof typeof SupportTicketCategory];
-
+export type SupportTicketCategory =
+  (typeof SupportTicketCategory)[keyof typeof SupportTicketCategory];
 
 export const SupportTicketCategory = {
-  enrollment: 'enrollment',
-  account: 'account',
-  technical: 'technical',
-  documents: 'documents',
-  other: 'other',
+  enrollment: "enrollment",
+  account: "account",
+  technical: "technical",
+  documents: "documents",
+  other: "other",
 } as const;
 
-export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
-
+export type SupportTicketStatus =
+  (typeof SupportTicketStatus)[keyof typeof SupportTicketStatus];
 
 export const SupportTicketStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  resolved: 'resolved',
-  answered: 'answered',
-  closed: 'closed',
+  open: "open",
+  in_progress: "in_progress",
+  resolved: "resolved",
+  answered: "answered",
+  closed: "closed",
 } as const;
 
-export type SupportMessageActorRole = typeof SupportMessageActorRole[keyof typeof SupportMessageActorRole];
-
+export type SupportMessageActorRole =
+  (typeof SupportMessageActorRole)[keyof typeof SupportMessageActorRole];
 
 export const SupportMessageActorRole = {
-  applicant: 'applicant',
-  administrator: 'administrator',
+  applicant: "applicant",
+  administrator: "administrator",
 } as const;
 
 export interface SupportMessage {
@@ -1160,56 +1237,56 @@ export interface SupportTicket {
   updatedAt: string;
 }
 
-export type SupportTicketInputCategory = typeof SupportTicketInputCategory[keyof typeof SupportTicketInputCategory];
-
+export type SupportTicketInputCategory =
+  (typeof SupportTicketInputCategory)[keyof typeof SupportTicketInputCategory];
 
 export const SupportTicketInputCategory = {
-  enrollment: 'enrollment',
-  account: 'account',
-  technical: 'technical',
-  documents: 'documents',
-  other: 'other',
+  enrollment: "enrollment",
+  account: "account",
+  technical: "technical",
+  documents: "documents",
+  other: "other",
 } as const;
 
 export interface SupportTicketInput {
   /** @nullable */
   applicationId?: string | null;
   /**
-     * @minLength 3
-     * @maxLength 200
-     */
+   * @minLength 3
+   * @maxLength 200
+   */
   subject: string;
   category: SupportTicketInputCategory;
   /**
-     * @minLength 5
-     * @maxLength 5000
-     */
+   * @minLength 5
+   * @maxLength 5000
+   */
   message: string;
 }
 
-export type SupportReplyInputStatus = typeof SupportReplyInputStatus[keyof typeof SupportReplyInputStatus];
-
+export type SupportReplyInputStatus =
+  (typeof SupportReplyInputStatus)[keyof typeof SupportReplyInputStatus];
 
 export const SupportReplyInputStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  resolved: 'resolved',
+  open: "open",
+  in_progress: "in_progress",
+  resolved: "resolved",
 } as const;
 
 export interface SupportReplyInput {
   /**
-     * @minLength 1
-     * @maxLength 5000
-     */
+   * @minLength 1
+   * @maxLength 5000
+   */
   response: string;
   status: SupportReplyInputStatus;
 }
 
 export interface SupportMessageInput {
   /**
-     * @minLength 1
-     * @maxLength 5000
-     */
+   * @minLength 1
+   * @maxLength 5000
+   */
   message: string;
 }
 
@@ -1228,33 +1305,33 @@ export interface AdminEmailAlertEvents {
 
 export interface AdminEmailBranding {
   /**
-     * @maxLength 2048
-     * @nullable
-     */
+   * @maxLength 2048
+   * @nullable
+   */
   logoUrl: string | null;
   /**
-     * @maxLength 200
-     * @nullable
-     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
-     */
+   * @maxLength 200
+   * @nullable
+   * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+   */
   logoObjectPath: string | null;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   accentColor: string;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   headerColor: string;
   /**
-     * @minLength 1
-     * @maxLength 80
-     */
+   * @minLength 1
+   * @maxLength 80
+   */
   senderName: string;
   /** @maxLength 254 */
   senderEmail: string;
   /** @maxLength 12 */
   bannerMark: string;
   /**
-     * @minLength 1
-     * @maxLength 100
-     */
+   * @minLength 1
+   * @maxLength 100
+   */
   bannerTitle: string;
   /** @maxLength 120 */
   bannerSubtitle: string;
@@ -1267,9 +1344,9 @@ export interface AdminEmailBranding {
   /** @maxLength 80 */
   footerLinkText: string;
   /**
-     * @maxLength 2048
-     * @nullable
-     */
+   * @maxLength 2048
+   * @nullable
+   */
   footerLinkUrl: string | null;
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   footerLinkColor: string;
@@ -1278,15 +1355,15 @@ export interface AdminEmailBranding {
   /** @pattern ^#[0-9A-Fa-f]{6}$ */
   footerTextColor: string;
   /**
-     * @maxLength 2048
-     * @nullable
-     */
+   * @maxLength 2048
+   * @nullable
+   */
   footerBackgroundUrl: string | null;
   /**
-     * @maxLength 200
-     * @nullable
-     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
-     */
+   * @maxLength 200
+   * @nullable
+   * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+   */
   footerBackgroundObjectPath: string | null;
 }
 
@@ -1307,66 +1384,66 @@ export interface AdminEmailSettingsUpdate {
   branding: AdminEmailBranding;
 }
 
-export type AdminEmailLogoUploadInputContentType = typeof AdminEmailLogoUploadInputContentType[keyof typeof AdminEmailLogoUploadInputContentType];
-
+export type AdminEmailLogoUploadInputContentType =
+  (typeof AdminEmailLogoUploadInputContentType)[keyof typeof AdminEmailLogoUploadInputContentType];
 
 export const AdminEmailLogoUploadInputContentType = {
-  'image/png': 'image/png',
-  'image/jpeg': 'image/jpeg',
-  'image/webp': 'image/webp',
-  'image/gif': 'image/gif',
+  "image/png": "image/png",
+  "image/jpeg": "image/jpeg",
+  "image/webp": "image/webp",
+  "image/gif": "image/gif",
 } as const;
 
 export interface AdminEmailLogoUploadInput {
   contentType: AdminEmailLogoUploadInputContentType;
   /**
-     * @minimum 1
-     * @maximum 2097152
-     */
+   * @minimum 1
+   * @maximum 2097152
+   */
   sizeBytes: number;
 }
 
 export interface AdminEmailLogoUploadResponse {
   uploadUrl: string;
   /**
-     * @maxLength 200
-     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
-     */
+   * @maxLength 200
+   * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+   */
   objectPath: string;
 }
 
 export interface AdminEmailLogoUploadCompleteInput {
   /**
-     * @maxLength 200
-     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
-     */
+   * @maxLength 200
+   * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+   */
   objectPath: string;
 }
 
 export interface AdminEmailLogoUploadCompleteResponse {
   /**
-     * @maxLength 200
-     * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
-     */
+   * @maxLength 200
+   * @pattern ^/objects/email-logos/[0-9a-fA-F-]{36}$
+   */
   objectPath: string;
 }
 
 export interface AdminEmailSendInput {
   requestId: string;
   /**
-     * @minItems 1
-     * @maxItems 20
-     */
+   * @minItems 1
+   * @maxItems 20
+   */
   recipients: string[];
   /**
-     * @minLength 1
-     * @maxLength 200
-     */
+   * @minLength 1
+   * @maxLength 200
+   */
   subject: string;
   /**
-     * @minLength 1
-     * @maxLength 10000
-     */
+   * @minLength 1
+   * @maxLength 10000
+   */
   messageText: string;
 }
 
@@ -1384,66 +1461,68 @@ export interface AdminEmailTemplate {
 
 export interface AdminEmailTemplateInput {
   /**
-     * @minLength 1
-     * @maxLength 80
-     */
+   * @minLength 1
+   * @maxLength 80
+   */
   name: string;
   /**
-     * @minLength 1
-     * @maxLength 200
-     */
+   * @minLength 1
+   * @maxLength 200
+   */
   subject: string;
   /**
-     * @minLength 1
-     * @maxLength 10000
-     */
+   * @minLength 1
+   * @maxLength 10000
+   */
   messageText: string;
 }
 
 /**
  * @nullable
  */
-export type AdminEmailMessageEventKind = typeof AdminEmailMessageEventKind[keyof typeof AdminEmailMessageEventKind] | null;
-
+export type AdminEmailMessageEventKind =
+  | (typeof AdminEmailMessageEventKind)[keyof typeof AdminEmailMessageEventKind]
+  | null;
 
 export const AdminEmailMessageEventKind = {
-  contact_received: 'contact_received',
-  step_saved: 'step_saved',
-  contact_updated: 'contact_updated',
-  evidence_saved: 'evidence_saved',
-  application_submitted: 'application_submitted',
-  manual: 'manual',
+  contact_received: "contact_received",
+  step_saved: "step_saved",
+  contact_updated: "contact_updated",
+  evidence_saved: "evidence_saved",
+  application_submitted: "application_submitted",
+  manual: "manual",
 } as const;
 
-export type AdminEmailMessageStatus = typeof AdminEmailMessageStatus[keyof typeof AdminEmailMessageStatus];
-
+export type AdminEmailMessageStatus =
+  (typeof AdminEmailMessageStatus)[keyof typeof AdminEmailMessageStatus];
 
 export const AdminEmailMessageStatus = {
-  sending: 'sending',
-  sent: 'sent',
-  failed: 'failed',
+  sending: "sending",
+  sent: "sent",
+  failed: "failed",
 } as const;
 
 /**
  * @nullable
  */
-export type AdminEmailMessageDeliveryStatus = typeof AdminEmailMessageDeliveryStatus[keyof typeof AdminEmailMessageDeliveryStatus] | null;
-
+export type AdminEmailMessageDeliveryStatus =
+  | (typeof AdminEmailMessageDeliveryStatus)[keyof typeof AdminEmailMessageDeliveryStatus]
+  | null;
 
 export const AdminEmailMessageDeliveryStatus = {
-  accepted: 'accepted',
-  delivered: 'delivered',
-  bounced: 'bounced',
-  complained: 'complained',
+  accepted: "accepted",
+  delivered: "delivered",
+  bounced: "bounced",
+  complained: "complained",
 } as const;
 
-export type AdminEmailProviderEventDeliveryStatus = typeof AdminEmailProviderEventDeliveryStatus[keyof typeof AdminEmailProviderEventDeliveryStatus];
-
+export type AdminEmailProviderEventDeliveryStatus =
+  (typeof AdminEmailProviderEventDeliveryStatus)[keyof typeof AdminEmailProviderEventDeliveryStatus];
 
 export const AdminEmailProviderEventDeliveryStatus = {
-  delivered: 'delivered',
-  bounced: 'bounced',
-  complained: 'complained',
+  delivered: "delivered",
+  bounced: "bounced",
+  complained: "complained",
 } as const;
 
 export interface AdminEmailProviderEvent {
@@ -1487,9 +1566,9 @@ export interface AdminSmsSettings {
   deliveryReportUrl: string | null;
   deliveryReportsConfigured: boolean;
   /**
-     * @minimum 0
-     * @maximum 100000
-     */
+   * @minimum 0
+   * @maximum 100000
+   */
   dailyLimit: number;
   /** @minimum 0 */
   dailyUsageCount: number;
@@ -1500,45 +1579,45 @@ export interface AdminSmsSettings {
 
 export interface AdminSmsSettingsUpdate {
   /**
-     * @minLength 1
-     * @maxLength 255
-     */
+   * @minLength 1
+   * @maxLength 255
+   */
   baseUrl?: string;
   /**
-     * @minLength 3
-     * @maxLength 11
-     * @pattern ^[A-Za-z0-9]+$
-     */
+   * @minLength 3
+   * @maxLength 11
+   * @pattern ^[A-Za-z0-9]+$
+   */
   senderId?: string;
   /**
-     * @minimum 0
-     * @maximum 100000
-     */
+   * @minimum 0
+   * @maximum 100000
+   */
   dailyLimit?: number;
 }
 
 export interface AdminSmsSendInput {
   /**
-     * @minLength 9
-     * @maxLength 16
-     * @pattern ^\+[1-9][0-9]{7,14}$
-     */
+   * @minLength 9
+   * @maxLength 16
+   * @pattern ^\+[1-9][0-9]{7,14}$
+   */
   recipientPhone: string;
   /**
-     * @minLength 1
-     * @maxLength 1600
-     */
+   * @minLength 1
+   * @maxLength 1600
+   */
   messageText: string;
 }
 
-export type AdminSmsSendResponseStatus = typeof AdminSmsSendResponseStatus[keyof typeof AdminSmsSendResponseStatus];
-
+export type AdminSmsSendResponseStatus =
+  (typeof AdminSmsSendResponseStatus)[keyof typeof AdminSmsSendResponseStatus];
 
 export const AdminSmsSendResponseStatus = {
-  sending: 'sending',
-  accepted: 'accepted',
-  delivered: 'delivered',
-  failed: 'failed',
+  sending: "sending",
+  accepted: "accepted",
+  delivered: "delivered",
+  failed: "failed",
 } as const;
 
 export interface AdminSmsSendResponse {
@@ -1585,46 +1664,45 @@ export interface InfobipSmsDeliveryReport {
 }
 
 export type ListApplicationsForReviewParams = {
-status?: ListApplicationsForReviewStatus;
-search?: string;
+  status?: ListApplicationsForReviewStatus;
+  search?: string;
 };
 
-export type ListApplicationsForReviewStatus = typeof ListApplicationsForReviewStatus[keyof typeof ListApplicationsForReviewStatus];
-
+export type ListApplicationsForReviewStatus =
+  (typeof ListApplicationsForReviewStatus)[keyof typeof ListApplicationsForReviewStatus];
 
 export const ListApplicationsForReviewStatus = {
-  draft: 'draft',
-  submitted: 'submitted',
-  under_review: 'under_review',
-  needs_information: 'needs_information',
-  approved: 'approved',
-  rejected: 'rejected',
+  draft: "draft",
+  submitted: "submitted",
+  under_review: "under_review",
+  needs_information: "needs_information",
+  approved: "approved",
+  rejected: "rejected",
 } as const;
 
 export type ListAdminUsersParams = {
-search?: string;
-accountStatus?: ListAdminUsersAccountStatus;
+  search?: string;
+  accountStatus?: ListAdminUsersAccountStatus;
 };
 
-export type ListAdminUsersAccountStatus = typeof ListAdminUsersAccountStatus[keyof typeof ListAdminUsersAccountStatus];
-
+export type ListAdminUsersAccountStatus =
+  (typeof ListAdminUsersAccountStatus)[keyof typeof ListAdminUsersAccountStatus];
 
 export const ListAdminUsersAccountStatus = {
-  active: 'active',
-  suspended: 'suspended',
+  active: "active",
+  suspended: "suspended",
 } as const;
 
 export type ListSupportTicketsForAdminParams = {
-search?: string;
-status?: ListSupportTicketsForAdminStatus;
+  search?: string;
+  status?: ListSupportTicketsForAdminStatus;
 };
 
-export type ListSupportTicketsForAdminStatus = typeof ListSupportTicketsForAdminStatus[keyof typeof ListSupportTicketsForAdminStatus];
-
+export type ListSupportTicketsForAdminStatus =
+  (typeof ListSupportTicketsForAdminStatus)[keyof typeof ListSupportTicketsForAdminStatus];
 
 export const ListSupportTicketsForAdminStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  resolved: 'resolved',
+  open: "open",
+  in_progress: "in_progress",
+  resolved: "resolved",
 } as const;
-
