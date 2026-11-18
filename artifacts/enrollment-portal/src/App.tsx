@@ -48,6 +48,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import {
   getGetApplicationQueryKey,
   getGetApplicantSummaryQueryKey,
@@ -12335,6 +12336,27 @@ function RoutedPages() {
   );
 }
 
+/**
+ * Supplies the active Clerk session token to same-origin API requests.
+ *
+ * The production Clerk proxy/custom-domain flow can keep the interactive
+ * Clerk client signed in while the API request reaches Express without the
+ * session cookie. Sending the current short-lived session token explicitly
+ * lets clerkMiddleware authenticate the request server-side; role checks
+ * remain enforced by the API and are never taken from client state.
+ */
+function ClerkApiTokenBridge() {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+
+  // Register during render so query hooks in sibling route components cannot
+  // issue their first request before the token getter is installed.
+  setAuthTokenGetter(() =>
+    isLoaded && isSignedIn ? getToken() : null,
+  );
+
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const { isLoaded, isSignedIn, userId } = useAuth();
@@ -12399,6 +12421,7 @@ function ClerkRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkApiTokenBridge />
         <PortalSettingsLiveSync />
         <ClerkQueryClientCacheInvalidator />
         <RoutedPages />
