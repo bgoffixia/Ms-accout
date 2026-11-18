@@ -31,6 +31,7 @@ type CategoryEntryFormProps = {
   categoryId: EnrollmentCategory["id"];
   reference: string;
   savedAnswers: Record<string, unknown>;
+  onAnswersChange?: (answers: CategoryEntryAnswers) => void;
   isSaving: boolean;
   error: string;
   guestMode?: boolean;
@@ -40,6 +41,19 @@ type CategoryEntryFormProps = {
   invitationCodePolicyLoading?: boolean;
   invitationCodePolicyError?: string;
   screenCopy?: Record<string, string>;
+  contactCopy?: Record<string, string>;
+  contactDetailsRequired?: boolean;
+  initialContactDetails?: {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+  };
+  onContactDetailsChange?: (contactDetails: {
+    fullName: string;
+    email: string;
+    phone: string;
+  }) => void;
+  previewMode?: boolean;
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
   entryLogoAlignment?: string;
@@ -47,6 +61,7 @@ type CategoryEntryFormProps = {
   onComplete: (
     answers: CategoryEntryAnswers,
     referenceCode: string | null,
+    contactDetails?: { fullName: string; email: string; phone?: string },
   ) => void;
 };
 
@@ -59,6 +74,7 @@ export function CategoryEntryForm({
   categoryId,
   reference,
   savedAnswers,
+  onAnswersChange,
   isSaving,
   error,
   guestMode = false,
@@ -68,6 +84,11 @@ export function CategoryEntryForm({
   invitationCodePolicyLoading = false,
   invitationCodePolicyError = "",
   screenCopy = {},
+  contactCopy = {},
+  contactDetailsRequired = false,
+  initialContactDetails,
+  onContactDetailsChange,
+  previewMode = false,
   pageTheme,
   entryLogoDataUrl,
   entryLogoAlignment = "center",
@@ -109,6 +130,15 @@ export function CategoryEntryForm({
   const [surname, setSurname] = useState(() =>
     savedValue(savedAnswers, "surname"),
   );
+  const [contactName, setContactName] = useState(
+    initialContactDetails?.fullName ?? "",
+  );
+  const [contactEmail, setContactEmail] = useState(
+    initialContactDetails?.email ?? "",
+  );
+  const [contactPhone, setContactPhone] = useState(
+    initialContactDetails?.phone ?? "",
+  );
   const [referenceCode, setReferenceCode] = useState("");
   const [categoryOneMenuOpen, setCategoryOneMenuOpen] = useState(false);
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
@@ -136,6 +166,39 @@ export function CategoryEntryForm({
     invitationCodeLength <= 12
       ? invitationCodeLength
       : 8;
+
+  useEffect(() => {
+    if (!contactDetailsRequired || previewMode) return;
+    onContactDetailsChange?.({
+      fullName: contactName,
+      email: contactEmail,
+      phone: contactPhone,
+    });
+  }, [
+    contactDetailsRequired,
+    previewMode,
+    contactName,
+    contactEmail,
+    contactPhone,
+    onContactDetailsChange,
+  ]);
+
+  useEffect(() => {
+    if (previewMode || !onAnswersChange) return;
+    onAnswersChange({
+      name,
+      ...(showNickname ? { nickname } : {}),
+      ...(showSurname ? { surname } : {}),
+    });
+  }, [
+    previewMode,
+    onAnswersChange,
+    name,
+    nickname,
+    surname,
+    showNickname,
+    showSurname,
+  ]);
 
   useEffect(() => {
     if (isReferenceCodeStep) {
@@ -169,29 +232,53 @@ export function CategoryEntryForm({
 
   const finish = (): boolean => {
     setValidationError("");
-    if (!guestMode && showName && !name.trim()) {
+    if (contactDetailsRequired) {
+      if (contactName.trim().length < 2) {
+        setValidationError(contactCopy.invalidName || "Enter your full name.");
+        return false;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+        setValidationError(
+          contactCopy.invalidEmail || "Enter a valid email address.",
+        );
+        return false;
+      }
+      if (
+        contactPhone.trim() &&
+        !/^\+?[0-9][0-9\s().-]{6,19}$/.test(contactPhone.trim())
+      ) {
+        setValidationError(
+          contactCopy.invalidPhone || "Enter a valid phone number.",
+        );
+        return false;
+      }
+    }
+    if (!previewMode && !guestMode && showName && !name.trim()) {
       setValidationError(
         copyValue("invalidName", "Enter the name / login to continue."),
       );
       return false;
     }
-    if (!guestMode && showNickname && !nickname.trim()) {
+    if (!previewMode && !guestMode && showNickname && !nickname.trim()) {
       setValidationError(
         copyValue("invalidNickname", "Enter your nickname to continue."),
       );
       return false;
     }
-    if (!guestMode && showSurname && !surname.trim()) {
+    if (!previewMode && !guestMode && showSurname && !surname.trim()) {
       setValidationError(
         copyValue("invalidSurname", "Enter your surname to continue."),
       );
       return false;
     }
     const normalizedReferenceCode = referenceCode.trim();
-    if (normalizedReferenceCode) {
+    if (normalizedReferenceCode && !previewMode) {
       if (invitationCodePolicyLoading || invitationCodePolicyError) {
         setValidationError(
-          copyValue("policyError", "Invitation Code requirements could not be checked. Try again."),
+          copyValue(
+            "policyError",
+            "Invitation Code requirements could not be checked. Try again.",
+          ),
         );
         return false;
       }
@@ -200,8 +287,9 @@ export function CategoryEntryForm({
         normalizedReferenceCode.length !== normalizedInvitationCodeLength
       ) {
         setValidationError(
-          (
-            copyValue("codeValidation", "Enter exactly {length} digits for this provider's Invitation Code.")
+          copyValue(
+            "codeValidation",
+            "Enter exactly {length} digits for this provider's Invitation Code.",
           ).replaceAll("{length}", String(normalizedInvitationCodeLength)),
         );
         return false;
@@ -214,6 +302,13 @@ export function CategoryEntryForm({
         ...(showSurname ? { surname: surname.trim() } : {}),
       },
       normalizedReferenceCode || null,
+      contactDetailsRequired
+        ? {
+            fullName: contactName.trim(),
+            email: contactEmail.trim(),
+            ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
+          }
+        : undefined,
     );
     return true;
   };
@@ -297,9 +392,10 @@ export function CategoryEntryForm({
             </button>
             <div
               className="category-one-reference-language"
-              aria-label={
-                copyValue("currentLanguageLabel", "Current language: English")
-              }
+              aria-label={copyValue(
+                "currentLanguageLabel",
+                "Current language: English",
+              )}
             >
               <svg
                 className="category-one-reference-flag"
@@ -375,7 +471,10 @@ export function CategoryEntryForm({
                   data-testid="button-entry-back"
                 >
                   <ArrowLeft size={14} />{" "}
-                  {copyValue("backButtonLabel", copyValue("backLabel", "Back to details"))}
+                  {copyValue(
+                    "backButtonLabel",
+                    copyValue("backLabel", "Back to details"),
+                  )}
                 </button>
               )}
               <span className="category-one-menu-reference">
@@ -451,7 +550,10 @@ export function CategoryEntryForm({
                   data-testid="button-entry-back"
                 >
                   <ArrowLeft size={14} />{" "}
-                  {copyValue("backButtonLabel", copyValue("backLabel", "Back one step"))}
+                  {copyValue(
+                    "backButtonLabel",
+                    copyValue("backLabel", "Back one step"),
+                  )}
                 </button>
               )}
               <span className="category-two-menu-reference">
@@ -501,6 +603,72 @@ export function CategoryEntryForm({
           <form onSubmit={handleSubmit} noValidate>
             {!isReferenceCodeStep && (
               <div className="entry-fields">
+                {contactDetailsRequired && step === 0 && (
+                  <div
+                    className="entry-contact-fields"
+                    data-testid="provider-entry-contact-fields"
+                  >
+                    <label className="entry-field" htmlFor="entry-contact-name">
+                      <span>{contactCopy.fullNameLabel || "Full name"}</span>
+                      <input
+                        id="entry-contact-name"
+                        className="entry-line-input"
+                        type="text"
+                        autoComplete="name"
+                        disabled={previewMode}
+                        placeholder={
+                          contactCopy.fullNamePlaceholder ||
+                          "As shown on your identity document"
+                        }
+                        value={contactName}
+                        onChange={(event) => setContactName(event.target.value)}
+                        data-testid="input-provider-contact-name"
+                      />
+                    </label>
+                    <label
+                      className="entry-field"
+                      htmlFor="entry-contact-email"
+                    >
+                      <span>{contactCopy.emailLabel || "Email address"}</span>
+                      <input
+                        id="entry-contact-email"
+                        className="entry-line-input"
+                        type="email"
+                        autoComplete="email"
+                        disabled={previewMode}
+                        placeholder={
+                          contactCopy.emailPlaceholder || "you@example.com"
+                        }
+                        value={contactEmail}
+                        onChange={(event) =>
+                          setContactEmail(event.target.value)
+                        }
+                        data-testid="input-provider-contact-email"
+                      />
+                    </label>
+                    <label
+                      className="entry-field"
+                      htmlFor="entry-contact-phone"
+                    >
+                      <span>{contactCopy.phoneLabel || "Phone number"}</span>
+                      <input
+                        id="entry-contact-phone"
+                        className="entry-line-input"
+                        type="tel"
+                        autoComplete="tel"
+                        disabled={previewMode}
+                        placeholder={
+                          contactCopy.phonePlaceholder || "+678 801 234 5678"
+                        }
+                        value={contactPhone}
+                        onChange={(event) =>
+                          setContactPhone(event.target.value)
+                        }
+                        data-testid="input-provider-contact-phone"
+                      />
+                    </label>
+                  </div>
+                )}
                 {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
                     <span>
@@ -512,6 +680,7 @@ export function CategoryEntryForm({
                       type="text"
                       autoComplete="given-name"
                       required={!guestMode}
+                      disabled={previewMode}
                       placeholder={screenCopy.namePlaceholder || undefined}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
@@ -533,6 +702,7 @@ export function CategoryEntryForm({
                       type="text"
                       autoComplete="nickname"
                       required={!guestMode}
+                      disabled={previewMode}
                       placeholder={screenCopy.nicknamePlaceholder || undefined}
                       value={nickname}
                       onChange={(event) => setNickname(event.target.value)}
@@ -554,6 +724,7 @@ export function CategoryEntryForm({
                       type="text"
                       autoComplete="family-name"
                       required={!guestMode}
+                      disabled={previewMode}
                       placeholder={screenCopy.surnamePlaceholder || undefined}
                       value={surname}
                       onChange={(event) => setSurname(event.target.value)}
@@ -586,7 +757,10 @@ export function CategoryEntryForm({
                   {copyValue("codeTitle", "Invitation Code")}
                 </h2>
                 <p className="reference-code-entry-explanation">
-                  {copyValue("codeDescription", "If you were given an Invitation Code for this account provider, enter it here. It does not replace your private application tracking key.")}
+                  {copyValue(
+                    "codeDescription",
+                    "If you were given an Invitation Code for this account provider, enter it here. It does not replace your private application tracking key.",
+                  )}
                 </p>
                 <label
                   className="entry-field reference-code-field"
@@ -604,6 +778,7 @@ export function CategoryEntryForm({
                     inputMode="none"
                     autoComplete="off"
                     readOnly
+                    disabled={previewMode}
                     maxLength={normalizedInvitationCodeLength}
                     value={referenceCode}
                     placeholder={screenCopy.codePlaceholder || undefined}
@@ -615,9 +790,10 @@ export function CategoryEntryForm({
                 <div
                   className="invitation-code-keypad"
                   role="group"
-                  aria-label={
-                    copyValue("keypadLabel", "Invitation Code numeric keypad")
-                  }
+                  aria-label={copyValue(
+                    "keypadLabel",
+                    "Invitation Code numeric keypad",
+                  )}
                 >
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(
                     (digit) => (
@@ -628,6 +804,7 @@ export function CategoryEntryForm({
                         aria-label={`${copyValue("digitLabelPrefix", "Digit")} ${digit}`}
                         data-testid={`button-invitation-code-digit-${digit}`}
                         disabled={
+                          previewMode ||
                           invitationCodePolicyLoading ||
                           Boolean(invitationCodePolicyError) ||
                           referenceCode.length >= normalizedInvitationCodeLength
@@ -649,9 +826,10 @@ export function CategoryEntryForm({
                   <button
                     type="button"
                     className="invitation-code-key invitation-code-key-action"
-                    aria-label={
-                      copyValue("clearLabel", "Clear Invitation Code")
-                    }
+                    aria-label={copyValue(
+                      "clearLabel",
+                      "Clear Invitation Code",
+                    )}
                     data-testid="button-invitation-code-clear"
                     disabled={!referenceCode}
                     onClick={() => {
@@ -667,6 +845,7 @@ export function CategoryEntryForm({
                     aria-label={`${copyValue("digitLabelPrefix", "Digit")} 0`}
                     data-testid="button-invitation-code-digit-0"
                     disabled={
+                      previewMode ||
                       invitationCodePolicyLoading ||
                       Boolean(invitationCodePolicyError) ||
                       referenceCode.length >= normalizedInvitationCodeLength
@@ -683,9 +862,10 @@ export function CategoryEntryForm({
                   <button
                     type="button"
                     className="invitation-code-key invitation-code-key-action"
-                    aria-label={
-                      copyValue("deleteLabel", "Delete last Invitation Code digit")
-                    }
+                    aria-label={copyValue(
+                      "deleteLabel",
+                      "Delete last Invitation Code digit",
+                    )}
                     data-testid="button-invitation-code-backspace"
                     disabled={!referenceCode}
                     onClick={() => {
@@ -702,8 +882,9 @@ export function CategoryEntryForm({
                   aria-live="polite"
                   data-testid="text-invitation-code-status"
                 >
-                  {(
-                    copyValue("codeStatus", "{entered} of {length} digits entered")
+                  {copyValue(
+                    "codeStatus",
+                    "{entered} of {length} digits entered",
                   )
                     .replaceAll("{entered}", String(referenceCode.length))
                     .replaceAll(
@@ -713,7 +894,10 @@ export function CategoryEntryForm({
                 </p>
                 {invitationCodePolicyLoading && (
                   <p className="reference-code-entry-safety" role="status">
-                    {copyValue("policyLoading", "Loading provider code requirements…")}
+                    {copyValue(
+                      "policyLoading",
+                      "Loading provider code requirements…",
+                    )}
                   </p>
                 )}
                 {invitationCodePolicyError && (
@@ -725,7 +909,10 @@ export function CategoryEntryForm({
                   id="invitation-code-safety"
                   className="reference-code-entry-safety"
                 >
-                  {copyValue("codeSafety", "Stored encrypted for authorized reviewers only. It is not used to sign in or access your status.")}
+                  {copyValue(
+                    "codeSafety",
+                    "Stored encrypted for authorized reviewers only. It is not used to sign in or access your status.",
+                  )}
                 </p>
               </section>
             )}
@@ -860,7 +1047,7 @@ export function CategoryEntryForm({
       )}
     </section>
   );
-  return guestMode && typeof document !== "undefined"
+  return guestMode && !previewMode && typeof document !== "undefined"
     ? createPortal(formScreen, document.body)
     : formScreen;
 }

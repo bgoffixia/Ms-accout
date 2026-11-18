@@ -9576,7 +9576,6 @@ html[data-portal-button-placement="right"]
   line-height: 1.45;
 }
 
-
 /* Clerk-hosted authentication components use Clerk's native appearance and layout. */
 .clerk-default-auth-page {
   box-sizing: border-box;
@@ -9603,6 +9602,38 @@ html[data-portal-button-placement="right"]
 .clerk-default-auth-shell .cl-rootBox {
   width: 100%;
   max-width: 100%;
+}
+
+.admin-preview-banner {
+  position: sticky;
+  z-index: 100;
+  top: 0;
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem clamp(1rem, 4vw, 2.5rem);
+  border-bottom: 1px solid #a6c9c0;
+  color: #123b35;
+  background: #e9f6f1;
+  box-shadow: 0 3px 12px rgb(13 44 39 / 10%);
+}
+
+.admin-preview-banner .button {
+  flex: 0 0 auto;
+}
+
+.admin-preview .ew-preview-fields:disabled {
+  opacity: 0.9;
+}
+
+@media (max-width: 540px) {
+  .admin-preview-banner {
+    align-items: flex-start;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.82rem;
+  }
 }
 
 @media (max-width: 480px) {

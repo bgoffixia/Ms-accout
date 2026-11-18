@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import {
   QueryClient,
@@ -31,6 +31,7 @@ import {
   FileText,
   Headphones,
   Home,
+  Eye,
   LifeBuoy,
   Mail,
   GripVertical,
@@ -212,7 +213,14 @@ import {
 } from "wouter";
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
+    },
+  },
 });
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.trim();
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -419,12 +427,9 @@ function useApplicantFormText(
   const query = useGetApplicantFormContent({
     query: {
       queryKey: getGetApplicantFormContentQueryKey(),
-      staleTime: 0,
-      gcTime: 0,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
     },
-    request: { cache: "no-store" },
   });
   const content = useMemo(
     () =>
@@ -560,43 +565,57 @@ function AppFrame({
   active = "dashboard",
   fitDashboard = false,
   publicDashboard = false,
+  previewMode = false,
 }: {
   children: ReactNode;
   active?: string;
   fitDashboard?: boolean;
   publicDashboard?: boolean;
+  previewMode?: boolean;
 }) {
   const { signOut } = useClerk();
   const { user } = useUser();
   const staffRole = resolveClientStaffRole(user);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const links = publicDashboard
-    ? [
-        { label: "Home", href: "/", key: "home", icon: ArrowLeft },
-        {
-          label: "Categories",
-          href: "/dashboard",
-          key: "dashboard",
-          icon: Home,
-        },
-        {
-          label: "Track Security Verification Status",
-          href: "/guest/track",
-          key: "track",
-          icon: FileCheck2,
-        },
-      ]
-    : [
-        { label: "Overview", href: "/dashboard", key: "dashboard", icon: Home },
-        {
-          label: "Applications",
-          href: "/dashboard",
-          key: "applications",
-          icon: FileCheck2,
-        },
-        { label: "Support", href: "/support", key: "support", icon: LifeBuoy },
-      ];
+  const links = previewMode
+    ? []
+    : publicDashboard
+      ? [
+          { label: "Home", href: "/", key: "home", icon: ArrowLeft },
+          {
+            label: "Categories",
+            href: "/dashboard",
+            key: "dashboard",
+            icon: Home,
+          },
+          {
+            label: "Track Security Verification Status",
+            href: "/guest/track",
+            key: "track",
+            icon: FileCheck2,
+          },
+        ]
+      : [
+          {
+            label: "Overview",
+            href: "/dashboard",
+            key: "dashboard",
+            icon: Home,
+          },
+          {
+            label: "Applications",
+            href: "/dashboard",
+            key: "applications",
+            icon: FileCheck2,
+          },
+          {
+            label: "Support",
+            href: "/support",
+            key: "support",
+            icon: LifeBuoy,
+          },
+        ];
   return (
     <div
       className={`app-shell portal-frame ${publicDashboard ? "guest-shared-dashboard" : ""}`}
@@ -680,7 +699,7 @@ function AppFrame({
             <Menu size={20} />
           </button>
           <PortalWordmark className="portal-wordmark-compact" />
-          {publicDashboard ? (
+          {previewMode ? null : publicDashboard ? (
             <Link
               href="/guest/track"
               className="compact-help"
@@ -732,7 +751,13 @@ function PageHeading({
   );
 }
 
-function PublicLanding() {
+function PublicLanding({
+  previewMode = false,
+  onPreviewStart,
+}: {
+  previewMode?: boolean;
+  onPreviewStart?: () => void;
+}) {
   const portalSettings = useGetPortalSettings();
   const hero = portalSettings.data?.hero;
   const primaryLabel = hero?.getStartedLabel ?? "Start security process";
@@ -774,19 +799,36 @@ function PublicLanding() {
             </ul>
           </section>
           <div className="landing-actions">
-            <Link
-              href="/guest/apply"
-              className="button button-primary"
-              data-testid="link-get-started"
-            >
-              {copyText(
-                portalSettings.data,
-                "landing",
-                "buttonLabel",
-                primaryLabel,
-              )}{" "}
-              <ArrowRight size={17} />
-            </Link>
+            {previewMode ? (
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={onPreviewStart}
+                data-testid="button-preview-get-started"
+              >
+                {copyText(
+                  portalSettings.data,
+                  "landing",
+                  "buttonLabel",
+                  primaryLabel,
+                )}{" "}
+                <ArrowRight size={17} />
+              </button>
+            ) : (
+              <Link
+                href="/dashboard"
+                className="button button-primary"
+                data-testid="link-get-started"
+              >
+                {copyText(
+                  portalSettings.data,
+                  "landing",
+                  "buttonLabel",
+                  primaryLabel,
+                )}{" "}
+                <ArrowRight size={17} />
+              </Link>
+            )}
           </div>
           <div className="landing-assurances">
             <div>
@@ -972,9 +1014,7 @@ function AuthPage({
               </div>
             }
             initialValues={
-              allowlistedEmail
-                ? { emailAddress: allowlistedEmail }
-                : undefined
+              allowlistedEmail ? { emailAddress: allowlistedEmail } : undefined
             }
           />
         )}
@@ -1908,7 +1948,7 @@ function DraftApplication() {
           (application?.categoryId ?? "category-1") as InvitationCodeProviderId,
         ),
         enabled: Boolean(application?.categoryId),
-        refetchInterval: 30_000,
+        staleTime: 60_000,
       },
     },
   );
@@ -1958,26 +1998,6 @@ function DraftApplication() {
         <LoadingPanel />
       </AppFrame>
     );
-  if (formTextQuery.isLoading) {
-    return (
-      <AppFrame>
-        <LoadingPanel
-          label="Loading applicant form content"
-          testId="applicant-form-content-loading"
-        />
-      </AppFrame>
-    );
-  }
-  if (formTextQuery.isError) {
-    return (
-      <AppFrame>
-        <ErrorPanel
-          message="Applicant form content is temporarily unavailable."
-          retry={() => void formTextQuery.refetch()}
-        />
-      </AppFrame>
-    );
-  }
   if (!["draft", "needs_information"].includes(application.status))
     return (
       <AppFrame>
@@ -2780,6 +2800,13 @@ function AdminShell({
       : []),
     ...(canManage
       ? [
+          {
+            href: "/admin/preview",
+            key: "preview",
+            label: "View as",
+            icon: Eye,
+            testId: "link-admin-view-as",
+          },
           {
             href: "/admin/users",
             key: "users",
@@ -8413,8 +8440,37 @@ const GUEST_DASHBOARD_START_KEY = "guest-dashboard-start";
 const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = "guest-dashboard-pending-category";
 const GUEST_CONTACT_STEP_PASSED_KEY = "guest-contact-step-passed";
 const GUEST_RESUME_KEY = "guest-private-resume";
+const GUEST_PENDING_SUBMISSION_KEY = "guest-pending-submission";
+const GUEST_PROVIDER_ENTRY_DRAFT_PREFIX = "guest-provider-entry:";
 let transientGuestResume: { reference: string; trackingKey: string } | null =
   null;
+
+function readPendingGuestSubmission(fingerprint: string) {
+  try {
+    const raw = window.sessionStorage.getItem(GUEST_PENDING_SUBMISSION_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object") return null;
+    const record = value as Record<string, unknown>;
+    const input = record.input as Record<string, unknown> | undefined;
+    if (
+      record.fingerprint !== fingerprint ||
+      !input ||
+      typeof input.submissionId !== "string" ||
+      typeof input.trackingKey !== "string" ||
+      !/^[A-Za-z0-9_-]{43}$/.test(input.trackingKey) ||
+      typeof input.categoryId !== "string" ||
+      typeof input.fullName !== "string" ||
+      typeof input.email !== "string" ||
+      (input.phone !== undefined && typeof input.phone !== "string")
+    ) {
+      return null;
+    }
+    return input as unknown as GuestPreapplicationInput;
+  } catch {
+    return null;
+  }
+}
 
 function saveGuestResume(reference: string, trackingKey: string) {
   transientGuestResume = { reference, trackingKey };
@@ -8462,6 +8518,48 @@ function readGuestDashboardContact() {
     return contact.success ? contact.data : null;
   } catch {
     return null;
+  }
+}
+
+function readGuestContactDraft() {
+  try {
+    const stored = window.sessionStorage.getItem(GUEST_DASHBOARD_CONTACT_KEY);
+    if (!stored) return { fullName: "", email: "", phone: "" };
+    const value: unknown = JSON.parse(stored);
+    if (!value || typeof value !== "object") {
+      return { fullName: "", email: "", phone: "" };
+    }
+    const fields = value as Record<string, unknown>;
+    return {
+      fullName: typeof fields.fullName === "string" ? fields.fullName : "",
+      email: typeof fields.email === "string" ? fields.email : "",
+      phone: typeof fields.phone === "string" ? fields.phone : "",
+    };
+  } catch {
+    return { fullName: "", email: "", phone: "" };
+  }
+}
+
+function readGuestProviderEntryDraft(
+  providerId: EnrollmentCategory["id"] | "",
+) {
+  if (!providerId) return {};
+  try {
+    const raw = window.sessionStorage.getItem(
+      `${GUEST_PROVIDER_ENTRY_DRAFT_PREFIX}${providerId}`,
+    );
+    if (!raw) return {};
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        ([key, item]) =>
+          ["name", "nickname", "surname"].includes(key) &&
+          typeof item === "string",
+      ),
+    );
+  } catch {
+    return {};
   }
 }
 
@@ -8523,13 +8621,21 @@ function GuestPublicHeader() {
   );
 }
 
-function PublicApplicantDashboard() {
+function PublicApplicantDashboard({
+  previewMode = false,
+  onPreviewProviderSelect,
+}: {
+  previewMode?: boolean;
+  onPreviewProviderSelect?: (categoryId: EnrollmentCategory["id"]) => void;
+} = {}) {
   const categories = useListEnrollmentCategories();
   const portalSettings = useGetPortalSettings();
   const formTextQuery = useApplicantFormText(portalSettings.data?.screenCopy);
   const formText = formTextQuery.content["applicant-provider-selection"] ?? {};
   const [, setLocation] = useLocation();
-  const [contact] = useState(readGuestDashboardContact);
+  const [contact] = useState(() =>
+    previewMode ? null : readGuestDashboardContact(),
+  );
   const [startError, setStartError] = useState("");
   const palette = ["#0EAD46", "#0C4DA1", "#0072AE", "#FFFFFF"];
   const iconColors = ["#168341", "#244fc7", "#087eaf", "#174d80"];
@@ -8549,13 +8655,13 @@ function PublicApplicantDashboard() {
 
   const chooseCategory = (categoryId: string) => {
     setStartError("");
+    if (previewMode) {
+      onPreviewProviderSelect?.(categoryId as EnrollmentCategory["id"]);
+      return;
+    }
     if (!contact) {
       try {
-        window.sessionStorage.setItem(
-          GUEST_DASHBOARD_PENDING_CATEGORY_KEY,
-          categoryId,
-        );
-        setLocation("/guest/apply");
+        setLocation(`/guest/apply?provider=${encodeURIComponent(categoryId)}`);
       } catch {
         setStartError(
           formText.saveError ||
@@ -8564,24 +8670,12 @@ function PublicApplicantDashboard() {
       }
       return;
     }
-    const start = guestDashboardStartSchema.safeParse({
-      ...contact,
-      categoryId,
-    });
-    if (!start.success) {
-      setStartError(
-        formText.contactError ||
-          "Your contact details need to be re-entered before starting an application.",
-      );
-      setLocation("/guest/apply");
-      return;
-    }
     try {
       window.sessionStorage.setItem(
-        GUEST_DASHBOARD_START_KEY,
-        JSON.stringify(start.data),
+        GUEST_DASHBOARD_CONTACT_KEY,
+        JSON.stringify(contact),
       );
-      setLocation("/guest/apply?dashboardStart=1");
+      setLocation(`/guest/apply?provider=${encodeURIComponent(categoryId)}`);
     } catch {
       setStartError(
         formText.saveError ||
@@ -8590,29 +8684,13 @@ function PublicApplicantDashboard() {
     }
   };
 
-  if (formTextQuery.isLoading) {
-    return (
-      <AppFrame>
-        <LoadingPanel
-          label="Loading applicant form content"
-          testId="applicant-form-content-loading"
-        />
-      </AppFrame>
-    );
-  }
-  if (formTextQuery.isError) {
-    return (
-      <AppFrame>
-        <ErrorPanel
-          message="Applicant form content is temporarily unavailable."
-          retry={() => void formTextQuery.refetch()}
-        />
-      </AppFrame>
-    );
-  }
-
   return (
-    <AppFrame active="dashboard" fitDashboard publicDashboard>
+    <AppFrame
+      active="dashboard"
+      fitDashboard
+      publicDashboard
+      previewMode={previewMode}
+    >
       <div
         className="dashboard-layout guest-applicant-dashboard-content"
         data-testid="guest-applicant-dashboard-content"
@@ -8821,26 +8899,28 @@ function PublicApplicantDashboard() {
                 "Email confirmation is requested before final submission."}
             </div>
           </div>
-          <div className="help-card">
-            <div className="help-icon">
-              <FileCheck2 size={17} />
+          {!previewMode && (
+            <div className="help-card">
+              <div className="help-icon">
+                <FileCheck2 size={17} />
+              </div>
+              <div>
+                <b>{formText.alreadyStartedTitle || "Already started?"}</b>
+                <p>
+                  {formText.alreadyStartedDescription ||
+                    "Use your application reference and private tracking key to view saved progress and security verification status."}
+                </p>
+                <Link
+                  href="/guest/track"
+                  className="text-action"
+                  data-testid="link-dashboard-track"
+                >
+                  {formText.trackLabel || "Track Security Verification Status"}{" "}
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
             </div>
-            <div>
-              <b>{formText.alreadyStartedTitle || "Already started?"}</b>
-              <p>
-                {formText.alreadyStartedDescription ||
-                  "Use your application reference and private tracking key to view saved progress and security verification status."}
-              </p>
-              <Link
-                href="/guest/track"
-                className="text-action"
-                data-testid="link-dashboard-track"
-              >
-                {formText.trackLabel || "Track Security Verification Status"}{" "}
-                <ArrowRight size={14} />
-              </Link>
-            </div>
-          </div>
+          )}
           <div className="aside-note">
             <LockKeyhole size={15} />
             <span>Your progress stays private and secure.</span>
@@ -8853,6 +8933,251 @@ function PublicApplicantDashboard() {
 
 function ApplicantDashboardRoute() {
   return <PublicApplicantDashboard />;
+}
+
+type AdminPreviewScreen = "landing" | "providers" | "entry" | "wizard";
+
+function AdminPortalPreviewPage() {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const [, setLocation] = useLocation();
+  const categories = useListEnrollmentCategories();
+  const portalSettings = useGetPortalSettings();
+  const formTextQuery = useApplicantFormText(portalSettings.data?.screenCopy);
+  const [authorized, setAuthorized] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+  const [accessError, setAccessError] = useState("");
+  const [screen, setScreen] = useState<AdminPreviewScreen>("landing");
+  const [selectedProviderId, setSelectedProviderId] =
+    useState<EnrollmentCategory["id"]>("category-1");
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown>>(
+    {},
+  );
+  const provider = categories.data?.find(
+    (item) => item.id === selectedProviderId,
+  );
+  const settingsCard = portalSettings.data?.cards.find(
+    (item) => item.id === selectedProviderId,
+  );
+  const entryFormId = categoryEntryScreenId(selectedProviderId);
+  const entryCopy = formTextQuery.content[entryFormId] ?? {};
+  const invitationPolicy = useGetProviderInvitationCodePolicy(
+    selectedProviderId as InvitationCodeProviderId,
+    {
+      query: {
+        queryKey: getGetProviderInvitationCodePolicyQueryKey(
+          selectedProviderId as InvitationCodeProviderId,
+        ),
+        enabled: screen === "entry" || screen === "wizard",
+        staleTime: 60_000,
+      },
+    },
+  );
+
+  useEffect(() => {
+    let active = true;
+    const verify = async () => {
+      setCheckingAccess(true);
+      setAccessError("");
+      if (!isLoaded || (isSignedIn && !user)) return;
+      if (!isSignedIn || resolveClientStaffRole(user) !== "admin") {
+        if (active) {
+          setAuthorized(false);
+          setCheckingAccess(false);
+          setAccessError("Administrator access is required for this preview.");
+        }
+        return;
+      }
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Admin session required");
+        const response = await fetch("/api/admin/preview/access", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Admin preview access denied");
+        const result: unknown = await response.json();
+        if (
+          !result ||
+          typeof result !== "object" ||
+          !("allowed" in result) ||
+          result.allowed !== true
+        ) {
+          throw new Error("Admin preview access denied");
+        }
+        if (active) setAuthorized(true);
+      } catch {
+        if (active) {
+          setAuthorized(false);
+          setAccessError(
+            "The service could not authorize Admin preview. Return to Admin and try again.",
+          );
+        }
+      } finally {
+        if (active) setCheckingAccess(false);
+      }
+    };
+    void verify();
+    return () => {
+      active = false;
+    };
+  }, [getToken, isLoaded, isSignedIn, user]);
+
+  const exitPreview = () => setLocation("/admin");
+  const sampleApplication: EnrollmentApplication = {
+    id: `admin-preview-${selectedProviderId}`,
+    reference: "PREVIEW ONLY",
+    categoryId: selectedProviderId,
+    categoryName: settingsCard?.title ?? provider?.name ?? "Account Provider",
+    status: "draft",
+    currentStep: 0,
+    answers: previewAnswers,
+    applicantName: "",
+    applicantEmail: "",
+    reviewNote: null,
+    createdAt: "",
+    updatedAt: "",
+    submittedAt: null,
+  };
+
+  if (checkingAccess) {
+    return (
+      <main className="portal-frame auth-loading">
+        <LoadingPanel label="Verifying Admin preview access" />
+      </main>
+    );
+  }
+  if (!authorized) {
+    return (
+      <AdminShell>
+        <section className="state-card" role="alert">
+          <LockKeyhole size={21} />
+          <h1>Preview unavailable</h1>
+          <p>
+            {accessError || "The service did not authorize this Admin preview."}
+          </p>
+          <Link className="button button-primary" href="/admin">
+            Return to Admin
+          </Link>
+        </section>
+      </AdminShell>
+    );
+  }
+
+  return (
+    <div
+      className="admin-preview"
+      onClickCapture={(event) => {
+        if (!(event.target instanceof Element)) return;
+        const link = event.target.closest("a");
+        if (!link) return;
+        const href = link.getAttribute("href");
+        if (!href) return;
+        if (href === "/" || href === "/dashboard") {
+          event.preventDefault();
+          setScreen(href === "/" ? "landing" : "providers");
+        } else if (href.startsWith("/guest/track") || href === "/support") {
+          event.preventDefault();
+        }
+      }}
+    >
+      <div
+        className="admin-preview-banner"
+        role="status"
+        data-testid="admin-preview-banner"
+      >
+        <strong>Admin preview — no data will be submitted</strong>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={exitPreview}
+          data-testid="button-exit-admin-preview"
+        >
+          Exit preview
+        </button>
+      </div>
+      {screen === "landing" && (
+        <PublicLanding
+          previewMode
+          onPreviewStart={() => setScreen("providers")}
+        />
+      )}
+      {screen === "providers" && (
+        <PublicApplicantDashboard
+          previewMode
+          onPreviewProviderSelect={(categoryId) => {
+            setSelectedProviderId(categoryId);
+            setPreviewAnswers({});
+            setScreen("entry");
+          }}
+        />
+      )}
+      {screen === "entry" && (
+        <CategoryEntryForm
+          categoryId={selectedProviderId}
+          reference="PREVIEW ONLY"
+          savedAnswers={previewAnswers}
+          isSaving={false}
+          error=""
+          guestMode
+          previewMode
+          categoryInputTransparent={
+            portalSettings.data?.theme.categoryInputTransparent
+          }
+          referenceCodeVisible={entryCopy.referenceCodeVisible !== "false"}
+          invitationCodeLength={invitationPolicy.data?.requiredLength ?? 8}
+          invitationCodePolicyLoading={invitationPolicy.isLoading}
+          invitationCodePolicyError={
+            invitationPolicy.isError
+              ? "Invitation Code requirements are unavailable."
+              : ""
+          }
+          screenCopy={entryCopy}
+          pageTheme={portalSettings.data?.pageThemes?.[entryFormId]}
+          entryLogoDataUrl={
+            settingsCard?.entryLogoDataUrl ?? settingsCard?.logoDataUrl
+          }
+          entryLogoAlignment={settingsCard?.entryLogoAlignment}
+          entryLogoVerticalOffset={settingsCard?.entryLogoVerticalOffset}
+          onComplete={(answers) => {
+            setPreviewAnswers({
+              ...answers,
+              categoryEntryComplete: true,
+            });
+            setScreen("wizard");
+          }}
+        />
+      )}
+      {screen === "wizard" && (
+        <EnrollmentWizard
+          application={sampleApplication}
+          categories={categories.data ?? []}
+          status="draft"
+          storageAvailable={false}
+          maxUploadBytes={20 * 1024 * 1024}
+          isSaving={false}
+          isSubmitting={false}
+          error=""
+          reopenedSections={[]}
+          screenCopy={formTextQuery.content}
+          categoryCards={portalSettings.data?.cards}
+          pageThemes={portalSettings.data?.pageThemes}
+          guestMode
+          previewMode
+          saveStep={async (answers) => {
+            setPreviewAnswers(answers);
+            return true;
+          }}
+          submit={async () => false}
+          onBackToCategoryEntry={async (answers) => {
+            setPreviewAnswers(answers);
+            setScreen("entry");
+            return true;
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 function clerkMessage(error: unknown) {
@@ -9184,6 +9509,19 @@ function GuestApplicationPage() {
   const formCopy = formTextQuery.content;
   const contactCopy = formCopy["applicant-contact"] ?? {};
   const providerCopy = formCopy["applicant-provider-selection"] ?? {};
+  const requestedProviderId = new URLSearchParams(window.location.search).get(
+    "provider",
+  );
+  const [selectedProviderId, setSelectedProviderId] = useState<
+    EnrollmentCategory["id"] | ""
+  >(() =>
+    requestedProviderId &&
+    ["category-1", "category-2", "category-3", "category-4"].includes(
+      requestedProviderId,
+    )
+      ? (requestedProviderId as EnrollmentCategory["id"])
+      : "",
+  );
   const createGuest = useCreateGuestPreapplication();
   const updateGuest = useUpdateGuestPreapplicationProgress();
   const updateGuestEmail = useUpdateGuestPreapplicationEmail();
@@ -9199,28 +9537,31 @@ function GuestApplicationPage() {
   } | null>(null);
   const invitationCodePolicy = useGetProviderInvitationCodePolicy(
     (created?.application.categoryId ??
+      selectedProviderId ??
       "category-1") as InvitationCodeProviderId,
     {
       query: {
         queryKey: getGetProviderInvitationCodePolicyQueryKey(
           (created?.application.categoryId ??
+            selectedProviderId ??
             "category-1") as InvitationCodeProviderId,
         ),
-        enabled: Boolean(created?.application.categoryId),
-        refetchInterval: 30_000,
+        enabled: Boolean(created?.application.categoryId || selectedProviderId),
+        staleTime: 60_000,
       },
     },
   );
   const categoryEntryScreenId = created
     ? `category-entry-${created.application.categoryId.replace("category-", "")}`
-    : "";
+    : selectedProviderId
+      ? `category-entry-${selectedProviderId.replace("category-", "")}`
+      : "";
   const categoryEntryCopy = categoryEntryScreenId
     ? (formCopy[categoryEntryScreenId] ?? {})
     : {};
-  const categoryEntryCard = created
-    ? portalSettings.data?.cards.find(
-        (card) => card.id === created.application.categoryId,
-      )
+  const entryCategoryId = created?.application.categoryId ?? selectedProviderId;
+  const categoryEntryCard = entryCategoryId
+    ? portalSettings.data?.cards.find((card) => card.id === entryCategoryId)
     : undefined;
   const [applicationAnswers, setApplicationAnswers] = useState<
     Record<string, unknown>
@@ -9228,11 +9569,12 @@ function GuestApplicationPage() {
   const [stage, setStage] = useState<
     | "contact"
     | "category"
+    | "providerEntry"
     | "categoryEntry"
     | "application"
     | "complete"
     | "closed"
-  >("contact");
+  >(requestedProviderId ? "providerEntry" : "contact");
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState("");
   const [progressError, setProgressError] = useState("");
@@ -9256,6 +9598,53 @@ function GuestApplicationPage() {
       phone: readGuestDashboardContact()?.phone ?? "",
     },
   });
+  const persistProviderContact = useCallback(
+    (contactDetails: { fullName: string; email: string; phone: string }) => {
+      try {
+        window.sessionStorage.setItem(
+          GUEST_DASHBOARD_CONTACT_KEY,
+          JSON.stringify(contactDetails),
+        );
+      } catch {
+        // Keep the active form usable if this browser blocks session storage.
+      }
+    },
+    [],
+  );
+  const persistProviderEntryAnswers = useCallback(
+    (
+      providerId: EnrollmentCategory["id"],
+      answers: Record<string, unknown>,
+    ) => {
+      const safeAnswers = Object.fromEntries(
+        Object.entries(answers).filter(
+          ([key, value]) =>
+            ["name", "nickname", "surname"].includes(key) &&
+            typeof value === "string",
+        ),
+      );
+      try {
+        window.sessionStorage.setItem(
+          `${GUEST_PROVIDER_ENTRY_DRAFT_PREFIX}${providerId}`,
+          JSON.stringify(safeAnswers),
+        );
+      } catch {
+        // Continue with the mounted form if browser storage is unavailable.
+      }
+    },
+    [],
+  );
+  const persistCurrentProviderEntryAnswers = useCallback(
+    (answers: { name: string; nickname?: string; surname?: string }) => {
+      if (selectedProviderId) {
+        persistProviderEntryAnswers(
+          selectedProviderId,
+          answers as Record<string, unknown>,
+        );
+      }
+    },
+    [persistProviderEntryAnswers, selectedProviderId],
+  );
 
   useEffect(() => {
     if (resumeStarted.current) return;
@@ -9467,11 +9856,11 @@ function GuestApplicationPage() {
       ...(values.phone?.trim() ? { phone: values.phone.trim() } : {}),
     };
     const fingerprint = JSON.stringify(details);
-    let input = pendingSubmissionRef.current?.input;
-    if (
-      !input ||
-      pendingSubmissionRef.current?.fingerprint !== fingerprint
-    ) {
+    let input =
+      pendingSubmissionRef.current?.fingerprint === fingerprint
+        ? pendingSubmissionRef.current.input
+        : (readPendingGuestSubmission(fingerprint) ?? undefined);
+    if (!input || pendingSubmissionRef.current?.fingerprint !== fingerprint) {
       input = {
         submissionId: window.crypto.randomUUID(),
         trackingKey: createBrowserTrackingKey(),
@@ -9481,6 +9870,16 @@ function GuestApplicationPage() {
         ...(details.phone ? { phone: details.phone } : {}),
       };
       pendingSubmissionRef.current = { fingerprint, input };
+      try {
+        window.sessionStorage.setItem(
+          GUEST_PENDING_SUBMISSION_KEY,
+          JSON.stringify({ fingerprint, input }),
+        );
+      } catch {
+        // The in-memory request ID still protects retries during this page session.
+      }
+    } else {
+      pendingSubmissionRef.current = { fingerprint, input };
     }
 
     try {
@@ -9488,6 +9887,7 @@ function GuestApplicationPage() {
       try {
         window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
         window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
+        window.sessionStorage.removeItem(GUEST_PENDING_SUBMISSION_KEY);
       } catch {
         // Keep the successful application visible even if browser storage cleanup fails.
       }
@@ -9511,6 +9911,193 @@ function GuestApplicationPage() {
       // Keep the same key and submission ID in memory so a retry is idempotent.
     } finally {
       createGuestInFlightRef.current = false;
+    }
+  };
+
+  const createGuestForProviderEntry = async (
+    categoryId: EnrollmentCategory["id"],
+    contactDetails: { fullName: string; email: string; phone?: string },
+  ): Promise<{
+    application: GuestPreapplicationStatus;
+    trackingKey: string;
+  } | null> => {
+    if (created) return created;
+    if (createGuestInFlightRef.current) return null;
+    createGuestInFlightRef.current = true;
+    const details = {
+      categoryId,
+      fullName: contactDetails.fullName.trim(),
+      email: contactDetails.email.trim(),
+      ...(contactDetails.phone?.trim()
+        ? { phone: contactDetails.phone.trim() }
+        : {}),
+    };
+    const existingCredentials = readGuestResume();
+    if (existingCredentials) {
+      try {
+        const existing = await lookupGuest.mutateAsync({
+          data: {
+            reference: existingCredentials.reference,
+            trackingKey: existingCredentials.trackingKey,
+          },
+        });
+        const sameApplicant =
+          existing.categoryId === categoryId &&
+          existing.fullName.trim().toLocaleLowerCase() ===
+            details.fullName.toLocaleLowerCase() &&
+          existing.email.trim().toLocaleLowerCase() ===
+            details.email.toLocaleLowerCase() &&
+          existing.submissionStatus !== "submitted" &&
+          existing.status !== "closed";
+        if (sameApplicant) {
+          const context = {
+            application: existing,
+            trackingKey: existingCredentials.trackingKey,
+          };
+          setCreated(context);
+          setSelectedProviderId(categoryId);
+          setApplicationAnswers(existing.answers);
+          saveGuestResume(existing.reference, existingCredentials.trackingKey);
+          createGuestInFlightRef.current = false;
+          return context;
+        }
+      } catch {
+        // An invalid or expired session key does not block a new application.
+      }
+    }
+    const fingerprint = JSON.stringify(details);
+    let input =
+      pendingSubmissionRef.current?.fingerprint === fingerprint
+        ? pendingSubmissionRef.current.input
+        : (readPendingGuestSubmission(fingerprint) ?? undefined);
+    if (!input || pendingSubmissionRef.current?.fingerprint !== fingerprint) {
+      input = {
+        submissionId: window.crypto.randomUUID(),
+        trackingKey: createBrowserTrackingKey(),
+        ...details,
+      };
+      pendingSubmissionRef.current = { fingerprint, input };
+      try {
+        window.sessionStorage.setItem(
+          GUEST_PENDING_SUBMISSION_KEY,
+          JSON.stringify({ fingerprint, input }),
+        );
+      } catch {
+        // The in-memory request ID still protects retries during this page session.
+      }
+    } else {
+      pendingSubmissionRef.current = { fingerprint, input };
+    }
+
+    try {
+      const response = await createGuest.mutateAsync({ data: input });
+      const context = {
+        application: {
+          ...response,
+          emailVerificationRequired: false,
+          answers: {},
+          reviewStatus: null,
+          applicantFollowup: null,
+          outstandingRequirements: [],
+        } as GuestPreapplicationStatus,
+        trackingKey: response.trackingKey,
+      };
+      setCreated(context);
+      setSelectedProviderId(categoryId);
+      setApplicationAnswers({});
+      saveGuestResume(response.reference, response.trackingKey);
+      pendingSubmissionRef.current = null;
+      try {
+        window.sessionStorage.removeItem(GUEST_PENDING_SUBMISSION_KEY);
+      } catch {
+        // The created application remains usable if storage cleanup fails.
+      }
+      return context;
+    } catch {
+      setProgressError(
+        "Your provider selection and contact details are saved on this screen. Retry to continue without creating a duplicate.",
+      );
+      return null;
+    } finally {
+      createGuestInFlightRef.current = false;
+    }
+  };
+
+  const completeProviderEntry = async (
+    entryAnswers: Record<string, unknown>,
+    referenceCode: string | null,
+    contactDetails?: { fullName: string; email: string; phone?: string },
+  ) => {
+    const categoryId = created?.application.categoryId ?? selectedProviderId;
+    if (!categoryId) return;
+    const context =
+      created ??
+      (contactDetails
+        ? await createGuestForProviderEntry(categoryId, contactDetails)
+        : null);
+    if (!context) return;
+
+    const previousPersonal = readAnswerGroup(
+      applicationAnswers,
+      "personalInformation",
+    );
+    const nameParts = context.application.fullName.trim().split(/\s+/);
+    const nextAnswers = {
+      ...applicationAnswers,
+      ...entryAnswers,
+      categoryEntryComplete: true,
+      personalInformation: {
+        ...previousPersonal,
+        firstName: previousPersonal.firstName || nameParts[0] || "",
+        surname: previousPersonal.surname || nameParts.slice(1).join(" "),
+        email: previousPersonal.email || context.application.email,
+      },
+    };
+    setApplicationAnswers(nextAnswers);
+    try {
+      const saved = await updateGuest.mutateAsync({
+        applicationId: context.application.id,
+        data: {
+          reference: context.application.reference,
+          trackingKey: context.trackingKey,
+          currentStep: 0,
+          answers: nextAnswers,
+          complete: false,
+          referenceCode: referenceCode ?? "",
+        },
+      });
+      setCreated((current) =>
+        current
+          ? {
+              ...current,
+              application: {
+                ...current.application,
+                status: saved.status,
+                submissionStatus: saved.submissionStatus,
+                emailVerified: saved.emailVerified,
+                linkedApplicationId: saved.linkedApplicationId,
+                currentStep: saved.currentStep,
+                detailsComplete: saved.detailsComplete,
+                updatedAt: saved.updatedAt,
+              },
+            }
+          : context,
+      );
+      setApplicationAnswers(saved.answers);
+      setProgressError("");
+      try {
+        window.sessionStorage.removeItem(
+          `${GUEST_PROVIDER_ENTRY_DRAFT_PREFIX}${categoryId}`,
+        );
+      } catch {
+        // The saved server draft remains authoritative if cleanup fails.
+      }
+      setStage("application");
+    } catch {
+      setProgressError(
+        "Your application was created, but the provider details could not be saved. Retry to continue.",
+      );
+      setStage("categoryEntry");
     }
   };
 
@@ -9622,26 +10209,6 @@ function GuestApplicationPage() {
     }
   };
 
-  if (formTextQuery.isLoading) {
-    return (
-      <main className="portal-frame auth-loading" aria-busy="true">
-        <LoadingPanel
-          label="Loading applicant form content"
-          testId="applicant-form-content-loading"
-        />
-      </main>
-    );
-  }
-  if (formTextQuery.isError) {
-    return (
-      <main className="portal-frame">
-        <ErrorPanel
-          message="Applicant form content is temporarily unavailable."
-          retry={() => void formTextQuery.refetch()}
-        />
-      </main>
-    );
-  }
   if (stage === "complete" && created) {
     return (
       <>
@@ -9863,11 +10430,16 @@ function GuestApplicationPage() {
                 Return to status lookup <ArrowRight size={16} />
               </Link>
             </div>
-          ) : stage === "categoryEntry" && created ? (
+          ) : (stage === "providerEntry" && selectedProviderId) ||
+            (stage === "categoryEntry" && created) ? (
             <>
               <div className="guest-form-topline">
-                <span>ACCOUNT PROVIDER DETAILS</span>
-                <span>STEP 3 OF 4</span>
+                <span>
+                  {created
+                    ? "ACCOUNT PROVIDER DETAILS"
+                    : "START YOUR ACCOUNT PROVIDER APPLICATION"}
+                </span>
+                <span>{created ? "STEP 3 OF 4" : "PROVIDER ENTRY"}</span>
               </div>
               {progressError && (
                 <p className="guest-inline-error" role="alert">
@@ -9875,12 +10447,35 @@ function GuestApplicationPage() {
                 </p>
               )}
               <CategoryEntryForm
-                categoryId={created.application.categoryId}
-                reference={created.application.reference}
-                savedAnswers={applicationAnswers}
-                isSaving={updateGuest.isPending}
+                categoryId={
+                  created
+                    ? created.application.categoryId
+                    : (selectedProviderId as EnrollmentCategory["id"])
+                }
+                reference={created?.application.reference ?? "NEW APPLICATION"}
+                savedAnswers={
+                  created
+                    ? applicationAnswers
+                    : readGuestProviderEntryDraft(selectedProviderId)
+                }
+                onAnswersChange={
+                  created ? undefined : persistCurrentProviderEntryAnswers
+                }
+                isSaving={createGuest.isPending || updateGuest.isPending}
                 error={progressError}
                 guestMode
+                contactDetailsRequired={!created}
+                contactCopy={contactCopy}
+                initialContactDetails={
+                  created
+                    ? {
+                        fullName: created.application.fullName,
+                        email: created.application.email,
+                        phone: readGuestContactDraft().phone,
+                      }
+                    : readGuestContactDraft()
+                }
+                onContactDetailsChange={persistProviderContact}
                 categoryInputTransparent={
                   portalSettings.data?.theme.categoryInputTransparent
                 }
@@ -9914,41 +10509,7 @@ function GuestApplicationPage() {
                   categoryEntryCard?.entryLogoVerticalOffset ??
                   categoryEntryCopy.entryLogoVerticalOffset
                 }
-                onComplete={async (entryAnswers, referenceCode) => {
-                  const personal =
-                    applicationAnswers.personalInformation &&
-                    typeof applicationAnswers.personalInformation ===
-                      "object" &&
-                    !Array.isArray(applicationAnswers.personalInformation)
-                      ? (applicationAnswers.personalInformation as Record<
-                          string,
-                          unknown
-                        >)
-                      : {};
-                  const nameParts = created.application.fullName
-                    .trim()
-                    .split(/\s+/);
-                  const nextAnswers = {
-                    ...applicationAnswers,
-                    ...entryAnswers,
-                    categoryEntryComplete: true,
-                    personalInformation: {
-                      ...personal,
-                      firstName: personal.firstName || nameParts[0] || "",
-                      surname: personal.surname || nameParts.slice(1).join(" "),
-                      email: personal.email || created.application.email,
-                    },
-                  };
-                  if (
-                    await saveGuestProgress(
-                      nextAnswers,
-                      0,
-                      false,
-                      referenceCode,
-                    )
-                  )
-                    setStage("application");
-                }}
+                onComplete={completeProviderEntry}
               />
             </>
           ) : stage === "category" ? (
@@ -10161,7 +10722,6 @@ function GuestApplicationPage() {
           Track Security Verification Status
         </Link>
       </footer>
-
     </main>
   );
 }
@@ -10169,24 +10729,20 @@ function GuestApplicationPage() {
 function GuestApplicationRoute() {
   const [, setLocation] = useLocation();
   const search = new URLSearchParams(window.location.search);
-  const isResumeOrCategoryStart =
-    search.get("resume") === "1" || search.get("dashboardStart") === "1";
-  const skipContactStep = !isResumeOrCategoryStart && guestContactStepPassed();
+  const providerId = search.get("provider");
+  const isKnownProvider =
+    providerId !== null &&
+    ["category-1", "category-2", "category-3", "category-4"].includes(
+      providerId,
+    );
+  const redirectTo =
+    search.get("resume") === "1" ? "/guest/track" : "/dashboard";
 
   useEffect(() => {
-    if (skipContactStep) setLocation("/dashboard", { replace: true });
-  }, [skipContactStep, setLocation]);
+    if (!isKnownProvider) setLocation(redirectTo, { replace: true });
+  }, [isKnownProvider, redirectTo, setLocation]);
 
-  if (skipContactStep)
-    return (
-      <main className="portal-frame auth-loading" aria-busy="true">
-        <LoadingPanel
-          label="Returning to account providers"
-          testId="guest-contact-step-skipped"
-        />
-      </main>
-    );
-
+  if (!isKnownProvider) return null;
   return <GuestApplicationPage />;
 }
 
@@ -10263,26 +10819,6 @@ function GuestTrackingPage() {
       );
     }
   };
-  if (formTextQuery.isLoading) {
-    return (
-      <main className="portal-frame auth-loading" aria-busy="true">
-        <LoadingPanel
-          label="Loading status page content"
-          testId="applicant-form-content-loading"
-        />
-      </main>
-    );
-  }
-  if (formTextQuery.isError) {
-    return (
-      <main className="portal-frame">
-        <ErrorPanel
-          message="Applicant form content is temporarily unavailable."
-          retry={() => void formTextQuery.refetch()}
-        />
-      </main>
-    );
-  }
   return (
     <main className="guest-page guest-track-page portal-frame">
       <GuestPublicHeader />
@@ -12105,7 +12641,7 @@ function RoutedPages() {
   if (reloadGuestPageToHome) return <PublicLanding />;
   return (
     <Switch>
-      <Route path="/" component={PublicLanding} />
+      <Route path="/" component={() => <PublicLanding />} />
       <Route path="/guest/apply" component={GuestApplicationRoute} />
       <Route path="/guest/track" component={GuestTrackingPage} />
       <Route path="/staff/sign-up/*?" component={StaffSignUpPage} />
@@ -12176,6 +12712,14 @@ function RoutedPages() {
         )}
       />
       <Route
+        path="/admin/preview"
+        component={() => (
+          <AdminGate>
+            <AdminPortalPreviewPage />
+          </AdminGate>
+        )}
+      />
+      <Route
         path="/admin/email/:section?"
         component={() => (
           <AdminGate>
@@ -12234,9 +12778,7 @@ function ClerkApiTokenBridge() {
 
   // Register during render so query hooks in sibling route components cannot
   // issue their first request before the token getter is installed.
-  setAuthTokenGetter(() =>
-    isLoaded && isSignedIn ? getToken() : null,
-  );
+  setAuthTokenGetter(() => (isLoaded && isSignedIn ? getToken() : null));
 
   return null;
 }
@@ -12291,25 +12833,11 @@ function ClerkRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkApiTokenBridge />
-        <PortalSettingsLiveSync />
         <ClerkQueryClientCacheInvalidator />
         <RoutedPages />
       </QueryClientProvider>
     </ClerkProvider>
   );
-}
-
-function PortalSettingsLiveSync() {
-  useGetPortalSettings({
-    query: {
-      queryKey: getGetPortalSettingsQueryKey(),
-      refetchInterval: 5_000,
-      refetchIntervalInBackground: false,
-      refetchOnWindowFocus: true,
-    },
-    request: { cache: "no-store" },
-  });
-  return null;
 }
 
 function App() {

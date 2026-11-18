@@ -46,6 +46,7 @@ export type EnrollmentWizardProps = {
   pageThemes?: Record<string, PortalPageTheme>;
   evidenceLater?: boolean;
   guestMode?: boolean;
+  previewMode?: boolean;
   uploadEvidence?: (
     file: File,
     evidenceSlot:
@@ -496,6 +497,7 @@ export function EnrollmentWizard({
   pageThemes,
   evidenceLater = false,
   guestMode = false,
+  previewMode = false,
   uploadEvidence,
   updateContactEmail,
 }: EnrollmentWizardProps) {
@@ -597,12 +599,14 @@ export function EnrollmentWizard({
   const allowedSections =
     reopenedSections.length > 0 ? new Set(reopenedSections) : null;
   const readOnly =
+    !previewMode &&
     !evidenceLater &&
     !guestMode &&
     status !== "draft" &&
     reopenedSections.length === 0;
   const canEditSection = (sectionIndex: number) =>
-    !readOnly && (!allowedSections || allowedSections.has(sectionIndex));
+    previewMode ||
+    (!readOnly && (!allowedSections || allowedSections.has(sectionIndex)));
   const category = categories.find(
     (item) => item.id === application.categoryId,
   );
@@ -961,6 +965,11 @@ export function EnrollmentWizard({
     const targetStep = editingFromPreview
       ? 7
       : activeSteps[Math.min(activeSteps.length - 1, stepPosition + 1)];
+    if (previewMode) {
+      setStep(targetStep);
+      setEditingFromPreview(false);
+      return;
+    }
     const savedOk = await saveStep(outgoing, targetStep);
     if (!savedOk) return;
     setAnswers(merged);
@@ -1007,6 +1016,10 @@ export function EnrollmentWizard({
 
   const beginSubmit = async () => {
     setSubmitError("");
+    if (previewMode) {
+      setSubmitError("Admin preview only — no application will be submitted.");
+      return;
+    }
     await handleSubmit(async () => {
       const savedOk = await saveStep(answers, 7);
       if (!savedOk) {
@@ -1163,12 +1176,13 @@ export function EnrollmentWizard({
       );
     return missing;
   }, [answers, evidenceLater, isBackRequired, storageAvailable, generalCopy]);
-  const readyToSubmit = guestMode
-    ? true
-    : activeSteps
-        .filter((index) => index < 7)
-        .every((index) => sectionComplete(index)) &&
-      missingUploads.length === 0;
+  const readyToSubmit =
+    previewMode || guestMode
+      ? true
+      : activeSteps
+          .filter((index) => index < 7)
+          .every((index) => sectionComplete(index)) &&
+        missingUploads.length === 0;
 
   const stageErrors = formState.errors as Record<string, unknown>;
   const errorFor = (path: string) => {
@@ -1571,1059 +1585,1093 @@ export function EnrollmentWizard({
               }}
               noValidate
             >
-              <div className="ew-content-scroll">
-                <div className="ew-progress-line">
-                  <span
-                    style={{
-                      width: `${((activeStepPosition + 1) / activeSteps.length) * 100}%`,
-                    }}
-                  />
-                </div>
-                {step === 0 && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "Enter the personal details that identify your application.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <div className="ew-fields-grid">
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.firstName",
-                          "First name",
-                        )}
-                        name="personalInformation.firstName"
-                        register={register}
-                        error={errorFor("personalInformation.firstName")}
-                        autoComplete="given-name"
-                        {...fieldCopyProps(0, "personalInformation.firstName")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.middleName",
-                          "Middle name",
-                        )}
-                        name="personalInformation.middleName"
-                        register={register}
-                        optional
-                        optionalLabel={configuredText(
-                          0,
-                          "optionalLabel",
-                          "Optional",
-                        )}
-                        autoComplete="additional-name"
-                        {...fieldCopyProps(0, "personalInformation.middleName")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.surname",
-                          "Surname",
-                        )}
-                        name="personalInformation.surname"
-                        register={register}
-                        error={errorFor("personalInformation.surname")}
-                        autoComplete="family-name"
-                        {...fieldCopyProps(0, "personalInformation.surname")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.dateOfBirth",
-                          "Date of birth",
-                        )}
-                        name="personalInformation.dateOfBirth"
-                        register={register}
-                        error={errorFor("personalInformation.dateOfBirth")}
-                        type="date"
-                        max={new Date().toISOString().slice(0, 10)}
-                        autoComplete="bday"
-                        {...fieldCopyProps(
-                          0,
-                          "personalInformation.dateOfBirth",
-                        )}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.nationality",
-                          "Nationality",
-                        )}
-                        name="personalInformation.nationality"
-                        register={register}
-                        error={errorFor("personalInformation.nationality")}
-                        autoComplete="country-name"
-                        {...fieldCopyProps(
-                          0,
-                          "personalInformation.nationality",
-                        )}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.phone",
-                          "Phone number",
-                        )}
-                        name="personalInformation.phone"
-                        register={register}
-                        error={errorFor("personalInformation.phone")}
-                        type="tel"
-                        autoComplete="tel"
-                        {...fieldCopyProps(0, "personalInformation.phone")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.email",
-                          "Email address",
-                        )}
-                        name="personalInformation.email"
-                        register={register}
-                        error={errorFor("personalInformation.email")}
-                        type="email"
-                        autoComplete="email"
-                        {...fieldCopyProps(0, "personalInformation.email")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.residentialAddress",
-                          "Residential address",
-                        )}
-                        name="personalInformation.residentialAddress"
-                        register={register}
-                        error={errorFor(
-                          "personalInformation.residentialAddress",
-                        )}
-                        autoComplete="street-address"
-                        {...fieldCopyProps(
-                          0,
-                          "personalInformation.residentialAddress",
-                        )}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.stateRegion",
-                          "State / region",
-                        )}
-                        name="personalInformation.stateRegion"
-                        register={register}
-                        error={errorFor("personalInformation.stateRegion")}
-                        autoComplete="address-level1"
-                        {...fieldCopyProps(
-                          0,
-                          "personalInformation.stateRegion",
-                        )}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.city",
-                          "City / local government area",
-                        )}
-                        name="personalInformation.city"
-                        register={register}
-                        error={errorFor("personalInformation.city")}
-                        autoComplete="address-level2"
-                        {...fieldCopyProps(0, "personalInformation.city")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          0,
-                          "personalInformation.postalCode",
-                          "Postal code",
-                        )}
-                        name="personalInformation.postalCode"
-                        register={register}
-                        optional
-                        optionalLabel={configuredText(
-                          0,
-                          "optionalLabel",
-                          "Optional",
-                        )}
-                        autoComplete="postal-code"
-                        {...fieldCopyProps(0, "personalInformation.postalCode")}
-                      />
-                    </div>
-                  </>
-                )}
-                {step === 1 && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "Name someone we may contact if we need to reach you.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <div className="ew-fields-grid">
-                      <Field
-                        label={fieldLabel(1, "nextOfKin.fullName", "Full name")}
-                        name="nextOfKin.fullName"
-                        register={register}
-                        error={errorFor("nextOfKin.fullName")}
-                        autoComplete="off"
-                        {...fieldCopyProps(1, "nextOfKin.fullName")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          1,
-                          "nextOfKin.relationship",
-                          "Relationship",
-                        )}
-                        name="nextOfKin.relationship"
-                        register={register}
-                        error={errorFor("nextOfKin.relationship")}
-                        {...fieldCopyProps(1, "nextOfKin.relationship")}
-                      />
-                      <Field
-                        label={fieldLabel(1, "nextOfKin.phone", "Phone number")}
-                        name="nextOfKin.phone"
-                        register={register}
-                        error={errorFor("nextOfKin.phone")}
-                        type="tel"
-                        autoComplete="off"
-                        {...fieldCopyProps(1, "nextOfKin.phone")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          1,
-                          "nextOfKin.email",
-                          "Email address",
-                        )}
-                        name="nextOfKin.email"
-                        register={register}
-                        optional
-                        optionalLabel={configuredText(
-                          1,
-                          "optionalLabel",
-                          "Optional",
-                        )}
-                        type="email"
-                        autoComplete="off"
-                        {...fieldCopyProps(1, "nextOfKin.email")}
-                      />
-                    </div>
-                    <div
-                      className="ew-callout"
-                      data-testid="notice-next-of-kin"
-                    >
-                      <ShieldCheck size={17} />
-                      <p>
-                        <b>
+              <fieldset className="ew-preview-fields" disabled={previewMode}>
+                <div className="ew-content-scroll">
+                  <div className="ew-progress-line">
+                    <span
+                      style={{
+                        width: `${((activeStepPosition + 1) / activeSteps.length) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  {step === 0 && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "Enter the personal details that identify your application.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <div className="ew-fields-grid">
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.firstName",
+                            "First name",
+                          )}
+                          name="personalInformation.firstName"
+                          register={register}
+                          error={errorFor("personalInformation.firstName")}
+                          autoComplete="given-name"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.firstName",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.middleName",
+                            "Middle name",
+                          )}
+                          name="personalInformation.middleName"
+                          register={register}
+                          optional
+                          optionalLabel={configuredText(
+                            0,
+                            "optionalLabel",
+                            "Optional",
+                          )}
+                          autoComplete="additional-name"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.middleName",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.surname",
+                            "Surname",
+                          )}
+                          name="personalInformation.surname"
+                          register={register}
+                          error={errorFor("personalInformation.surname")}
+                          autoComplete="family-name"
+                          {...fieldCopyProps(0, "personalInformation.surname")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.dateOfBirth",
+                            "Date of birth",
+                          )}
+                          name="personalInformation.dateOfBirth"
+                          register={register}
+                          error={errorFor("personalInformation.dateOfBirth")}
+                          type="date"
+                          max={new Date().toISOString().slice(0, 10)}
+                          autoComplete="bday"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.dateOfBirth",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.nationality",
+                            "Nationality",
+                          )}
+                          name="personalInformation.nationality"
+                          register={register}
+                          error={errorFor("personalInformation.nationality")}
+                          autoComplete="country-name"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.nationality",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.phone",
+                            "Phone number",
+                          )}
+                          name="personalInformation.phone"
+                          register={register}
+                          error={errorFor("personalInformation.phone")}
+                          type="tel"
+                          autoComplete="tel"
+                          {...fieldCopyProps(0, "personalInformation.phone")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.email",
+                            "Email address",
+                          )}
+                          name="personalInformation.email"
+                          register={register}
+                          error={errorFor("personalInformation.email")}
+                          type="email"
+                          autoComplete="email"
+                          {...fieldCopyProps(0, "personalInformation.email")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.residentialAddress",
+                            "Residential address",
+                          )}
+                          name="personalInformation.residentialAddress"
+                          register={register}
+                          error={errorFor(
+                            "personalInformation.residentialAddress",
+                          )}
+                          autoComplete="street-address"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.residentialAddress",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.stateRegion",
+                            "State / region",
+                          )}
+                          name="personalInformation.stateRegion"
+                          register={register}
+                          error={errorFor("personalInformation.stateRegion")}
+                          autoComplete="address-level1"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.stateRegion",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.city",
+                            "City / local government area",
+                          )}
+                          name="personalInformation.city"
+                          register={register}
+                          error={errorFor("personalInformation.city")}
+                          autoComplete="address-level2"
+                          {...fieldCopyProps(0, "personalInformation.city")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            0,
+                            "personalInformation.postalCode",
+                            "Postal code",
+                          )}
+                          name="personalInformation.postalCode"
+                          register={register}
+                          optional
+                          optionalLabel={configuredText(
+                            0,
+                            "optionalLabel",
+                            "Optional",
+                          )}
+                          autoComplete="postal-code"
+                          {...fieldCopyProps(
+                            0,
+                            "personalInformation.postalCode",
+                          )}
+                        />
+                      </div>
+                    </>
+                  )}
+                  {step === 1 && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "Name someone we may contact if we need to reach you.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <div className="ew-fields-grid">
+                        <Field
+                          label={fieldLabel(
+                            1,
+                            "nextOfKin.fullName",
+                            "Full name",
+                          )}
+                          name="nextOfKin.fullName"
+                          register={register}
+                          error={errorFor("nextOfKin.fullName")}
+                          autoComplete="off"
+                          {...fieldCopyProps(1, "nextOfKin.fullName")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            1,
+                            "nextOfKin.relationship",
+                            "Relationship",
+                          )}
+                          name="nextOfKin.relationship"
+                          register={register}
+                          error={errorFor("nextOfKin.relationship")}
+                          {...fieldCopyProps(1, "nextOfKin.relationship")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            1,
+                            "nextOfKin.phone",
+                            "Phone number",
+                          )}
+                          name="nextOfKin.phone"
+                          register={register}
+                          error={errorFor("nextOfKin.phone")}
+                          type="tel"
+                          autoComplete="off"
+                          {...fieldCopyProps(1, "nextOfKin.phone")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            1,
+                            "nextOfKin.email",
+                            "Email address",
+                          )}
+                          name="nextOfKin.email"
+                          register={register}
+                          optional
+                          optionalLabel={configuredText(
+                            1,
+                            "optionalLabel",
+                            "Optional",
+                          )}
+                          type="email"
+                          autoComplete="off"
+                          {...fieldCopyProps(1, "nextOfKin.email")}
+                        />
+                      </div>
+                      <div
+                        className="ew-callout"
+                        data-testid="notice-next-of-kin"
+                      >
+                        <ShieldCheck size={17} />
+                        <p>
+                          <b>
+                            {configuredText(
+                              1,
+                              "authorizationTitle",
+                              "Authorization reminder",
+                            )}
+                          </b>
+                          <br />
                           {configuredText(
                             1,
-                            "authorizationTitle",
-                            "Authorization reminder",
-                          )}
-                        </b>
-                        <br />
-                        {configuredText(
-                          1,
-                          "authorizationText",
-                          "Your next of kin is a contact only. This does not authorize them to act for you or access your application.",
-                        )}
-                      </p>
-                    </div>
-                  </>
-                )}
-                {step === 2 && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "Tell us about your education and any relevant qualifications.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <div className="ew-fields-grid">
-                      <SelectField
-                        label={fieldLabel(
-                          2,
-                          "education.highestQualification",
-                          "Highest qualification",
-                        )}
-                        name="education.highestQualification"
-                        register={register}
-                        error={errorFor("education.highestQualification")}
-                        options={[
-                          "Primary education",
-                          "Secondary education",
-                          "Certificate",
-                          "Diploma",
-                          "Bachelor’s degree",
-                          "Postgraduate degree",
-                          "Other",
-                        ]}
-                        {...fieldCopyProps(2, "education.highestQualification")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          2,
-                          "education.institution",
-                          "Institution",
-                        )}
-                        name="education.institution"
-                        register={register}
-                        error={errorFor("education.institution")}
-                        {...fieldCopyProps(2, "education.institution")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          2,
-                          "education.courseField",
-                          "Course / field",
-                        )}
-                        name="education.courseField"
-                        register={register}
-                        error={errorFor("education.courseField")}
-                        {...fieldCopyProps(2, "education.courseField")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          2,
-                          "education.startYear",
-                          "Start year",
-                        )}
-                        name="education.startYear"
-                        register={register}
-                        error={errorFor("education.startYear")}
-                        type="number"
-                        min="1900"
-                        max={new Date().getFullYear() + 10}
-                        inputMode="numeric"
-                        {...fieldCopyProps(2, "education.startYear")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          2,
-                          "education.completionYear",
-                          "Completion year",
-                        )}
-                        name="education.completionYear"
-                        register={register}
-                        error={errorFor("education.completionYear")}
-                        type="number"
-                        min="1900"
-                        max={new Date().getFullYear() + 10}
-                        inputMode="numeric"
-                        {...fieldCopyProps(2, "education.completionYear")}
-                      />
-                      <SelectField
-                        label={fieldLabel(
-                          2,
-                          "education.certificationStatus",
-                          "Certification status",
-                        )}
-                        name="education.certificationStatus"
-                        register={register}
-                        error={errorFor("education.certificationStatus")}
-                        options={[
-                          "Completed",
-                          "Awaiting certificate",
-                          "In progress",
-                        ]}
-                        {...fieldCopyProps(2, "education.certificationStatus")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          2,
-                          "education.additionalQualifications",
-                          "Additional qualifications",
-                        )}
-                        name="education.additionalQualifications"
-                        register={register}
-                        optional
-                        optionalLabel={configuredText(
-                          2,
-                          "optionalLabel",
-                          "Optional",
-                        )}
-                        {...fieldCopyProps(
-                          2,
-                          "education.additionalQualifications",
-                        )}
-                      />
-                    </div>
-                    {!evidenceLater &&
-                      renderFileUploader(
-                        "educationCertificate",
-                        fieldLabel(
-                          2,
-                          "education.certificateObjectPath",
-                          "Certificate image",
-                        ),
-                        2,
-                      )}
-                  </>
-                )}
-                {step === 3 && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "Share your current work situation. We do not ask for income.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <div className="ew-fields-grid">
-                      <SelectField
-                        label={fieldLabel(
-                          3,
-                          "workInformation.employmentStatus",
-                          "Employment status",
-                        )}
-                        name="workInformation.employmentStatus"
-                        register={register}
-                        error={errorFor("workInformation.employmentStatus")}
-                        options={[
-                          "Employed",
-                          "Self-employed",
-                          "Not currently employed",
-                        ]}
-                        {...fieldCopyProps(
-                          3,
-                          "workInformation.employmentStatus",
-                        )}
-                      />
-                      {employmentStatus === "Employed" && (
-                        <>
-                          <Field
-                            label={fieldLabel(
-                              3,
-                              "workInformation.occupation",
-                              "Occupation",
-                            )}
-                            name="workInformation.occupation"
-                            register={register}
-                            error={errorFor("workInformation.occupation")}
-                            {...fieldCopyProps(3, "workInformation.occupation")}
-                          />
-                          <Field
-                            label={fieldLabel(
-                              3,
-                              "workInformation.employer",
-                              "Employer",
-                            )}
-                            name="workInformation.employer"
-                            register={register}
-                            error={errorFor("workInformation.employer")}
-                            {...fieldCopyProps(3, "workInformation.employer")}
-                          />
-                        </>
-                      )}
-                      {employmentStatus === "Self-employed" && (
-                        <>
-                          <Field
-                            label={fieldLabel(
-                              3,
-                              "workInformation.businessName",
-                              "Business name",
-                            )}
-                            name="workInformation.businessName"
-                            register={register}
-                            error={errorFor("workInformation.businessName")}
-                            {...fieldCopyProps(
-                              3,
-                              "workInformation.businessName",
-                            )}
-                          />
-                          <Field
-                            label={fieldLabel(
-                              3,
-                              "workInformation.workAddress",
-                              "Business / work address",
-                            )}
-                            name="workInformation.workAddress"
-                            register={register}
-                            error={errorFor("workInformation.workAddress")}
-                            {...fieldCopyProps(
-                              3,
-                              "workInformation.workAddress",
-                            )}
-                          />
-                          <Field
-                            label={fieldLabel(
-                              3,
-                              "workInformation.workPhone",
-                              "Work phone",
-                            )}
-                            name="workInformation.workPhone"
-                            register={register}
-                            optional
-                            optionalLabel={configuredText(
-                              3,
-                              "optionalLabel",
-                              "Optional",
-                            )}
-                            type="tel"
-                            {...fieldCopyProps(3, "workInformation.workPhone")}
-                          />
-                          <Field
-                            label={fieldLabel(
-                              3,
-                              "workInformation.yearsExperience",
-                              "Years of experience",
-                            )}
-                            name="workInformation.yearsExperience"
-                            register={register}
-                            optional
-                            optionalLabel={configuredText(
-                              3,
-                              "optionalLabel",
-                              "Optional",
-                            )}
-                            type="number"
-                            min="0"
-                            {...fieldCopyProps(
-                              3,
-                              "workInformation.yearsExperience",
-                            )}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </>
-                )}
-                {step === 4 && !evidenceLater && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "Choose an identity document and add its images when storage is available.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <div className="ew-fields-grid ew-fields-single">
-                      <SelectField
-                        label={fieldLabel(
-                          4,
-                          "proofOfIdentity.documentType",
-                          "Document type",
-                        )}
-                        name="proofOfIdentity.documentType"
-                        register={register}
-                        error={errorFor("proofOfIdentity.documentType")}
-                        options={[
-                          "National ID",
-                          "Passport",
-                          "Driver license",
-                          "Passport card",
-                          "Other",
-                        ]}
-                        {...fieldCopyProps(4, "proofOfIdentity.documentType")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          4,
-                          "proofOfIdentity.documentNumber",
-                          "Document number",
-                        )}
-                        name="proofOfIdentity.documentNumber"
-                        register={register}
-                        optional
-                        optionalLabel={configuredText(
-                          4,
-                          "optionalLabel",
-                          "Optional",
-                        )}
-                        autoComplete="off"
-                        {...fieldCopyProps(4, "proofOfIdentity.documentNumber")}
-                      />
-                    </div>
-                    <div className="ew-upload-grid">
-                      {renderFileUploader(
-                        "identityFront",
-                        fieldLabel(
-                          4,
-                          "proofOfIdentity.frontObjectPath",
-                          "Document front",
-                        ),
-                        4,
-                      )}
-                      {isBackRequired &&
-                        renderFileUploader(
-                          "identityBack",
-                          fieldLabel(
-                            4,
-                            "proofOfIdentity.backObjectPath",
-                            "Document back",
-                          ),
-                          4,
-                        )}
-                    </div>
-                    {!storageAvailable && !uploadEvidence ? (
-                      <div
-                        className="ew-storage-banner"
-                        data-testid="state-identity-incomplete"
-                      >
-                        <CircleAlert size={17} />
-                        <div>
-                          <b>
-                            {configuredText(
-                              4,
-                              "identityFilesCannotAttach",
-                              "Identity files cannot be attached",
-                            )}
-                          </b>
-                          <p>
-                            {configuredText(
-                              4,
-                              "localPreviewNotIncluded",
-                              "Your previews stay on this device. Secure upload is unavailable, so they cannot be included with your application.",
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="ew-inline-notice"
-                        data-testid="state-identity-incomplete"
-                      >
-                        <LockKeyhole size={14} />
-                        {answer(answers, "proofOfIdentity", "frontObjectPath")
-                          ? configuredText(
-                              4,
-                              "identitySaved",
-                              "Identity file saved in private storage.",
-                            )
-                          : configuredText(
-                              4,
-                              "uploadIdentityFiles",
-                              "Upload the required identity document files to continue.",
-                            )}
-                      </div>
-                    )}
-                  </>
-                )}
-                {step === 5 && !evidenceLater && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "A short recording can be made here, but it is not an identity or liveness check.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <div className="ew-video-consent">
-                      <label className="ew-consent-check">
-                        <input
-                          type="checkbox"
-                          {...register("liveVideoRecording.consentAccepted")}
-                          data-testid="check-video-consent"
-                        />
-                        <span className="ew-checkmark" />
-                        <span>
-                          {configuredText(
-                            5,
-                            "consentLabel",
-                            "I consent to use my camera and microphone to make a 12-second video recording for this application.",
-                          )}
-                        </span>
-                      </label>
-                      {errorFor("liveVideoRecording.consentAccepted") && (
-                        <span
-                          className="ew-field-error"
-                          role="alert"
-                          data-testid="error-liveVideoRecording.consentAccepted"
-                        >
-                          {copyForStep(5).consentError ||
-                            configuredText(
-                              5,
-                              "videoConsentError",
-                              "Please provide your consent before recording.",
-                            )}
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      className="ew-video-panel"
-                      data-testid="state-video-recording"
-                    >
-                      {cameraState === "recorded" && recordingUrl ? (
-                        <video
-                          className="ew-video-preview"
-                          src={recordingUrl}
-                          controls
-                          playsInline
-                          data-testid="preview-recorded-video"
-                        />
-                      ) : cameraState === "ready" ||
-                        cameraState === "recording" ? (
-                        <video
-                          className="ew-video-preview"
-                          ref={videoRef}
-                          muted
-                          playsInline
-                          data-testid="preview-camera"
-                        />
-                      ) : (
-                        <div className="ew-video-placeholder">
-                          <Video size={28} />
-                          <b>
-                            {cameraState === "denied"
-                              ? configuredText(
-                                  5,
-                                  "cameraDenied",
-                                  "Camera access was not granted",
-                                )
-                              : cameraState === "unsupported"
-                                ? configuredText(
-                                    5,
-                                    "recordingUnavailable",
-                                    "Recording is unavailable",
-                                  )
-                                : configuredText(
-                                    5,
-                                    "cameraOff",
-                                    "Your camera stays off until you choose to begin",
-                                  )}
-                          </b>
-                          <span>
-                            {cameraError ||
-                              configuredText(
-                                5,
-                                "nothingRecorded",
-                                "Nothing is recorded without your action.",
-                              )}
-                          </span>
-                        </div>
-                      )}
-                      {cameraState === "recording" && (
-                        <div
-                          className="ew-record-progress"
-                          role="status"
-                          aria-label={`${configuredText(5, "recordingLabel", "Recording in progress")} ${recordingSeconds} of 12 seconds`}
-                        >
-                          <div className="ew-record-progress-track">
-                            <span style={{ width: `${uploadProgress}%` }} />
-                          </div>
-                          <span data-testid="text-recording-countdown">
-                            {configuredText(
-                              5,
-                              "secondsRemaining",
-                              "{seconds} seconds remaining",
-                            ).replaceAll(
-                              "{seconds}",
-                              String(Math.max(0, 12 - recordingSeconds)),
-                            )}
-                          </span>
-                        </div>
-                      )}
-                      <div className="ew-video-actions">
-                        {cameraState === "idle" ||
-                        cameraState === "denied" ||
-                        cameraState === "unsupported" ? (
-                          <button
-                            type="button"
-                            className="ew-button ew-button-primary"
-                            onClick={() => void requestCamera()}
-                            data-testid="button-enable-camera"
-                          >
-                            <Video size={16} />{" "}
-                            {configuredText(
-                              5,
-                              "enableCameraLabel",
-                              "Enable camera",
-                            )}
-                          </button>
-                        ) : null}
-                        {cameraState === "ready" && (
-                          <button
-                            type="button"
-                            className="ew-button ew-button-primary"
-                            disabled={
-                              !watch("liveVideoRecording.consentAccepted")
-                            }
-                            onClick={startRecording}
-                            data-testid="button-start-recording"
-                          >
-                            {configuredText(
-                              5,
-                              "startRecordingLabel",
-                              "Start 12-second recording",
-                            )}{" "}
-                            <ArrowRight size={15} />
-                          </button>
-                        )}
-                        {cameraState === "recording" && (
-                          <span className="ew-recording-label">
-                            <i />{" "}
-                            {configuredText(
-                              5,
-                              "recordingLabel",
-                              "Recording in progress",
-                            )}
-                          </span>
-                        )}
-                        {cameraState === "recorded" && (
-                          <>
-                            <button
-                              type="button"
-                              className="ew-button ew-button-quiet"
-                              onClick={clearRecording}
-                              data-testid="button-retake-video"
-                            >
-                              {configuredText(
-                                5,
-                                "retakeLabel",
-                                "Retake recording",
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              className={`ew-button ${recordingConfirmed ? "ew-button-confirmed" : "ew-button-primary"}`}
-                              onClick={() => setRecordingConfirmed(true)}
-                              data-testid="button-confirm-recording"
-                            >
-                              {recordingConfirmed ? (
-                                <>
-                                  <Check size={15} />{" "}
-                                  {configuredText(
-                                    5,
-                                    "selectedRecordingLabel",
-                                    "Recording selected",
-                                  )}
-                                </>
-                              ) : (
-                                configuredText(
-                                  5,
-                                  "confirmRecordingLabel",
-                                  "Confirm recording",
-                                )
-                              )}
-                            </button>
-                            <span className="ew-local-tag">
-                              <FileVideo2 size={14} />{" "}
-                              {answer(
-                                answers,
-                                "liveVideoRecording",
-                                "objectPath",
-                              )
-                                ? configuredText(
-                                    5,
-                                    "savedPrivately",
-                                    "Saved privately",
-                                  )
-                                : configuredText(
-                                    5,
-                                    "notUploadedYet",
-                                    "Not uploaded yet",
-                                  )}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {!storageAvailable && !uploadEvidence ? (
-                      <div
-                        className="ew-storage-banner"
-                        data-testid="state-video-incomplete"
-                      >
-                        <CircleAlert size={17} />
-                        <div>
-                          <b>
-                            {configuredText(
-                              5,
-                              "recordingCannotAttach",
-                              "Recording cannot be attached",
-                            )}
-                          </b>
-                          <p>
-                            {configuredText(
-                              5,
-                              "recordingCleared",
-                              "This recording remains in memory and will be cleared when you leave this page. Video storage is unavailable.",
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="ew-inline-notice"
-                        data-testid="state-video-incomplete"
-                      >
-                        <LockKeyhole size={14} />
-                        {answer(answers, "liveVideoRecording", "objectPath")
-                          ? configuredText(
-                              5,
-                              "verificationVideoSaved",
-                              "Verification video saved in private storage.",
-                            )
-                          : configuredText(
-                              5,
-                              "confirmRecordingUpload",
-                              "Confirm the recording and continue to upload it securely.",
-                            )}
-                      </div>
-                    )}
-                  </>
-                )}
-                {step === 6 && (
-                  <>
-                    {heading(
-                      step,
-                      titleForStep(step),
-                      copyForStep(step).description ||
-                        "Only provide bank details if they are genuinely needed for your enrollment.",
-                      copyForStep(step).sectionIdLabel,
-                    )}
-                    <p className="ew-inline-notice">
-                      <b>
-                        {configuredText(
-                          6,
-                          "bankOptionalTitle",
-                          "This section is optional.",
-                        )}
-                      </b>{" "}
-                      {configuredText(
-                        6,
-                        "bankOptionalDescription",
-                        "If payment details are not required for your enrollment, leave it blank and continue.",
-                      )}
-                    </p>
-                    <div className="ew-fields-grid ew-fields-single">
-                      <Field
-                        label={fieldLabel(6, "bankDetails.bankName", "Bank")}
-                        name="bankDetails.bankName"
-                        register={register}
-                        error={errorFor("bankDetails.bankName")}
-                        autoComplete="off"
-                        {...fieldCopyProps(6, "bankDetails.bankName")}
-                      />
-                      <Field
-                        label={fieldLabel(
-                          6,
-                          "bankDetails.accountHolder",
-                          "Account holder",
-                        )}
-                        name="bankDetails.accountHolder"
-                        register={register}
-                        error={errorFor("bankDetails.accountHolder")}
-                        autoComplete="name"
-                        {...fieldCopyProps(6, "bankDetails.accountHolder")}
-                      />
-                      <label
-                        className="ew-field"
-                        htmlFor="enroll-accountNumber"
-                      >
-                        <span className="ew-label">
-                          {fieldLabel(
-                            6,
-                            "bankDetails.accountNumber",
-                            "Account number",
-                          )}
-                        </span>
-                        <input
-                          id="enroll-accountNumber"
-                          name="accountNumber"
-                          className="ew-input"
-                          type="password"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          value={accountNumber}
-                          onChange={(event) => {
-                            const value = event.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, 20);
-                            setAccountNumber(value);
-                            setAccountNumberProvided(value.length > 0);
-                            setValue(
-                              "bankDetails.accountNumber" as never,
-                              value as never,
-                              { shouldValidate: true, shouldDirty: true },
-                            );
-                          }}
-                          placeholder={
-                            copyForStep(6)
-                              .placeholder_bankDetails_accountNumber ||
-                            "Enter account number"
-                          }
-                          data-testid="input-accountNumber"
-                        />
-                        {errorFor("bankDetails.accountNumber") && (
-                          <span
-                            className="ew-field-error"
-                            role="alert"
-                            data-testid="error-accountNumber"
-                          >
-                            {errorFor("bankDetails.accountNumber")}
-                          </span>
-                        )}
-                        <span className="ew-help">
-                          {copyForStep(6).helper_bankDetails_accountNumber ||
-                            configuredText(
-                              6,
-                              "encryptedBankHelper",
-                              "Encrypted before storage and masked in your applicant view. Authorized reviewers can access it for review.",
-                            )}
-                        </span>
-                      </label>
-                      <SelectField
-                        label={fieldLabel(
-                          6,
-                          "bankDetails.accountType",
-                          "Account type",
-                        )}
-                        name="bankDetails.accountType"
-                        register={register}
-                        options={["Personal", "Business"]}
-                        placeholder={configuredText(
-                          6,
-                          "accountTypePlaceholder",
-                          "Optional",
-                        )}
-                        helper={copyForStep(6).helper_bankDetails_accountType}
-                      />
-                    </div>
-                    <div
-                      className="ew-storage-banner"
-                      data-testid="state-bank-privacy"
-                    >
-                      <LockKeyhole size={17} />
-                      <div>
-                        <b>
-                          {configuredText(
-                            6,
-                            "bankEncryptedTitle",
-                            "Your account number is encrypted at rest",
-                          )}
-                        </b>
-                        <p>
-                          {configuredText(
-                            6,
-                            "bankEncryptedDescription",
-                            "It is never returned as plain text in your applicant record. Authorized reviewers access it through the protected review service.",
+                            "authorizationText",
+                            "Your next of kin is a contact only. This does not authorize them to act for you or access your application.",
                           )}
                         </p>
                       </div>
-                    </div>
-                  </>
-                )}
-                {error && (
-                  <p
-                    className="ew-form-alert"
-                    role="alert"
-                    data-testid="text-save-error"
-                  >
-                    {error}
-                  </p>
-                )}
-                {submitError && (
-                  <p
-                    className="ew-form-alert"
-                    role="alert"
-                    data-testid="text-local-input-error"
-                  >
-                    {submitError}
-                  </p>
-                )}
-              </div>
+                    </>
+                  )}
+                  {step === 2 && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "Tell us about your education and any relevant qualifications.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <div className="ew-fields-grid">
+                        <SelectField
+                          label={fieldLabel(
+                            2,
+                            "education.highestQualification",
+                            "Highest qualification",
+                          )}
+                          name="education.highestQualification"
+                          register={register}
+                          error={errorFor("education.highestQualification")}
+                          options={[
+                            "Primary education",
+                            "Secondary education",
+                            "Certificate",
+                            "Diploma",
+                            "Bachelor’s degree",
+                            "Postgraduate degree",
+                            "Other",
+                          ]}
+                          {...fieldCopyProps(
+                            2,
+                            "education.highestQualification",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            2,
+                            "education.institution",
+                            "Institution",
+                          )}
+                          name="education.institution"
+                          register={register}
+                          error={errorFor("education.institution")}
+                          {...fieldCopyProps(2, "education.institution")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            2,
+                            "education.courseField",
+                            "Course / field",
+                          )}
+                          name="education.courseField"
+                          register={register}
+                          error={errorFor("education.courseField")}
+                          {...fieldCopyProps(2, "education.courseField")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            2,
+                            "education.startYear",
+                            "Start year",
+                          )}
+                          name="education.startYear"
+                          register={register}
+                          error={errorFor("education.startYear")}
+                          type="number"
+                          min="1900"
+                          max={new Date().getFullYear() + 10}
+                          inputMode="numeric"
+                          {...fieldCopyProps(2, "education.startYear")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            2,
+                            "education.completionYear",
+                            "Completion year",
+                          )}
+                          name="education.completionYear"
+                          register={register}
+                          error={errorFor("education.completionYear")}
+                          type="number"
+                          min="1900"
+                          max={new Date().getFullYear() + 10}
+                          inputMode="numeric"
+                          {...fieldCopyProps(2, "education.completionYear")}
+                        />
+                        <SelectField
+                          label={fieldLabel(
+                            2,
+                            "education.certificationStatus",
+                            "Certification status",
+                          )}
+                          name="education.certificationStatus"
+                          register={register}
+                          error={errorFor("education.certificationStatus")}
+                          options={[
+                            "Completed",
+                            "Awaiting certificate",
+                            "In progress",
+                          ]}
+                          {...fieldCopyProps(
+                            2,
+                            "education.certificationStatus",
+                          )}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            2,
+                            "education.additionalQualifications",
+                            "Additional qualifications",
+                          )}
+                          name="education.additionalQualifications"
+                          register={register}
+                          optional
+                          optionalLabel={configuredText(
+                            2,
+                            "optionalLabel",
+                            "Optional",
+                          )}
+                          {...fieldCopyProps(
+                            2,
+                            "education.additionalQualifications",
+                          )}
+                        />
+                      </div>
+                      {!evidenceLater &&
+                        renderFileUploader(
+                          "educationCertificate",
+                          fieldLabel(
+                            2,
+                            "education.certificateObjectPath",
+                            "Certificate image",
+                          ),
+                          2,
+                        )}
+                    </>
+                  )}
+                  {step === 3 && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "Share your current work situation. We do not ask for income.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <div className="ew-fields-grid">
+                        <SelectField
+                          label={fieldLabel(
+                            3,
+                            "workInformation.employmentStatus",
+                            "Employment status",
+                          )}
+                          name="workInformation.employmentStatus"
+                          register={register}
+                          error={errorFor("workInformation.employmentStatus")}
+                          options={[
+                            "Employed",
+                            "Self-employed",
+                            "Not currently employed",
+                          ]}
+                          {...fieldCopyProps(
+                            3,
+                            "workInformation.employmentStatus",
+                          )}
+                        />
+                        {employmentStatus === "Employed" && (
+                          <>
+                            <Field
+                              label={fieldLabel(
+                                3,
+                                "workInformation.occupation",
+                                "Occupation",
+                              )}
+                              name="workInformation.occupation"
+                              register={register}
+                              error={errorFor("workInformation.occupation")}
+                              {...fieldCopyProps(
+                                3,
+                                "workInformation.occupation",
+                              )}
+                            />
+                            <Field
+                              label={fieldLabel(
+                                3,
+                                "workInformation.employer",
+                                "Employer",
+                              )}
+                              name="workInformation.employer"
+                              register={register}
+                              error={errorFor("workInformation.employer")}
+                              {...fieldCopyProps(3, "workInformation.employer")}
+                            />
+                          </>
+                        )}
+                        {employmentStatus === "Self-employed" && (
+                          <>
+                            <Field
+                              label={fieldLabel(
+                                3,
+                                "workInformation.businessName",
+                                "Business name",
+                              )}
+                              name="workInformation.businessName"
+                              register={register}
+                              error={errorFor("workInformation.businessName")}
+                              {...fieldCopyProps(
+                                3,
+                                "workInformation.businessName",
+                              )}
+                            />
+                            <Field
+                              label={fieldLabel(
+                                3,
+                                "workInformation.workAddress",
+                                "Business / work address",
+                              )}
+                              name="workInformation.workAddress"
+                              register={register}
+                              error={errorFor("workInformation.workAddress")}
+                              {...fieldCopyProps(
+                                3,
+                                "workInformation.workAddress",
+                              )}
+                            />
+                            <Field
+                              label={fieldLabel(
+                                3,
+                                "workInformation.workPhone",
+                                "Work phone",
+                              )}
+                              name="workInformation.workPhone"
+                              register={register}
+                              optional
+                              optionalLabel={configuredText(
+                                3,
+                                "optionalLabel",
+                                "Optional",
+                              )}
+                              type="tel"
+                              {...fieldCopyProps(
+                                3,
+                                "workInformation.workPhone",
+                              )}
+                            />
+                            <Field
+                              label={fieldLabel(
+                                3,
+                                "workInformation.yearsExperience",
+                                "Years of experience",
+                              )}
+                              name="workInformation.yearsExperience"
+                              register={register}
+                              optional
+                              optionalLabel={configuredText(
+                                3,
+                                "optionalLabel",
+                                "Optional",
+                              )}
+                              type="number"
+                              min="0"
+                              {...fieldCopyProps(
+                                3,
+                                "workInformation.yearsExperience",
+                              )}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {step === 4 && !evidenceLater && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "Choose an identity document and add its images when storage is available.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <div className="ew-fields-grid ew-fields-single">
+                        <SelectField
+                          label={fieldLabel(
+                            4,
+                            "proofOfIdentity.documentType",
+                            "Document type",
+                          )}
+                          name="proofOfIdentity.documentType"
+                          register={register}
+                          error={errorFor("proofOfIdentity.documentType")}
+                          options={[
+                            "National ID",
+                            "Passport",
+                            "Driver license",
+                            "Passport card",
+                            "Other",
+                          ]}
+                          {...fieldCopyProps(4, "proofOfIdentity.documentType")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            4,
+                            "proofOfIdentity.documentNumber",
+                            "Document number",
+                          )}
+                          name="proofOfIdentity.documentNumber"
+                          register={register}
+                          optional
+                          optionalLabel={configuredText(
+                            4,
+                            "optionalLabel",
+                            "Optional",
+                          )}
+                          autoComplete="off"
+                          {...fieldCopyProps(
+                            4,
+                            "proofOfIdentity.documentNumber",
+                          )}
+                        />
+                      </div>
+                      <div className="ew-upload-grid">
+                        {renderFileUploader(
+                          "identityFront",
+                          fieldLabel(
+                            4,
+                            "proofOfIdentity.frontObjectPath",
+                            "Document front",
+                          ),
+                          4,
+                        )}
+                        {isBackRequired &&
+                          renderFileUploader(
+                            "identityBack",
+                            fieldLabel(
+                              4,
+                              "proofOfIdentity.backObjectPath",
+                              "Document back",
+                            ),
+                            4,
+                          )}
+                      </div>
+                      {!storageAvailable && !uploadEvidence ? (
+                        <div
+                          className="ew-storage-banner"
+                          data-testid="state-identity-incomplete"
+                        >
+                          <CircleAlert size={17} />
+                          <div>
+                            <b>
+                              {configuredText(
+                                4,
+                                "identityFilesCannotAttach",
+                                "Identity files cannot be attached",
+                              )}
+                            </b>
+                            <p>
+                              {configuredText(
+                                4,
+                                "localPreviewNotIncluded",
+                                "Your previews stay on this device. Secure upload is unavailable, so they cannot be included with your application.",
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="ew-inline-notice"
+                          data-testid="state-identity-incomplete"
+                        >
+                          <LockKeyhole size={14} />
+                          {answer(answers, "proofOfIdentity", "frontObjectPath")
+                            ? configuredText(
+                                4,
+                                "identitySaved",
+                                "Identity file saved in private storage.",
+                              )
+                            : configuredText(
+                                4,
+                                "uploadIdentityFiles",
+                                "Upload the required identity document files to continue.",
+                              )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {step === 5 && !evidenceLater && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "A short recording can be made here, but it is not an identity or liveness check.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <div className="ew-video-consent">
+                        <label className="ew-consent-check">
+                          <input
+                            type="checkbox"
+                            {...register("liveVideoRecording.consentAccepted")}
+                            data-testid="check-video-consent"
+                          />
+                          <span className="ew-checkmark" />
+                          <span>
+                            {configuredText(
+                              5,
+                              "consentLabel",
+                              "I consent to use my camera and microphone to make a 12-second video recording for this application.",
+                            )}
+                          </span>
+                        </label>
+                        {errorFor("liveVideoRecording.consentAccepted") && (
+                          <span
+                            className="ew-field-error"
+                            role="alert"
+                            data-testid="error-liveVideoRecording.consentAccepted"
+                          >
+                            {copyForStep(5).consentError ||
+                              configuredText(
+                                5,
+                                "videoConsentError",
+                                "Please provide your consent before recording.",
+                              )}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="ew-video-panel"
+                        data-testid="state-video-recording"
+                      >
+                        {cameraState === "recorded" && recordingUrl ? (
+                          <video
+                            className="ew-video-preview"
+                            src={recordingUrl}
+                            controls
+                            playsInline
+                            data-testid="preview-recorded-video"
+                          />
+                        ) : cameraState === "ready" ||
+                          cameraState === "recording" ? (
+                          <video
+                            className="ew-video-preview"
+                            ref={videoRef}
+                            muted
+                            playsInline
+                            data-testid="preview-camera"
+                          />
+                        ) : (
+                          <div className="ew-video-placeholder">
+                            <Video size={28} />
+                            <b>
+                              {cameraState === "denied"
+                                ? configuredText(
+                                    5,
+                                    "cameraDenied",
+                                    "Camera access was not granted",
+                                  )
+                                : cameraState === "unsupported"
+                                  ? configuredText(
+                                      5,
+                                      "recordingUnavailable",
+                                      "Recording is unavailable",
+                                    )
+                                  : configuredText(
+                                      5,
+                                      "cameraOff",
+                                      "Your camera stays off until you choose to begin",
+                                    )}
+                            </b>
+                            <span>
+                              {cameraError ||
+                                configuredText(
+                                  5,
+                                  "nothingRecorded",
+                                  "Nothing is recorded without your action.",
+                                )}
+                            </span>
+                          </div>
+                        )}
+                        {cameraState === "recording" && (
+                          <div
+                            className="ew-record-progress"
+                            role="status"
+                            aria-label={`${configuredText(5, "recordingLabel", "Recording in progress")} ${recordingSeconds} of 12 seconds`}
+                          >
+                            <div className="ew-record-progress-track">
+                              <span style={{ width: `${uploadProgress}%` }} />
+                            </div>
+                            <span data-testid="text-recording-countdown">
+                              {configuredText(
+                                5,
+                                "secondsRemaining",
+                                "{seconds} seconds remaining",
+                              ).replaceAll(
+                                "{seconds}",
+                                String(Math.max(0, 12 - recordingSeconds)),
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        <div className="ew-video-actions">
+                          {cameraState === "idle" ||
+                          cameraState === "denied" ||
+                          cameraState === "unsupported" ? (
+                            <button
+                              type="button"
+                              className="ew-button ew-button-primary"
+                              onClick={() => void requestCamera()}
+                              data-testid="button-enable-camera"
+                            >
+                              <Video size={16} />{" "}
+                              {configuredText(
+                                5,
+                                "enableCameraLabel",
+                                "Enable camera",
+                              )}
+                            </button>
+                          ) : null}
+                          {cameraState === "ready" && (
+                            <button
+                              type="button"
+                              className="ew-button ew-button-primary"
+                              disabled={
+                                !watch("liveVideoRecording.consentAccepted")
+                              }
+                              onClick={startRecording}
+                              data-testid="button-start-recording"
+                            >
+                              {configuredText(
+                                5,
+                                "startRecordingLabel",
+                                "Start 12-second recording",
+                              )}{" "}
+                              <ArrowRight size={15} />
+                            </button>
+                          )}
+                          {cameraState === "recording" && (
+                            <span className="ew-recording-label">
+                              <i />{" "}
+                              {configuredText(
+                                5,
+                                "recordingLabel",
+                                "Recording in progress",
+                              )}
+                            </span>
+                          )}
+                          {cameraState === "recorded" && (
+                            <>
+                              <button
+                                type="button"
+                                className="ew-button ew-button-quiet"
+                                onClick={clearRecording}
+                                data-testid="button-retake-video"
+                              >
+                                {configuredText(
+                                  5,
+                                  "retakeLabel",
+                                  "Retake recording",
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                className={`ew-button ${recordingConfirmed ? "ew-button-confirmed" : "ew-button-primary"}`}
+                                onClick={() => setRecordingConfirmed(true)}
+                                data-testid="button-confirm-recording"
+                              >
+                                {recordingConfirmed ? (
+                                  <>
+                                    <Check size={15} />{" "}
+                                    {configuredText(
+                                      5,
+                                      "selectedRecordingLabel",
+                                      "Recording selected",
+                                    )}
+                                  </>
+                                ) : (
+                                  configuredText(
+                                    5,
+                                    "confirmRecordingLabel",
+                                    "Confirm recording",
+                                  )
+                                )}
+                              </button>
+                              <span className="ew-local-tag">
+                                <FileVideo2 size={14} />{" "}
+                                {answer(
+                                  answers,
+                                  "liveVideoRecording",
+                                  "objectPath",
+                                )
+                                  ? configuredText(
+                                      5,
+                                      "savedPrivately",
+                                      "Saved privately",
+                                    )
+                                  : configuredText(
+                                      5,
+                                      "notUploadedYet",
+                                      "Not uploaded yet",
+                                    )}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {!storageAvailable && !uploadEvidence ? (
+                        <div
+                          className="ew-storage-banner"
+                          data-testid="state-video-incomplete"
+                        >
+                          <CircleAlert size={17} />
+                          <div>
+                            <b>
+                              {configuredText(
+                                5,
+                                "recordingCannotAttach",
+                                "Recording cannot be attached",
+                              )}
+                            </b>
+                            <p>
+                              {configuredText(
+                                5,
+                                "recordingCleared",
+                                "This recording remains in memory and will be cleared when you leave this page. Video storage is unavailable.",
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="ew-inline-notice"
+                          data-testid="state-video-incomplete"
+                        >
+                          <LockKeyhole size={14} />
+                          {answer(answers, "liveVideoRecording", "objectPath")
+                            ? configuredText(
+                                5,
+                                "verificationVideoSaved",
+                                "Verification video saved in private storage.",
+                              )
+                            : configuredText(
+                                5,
+                                "confirmRecordingUpload",
+                                "Confirm the recording and continue to upload it securely.",
+                              )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {step === 6 && (
+                    <>
+                      {heading(
+                        step,
+                        titleForStep(step),
+                        copyForStep(step).description ||
+                          "Only provide bank details if they are genuinely needed for your enrollment.",
+                        copyForStep(step).sectionIdLabel,
+                      )}
+                      <p className="ew-inline-notice">
+                        <b>
+                          {configuredText(
+                            6,
+                            "bankOptionalTitle",
+                            "This section is optional.",
+                          )}
+                        </b>{" "}
+                        {configuredText(
+                          6,
+                          "bankOptionalDescription",
+                          "If payment details are not required for your enrollment, leave it blank and continue.",
+                        )}
+                      </p>
+                      <div className="ew-fields-grid ew-fields-single">
+                        <Field
+                          label={fieldLabel(6, "bankDetails.bankName", "Bank")}
+                          name="bankDetails.bankName"
+                          register={register}
+                          error={errorFor("bankDetails.bankName")}
+                          autoComplete="off"
+                          {...fieldCopyProps(6, "bankDetails.bankName")}
+                        />
+                        <Field
+                          label={fieldLabel(
+                            6,
+                            "bankDetails.accountHolder",
+                            "Account holder",
+                          )}
+                          name="bankDetails.accountHolder"
+                          register={register}
+                          error={errorFor("bankDetails.accountHolder")}
+                          autoComplete="name"
+                          {...fieldCopyProps(6, "bankDetails.accountHolder")}
+                        />
+                        <label
+                          className="ew-field"
+                          htmlFor="enroll-accountNumber"
+                        >
+                          <span className="ew-label">
+                            {fieldLabel(
+                              6,
+                              "bankDetails.accountNumber",
+                              "Account number",
+                            )}
+                          </span>
+                          <input
+                            id="enroll-accountNumber"
+                            name="accountNumber"
+                            className="ew-input"
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            value={accountNumber}
+                            onChange={(event) => {
+                              const value = event.target.value
+                                .replace(/\D/g, "")
+                                .slice(0, 20);
+                              setAccountNumber(value);
+                              setAccountNumberProvided(value.length > 0);
+                              setValue(
+                                "bankDetails.accountNumber" as never,
+                                value as never,
+                                { shouldValidate: true, shouldDirty: true },
+                              );
+                            }}
+                            placeholder={
+                              copyForStep(6)
+                                .placeholder_bankDetails_accountNumber ||
+                              "Enter account number"
+                            }
+                            data-testid="input-accountNumber"
+                          />
+                          {errorFor("bankDetails.accountNumber") && (
+                            <span
+                              className="ew-field-error"
+                              role="alert"
+                              data-testid="error-accountNumber"
+                            >
+                              {errorFor("bankDetails.accountNumber")}
+                            </span>
+                          )}
+                          <span className="ew-help">
+                            {copyForStep(6).helper_bankDetails_accountNumber ||
+                              configuredText(
+                                6,
+                                "encryptedBankHelper",
+                                "Encrypted before storage and masked in your applicant view. Authorized reviewers can access it for review.",
+                              )}
+                          </span>
+                        </label>
+                        <SelectField
+                          label={fieldLabel(
+                            6,
+                            "bankDetails.accountType",
+                            "Account type",
+                          )}
+                          name="bankDetails.accountType"
+                          register={register}
+                          options={["Personal", "Business"]}
+                          placeholder={configuredText(
+                            6,
+                            "accountTypePlaceholder",
+                            "Optional",
+                          )}
+                          helper={copyForStep(6).helper_bankDetails_accountType}
+                        />
+                      </div>
+                      <div
+                        className="ew-storage-banner"
+                        data-testid="state-bank-privacy"
+                      >
+                        <LockKeyhole size={17} />
+                        <div>
+                          <b>
+                            {configuredText(
+                              6,
+                              "bankEncryptedTitle",
+                              "Your account number is encrypted at rest",
+                            )}
+                          </b>
+                          <p>
+                            {configuredText(
+                              6,
+                              "bankEncryptedDescription",
+                              "It is never returned as plain text in your applicant record. Authorized reviewers access it through the protected review service.",
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {error && (
+                    <p
+                      className="ew-form-alert"
+                      role="alert"
+                      data-testid="text-save-error"
+                    >
+                      {error}
+                    </p>
+                  )}
+                  {submitError && (
+                    <p
+                      className="ew-form-alert"
+                      role="alert"
+                      data-testid="text-local-input-error"
+                    >
+                      {submitError}
+                    </p>
+                  )}
+                </div>
+              </fieldset>
               <footer className="ew-form-footer">
                 <button
                   type="button"
@@ -3298,19 +3346,25 @@ export function EnrollmentWizard({
                   className="ew-button ew-button-primary"
                   onClick={() => void beginSubmit()}
                   disabled={
-                    !readyToSubmit || isSaving || isSubmitting || readOnly
+                    previewMode ||
+                    !readyToSubmit ||
+                    isSaving ||
+                    isSubmitting ||
+                    readOnly
                   }
                   data-testid="button-submit-enrollment"
                 >
-                  {isSubmitting
-                    ? configuredText(7, "submitLoadingLabel", "Submitting…")
-                    : copyForStep(7).buttonLabel ||
-                      copyForStep(7).submitLabel ||
-                      configuredText(
-                        7,
-                        "submitLabel",
-                        "Submit Enrollment",
-                      )}{" "}
+                  {previewMode
+                    ? "Preview only"
+                    : isSubmitting
+                      ? configuredText(7, "submitLoadingLabel", "Submitting…")
+                      : copyForStep(7).buttonLabel ||
+                        copyForStep(7).submitLabel ||
+                        configuredText(
+                          7,
+                          "submitLabel",
+                          "Submit Enrollment",
+                        )}{" "}
                   <ArrowRight size={15} />
                 </button>
               </footer>
