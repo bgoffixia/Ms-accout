@@ -247,36 +247,6 @@ function stripBase(path: string) {
     : path;
 }
 
-const clerkAppearance = {
-  variables: {
-    colorPrimary: "#174d80",
-    colorForeground: "#19324d",
-    colorMutedForeground: "#68798b",
-    colorDanger: "#b73535",
-    colorBackground: "#ffffff",
-    colorInput: "#ffffff",
-    colorInputForeground: "#19324d",
-    colorNeutral: "#d5dee7",
-    fontFamily: "DM Sans, sans-serif",
-    borderRadius: "0.85rem",
-  },
-  elements: {
-    rootBox: "w-full flex justify-center",
-    cardBox:
-      "bg-white rounded-2xl w-[440px] max-w-full overflow-hidden shadow-xl",
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    logoBox: { display: "none" },
-    logoImage: { display: "none" },
-    headerTitle: "font-semibold tracking-tight text-[#19324d]",
-    headerSubtitle: "text-[#68798b]",
-    formFieldLabel: "font-medium text-[#29435c]",
-    formFieldInput: "rounded-xl border-[#d5dee7] shadow-none",
-    formButtonPrimary: "rounded-xl bg-[#174d80] hover:bg-[#103e69]",
-    footerActionLink: "font-semibold text-[#174d80]",
-  },
-};
-
 function PrimaryButton({
   children,
   onClick,
@@ -962,95 +932,52 @@ function AuthPage({
       </main>
     );
   return (
-    <main className="auth-page portal-frame">
-      <div className="auth-brand">
-        <PortalWordmark />
-        <span>SECURE ACCESS</span>
-      </div>
-      <div className="auth-canvas">
-        <div className="auth-intro">
-          <div className="eyebrow">
-            {mode === "admin"
-              ? "AUTHORIZED ADMINISTRATOR ACCESS"
-              : mode === "staff"
-                ? directStaffRegistration
-                  ? "AUTHORIZED STAFF ACCESS"
-                  : "INVITED STAFF ACCESS"
-                : "A thoughtful process starts here"}
-          </div>
-          <h1>
-            {mode === "in"
-              ? "Welcome back."
-              : mode === "admin"
-                ? "Administrator account."
-                : mode === "staff"
-                  ? directStaffRegistration
-                    ? "Your staff account."
-                    : "Your team account."
-                  : "Let’s get started."}
-          </h1>
-          <p>
-            {mode === "in"
-              ? "Your application and its latest updates are waiting in your secure workspace."
-              : mode === "admin"
-                ? "Create your administrator account using the pre-authorized email address. Administrator access activates only after email verification."
-                : mode === "staff"
-                  ? directStaffRegistration
-                    ? "Create an account with the approved email address. Staff access activates only after email verification."
-                    : "Accept your staff invitation to activate the role assigned by your portal administrator."
-                  : "Create a secure account to begin and return to your application whenever you need."}
-          </p>
-          <div className="auth-security">
-            <LockKeyhole size={17} />
-            <span>Protected access for your enrollment journey</span>
-          </div>
-        </div>
-        <div className="auth-widget">
-          {mode === "in" ? (
-            <SignIn
-              routing="path"
-              path={signInPath}
-              signUpUrl={
-                adminRegistrationIntent
-                  ? `${basePath}/admin/sign-up`
-                  : staffSignInRegistration
-                    ? `${basePath}/staff/sign-up`
-                    : guestSubmissionIntent
-                      ? `${basePath}/sign-up?guestApplication=1`
-                      : `${basePath}/sign-up`
-              }
-              forceRedirectUrl={completionUrl}
-              fallback={
-                <div className="clerk-loading-fallback" role="status">
-                  Loading secure sign-in…
-                </div>
-              }
-            />
-          ) : (
-            <SignUp
-              routing="path"
-              path={`${basePath}${mode === "admin" ? "/admin/sign-up" : mode === "staff" ? "/staff/sign-up" : "/sign-up"}`}
-              signInUrl={
-                directStaffRegistration
-                  ? `${basePath}${mode === "admin" ? "/admin/sign-in?adminRegistration=1" : "/staff/sign-in?staffRegistration=1"}`
+    <main className="clerk-default-auth-page portal-frame">
+      <div className="clerk-default-auth-shell">
+        {mode === "in" ? (
+          <SignIn
+            routing="path"
+            path={signInPath}
+            signUpUrl={
+              adminRegistrationIntent
+                ? `${basePath}/admin/sign-up`
+                : staffSignInRegistration
+                  ? `${basePath}/staff/sign-up`
                   : guestSubmissionIntent
-                    ? `${basePath}/sign-in?guestApplication=1`
-                    : `${basePath}/sign-in`
-              }
-              forceRedirectUrl={completionUrl}
-              fallback={
-                <div className="clerk-loading-fallback" role="status">
-                  Loading secure account setup…
-                </div>
-              }
-              initialValues={
-                allowlistedEmail
-                  ? { emailAddress: allowlistedEmail }
-                  : undefined
-              }
-            />
-          )}
-        </div>
+                    ? `${basePath}/sign-up?guestApplication=1`
+                    : `${basePath}/sign-up`
+            }
+            forceRedirectUrl={completionUrl}
+            fallback={
+              <div className="clerk-loading-fallback" role="status">
+                Loading secure sign-in…
+              </div>
+            }
+          />
+        ) : (
+          <SignUp
+            routing="path"
+            path={`${basePath}${mode === "admin" ? "/admin/sign-up" : mode === "staff" ? "/staff/sign-up" : "/sign-up"}`}
+            signInUrl={
+              directStaffRegistration
+                ? `${basePath}${mode === "admin" ? "/admin/sign-in?adminRegistration=1" : "/staff/sign-in?staffRegistration=1"}`
+                : guestSubmissionIntent
+                  ? `${basePath}/sign-in?guestApplication=1`
+                  : `${basePath}/sign-in`
+            }
+            forceRedirectUrl={completionUrl}
+            fallback={
+              <div className="clerk-loading-fallback" role="status">
+                Loading secure account setup…
+              </div>
+            }
+            initialValues={
+              allowlistedEmail
+                ? { emailAddress: allowlistedEmail }
+                : undefined
+            }
+          />
+        )}
       </div>
     </main>
   );
@@ -12398,25 +12325,10 @@ function ClerkRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       signInFallbackRedirectUrl={`${basePath}/auth/complete`}
       signUpFallbackRedirectUrl={`${basePath}/auth/complete`}
-      localization={{
-        signIn: {
-          start: {
-            title: "Welcome back",
-            subtitle: "Sign in to access your account",
-          },
-        },
-        signUp: {
-          start: {
-            title: "Create your account",
-            subtitle: "Begin your enrollment securely",
-          },
-        },
-      }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
