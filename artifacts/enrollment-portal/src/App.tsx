@@ -26,6 +26,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
+  Copy,
   FileCheck2,
   FileText,
   Headphones,
