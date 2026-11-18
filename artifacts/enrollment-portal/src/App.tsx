@@ -26,7 +26,6 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
-  Copy,
   FileCheck2,
   FileText,
   Headphones,
@@ -1958,7 +1957,7 @@ function DraftApplication() {
         <LoadingPanel />
       </AppFrame>
     );
-  if (formTextQuery.isLoading || formTextQuery.isFetching) {
+  if (formTextQuery.isLoading) {
     return (
       <AppFrame>
         <LoadingPanel
@@ -8412,14 +8411,45 @@ const GUEST_DASHBOARD_CONTACT_KEY = "guest-dashboard-contact";
 const GUEST_DASHBOARD_START_KEY = "guest-dashboard-start";
 const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = "guest-dashboard-pending-category";
 const GUEST_CONTACT_STEP_PASSED_KEY = "guest-contact-step-passed";
+const GUEST_RESUME_KEY = "guest-private-resume";
 let transientGuestResume: { reference: string; trackingKey: string } | null =
   null;
 
 function saveGuestResume(reference: string, trackingKey: string) {
   transientGuestResume = { reference, trackingKey };
+  try {
+    window.sessionStorage.setItem(
+      GUEST_RESUME_KEY,
+      JSON.stringify({ reference, trackingKey }),
+    );
+  } catch {
+    // Keep the in-memory fallback for browsers that block session storage.
+  }
 }
 
 function readGuestResume() {
+  try {
+    const raw = window.sessionStorage.getItem(GUEST_RESUME_KEY);
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        "reference" in parsed &&
+        "trackingKey" in parsed &&
+        typeof parsed.reference === "string" &&
+        typeof parsed.trackingKey === "string" &&
+        /^[A-Za-z0-9_-]{43}$/.test(parsed.trackingKey)
+      ) {
+        return {
+          reference: parsed.reference,
+          trackingKey: parsed.trackingKey,
+        };
+      }
+    }
+  } catch {
+    // Fall back to the current in-memory application session.
+  }
   return transientGuestResume;
 }
 
@@ -8559,7 +8589,7 @@ function PublicApplicantDashboard() {
     }
   };
 
-  if (formTextQuery.isLoading || formTextQuery.isFetching) {
+  if (formTextQuery.isLoading) {
     return (
       <AppFrame>
         <LoadingPanel
@@ -9202,8 +9232,6 @@ function GuestApplicationPage() {
     | "complete"
     | "closed"
   >("contact");
-  const [showTrackingKeyNotice, setShowTrackingKeyNotice] = useState(false);
-  const [trackingKeyCopied, setTrackingKeyCopied] = useState(false);
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState("");
   const [progressError, setProgressError] = useState("");
@@ -9213,10 +9241,11 @@ function GuestApplicationPage() {
   const dashboardStartStarted = useRef(false);
   const [dashboardStartValues, setDashboardStartValues] =
     useState<GuestApplicationValues | null>(null);
-  const [pendingSubmission, setPendingSubmission] = useState<{
+  const pendingSubmissionRef = useRef<{
     fingerprint: string;
     input: GuestPreapplicationInput;
   } | null>(null);
+  const createGuestInFlightRef = useRef(false);
   const form = useForm<GuestApplicationValues>({
     resolver: zodResolver(guestApplicationSchema),
     defaultValues: {
@@ -9418,14 +9447,18 @@ function GuestApplicationPage() {
     setContactSaveError("");
     setIsContinuing(false);
     if (startAfterContact) {
+      // Keep the selected provider and contact details in this mounted flow.
+      // The dashboardStartValues effect creates the application without a route
+      // change that could remount the contact step.
       setStage("category");
-      setLocation("/guest/apply?dashboardStart=1", { replace: true });
     } else {
       setLocation("/dashboard", { replace: true });
     }
   };
 
   const onSubmit = async (values: GuestApplicationValues) => {
+    if (createGuestInFlightRef.current) return;
+    createGuestInFlightRef.current = true;
     const details = {
       categoryId: values.categoryId as GuestPreapplicationInput["categoryId"],
       fullName: values.fullName.trim(),
@@ -9433,8 +9466,11 @@ function GuestApplicationPage() {
       ...(values.phone?.trim() ? { phone: values.phone.trim() } : {}),
     };
     const fingerprint = JSON.stringify(details);
-    let input = pendingSubmission?.input;
-    if (!input || pendingSubmission?.fingerprint !== fingerprint) {
+    let input = pendingSubmissionRef.current?.input;
+    if (
+      !input ||
+      pendingSubmissionRef.current?.fingerprint !== fingerprint
+    ) {
       input = {
         submissionId: window.crypto.randomUUID(),
         trackingKey: createBrowserTrackingKey(),
@@ -9443,7 +9479,7 @@ function GuestApplicationPage() {
         email: details.email,
         ...(details.phone ? { phone: details.phone } : {}),
       };
-      setPendingSubmission({ fingerprint, input });
+      pendingSubmissionRef.current = { fingerprint, input };
     }
 
     try {
@@ -9465,14 +9501,15 @@ function GuestApplicationPage() {
       };
       setCreated({ application: activeApplication, trackingKey });
       saveGuestResume(application.reference, trackingKey);
-      setShowTrackingKeyNotice(true);
       setApplicationAnswers({});
       setStage("categoryEntry");
-      setPendingSubmission(null);
+      pendingSubmissionRef.current = null;
       setDashboardStartValues(null);
       dashboardStartStarted.current = false;
     } catch {
       // Keep the same key and submission ID in memory so a retry is idempotent.
+    } finally {
+      createGuestInFlightRef.current = false;
     }
   };
 
@@ -9584,7 +9621,7 @@ function GuestApplicationPage() {
     }
   };
 
-  if (formTextQuery.isLoading || formTextQuery.isFetching) {
+  if (formTextQuery.isLoading) {
     return (
       <main className="portal-frame auth-loading" aria-busy="true">
         <LoadingPanel
@@ -10123,88 +10160,7 @@ function GuestApplicationPage() {
           Track Security Verification Status
         </Link>
       </footer>
-      {showTrackingKeyNotice && created && (
-        <div className="guest-submit-success-overlay">
-          <section
-            className="success-dialog guest-submit-success-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="tracking-key-title"
-            data-testid="tracking-key-one-time-notice"
-          >
-            <span className="success-dialog-icon">
-              <LockKeyhole size={24} />
-            </span>
-            <span className="eyebrow">
-              {formCopy["submission-success"]?.saveKeyTitle ||
-                "SAVE THIS KEY NOW"}
-            </span>
-            <h2 id="tracking-key-title">
-              {formCopy["submission-success"]?.saveKeyHeading ||
-                "Your private tracking key"}
-            </h2>
-            <p>
-              {formCopy["submission-success"]?.saveKeyDescription ||
-                "This key is shown once. Save it with your application reference to resume or check status. It is not an account sign-in or identity verification."}
-            </p>
-            <div className="review-field">
-              <span>
-                {formCopy["submission-success"]?.referenceLabel ||
-                  "Application reference"}
-              </span>
-              <b className="mono">{created.application.reference}</b>
-            </div>
-            <label className="field-label" htmlFor="one-time-tracking-key">
-              {formCopy["submission-success"]?.keyLabel ||
-                "Private tracking key"}
-            </label>
-            <input
-              id="one-time-tracking-key"
-              className="text-input"
-              readOnly
-              value={created.trackingKey}
-              onFocus={(event) => event.currentTarget.select()}
-              data-testid="text-one-time-tracking-key"
-            />
-            <button
-              type="button"
-              className="button button-quiet"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(created.trackingKey);
-                  setTrackingKeyCopied(true);
-                } catch {
-                  const input = document.getElementById(
-                    "one-time-tracking-key",
-                  ) as HTMLInputElement | null;
-                  input?.select();
-                  setTrackingKeyCopied(false);
-                }
-              }}
-              data-testid="button-copy-tracking-key"
-            >
-              {trackingKeyCopied ? <Check size={15} /> : <Copy size={15} />}
-              {trackingKeyCopied
-                ? formCopy["submission-success"]?.copiedKeyLabel || "Copied"
-                : formCopy["submission-success"]?.copyKeyLabel || "Copy key"}
-            </button>
-            <p className="guest-key-warning">
-              {formCopy["submission-success"]?.keyWarning ||
-                "Authorized reviewers cannot view this key. Do not send it by email."}
-            </p>
-            <button
-              type="button"
-              className="button button-primary guest-submit"
-              onClick={() => setShowTrackingKeyNotice(false)}
-              data-testid="button-confirm-tracking-key-saved"
-            >
-              {formCopy["submission-success"]?.savedKeyButton ||
-                "I saved my key, continue"}{" "}
-              <ArrowRight size={16} />
-            </button>
-          </section>
-        </div>
-      )}
+
     </main>
   );
 }
@@ -10306,7 +10262,7 @@ function GuestTrackingPage() {
       );
     }
   };
-  if (formTextQuery.isLoading || formTextQuery.isFetching) {
+  if (formTextQuery.isLoading) {
     return (
       <main className="portal-frame auth-loading" aria-busy="true">
         <LoadingPanel
