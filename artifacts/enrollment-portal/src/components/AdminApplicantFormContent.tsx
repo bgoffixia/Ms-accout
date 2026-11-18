@@ -547,6 +547,10 @@ export function AdminApplicantFormContent({ legacyCopy }: Props) {
                       </label>
                       <code>{field.key}</code>
                     </div>
+                    <div className="fce-published-copy" data-testid={`text-published-copy-${field.key}`}>
+                      <span>Currently published:</span>
+                      <strong>{publishedValue.length ? publishedValue : "Empty (no text displayed)"}</strong>
+                    </div>
                     {field.multiline ? (
                       <textarea
                         id={inputId}
@@ -589,6 +593,15 @@ export function AdminApplicantFormContent({ legacyCopy }: Props) {
                         {value.length} / {field.maxLength}
                       </span>
                     </div>
+                    <button
+                      className="fce-clear-field"
+                      type="button"
+                      onClick={() => patchField(selectedForm.id, field.key, "")}
+                      disabled={value.length === 0 || busy}
+                      data-testid={`button-clear-copy-${field.key}`}
+                    >
+                      Clear this text
+                    </button>
                   </div>
                 );
               })}
@@ -639,10 +652,9 @@ export function AdminApplicantFormContent({ legacyCopy }: Props) {
                 </span>
               </div>
               <div className="fce-preview-overline">ACCOUNT PROTECTION</div>
-              <h3>{selectedDraft.title || selectedForm.label}</h3>
+              <h3>{selectedDraft.title ?? selectedForm.label}</h3>
               <p className="fce-preview-description">
-                {selectedDraft.description ||
-                  "Please provide the details below for authorized verification review."}
+                {selectedDraft.description ?? ""}
               </p>
               <div className="fce-preview-sample">
                 {selectedForm.fields
@@ -660,7 +672,7 @@ export function AdminApplicantFormContent({ legacyCopy }: Props) {
                     const placeholder = selectedDraft[placeholderKey];
                     return (
                       <div className="fce-preview-field" key={field.key}>
-                        <span>{text || field.label}</span>
+                        <span>{text ?? field.label}</span>
                         <i>{placeholder || ""}</i>
                       </div>
                     );
