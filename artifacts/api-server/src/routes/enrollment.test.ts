@@ -828,6 +828,28 @@ describe("guest application verification and persistence", () => {
     return { response, body };
   }
 
+  it("authorizes the portal preview only for the primary admin", async () => {
+    const allowed = await request("/admin/preview/access", {}, "administrator");
+    expect(allowed.response.status).toBe(200);
+    expect(allowed.body).toEqual({ allowed: true });
+    expect(allowed.response.headers.get("cache-control")).toContain("no-store");
+
+    for (const userId of [
+      "reviewer",
+      "moderator",
+      "applicant-verified",
+      "unlisted-forged-admin",
+      "unverified-allowlisted-admin",
+    ]) {
+      const denied = await request("/admin/preview/access", {}, userId);
+      expect(denied.response.status).toBe(403);
+      expect(denied.body).not.toEqual({ allowed: true });
+    }
+
+    const anonymous = await request("/admin/preview/access");
+    expect(anonymous.response.status).toBe(401);
+  });
+
   it("allows only the primary admin to override public landing-page copy", async () => {
     const defaults = await request("/portal/settings");
     const configured = {

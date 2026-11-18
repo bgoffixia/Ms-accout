@@ -927,6 +927,22 @@ paths:
                 $ref: "#/components/schemas/ApplicantFormContentSnapshot"
         "503":
           description: Production form content is not available
+  /admin/preview/access:
+    get:
+      operationId: getAdminPortalPreviewAccess
+      tags: [administration]
+      summary: Verify primary administrator access to public portal preview
+      responses:
+        "200":
+          description: Preview access granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPortalPreviewAccess"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Primary administrator access required
   /admin/form-content:
     get:
       operationId: getAdminApplicantFormContent
@@ -2667,6 +2683,11 @@ components:
               minItems: 1
               items:
                 $ref: "#/components/schemas/ApplicantFormDefinition"
+    AdminPortalPreviewAccess:
+      type: object
+      required: [allowed]
+      properties:
+        allowed: { type: boolean, enum: [true] }
     ApplicantFormContentUpdate:
       type: object
       required: [expectedVersion, content]

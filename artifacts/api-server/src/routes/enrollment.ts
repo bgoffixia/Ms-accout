@@ -4132,6 +4132,11 @@ router.post(
 );
 router.use("/admin", requireAdmin);
 
+router.get("/admin/preview/access", requirePrimaryAdmin, (_req, res): void => {
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.json({ allowed: true });
+});
+
 router.get(
   "/admin/invitation-code-settings",
   requirePrimaryAdmin,
