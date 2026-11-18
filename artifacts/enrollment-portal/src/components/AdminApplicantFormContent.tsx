@@ -531,6 +531,8 @@ export function AdminApplicantFormContent({ legacyCopy }: Props) {
               {selectedForm.fields.map((field, index) => {
                 const value =
                   draft[selectedForm.id]?.[field.key] ?? field.defaultValue;
+                const publishedValue =
+                  currentContent[selectedForm.id]?.[field.key] ?? field.defaultValue;
                 const inputId = `fce-field-${selectedForm.id}-${field.key}`;
                 return (
                   <div
