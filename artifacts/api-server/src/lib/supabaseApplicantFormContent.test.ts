@@ -77,7 +77,7 @@ describe("Supabase applicant form content persistence", () => {
     );
   });
 
-  it("uses SUPABASE_SECRET_KEY when the service-role key is not configured", async () => {
+  it("uses SUPABASE_SECRET_KEY as an apikey without a JWT bearer header", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse([
         {
@@ -101,8 +101,37 @@ describe("Supabase applicant form content persistence", () => {
     expect(new Headers(init?.headers).get("apikey")).toBe(
       "unit-test-secret-fallback",
     );
+    expect(new Headers(init?.headers).get("Authorization")).toBeNull();
+  });
+
+
+  it("uses the existing lowercase legacy service-role JWT for bearer auth", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse([
+        {
+          config_key: "applicant-forms",
+          content: {},
+          version: 0,
+          updated_at: "2026-11-17T12:00:00.000Z",
+        },
+      ]),
+    );
+
+    await readApplicantFormContentRow({
+      environment: {
+        SUPABASE_URL: productionEnvironment.SUPABASE_URL,
+        SUPABASE_SECRET_KEY: "unit-test-secret-fallback",
+        supabase_service_role: "unit-test-legacy-jwt",
+      },
+      fetcher,
+    });
+
+    const [, init] = fetcher.mock.calls[0]!;
+    expect(new Headers(init?.headers).get("apikey")).toBe(
+      "unit-test-legacy-jwt",
+    );
     expect(new Headers(init?.headers).get("Authorization")).toBe(
-      "Bearer unit-test-secret-fallback",
+      "Bearer unit-test-legacy-jwt",
     );
   });
 
