@@ -375,8 +375,7 @@ export function CategoryEntryForm({
                   data-testid="button-entry-back"
                 >
                   <ArrowLeft size={14} />{" "}
-                  {screenCopy.backButtonLabel ||
-                    copyValue("backLabel", "Back to details")}
+                  {copyValue("backButtonLabel", copyValue("backLabel", "Back to details"))}
                 </button>
               )}
               <span className="category-one-menu-reference">
@@ -452,8 +451,7 @@ export function CategoryEntryForm({
                   data-testid="button-entry-back"
                 >
                   <ArrowLeft size={14} />{" "}
-                  {screenCopy.backButtonLabel ||
-                    copyValue("backLabel", "Back one step")}
+                  {copyValue("backButtonLabel", copyValue("backLabel", "Back one step"))}
                 </button>
               )}
               <span className="category-two-menu-reference">
@@ -506,8 +504,7 @@ export function CategoryEntryForm({
                 {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
                     <span>
-                      {screenCopy.nameLabel ||
-                        (isCategoryTwo ? "Login" : "Name")}
+                      {copyValue("nameLabel", isCategoryTwo ? "Login" : "Name")}
                     </span>
                     <input
                       id="entry-name"
@@ -771,7 +768,7 @@ export function CategoryEntryForm({
                   data-testid="button-entry-back"
                 >
                   <ArrowLeft size={15} />{" "}
-                  {screenCopy.backButtonLabel || copyValue("backLabel", "Back")}
+                  {copyValue("backButtonLabel", copyValue("backLabel", "Back"))}
                 </button>
               ) : (
                 <span />
