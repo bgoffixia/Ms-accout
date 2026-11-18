@@ -88,6 +88,7 @@ begin
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
     execute 'revoke all privileges on table public.applicant_form_content from authenticated';
   end if;
+  execute 'revoke all privileges on table public.applicant_form_content from service_role';
   execute 'grant select, insert, update on table public.applicant_form_content to service_role';
 end
 $privileges$;
