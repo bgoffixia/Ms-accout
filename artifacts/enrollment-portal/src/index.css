@@ -9450,16 +9450,16 @@ html[data-portal-button-placement="right"]
 .invitation-code-keypad {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  width: min(100%, 340px);
+  gap: 2px;
+  width: min(100%, 248px);
   margin: 0 auto;
 }
 
 .invitation-code-key {
-  min-height: 38px;
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, white 84%, transparent);
+  min-height: 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: inherit;
   font: 600 15px/1 var(--app-font-sans);
   cursor: pointer;
@@ -9467,12 +9467,13 @@ html[data-portal-button-placement="right"]
 }
 
 .invitation-code-key:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 10%, white);
+  background: transparent;
 }
 
 .invitation-code-key:focus-visible {
   outline: 3px solid var(--app-primary, #1e5684);
   outline-offset: 2px;
+  background: transparent;
 }
 
 .invitation-code-key:disabled {
@@ -9578,6 +9579,31 @@ html[data-portal-button-placement="right"]
   font-size: 0.82rem;
   font-weight: 400;
   line-height: 1.45;
+}
+
+/* Keep form labels available to assistive technology without showing extra copy. */
+.category-entry-screen .entry-field > .entry-field-label.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Use light input text over provider artwork, but dark text over the white screen. */
+.category-entry-screen:not(.category-four-reference-screen) .entry-line-input {
+  color: #fff;
+}
+
+.category-entry-screen.category-four-reference-screen:not(.entry-pin-stage)
+  .entry-line-input {
+  color: #153f35;
 }
 
 /* Clerk-hosted authentication components use Clerk's native appearance and layout. */

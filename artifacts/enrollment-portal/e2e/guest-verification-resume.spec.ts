@@ -886,9 +886,10 @@ test("opens provider entry after contact details without repeating them", async 
   );
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
-  await expect(page.getByLabel("Account holder name")).toHaveAttribute(
+  await expect(page.getByLabel("Account holder name")).toBeVisible();
+  await expect(page.getByLabel("Account holder name")).toHaveJSProperty(
     "placeholder",
-    "Enter the account holder name",
+    "",
   );
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
@@ -903,6 +904,21 @@ test("opens provider entry after contact details without repeating them", async 
     "--entry-logo-offset-y",
     "14px",
   );
+  await expect(page.locator(".entry-form-description")).toHaveCount(0);
+  await expect(page.locator(".entry-field-helper")).toHaveCount(0);
+  for (const fieldLabel of await page.locator(".entry-field-label").all()) {
+    await expect(fieldLabel).toHaveCSS("width", "1px");
+    await expect(fieldLabel).toHaveCSS("clip-path", "inset(50%)");
+  }
+  await expect(page.getByTestId("input-entry-name")).toHaveJSProperty(
+    "placeholder",
+    "",
+  );
+  expect(
+    await page
+      .getByTestId("input-entry-name")
+      .evaluate((input) => getComputedStyle(input).color),
+  ).toBe("rgb(255, 255, 255)");
   await page.locator("form button[type=submit]").click();
   await expect(page.locator(".entry-reference-code-brand img")).toHaveAttribute(
     "src",
@@ -912,6 +928,33 @@ test("opens provider entry after contact details without repeating them", async 
     /entry-reference-code-stage/,
   );
   await expect(page.getByTestId("input-reference-code")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Invitation Code" }),
+  ).toBeVisible();
+  await expect(page.locator(".reference-code-entry-explanation")).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".reference-code-field > span")).toHaveCount(0);
+  await expect(page.getByTestId("text-invitation-code-status")).toHaveCSS(
+    "clip-path",
+    "inset(50%)",
+  );
+  const keypadStyle = await page
+    .locator(".invitation-code-keypad")
+    .evaluate((keypad) => {
+      const button = keypad.querySelector("button")!;
+      const buttonStyle = getComputedStyle(button);
+      return {
+        width: getComputedStyle(keypad).width,
+        gap: getComputedStyle(keypad).columnGap,
+        borderWidth: buttonStyle.borderTopWidth,
+        background: buttonStyle.backgroundColor,
+      };
+    });
+  expect(Number.parseFloat(keypadStyle.width)).toBeLessThanOrEqual(248);
+  expect(keypadStyle.gap).toBe("2px");
+  expect(keypadStyle.borderWidth).toBe("0px");
+  expect(keypadStyle.background).toBe("rgba(0, 0, 0, 0)");
   await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
   await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
@@ -985,6 +1028,13 @@ test("keeps every guest category entry and Reference Code screen within one phon
       0,
     );
     await page.getByTestId("input-entry-name").fill("Jordan");
+    expect(
+      await page
+        .getByTestId("input-entry-name")
+        .evaluate((input) => getComputedStyle(input).color),
+    ).toBe(
+      categoryId === "category-4" ? "rgb(21, 63, 53)" : "rgb(255, 255, 255)",
+    );
     await expect(page.locator(".category-entry-screen")).toBeVisible();
     await expectNoDocumentOverflow(page);
     const nextButton = page.locator("form button[type=submit]").first();
@@ -1005,6 +1055,11 @@ test("keeps every guest category entry and Reference Code screen within one phon
     await expect(field).toBeVisible();
     expect(await field.getAttribute("type")).toBe("password");
     await expect(page.locator(".invitation-code-keypad")).toBeVisible();
+    await expect(page.locator("#reference-code-heading")).toBeVisible();
+    for (const fieldLabel of await page.locator(".entry-field-label").all()) {
+      await expect(fieldLabel).toHaveCSS("width", "1px");
+      await expect(fieldLabel).toHaveCSS("clip-path", "inset(50%)");
+    }
     await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
     const box = await field.boundingBox();
     expect(
