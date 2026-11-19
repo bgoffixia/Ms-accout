@@ -8677,24 +8677,7 @@ function PublicApplicantDashboard({
           <PageHeading
             eyebrow={formText.eyebrow || "APPLICANT DASHBOARD"}
             title={formText.title || "Choose an account provider."}
-            detail={
-              formText.description ||
-              "Start or continue your application without creating an account. Identity files and verification video are collected later."
-            }
           />
-          {contact && (
-            <div
-              className="guest-dashboard-contact"
-              data-testid="guest-dashboard-contact"
-            >
-              <div>
-                <span>CONTACT DETAILS</span>
-                <strong>{contact.fullName}</strong>
-                <small>{contact.email}</small>
-                {contact.phone && <small>{contact.phone}</small>}
-              </div>
-            </div>
-          )}
           {startError && (
             <p
               className="guest-inline-error"
@@ -8849,64 +8832,6 @@ function PublicApplicantDashboard({
             )}
           </section>
         </div>
-        <aside className="dashboard-aside guest-applicant-dashboard-aside">
-          <div className="summary-card" data-testid="guest-dashboard-overview">
-            <div className="summary-head">
-              <span className="summary-label">
-                {formText.guestLabel || "GUEST ENROLLMENT"}
-              </span>
-              <ShieldCheck size={17} />
-            </div>
-            <div className="summary-total">
-              {formText.openAccessLabel || "Open"}
-              <span> {formText.accessDescription || "applicant access"}</span>
-            </div>
-            <div className="summary-list">
-              <div className="summary-line">
-                <span>
-                  <i className="summary-dot green" />
-                  {formText.noAccountLabel || "No account required"}
-                </span>
-              </div>
-              <div className="summary-line">
-                <span>
-                  <i className="summary-dot blue" />
-                  {formText.progressLabel || "Save as you progress"}
-                </span>
-              </div>
-            </div>
-            <div className="summary-foot">
-              {formText.summaryFoot ||
-                "Email confirmation is requested before final submission."}
-            </div>
-          </div>
-          {!previewMode && (
-            <div className="help-card">
-              <div className="help-icon">
-                <FileCheck2 size={17} />
-              </div>
-              <div>
-                <b>{formText.alreadyStartedTitle || "Already started?"}</b>
-                <p>
-                  {formText.alreadyStartedDescription ||
-                    "Use your application reference and private tracking key to view saved progress and security verification status."}
-                </p>
-                <Link
-                  href="/guest/track"
-                  className="text-action"
-                  data-testid="link-dashboard-track"
-                >
-                  {formText.trackLabel || "Track Security Verification Status"}{" "}
-                  <ArrowRight size={14} />
-                </Link>
-              </div>
-            </div>
-          )}
-          <div className="aside-note">
-            <LockKeyhole size={15} />
-            <span>Your progress stays private and secure.</span>
-          </div>
-        </aside>
       </div>
     </AppFrame>
   );

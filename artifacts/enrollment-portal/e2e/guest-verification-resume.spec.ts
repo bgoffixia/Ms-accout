@@ -32,6 +32,9 @@ class GuestApiFixture {
   lookupCount = 0;
   invitationCodeLength = 8;
   categoryOneTitle = "Account Provider One";
+  landingTitle = "Enrollment";
+  landingDescription = "Complete your enrollment.";
+  landingButtonLabel = "Get started";
   screenCopyOverrides: Record<string, Record<string, string>> = {};
   formContentOverrides: Record<string, Record<string, string>> = {};
   readonly requestCounts = new Map<string, number>();
@@ -87,9 +90,9 @@ class GuestApiFixture {
     if (method === "GET" && path === "/api/portal/settings") {
       return json({
         hero: {
-          title: "Enrollment",
-          description: "Complete your enrollment.",
-          getStartedLabel: "Get started",
+          title: this.landingTitle,
+          description: this.landingDescription,
+          getStartedLabel: this.landingButtonLabel,
           loginLabel: "Sign in",
         },
         cards: ["category-1", "category-2", "category-3", "category-4"].map(
@@ -706,7 +709,7 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
   }
 });
 
-test("uses the persisted server form copy ahead of legacy portal text", async ({
+test("uses the saved dashboard title and keeps its removed description hidden", async ({
   page,
 }) => {
   const api = new GuestApiFixture();
@@ -727,7 +730,37 @@ test("uses the persisted server form copy ahead of legacy portal text", async ({
     page.getByText(
       "Saved instructions from the central form content settings.",
     ),
-  ).toBeVisible();
+  ).toHaveCount(0);
+});
+
+test("keeps saved public landing copy visible after a full page refresh", async ({
+  page,
+}) => {
+  const api = new GuestApiFixture();
+  api.landingTitle = "Persistent security landing";
+  api.landingDescription = "Persisted public security guidance.";
+  api.landingButtonLabel = "Continue securely";
+  await page.route("**/api/**", (route) => api.handle(route));
+
+  const expectLandingCopy = async () => {
+    await expect(
+      page.getByRole("heading", { name: "Persistent security landing" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Persisted public security guidance."),
+    ).toBeVisible();
+    await expect(page.getByTestId("link-get-started")).toContainText(
+      "Continue securely",
+    );
+  };
+
+  await page.goto("/");
+  await expectLandingCopy();
+  await page.reload();
+  await expectLandingCopy();
+  expect(
+    api.requestCounts.get("GET /api/portal/settings"),
+  ).toBeGreaterThanOrEqual(2);
 });
 
 test("reuses shared portal and form configuration while navigating", async ({
@@ -742,6 +775,9 @@ test("reuses shared portal and form configuration while navigating", async ({
   await expect(
     page.getByTestId("guest-applicant-dashboard-content"),
   ).toBeVisible();
+  await expect(page.getByTestId("guest-dashboard-overview")).toHaveCount(0);
+  await expect(page.locator(".guest-applicant-dashboard-aside")).toHaveCount(0);
+  await expect(page.getByTestId("link-dashboard-track")).toHaveCount(0);
   expect(api.requestCounts.get("GET /api/portal/settings")).toBe(1);
   expect(api.requestCounts.get("GET /api/applicant/form-content")).toBe(1);
   expect(api.requestCounts.get("GET /api/enrollment/categories")).toBe(1);
@@ -768,9 +804,21 @@ test("collects contact details before the dashboard and removes them from provid
   await fillContactAndContinue(page, "Jordan Applicant", "jordan@example.test");
   expect(api.createCount).toBe(0);
   expect(api.applicantWriteCount).toBe(0);
-  await expect(page.getByTestId("guest-dashboard-contact")).toContainText(
-    "Jordan Applicant",
-  );
+  await expect(page.getByTestId("guest-dashboard-contact")).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Start or continue your application without creating an account. Identity files and verification video are collected later.",
+    ),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("guest-dashboard-overview")).toHaveCount(0);
+  const savedContact = await page.evaluate(() => {
+    const value = window.sessionStorage.getItem("guest-dashboard-contact");
+    return value ? JSON.parse(value) : null;
+  });
+  expect(savedContact).toMatchObject({
+    fullName: "Jordan Applicant",
+    email: "jordan@example.test",
+  });
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expect(page).toHaveURL(/\/guest\/apply\?provider=category-1$/);
   await expect(
@@ -817,9 +865,7 @@ test("does not show the contact step again after contact details were saved", as
     page.getByTestId("guest-applicant-dashboard-content"),
   ).toBeVisible();
   await expect(page.getByTestId("contact-details-form")).toHaveCount(0);
-  await expect(page.getByTestId("guest-dashboard-contact")).toContainText(
-    "Jordan Applicant",
-  );
+  await expect(page.getByTestId("guest-dashboard-contact")).toHaveCount(0);
   expect(api.createCount).toBe(0);
   expect(api.applicantWriteCount).toBe(0);
 });
@@ -882,7 +928,7 @@ test("opens provider entry after contact details without repeating them", async 
   await expect(
     page.getByTestId("guest-applicant-dashboard-content"),
   ).toBeVisible();
-  await expect(page.getByTestId("guest-dashboard-overview")).toBeHidden();
+  await expect(page.getByTestId("guest-dashboard-overview")).toHaveCount(0);
   await expect(page.getByTestId("link-compact-guest-track")).toBeVisible();
   await expect(page.getByTestId("link-nav-track")).toHaveCount(1);
   await expect(page.getByTestId("link-nav-admin")).toHaveCount(0);
@@ -892,7 +938,7 @@ test("opens provider entry after contact details without repeating them", async 
   ).toHaveCount(1);
   await expect(
     page.getByText("This dashboard introduction should appear once."),
-  ).toHaveCount(1);
+  ).toHaveCount(0);
   await expect(
     page.getByTestId("guest-dashboard-category-category-1"),
   ).toBeVisible();
@@ -1010,17 +1056,29 @@ test("opens provider entry after contact details without repeating them", async 
     .evaluate((keypad) => {
       const button = keypad.querySelector("button")!;
       const buttonStyle = getComputedStyle(button);
+      const codeInput =
+        document.querySelector<HTMLInputElement>("#reference-code")!;
       return {
         width: getComputedStyle(keypad).width,
         gap: getComputedStyle(keypad).columnGap,
         borderWidth: buttonStyle.borderTopWidth,
         background: buttonStyle.backgroundColor,
+        keyHeight: Number.parseFloat(buttonStyle.minHeight),
+        codeInputWidth: Number.parseFloat(getComputedStyle(codeInput).width),
       };
     });
   expect(Number.parseFloat(keypadStyle.width)).toBeLessThanOrEqual(248);
   expect(keypadStyle.gap).toBe("2px");
   expect(keypadStyle.borderWidth).toBe("0px");
   expect(keypadStyle.background).toBe("rgba(0, 0, 0, 0)");
+  expect(keypadStyle.keyHeight).toBeCloseTo(33.6, 1);
+  expect(keypadStyle.codeInputWidth).toBeLessThanOrEqual(240);
+  const continueButton = await page
+    .locator(".entry-actions .entry-primary-button")
+    .boundingBox();
+  expect(continueButton).not.toBeNull();
+  expect(continueButton!.width).toBeLessThanOrEqual(220);
+  expect(continueButton!.height).toBeLessThanOrEqual(44);
   await expect(page.locator(".pin-entry-keypad")).toHaveCount(0);
   await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
   await expectNoDocumentOverflow(page);
