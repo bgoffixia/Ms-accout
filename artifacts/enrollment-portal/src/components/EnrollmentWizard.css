@@ -234,10 +234,15 @@
   flex-direction: column;
 }
 .ew-preview-fields {
+  display: flex;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   border: 0;
+  overflow: hidden;
 }
 .ew-content-scroll {
   width: min(100%, 1030px);
@@ -750,6 +755,7 @@
 
 .ew-form-footer {
   display: flex;
+  flex: 0 0 auto;
   min-height: 71px;
   flex-wrap: wrap;
   align-items: center;

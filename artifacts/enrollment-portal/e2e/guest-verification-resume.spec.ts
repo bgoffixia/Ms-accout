@@ -469,6 +469,30 @@ async function fillStage(page: Page, fields: Record<string, string>) {
   for (const [testId, value] of Object.entries(fields)) {
     await page.getByTestId(testId).fill(value);
   }
+  await continueWizard(page);
+}
+
+async function expectWizardActionVisible(page: Page, testId: string) {
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  const button = page.getByTestId(testId);
+  await expect(button).toBeVisible();
+  const buttonBox = await button.boundingBox();
+  const footerBox = await page.locator(".ew-form-footer").last().boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(footerBox).not.toBeNull();
+  expect(buttonBox!.y).toBeGreaterThanOrEqual(0);
+  expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(
+    viewport!.height + 1,
+  );
+  expect(footerBox!.y).toBeGreaterThanOrEqual(0);
+  expect(footerBox!.y + footerBox!.height).toBeLessThanOrEqual(
+    viewport!.height + 1,
+  );
+}
+
+async function continueWizard(page: Page) {
+  await expectWizardActionVisible(page, "button-save-next");
   await page.locator("form.ew-form button[type=submit]").click();
 }
 
@@ -1309,7 +1333,8 @@ test("submits without email OTP and opens status with the private tracking key",
   await page.locator("form button[type=submit]").click();
   await expect(page.getByTestId("enrollment-wizard")).toBeVisible();
   const trackingKey = await readSessionTrackingKey(page);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 390, height: 568 });
+  await expectWizardActionVisible(page, "button-save-next");
   await expectNoDocumentOverflow(page);
 
   await fillStage(page, {
@@ -1343,11 +1368,11 @@ test("submits without email OTP and opens status with the private tracking key",
   await page
     .getByTestId("select-education.certificationStatus")
     .selectOption("Completed");
-  await page.locator("form.ew-form button[type=submit]").click();
+  await continueWizard(page);
   await page
     .getByTestId("select-workInformation.employmentStatus")
     .selectOption("Not currently employed");
-  await page.locator("form.ew-form button[type=submit]").click();
+  await continueWizard(page);
   await page
     .getByTestId("select-proofOfIdentity.documentType")
     .selectOption("Passport");
@@ -1360,7 +1385,7 @@ test("submits without email OTP and opens status with the private tracking key",
     ),
   });
   await expect.poll(() => api.uploadedEvidence.length).toBe(1);
-  await page.locator("form.ew-form button[type=submit]").click();
+  await continueWizard(page);
   await page.getByTestId("check-video-consent").check();
   await page.getByTestId("button-enable-camera").click();
   await page.getByTestId("button-start-recording").click();
@@ -1368,9 +1393,9 @@ test("submits without email OTP and opens status with the private tracking key",
     timeout: 20_000,
   });
   await page.getByTestId("button-confirm-recording").click();
-  await page.locator("form.ew-form button[type=submit]").click();
+  await continueWizard(page);
   await expect.poll(() => api.uploadedEvidence.length).toBe(2);
-  await page.locator("form.ew-form button[type=submit]").click();
+  await continueWizard(page);
   await expect(page.getByTestId("section-declaration")).toHaveCount(0);
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
   await expect(page.getByTestId("select-category-change")).toHaveCount(0);
@@ -1391,6 +1416,7 @@ test("submits without email OTP and opens status with the private tracking key",
     page.getByTestId("button-submit-enrollment"),
     `Submission readiness: ${await page.getByTestId("state-submit-readiness").innerText()}`,
   ).toBeEnabled();
+  await expectWizardActionVisible(page, "button-submit-enrollment");
   await page.getByTestId("button-submit-enrollment").click();
   await expect(page.getByTestId("modal-guest-email-otp")).toHaveCount(0);
 
@@ -1561,7 +1587,7 @@ test("lets guests continue with incomplete details and an optional Invitation Co
   await expectNoDocumentOverflow(page);
 
   for (let step = 0; step < 7; step += 1) {
-    await page.locator("form.ew-form button[type=submit]").click();
+    await continueWizard(page);
     await expectNoDocumentOverflow(page);
   }
   await expect(page.getByTestId("section-declaration")).toHaveCount(0);
