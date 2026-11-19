@@ -468,6 +468,35 @@ async function fillStage(page: Page, fields: Record<string, string>) {
   await page.locator("form.ew-form button[type=submit]").click();
 }
 
+async function seedGuestContact(page: Page) {
+  await page.addInitScript(() => {
+    if (!window.sessionStorage.getItem("guest-dashboard-contact")) {
+      window.sessionStorage.setItem(
+        "guest-dashboard-contact",
+        JSON.stringify({
+          fullName: "Jordan Applicant",
+          email: "jordan@example.test",
+          phone: "+678 801 234 5678",
+        }),
+      );
+    }
+  });
+}
+
+async function fillContactAndContinue(
+  page: Page,
+  fullName = "Jordan Applicant",
+  email = "jordan@example.test",
+) {
+  await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
+  await page.getByTestId("input-guest-full-name").fill(fullName);
+  await page.getByTestId("input-guest-email").fill(email);
+  await page.getByTestId("button-continue-guest-contact").click();
+  await expect(
+    page.getByTestId("guest-applicant-dashboard-content"),
+  ).toBeVisible();
+}
+
 async function readSessionTrackingKey(page: Page) {
   const key = await page.evaluate(() => {
     const raw = window.sessionStorage.getItem("guest-private-resume");
@@ -621,13 +650,20 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
     });
   });
 
+  await seedGuestContact(page);
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 390, height: 568 },
     { width: 1280, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
-    for (const path of ["/", "/guest/apply", "/dashboard", "/guest/track"]) {
+    for (const path of [
+      "/",
+      "/guest/contact",
+      "/guest/apply",
+      "/dashboard",
+      "/guest/track",
+    ]) {
       await page.goto(path);
       await expect(page.locator(".portal-frame")).toBeVisible();
       await expectNoDocumentOverflow(page);
@@ -641,6 +677,8 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
       } else if (path === "/guest/apply") {
         await expect(page).toHaveURL(/\/dashboard$/);
         await expect(page.locator(".app-shell")).toBeVisible();
+      } else if (path === "/guest/contact") {
+        await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
       } else if (path !== "/") {
         await expect(page.locator(".guest-page")).toHaveCSS(
           "overflow-y",
@@ -662,7 +700,9 @@ test("uses the persisted server form copy ahead of legacy portal text", async ({
     },
   };
   await page.route("**/api/**", (route) => api.handle(route));
-  await page.goto("/dashboard");
+  await page.goto("/");
+  await page.getByTestId("link-get-started").click();
+  await fillContactAndContinue(page);
   await expect(
     page.getByRole("heading", { name: "Saved account providers" }),
   ).toBeVisible();
@@ -678,13 +718,10 @@ test("reuses shared portal and form configuration while navigating", async ({
 }) => {
   const api = new GuestApiFixture();
   await page.route("**/api/**", (route) => api.handle(route));
-  await page.goto("/dashboard");
-  await expect(
-    page.getByTestId("guest-applicant-dashboard-content"),
-  ).toBeVisible();
-  await page.getByTestId("link-nav-home").click();
+  await page.goto("/");
   await expect(page.getByTestId("link-get-started")).toBeVisible();
   await page.getByTestId("link-get-started").click();
+  await fillContactAndContinue(page);
   await expect(
     page.getByTestId("guest-applicant-dashboard-content"),
   ).toBeVisible();
@@ -693,7 +730,7 @@ test("reuses shared portal and form configuration while navigating", async ({
   expect(api.requestCounts.get("GET /api/enrollment/categories")).toBe(1);
 });
 
-test("opens provider entry directly and includes contact fields in that form", async ({
+test("collects contact details before the dashboard and removes them from provider entry", async ({
   page,
 }) => {
   const api = new GuestApiFixture();
@@ -706,21 +743,45 @@ test("opens provider entry directly and includes contact fields in that form", a
     "category-entry-1": { title: "Provider form" },
   };
   await page.route("**/api/**", (route) => api.handle(route));
-  await page.goto("/guest/apply");
-  await expect(
-    page.getByTestId("guest-applicant-dashboard-content"),
-  ).toBeVisible();
+  await page.goto("/guest/apply?provider=category-1");
+  await expect(page).toHaveURL(/\/guest\/contact$/);
+  await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
+  await fillContactAndContinue(page, "Jordan Applicant", "jordan@example.test");
+  expect(api.createCount).toBe(0);
+  expect(api.applicantWriteCount).toBe(0);
+  await expect(page.getByTestId("guest-dashboard-contact")).toContainText(
+    "Jordan Applicant",
+  );
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expect(page).toHaveURL(/\/guest\/apply\?provider=category-1$/);
   await expect(
     page.getByRole("heading", { name: "Provider form" }),
   ).toBeVisible();
-  await expect(page.getByTestId("provider-entry-contact-fields")).toBeVisible();
-  await expect(page.getByLabel("Legal name")).toBeVisible();
-  await expect(page.getByLabel("Verified contact email")).toBeVisible();
+  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("input-provider-contact-name")).toHaveCount(0);
+  await expect(page.getByTestId("input-provider-contact-email")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Your contact details" }),
   ).toHaveCount(0);
+  expect(api.createCount).toBe(0);
+  expect(api.applicantWriteCount).toBe(0);
+});
+
+test("requires contact details before opening the applicant dashboard directly", async ({
+  page,
+}) => {
+  const api = new GuestApiFixture();
+  await page.route("**/api/**", (route) => api.handle(route));
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/guest\/contact$/);
+  await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
+  await expect(
+    page.getByTestId("guest-applicant-dashboard-content"),
+  ).toHaveCount(0);
+  expect(api.createCount).toBe(0);
+  expect(api.applicantWriteCount).toBe(0);
 });
 
 test("denies signed-out Admin preview without creating applicant data", async ({
@@ -735,7 +796,7 @@ test("denies signed-out Admin preview without creating applicant data", async ({
   expect(api.createCount).toBe(0);
 });
 
-test("starts the selected provider form without a contact-form interstitial", async ({
+test("opens provider entry after contact details without repeating them", async ({
   page,
 }) => {
   const api = new GuestApiFixture();
@@ -748,6 +809,7 @@ test("starts the selected provider form without a contact-form interstitial", as
     },
   };
   await page.setViewportSize({ width: 390, height: 568 });
+  await seedGuestContact(page);
   await page.route("**/api/**", (route) => api.handle(route));
 
   await page.goto("/dashboard");
@@ -819,12 +881,9 @@ test("starts the selected provider form without a contact-form interstitial", as
   await expect(
     page.getByRole("heading", { name: "Provider account details" }),
   ).toBeVisible();
-  await page
-    .getByTestId("input-provider-contact-name")
-    .fill("Jordan Applicant");
-  await page
-    .getByTestId("input-provider-contact-email")
-    .fill("jordan@example.test");
+  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+    0,
+  );
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await expect(page.getByLabel("Account holder name")).toHaveAttribute(
@@ -874,16 +933,11 @@ test("preserves provider-entry progress across back navigation and reload", asyn
 
   await page.goto("/");
   await page.getByTestId("link-get-started").click();
+  await fillContactAndContinue(page);
   await expect(
     page.getByTestId("guest-applicant-dashboard-content"),
   ).toBeVisible();
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await page
-    .getByTestId("input-provider-contact-name")
-    .fill("Jordan Applicant");
-  await page
-    .getByTestId("input-provider-contact-email")
-    .fill("jordan@example.test");
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await page.goBack();
@@ -891,8 +945,8 @@ test("preserves provider-entry progress across back navigation and reload", asyn
     page.getByTestId("guest-applicant-dashboard-content"),
   ).toBeVisible();
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await expect(page.getByTestId("input-provider-contact-name")).toHaveValue(
-    "Jordan Applicant",
+  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+    0,
   );
   await expect(page.getByTestId("input-entry-name")).toHaveValue("Jordan");
   await expect(page.getByTestId("input-entry-nickname")).toHaveValue("Jo");
@@ -900,9 +954,10 @@ test("preserves provider-entry progress across back navigation and reload", asyn
   await page.reload();
   await expect(page.getByTestId("link-get-started")).toBeVisible();
   await page.getByTestId("link-get-started").click();
+  await page.getByTestId("button-continue-guest-contact").click();
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await expect(page.getByTestId("input-provider-contact-name")).toHaveValue(
-    "Jordan Applicant",
+  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+    0,
   );
   await expect(page.getByTestId("input-entry-name")).toHaveValue("Jordan");
   expect(api.createCount).toBe(0);
@@ -923,14 +978,12 @@ test("keeps every guest category entry and Reference Code screen within one phon
     const page = await context.newPage();
     const api = new GuestApiFixture();
     await page.route("**/api/**", (route) => api.handle(route));
+    await seedGuestContact(page);
     await page.goto("/dashboard");
     await page.getByTestId(`guest-dashboard-category-${categoryId}`).click();
-    await page
-      .getByTestId("input-provider-contact-name")
-      .fill("Jordan Applicant");
-    await page
-      .getByTestId("input-provider-contact-email")
-      .fill("jordan@example.test");
+    await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+      0,
+    );
     await page.getByTestId("input-entry-name").fill("Jordan");
     await expect(page.locator(".category-entry-screen")).toBeVisible();
     await expectNoDocumentOverflow(page);
@@ -966,7 +1019,7 @@ test("keeps every guest category entry and Reference Code screen within one phon
   }
 });
 
-test("redirects retired account-based applicant URLs to the shared dashboard", async ({
+test("routes retired applicant URLs through contact details before the dashboard", async ({
   page,
 }) => {
   const api = new GuestApiFixture();
@@ -977,10 +1030,8 @@ test("redirects retired account-based applicant URLs to the shared dashboard", a
     "/applications/legacy-application-id",
   ]) {
     await page.goto(oldPath);
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(
-      page.getByTestId("guest-dashboard-category-category-1"),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/guest\/contact$/);
+    await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
   }
 });
 
@@ -1029,15 +1080,13 @@ test("submits without email OTP and opens status with the private tracking key",
 
   await page.goto("/");
   await page.getByTestId("link-get-started").click();
+  await fillContactAndContinue(page);
   await expectNoDocumentOverflow(page);
   await page.getByTestId("guest-dashboard-category-category-1").click();
   await expectNoDocumentOverflow(page);
-  await page
-    .getByTestId("input-provider-contact-name")
-    .fill("Jordan Applicant");
-  await page
-    .getByTestId("input-provider-contact-email")
-    .fill("jordan@example.test");
+  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+    0,
+  );
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await page.getByTestId("input-entry-name").fill("Jordan");
@@ -1268,6 +1317,7 @@ test("lets guests continue with incomplete details and an optional Invitation Co
     },
   };
   await page.setViewportSize({ width: 390, height: 568 });
+  await seedGuestContact(page);
   await page.route("**/api/**", (route) => api.handle(route));
   await page.route("**/api/__clerk/v1/client/**", (route) =>
     route.fulfill({
@@ -1281,12 +1331,9 @@ test("lets guests continue with incomplete details and an optional Invitation Co
 
   await page.goto("/dashboard");
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await page
-    .getByTestId("input-provider-contact-name")
-    .fill("Jordan Applicant");
-  await page
-    .getByTestId("input-provider-contact-email")
-    .fill("jordan@example.test");
+  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
+    0,
+  );
   await expect(page.getByTestId("input-entry-name")).toBeVisible();
   await expect(page.getByTestId("select-guest-category")).toHaveCount(0);
   await expect(page.getByTestId("input-entry-name")).not.toHaveAttribute(

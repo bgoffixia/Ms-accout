@@ -816,7 +816,7 @@ function PublicLanding({
               </button>
             ) : (
               <Link
-                href="/dashboard"
+                href="/guest/contact"
                 className="button button-primary"
                 data-testid="link-get-started"
               >
@@ -8430,15 +8430,8 @@ const guestContactSchema = z.object({
     )
     .optional(),
 });
-const guestApplicationSchema = guestContactSchema.extend({
-  categoryId: z.string().min(1, "Choose an account provider."),
-});
-type GuestApplicationValues = z.infer<typeof guestApplicationSchema>;
-const guestDashboardStartSchema = guestApplicationSchema;
+type GuestContactValues = z.infer<typeof guestContactSchema>;
 const GUEST_DASHBOARD_CONTACT_KEY = "guest-dashboard-contact";
-const GUEST_DASHBOARD_START_KEY = "guest-dashboard-start";
-const GUEST_DASHBOARD_PENDING_CATEGORY_KEY = "guest-dashboard-pending-category";
-const GUEST_CONTACT_STEP_PASSED_KEY = "guest-contact-step-passed";
 const GUEST_RESUME_KEY = "guest-private-resume";
 const GUEST_PENDING_SUBMISSION_KEY = "guest-pending-submission";
 const GUEST_PROVIDER_ENTRY_DRAFT_PREFIX = "guest-provider-entry:";
@@ -8563,14 +8556,6 @@ function readGuestProviderEntryDraft(
   }
 }
 
-function guestContactStepPassed() {
-  try {
-    return window.sessionStorage.getItem(GUEST_CONTACT_STEP_PASSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 const guestLookupSchema = z.object({
   reference: z
     .string()
@@ -8660,14 +8645,7 @@ function PublicApplicantDashboard({
       return;
     }
     if (!contact) {
-      try {
-        setLocation(`/guest/apply?provider=${encodeURIComponent(categoryId)}`);
-      } catch {
-        setStartError(
-          formText.saveError ||
-            "Your account provider could not be saved in this browser. Enable session storage and try again.",
-        );
-      }
+      setLocation("/guest/contact");
       return;
     }
     try {
@@ -8705,7 +8683,10 @@ function PublicApplicantDashboard({
             }
           />
           {contact && (
-            <div className="guest-dashboard-contact">
+            <div
+              className="guest-dashboard-contact"
+              data-testid="guest-dashboard-contact"
+            >
               <div>
                 <span>CONTACT DETAILS</span>
                 <strong>{contact.fullName}</strong>
@@ -8932,10 +8913,20 @@ function PublicApplicantDashboard({
 }
 
 function ApplicantDashboardRoute() {
-  return <PublicApplicantDashboard />;
+  const [, setLocation] = useLocation();
+  const hasContact = Boolean(readGuestDashboardContact());
+  useEffect(() => {
+    if (!hasContact) setLocation("/guest/contact", { replace: true });
+  }, [hasContact, setLocation]);
+  return hasContact ? (
+    <PublicApplicantDashboard />
+  ) : (
+    <GuestApplicationPage forceContactStep />
+  );
 }
 
-type AdminPreviewScreen = "landing" | "providers" | "entry" | "wizard";
+type AdminPreviewScreen =
+  "landing" | "contact" | "providers" | "entry" | "wizard";
 
 function AdminPortalPreviewPage() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
@@ -9099,8 +9090,84 @@ function AdminPortalPreviewPage() {
       {screen === "landing" && (
         <PublicLanding
           previewMode
-          onPreviewStart={() => setScreen("providers")}
+          onPreviewStart={() => setScreen("contact")}
         />
+      )}
+      {screen === "contact" && (
+        <main className="guest-page portal-frame">
+          <GuestPublicHeader />
+          <div className="guest-page-grid">
+            <section
+              className="guest-form-card"
+              aria-labelledby="preview-contact-heading"
+            >
+              <div className="guest-form-topline">
+                <span>APPLICATION</span>
+                <span>STEP 1 OF 4</span>
+              </div>
+              <h2 id="preview-contact-heading">
+                {formTextQuery.content["applicant-contact"]?.title ||
+                  "Your contact details"}
+              </h2>
+              <p className="guest-form-subtitle">
+                {formTextQuery.content["applicant-contact"]?.description ||
+                  "Enter your contact details as it appears in your account and identity documents to proceed"}
+              </p>
+              <div className="guest-form">
+                <label className="guest-field">
+                  <span>
+                    {formTextQuery.content["applicant-contact"]
+                      ?.fullNameLabel || "Full name"}
+                  </span>
+                  <input
+                    disabled
+                    placeholder={
+                      formTextQuery.content["applicant-contact"]
+                        ?.fullNamePlaceholder ||
+                      "As shown on your identity document"
+                    }
+                  />
+                </label>
+                <label className="guest-field">
+                  <span>
+                    {formTextQuery.content["applicant-contact"]?.emailLabel ||
+                      "Email address"}
+                  </span>
+                  <input
+                    disabled
+                    placeholder={
+                      formTextQuery.content["applicant-contact"]
+                        ?.emailPlaceholder || "you@example.com"
+                    }
+                  />
+                </label>
+                <label className="guest-field">
+                  <span>
+                    {formTextQuery.content["applicant-contact"]?.phoneLabel ||
+                      "Phone number"}
+                  </span>
+                  <input
+                    disabled
+                    placeholder={
+                      formTextQuery.content["applicant-contact"]
+                        ?.phonePlaceholder || "+678 801 234 5678"
+                    }
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="button button-primary guest-submit"
+                  onClick={() => setScreen("providers")}
+                  data-testid="button-preview-contact-continue"
+                >
+                  {formTextQuery.content["applicant-contact"]?.continueLabel ||
+                    "Confirm and proceed verification"}{" "}
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </section>
+          </div>
+        </main>
       )}
       {screen === "providers" && (
         <PublicApplicantDashboard
@@ -9502,13 +9569,16 @@ function GuestEmailVerificationDialog({
   );
 }
 
-function GuestApplicationPage() {
+function GuestApplicationPage({
+  forceContactStep = false,
+}: {
+  forceContactStep?: boolean;
+} = {}) {
   const categories = useListEnrollmentCategories();
   const portalSettings = useGetPortalSettings();
   const formTextQuery = useApplicantFormText(portalSettings.data?.screenCopy);
   const formCopy = formTextQuery.content;
   const contactCopy = formCopy["applicant-contact"] ?? {};
-  const providerCopy = formCopy["applicant-provider-selection"] ?? {};
   const requestedProviderId = new URLSearchParams(window.location.search).get(
     "provider",
   );
@@ -9568,49 +9638,31 @@ function GuestApplicationPage() {
   >({});
   const [stage, setStage] = useState<
     | "contact"
-    | "category"
     | "providerEntry"
     | "categoryEntry"
     | "application"
     | "complete"
     | "closed"
-  >(requestedProviderId ? "providerEntry" : "contact");
+  >(requestedProviderId && !forceContactStep ? "providerEntry" : "contact");
   const [isContinuing, setIsContinuing] = useState(false);
   const [contactSaveError, setContactSaveError] = useState("");
   const [progressError, setProgressError] = useState("");
   const [resumeError, setResumeError] = useState("");
   const [resumeLoading, setResumeLoading] = useState(false);
   const resumeStarted = useRef(false);
-  const dashboardStartStarted = useRef(false);
-  const [dashboardStartValues, setDashboardStartValues] =
-    useState<GuestApplicationValues | null>(null);
   const pendingSubmissionRef = useRef<{
     fingerprint: string;
     input: GuestPreapplicationInput;
   } | null>(null);
   const createGuestInFlightRef = useRef(false);
-  const form = useForm<GuestApplicationValues>({
-    resolver: zodResolver(guestApplicationSchema),
+  const form = useForm<GuestContactValues>({
+    resolver: zodResolver(guestContactSchema),
     defaultValues: {
-      categoryId: "",
       fullName: readGuestDashboardContact()?.fullName ?? "",
       email: readGuestDashboardContact()?.email ?? "",
       phone: readGuestDashboardContact()?.phone ?? "",
     },
   });
-  const persistProviderContact = useCallback(
-    (contactDetails: { fullName: string; email: string; phone: string }) => {
-      try {
-        window.sessionStorage.setItem(
-          GUEST_DASHBOARD_CONTACT_KEY,
-          JSON.stringify(contactDetails),
-        );
-      } catch {
-        // Keep the active form usable if this browser blocks session storage.
-      }
-    },
-    [],
-  );
   const persistProviderEntryAnswers = useCallback(
     (
       providerId: EnrollmentCategory["id"],
@@ -9778,7 +9830,6 @@ function GuestApplicationPage() {
 
   const continueToCategory = async () => {
     setIsContinuing(true);
-    let startAfterContact = false;
     const contactDetails = guestContactSchema.safeParse({
       fullName: form.getValues("fullName"),
       email: form.getValues("email"),
@@ -9794,37 +9845,6 @@ function GuestApplicationPage() {
         GUEST_DASHBOARD_CONTACT_KEY,
         JSON.stringify(contactDetails.data),
       );
-      window.sessionStorage.setItem(GUEST_CONTACT_STEP_PASSED_KEY, "1");
-      const pendingCategoryId = window.sessionStorage.getItem(
-        GUEST_DASHBOARD_PENDING_CATEGORY_KEY,
-      );
-      if (pendingCategoryId) {
-        const start = guestDashboardStartSchema.safeParse({
-          ...contactDetails.data,
-          categoryId: pendingCategoryId,
-        });
-        if (!start.success) {
-          window.sessionStorage.removeItem(
-            GUEST_DASHBOARD_PENDING_CATEGORY_KEY,
-          );
-          setContactSaveError(
-            contactCopy.providerRestoreError ||
-              "Your selected account provider could not be restored. Return to the dashboard and choose it again.",
-          );
-          setIsContinuing(false);
-          return;
-        }
-        window.sessionStorage.setItem(
-          GUEST_DASHBOARD_START_KEY,
-          JSON.stringify(start.data),
-        );
-        window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
-        dashboardStartStarted.current = false;
-        setDashboardStartValues(start.data);
-        startAfterContact = true;
-      } else {
-        window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
-      }
     } catch {
       setContactSaveError(
         contactCopy.sessionStorageError ||
@@ -9836,82 +9856,7 @@ function GuestApplicationPage() {
     }
     setContactSaveError("");
     setIsContinuing(false);
-    if (startAfterContact) {
-      // Keep the selected provider and contact details in this mounted flow.
-      // The dashboardStartValues effect creates the application without a route
-      // change that could remount the contact step.
-      setStage("category");
-    } else {
-      setLocation("/dashboard", { replace: true });
-    }
-  };
-
-  const onSubmit = async (values: GuestApplicationValues) => {
-    if (createGuestInFlightRef.current) return;
-    createGuestInFlightRef.current = true;
-    const details = {
-      categoryId: values.categoryId as GuestPreapplicationInput["categoryId"],
-      fullName: values.fullName.trim(),
-      email: values.email.trim(),
-      ...(values.phone?.trim() ? { phone: values.phone.trim() } : {}),
-    };
-    const fingerprint = JSON.stringify(details);
-    let input =
-      pendingSubmissionRef.current?.fingerprint === fingerprint
-        ? pendingSubmissionRef.current.input
-        : (readPendingGuestSubmission(fingerprint) ?? undefined);
-    if (!input || pendingSubmissionRef.current?.fingerprint !== fingerprint) {
-      input = {
-        submissionId: window.crypto.randomUUID(),
-        trackingKey: createBrowserTrackingKey(),
-        categoryId: details.categoryId,
-        fullName: details.fullName,
-        email: details.email,
-        ...(details.phone ? { phone: details.phone } : {}),
-      };
-      pendingSubmissionRef.current = { fingerprint, input };
-      try {
-        window.sessionStorage.setItem(
-          GUEST_PENDING_SUBMISSION_KEY,
-          JSON.stringify({ fingerprint, input }),
-        );
-      } catch {
-        // The in-memory request ID still protects retries during this page session.
-      }
-    } else {
-      pendingSubmissionRef.current = { fingerprint, input };
-    }
-
-    try {
-      const application = await createGuest.mutateAsync({ data: input });
-      try {
-        window.sessionStorage.removeItem(GUEST_DASHBOARD_START_KEY);
-        window.sessionStorage.removeItem(GUEST_DASHBOARD_PENDING_CATEGORY_KEY);
-        window.sessionStorage.removeItem(GUEST_PENDING_SUBMISSION_KEY);
-      } catch {
-        // Keep the successful application visible even if browser storage cleanup fails.
-      }
-      const trackingKey = application.trackingKey;
-      const activeApplication: GuestPreapplicationStatus = {
-        ...application,
-        emailVerificationRequired: false,
-        answers: {},
-        reviewStatus: null,
-        applicantFollowup: null,
-        outstandingRequirements: [],
-      };
-      setCreated({ application: activeApplication, trackingKey });
-      saveGuestResume(application.reference, trackingKey);
-      setApplicationAnswers({});
-      setStage("categoryEntry");
-      pendingSubmissionRef.current = null;
-      setDashboardStartValues(null);
-      dashboardStartStarted.current = false;
-    } catch {
-      // Keep the same key and submission ID in memory so a retry is idempotent.
-    } finally {
-      createGuestInFlightRef.current = false;
-    }
+    setLocation("/dashboard", { replace: true });
   };
 
   const createGuestForProviderEntry = async (
@@ -10015,7 +9960,7 @@ function GuestApplicationPage() {
       return context;
     } catch {
       setProgressError(
-        "Your provider selection and contact details are saved on this screen. Retry to continue without creating a duplicate.",
+        "Your contact details and provider entry are saved in this browser. Retry to continue without creating a duplicate.",
       );
       return null;
     } finally {
@@ -10026,10 +9971,14 @@ function GuestApplicationPage() {
   const completeProviderEntry = async (
     entryAnswers: Record<string, unknown>,
     referenceCode: string | null,
-    contactDetails?: { fullName: string; email: string; phone?: string },
   ) => {
     const categoryId = created?.application.categoryId ?? selectedProviderId;
     if (!categoryId) return;
+    const contactDetails = readGuestDashboardContact();
+    if (!created && !contactDetails) {
+      setLocation("/guest/contact", { replace: true });
+      return;
+    }
     const context =
       created ??
       (contactDetails
@@ -10100,36 +10049,6 @@ function GuestApplicationPage() {
       setStage("categoryEntry");
     }
   };
-
-  useEffect(() => {
-    if (dashboardStartStarted.current) return;
-    if (
-      new URLSearchParams(window.location.search).get("dashboardStart") !== "1"
-    )
-      return;
-    let storedStart: unknown;
-    try {
-      storedStart = JSON.parse(
-        window.sessionStorage.getItem(GUEST_DASHBOARD_START_KEY) ?? "null",
-      );
-    } catch {
-      storedStart = null;
-    }
-    const start = guestDashboardStartSchema.safeParse(storedStart);
-    if (!start.success) {
-      setResumeError(
-        "Your selected account provider could not be restored. Return to the dashboard and choose it again.",
-      );
-      return;
-    }
-    setDashboardStartValues(start.data);
-  }, []);
-
-  useEffect(() => {
-    if (!dashboardStartValues || dashboardStartStarted.current) return;
-    dashboardStartStarted.current = true;
-    void onSubmit(dashboardStartValues);
-  }, [dashboardStartValues]);
 
   const uploadGuestEvidence = async (
     file: File,
@@ -10464,18 +10383,6 @@ function GuestApplicationPage() {
                 isSaving={createGuest.isPending || updateGuest.isPending}
                 error={progressError}
                 guestMode
-                contactDetailsRequired={!created}
-                contactCopy={contactCopy}
-                initialContactDetails={
-                  created
-                    ? {
-                        fullName: created.application.fullName,
-                        email: created.application.email,
-                        phone: readGuestContactDraft().phone,
-                      }
-                    : readGuestContactDraft()
-                }
-                onContactDetailsChange={persistProviderContact}
                 categoryInputTransparent={
                   portalSettings.data?.theme.categoryInputTransparent
                 }
@@ -10512,61 +10419,6 @@ function GuestApplicationPage() {
                 onComplete={completeProviderEntry}
               />
             </>
-          ) : stage === "category" ? (
-            <div
-              className="guest-starting-category"
-              role="status"
-              data-testid="guest-application-starting"
-            >
-              <span className="guest-success-mark">
-                {createGuest.isError ? (
-                  <LockKeyhole size={20} />
-                ) : (
-                  <ArrowRight size={20} />
-                )}
-              </span>
-              <div className="eyebrow">
-                {createGuest.isError
-                  ? providerCopy.startErrorEyebrow || "APPLICATION NOT STARTED"
-                  : providerCopy.startLoadingEyebrow ||
-                    "OPENING YOUR APPLICATION"}
-              </div>
-              <h2 id="guest-apply-heading">
-                {createGuest.isError
-                  ? providerCopy.startErrorTitle ||
-                    "We couldn’t start this application."
-                  : providerCopy.startLoadingTitle ||
-                    "Preparing your account provider form…"}
-              </h2>
-              <p>
-                {createGuest.isError
-                  ? providerCopy.startErrorDescription ||
-                    "Your account provider selection and contact details are saved. Retry to continue without creating a duplicate."
-                  : providerCopy.startLoadingDescription ||
-                    "Your secure application is being prepared. This usually takes a moment."}
-              </p>
-              {createGuest.isError && dashboardStartValues && (
-                <button
-                  type="button"
-                  className="button button-primary guest-success-track"
-                  onClick={() => void onSubmit(dashboardStartValues)}
-                  disabled={createGuest.isPending}
-                >
-                  {providerCopy.retryStartLabel || "Retry application setup"}{" "}
-                  <ArrowRight size={16} />
-                </button>
-              )}
-              {createGuest.isError && (
-                <button
-                  type="button"
-                  className="text-action"
-                  onClick={() => setLocation("/dashboard")}
-                >
-                  {providerCopy.chooseAnotherLabel ||
-                    "Choose another account provider"}
-                </button>
-              )}
-            </div>
           ) : (
             <>
               <div className="guest-form-topline">
@@ -10735,15 +10587,27 @@ function GuestApplicationRoute() {
     ["category-1", "category-2", "category-3", "category-4"].includes(
       providerId,
     );
+  const hasContact = Boolean(readGuestDashboardContact());
   const redirectTo =
-    search.get("resume") === "1" ? "/guest/track" : "/dashboard";
+    search.get("resume") === "1"
+      ? "/guest/track"
+      : !hasContact
+        ? "/guest/contact"
+        : "/dashboard";
 
   useEffect(() => {
-    if (!isKnownProvider) setLocation(redirectTo, { replace: true });
-  }, [isKnownProvider, redirectTo, setLocation]);
+    if (!isKnownProvider || !hasContact) {
+      setLocation(redirectTo, { replace: true });
+    }
+  }, [hasContact, isKnownProvider, redirectTo, setLocation]);
 
   if (!isKnownProvider) return null;
+  if (!hasContact) return <GuestApplicationPage forceContactStep />;
   return <GuestApplicationPage />;
+}
+
+function GuestContactRoute() {
+  return <GuestApplicationPage forceContactStep />;
 }
 
 function GuestTrackingPage() {
@@ -12642,6 +12506,7 @@ function RoutedPages() {
   return (
     <Switch>
       <Route path="/" component={() => <PublicLanding />} />
+      <Route path="/guest/contact" component={GuestContactRoute} />
       <Route path="/guest/apply" component={GuestApplicationRoute} />
       <Route path="/guest/track" component={GuestTrackingPage} />
       <Route path="/staff/sign-up/*?" component={StaffSignUpPage} />
