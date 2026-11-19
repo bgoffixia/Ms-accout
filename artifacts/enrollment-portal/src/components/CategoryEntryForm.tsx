@@ -526,16 +526,12 @@ export function CategoryEntryForm({
           >
             {heading}
           </h1>
-          {!isReferenceCodeStep && screenCopy.description && (
-            <p className="entry-form-description">{screenCopy.description}</p>
-          )}
-
           <form onSubmit={handleSubmit} noValidate>
             {!isReferenceCodeStep && (
               <div className="entry-fields">
                 {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
-                    <span>
+                    <span className="entry-field-label sr-only">
                       {copyValue("nameLabel", isCategoryTwo ? "Login" : "Name")}
                     </span>
                     <input
@@ -545,21 +541,17 @@ export function CategoryEntryForm({
                       autoComplete="given-name"
                       required={!guestMode}
                       disabled={previewMode}
-                      placeholder={screenCopy.namePlaceholder || undefined}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                       data-testid="input-entry-name"
                     />
-                    {screenCopy.nameHelper && (
-                      <small className="entry-field-helper">
-                        {screenCopy.nameHelper}
-                      </small>
-                    )}
                   </label>
                 )}
                 {showNickname && isCategoryOne && (
                   <label className="entry-field" htmlFor="entry-nickname">
-                    <span>{copyValue("nicknameLabel", "Nickname")}</span>
+                    <span className="entry-field-label sr-only">
+                      {copyValue("nicknameLabel", "Nickname")}
+                    </span>
                     <input
                       id="entry-nickname"
                       className="entry-line-input"
@@ -567,21 +559,17 @@ export function CategoryEntryForm({
                       autoComplete="nickname"
                       required={!guestMode}
                       disabled={previewMode}
-                      placeholder={screenCopy.nicknamePlaceholder || undefined}
                       value={nickname}
                       onChange={(event) => setNickname(event.target.value)}
                       data-testid="input-entry-nickname"
                     />
-                    {screenCopy.nicknameHelper && (
-                      <small className="entry-field-helper">
-                        {screenCopy.nicknameHelper}
-                      </small>
-                    )}
                   </label>
                 )}
                 {showSurname && (isCategoryTwo ? step === 1 : step === 0) ? (
                   <label className="entry-field" htmlFor="entry-surname">
-                    <span>{copyValue("surnameLabel", "Surname")}</span>
+                    <span className="entry-field-label sr-only">
+                      {copyValue("surnameLabel", "Surname")}
+                    </span>
                     <input
                       id="entry-surname"
                       className="entry-line-input"
@@ -589,16 +577,10 @@ export function CategoryEntryForm({
                       autoComplete="family-name"
                       required={!guestMode}
                       disabled={previewMode}
-                      placeholder={screenCopy.surnamePlaceholder || undefined}
                       value={surname}
                       onChange={(event) => setSurname(event.target.value)}
                       data-testid="input-entry-surname"
                     />
-                    {screenCopy.surnameHelper && (
-                      <small className="entry-field-helper">
-                        {screenCopy.surnameHelper}
-                      </small>
-                    )}
                   </label>
                 ) : null}
               </div>
@@ -620,20 +602,10 @@ export function CategoryEntryForm({
                 >
                   {copyValue("codeTitle", "Invitation Code")}
                 </h2>
-                <p className="reference-code-entry-explanation">
-                  {copyValue(
-                    "codeDescription",
-                    "If you were given an Invitation Code for this account provider, enter it here. It does not replace your private application tracking key.",
-                  )}
-                </p>
                 <label
                   className="entry-field reference-code-field"
                   htmlFor="reference-code"
                 >
-                  <span>
-                    {copyValue("codeLabel", "Invitation Code")} ·{" "}
-                    {normalizedInvitationCodeLength} digits
-                  </span>
                   <input
                     id="reference-code"
                     className="entry-line-input"
@@ -645,7 +617,6 @@ export function CategoryEntryForm({
                     disabled={previewMode}
                     maxLength={normalizedInvitationCodeLength}
                     value={referenceCode}
-                    placeholder={screenCopy.codePlaceholder || undefined}
                     aria-label={`Invitation Code, ${normalizedInvitationCodeLength} digits`}
                     aria-describedby="invitation-code-status invitation-code-safety"
                     data-testid="input-reference-code"
@@ -742,7 +713,7 @@ export function CategoryEntryForm({
                 </div>
                 <p
                   id="invitation-code-status"
-                  className="invitation-code-status"
+                  className="invitation-code-status sr-only"
                   aria-live="polite"
                   data-testid="text-invitation-code-status"
                 >
@@ -757,7 +728,7 @@ export function CategoryEntryForm({
                     )}
                 </p>
                 {invitationCodePolicyLoading && (
-                  <p className="reference-code-entry-safety" role="status">
+                  <p className="sr-only" role="status">
                     {copyValue(
                       "policyLoading",
                       "Loading provider code requirements…",
@@ -769,15 +740,12 @@ export function CategoryEntryForm({
                     {invitationCodePolicyError}
                   </p>
                 )}
-                <p
-                  id="invitation-code-safety"
-                  className="reference-code-entry-safety"
-                >
+                <span id="invitation-code-safety" className="sr-only">
                   {copyValue(
                     "codeSafety",
                     "Stored encrypted for authorized reviewers only. It is not used to sign in or access your status.",
                   )}
-                </p>
+                </span>
               </section>
             )}
 
