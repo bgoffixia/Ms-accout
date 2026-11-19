@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const applicationId = "1f7ad041-05af-4fcb-971b-c913287a11a8";
@@ -497,6 +498,21 @@ async function fillContactAndContinue(
   ).toBeVisible();
 }
 
+async function expectNoApplicantContactFieldsInProviderForm(page: Page) {
+  const form = page.getByTestId("provider-entry-form");
+  await expect(form).toBeVisible();
+  await expect(
+    form.locator('input[type="email"], input[type="tel"]'),
+  ).toHaveCount(0);
+  await expect(
+    form.locator(
+      '[data-testid="input-guest-full-name"], [data-testid="input-guest-email"], [data-testid="input-guest-phone"]',
+    ),
+  ).toHaveCount(0);
+  await expect(form.locator(".guest-field")).toHaveCount(0);
+  await expect(form).not.toContainText(/contact (name|email|phone)/i);
+}
+
 async function readSessionTrackingKey(page: Page) {
   const key = await page.evaluate(() => {
     const raw = window.sessionStorage.getItem("guest-private-resume");
@@ -678,7 +694,8 @@ test("keeps public guest pages inside the viewport on phone and desktop", async 
         await expect(page).toHaveURL(/\/dashboard$/);
         await expect(page.locator(".app-shell")).toBeVisible();
       } else if (path === "/guest/contact") {
-        await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
+        await expect(page).toHaveURL(/\/dashboard$/);
+        await expect(page.getByTestId("contact-details-form")).toHaveCount(0);
       } else if (path !== "/") {
         await expect(page.locator(".guest-page")).toHaveCSS(
           "overflow-y",
@@ -746,6 +763,8 @@ test("collects contact details before the dashboard and removes them from provid
   await page.goto("/guest/apply?provider=category-1");
   await expect(page).toHaveURL(/\/guest\/contact$/);
   await expect(page.getByTestId("input-guest-full-name")).toBeVisible();
+  await expect(page.getByTestId("input-guest-email")).toBeVisible();
+  await expect(page.getByTestId("input-guest-phone")).toBeVisible();
   await fillContactAndContinue(page, "Jordan Applicant", "jordan@example.test");
   expect(api.createCount).toBe(0);
   expect(api.applicantWriteCount).toBe(0);
@@ -757,6 +776,7 @@ test("collects contact details before the dashboard and removes them from provid
   await expect(
     page.getByRole("heading", { name: "Provider form" }),
   ).toBeVisible();
+  await expectNoApplicantContactFieldsInProviderForm(page);
   await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
     0,
   );
@@ -784,6 +804,26 @@ test("requires contact details before opening the applicant dashboard directly",
   expect(api.applicantWriteCount).toBe(0);
 });
 
+test("does not show the contact step again after contact details were saved", async ({
+  page,
+}) => {
+  const api = new GuestApiFixture();
+  await page.route("**/api/**", (route) => api.handle(route));
+  await seedGuestContact(page);
+
+  await page.goto("/guest/contact");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(
+    page.getByTestId("guest-applicant-dashboard-content"),
+  ).toBeVisible();
+  await expect(page.getByTestId("contact-details-form")).toHaveCount(0);
+  await expect(page.getByTestId("guest-dashboard-contact")).toContainText(
+    "Jordan Applicant",
+  );
+  expect(api.createCount).toBe(0);
+  expect(api.applicantWriteCount).toBe(0);
+});
+
 test("denies signed-out Admin preview without creating applicant data", async ({
   page,
 }) => {
@@ -794,6 +834,28 @@ test("denies signed-out Admin preview without creating applicant data", async ({
   expect(api.requestCounts.get("GET /api/admin/preview/access") ?? 0).toBe(0);
   expect(api.applicantWriteCount).toBe(0);
   expect(api.createCount).toBe(0);
+});
+
+test("Admin preview uses the same provider-only entry form as the public portal", async () => {
+  const appSource = await readFile(
+    new URL("../src/App.tsx", import.meta.url),
+    "utf8",
+  );
+  const previewStart = appSource.indexOf("function AdminPortalPreviewPage()");
+  const previewEnd = appSource.indexOf("function GuestEmailVerificationDialog");
+  const previewSource = appSource.slice(previewStart, previewEnd);
+  const providerEntrySource = await readFile(
+    new URL("../src/components/CategoryEntryForm.tsx", import.meta.url),
+    "utf8",
+  );
+
+  expect(previewStart).toBeGreaterThanOrEqual(0);
+  expect(previewEnd).toBeGreaterThan(previewStart);
+  expect(previewSource).toContain("<CategoryEntryForm");
+  expect(previewSource).toContain("previewMode");
+  expect(providerEntrySource).not.toMatch(
+    /input-provider-contact-(?:name|email|phone)/,
+  );
 });
 
 test("opens provider entry after contact details without repeating them", async ({
@@ -884,6 +946,7 @@ test("opens provider entry after contact details without repeating them", async 
   await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
     0,
   );
+  await expectNoApplicantContactFieldsInProviderForm(page);
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
   await expect(page.getByLabel("Account holder name")).toBeVisible();
@@ -997,11 +1060,12 @@ test("preserves provider-entry progress across back navigation and reload", asyn
   await page.reload();
   await expect(page.getByTestId("link-get-started")).toBeVisible();
   await page.getByTestId("link-get-started").click();
-  await page.getByTestId("button-continue-guest-contact").click();
+  await expect(
+    page.getByTestId("guest-applicant-dashboard-content"),
+  ).toBeVisible();
+  await expect(page.getByTestId("contact-details-form")).toHaveCount(0);
   await page.getByTestId("guest-dashboard-category-category-1").click();
-  await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
-    0,
-  );
+  await expectNoApplicantContactFieldsInProviderForm(page);
   await expect(page.getByTestId("input-entry-name")).toHaveValue("Jordan");
   expect(api.createCount).toBe(0);
 });
@@ -1024,6 +1088,7 @@ test("keeps every guest category entry and Reference Code screen within one phon
     await seedGuestContact(page);
     await page.goto("/dashboard");
     await page.getByTestId(`guest-dashboard-category-${categoryId}`).click();
+    await expectNoApplicantContactFieldsInProviderForm(page);
     await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
       0,
     );

@@ -9113,7 +9113,7 @@ function AdminPortalPreviewPage() {
                 {formTextQuery.content["applicant-contact"]?.description ||
                   "Enter your contact details as it appears in your account and identity documents to proceed"}
               </p>
-              <div className="guest-form">
+              <div className="guest-form" data-testid="contact-details-form">
                 <label className="guest-field">
                   <span>
                     {formTextQuery.content["applicant-contact"]
@@ -10444,6 +10444,7 @@ function GuestApplicationPage({
               <Form {...form}>
                 <form
                   className="guest-form"
+                  data-testid="contact-details-form"
                   onSubmit={(event) => {
                     event.preventDefault();
                     void continueToCategory();
@@ -10607,7 +10608,18 @@ function GuestApplicationRoute() {
 }
 
 function GuestContactRoute() {
-  return <GuestApplicationPage forceContactStep />;
+  const [, setLocation] = useLocation();
+  const hasContact = Boolean(readGuestDashboardContact());
+
+  useEffect(() => {
+    if (hasContact) setLocation("/dashboard", { replace: true });
+  }, [hasContact, setLocation]);
+
+  return hasContact ? (
+    <PublicApplicantDashboard />
+  ) : (
+    <GuestApplicationPage forceContactStep />
+  );
 }
 
 function GuestTrackingPage() {

@@ -526,7 +526,11 @@ export function CategoryEntryForm({
           >
             {heading}
           </h1>
-          <form onSubmit={handleSubmit} noValidate>
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            data-testid="provider-entry-form"
+          >
             {!isReferenceCodeStep && (
               <div className="entry-fields">
                 {showName && (isCategoryOne || step === 0) && (
