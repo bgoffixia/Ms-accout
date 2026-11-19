@@ -290,7 +290,7 @@ export function CategoryEntryForm({
       className={`category-entry-screen category-entry-screen-${categoryId} entry-logo-align-${logoAlignment} ${isCategoryOne || isCategoryThree ? "category-one-reference-screen" : ""} ${isCategoryOne && isReferenceCodeStep ? "category-one-reference-code-stage" : ""} ${isCategoryThree ? `category-three-reference-screen ${isReferenceCodeStep ? "category-one-reference-code-stage" : ""}` : ""} ${isCategoryTwo ? `category-two-reference-screen category-two-step-${step}` : ""} ${isCategoryFour ? "category-four-reference-screen" : ""} ${categoryInputTransparent ? "entry-input-transparent" : "entry-input-opaque"} ${guestMode ? "guest-entry-mode" : ""} ${isReferenceCodeStep ? "entry-reference-code-stage" : ""}`}
       style={formBackgroundStyle}
       data-testid={`form-entry-${categoryId}`}
-      aria-label={heading}
+      aria-label={isReferenceCodeStep ? codeTitle : heading}
     >
       {isCategoryOne || isCategoryThree ? (
         <>
@@ -526,14 +526,17 @@ export function CategoryEntryForm({
       >
         <section
           className={`entry-card ${isCategoryOne || isCategoryThree ? "category-one-reference-card" : ""} ${isCategoryTwo ? "category-two-reference-card" : ""} ${isCategoryFour && !isReferenceCodeStep ? "category-one-reference-card category-four-reference-card" : ""}`}
-          aria-labelledby="category-entry-heading"
+          aria-labelledby={
+            isReferenceCodeStep
+              ? "reference-code-heading"
+              : "category-entry-heading"
+          }
         >
-          <h1
-            id="category-entry-heading"
-            className={isReferenceCodeStep ? "sr-only" : "entry-form-title"}
-          >
-            {heading}
-          </h1>
+          {!isReferenceCodeStep && (
+            <h1 id="category-entry-heading" className="entry-form-title">
+              {heading}
+            </h1>
+          )}
           <form
             onSubmit={handleSubmit}
             noValidate
@@ -611,12 +614,12 @@ export function CategoryEntryForm({
                     <img src={entryLogo} alt="" aria-hidden="true" />
                   </div>
                 )}
-                <h2
+                <h1
                   id="reference-code-heading"
                   className="reference-code-entry-title"
                 >
                   {codeTitle}
-                </h2>
+                </h1>
                 <label
                   className="entry-field reference-code-field"
                   htmlFor="reference-code"

@@ -1066,7 +1066,14 @@ test("opens provider entry after contact details without repeating them", async 
   await expect(page.getByTestId("input-reference-code")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Invitation Code" }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Invitation Code" }),
   ).toBeVisible();
+  await expect(page.getByTestId("input-reference-code")).toHaveAttribute(
+    "aria-label",
+    "Invitation Code, 8 digits",
+  );
   await expect(page.locator(".reference-code-entry-explanation")).toHaveCount(
     0,
   );
@@ -1212,7 +1219,14 @@ test("keeps every guest category entry and Reference Code screen within one phon
     const field = page.getByTestId("input-reference-code");
     await expect(field).toBeVisible();
     expect(await field.getAttribute("type")).toBe("password");
+    await expect(field).toHaveAttribute(
+      "aria-label",
+      "Invitation Code, 8 digits",
+    );
     await expect(page.locator(".invitation-code-keypad")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Invitation Code" }),
+    ).toHaveCount(1);
     await expect(page.locator("#reference-code-heading")).toBeVisible();
     await expect(page.locator(".reference-code-field-label")).toHaveCount(0);
     await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
@@ -1568,6 +1582,9 @@ test("lets guests continue with incomplete details and an optional Invitation Co
   await expect(page.locator(".reference-code-entry-screen")).toContainText(
     "Configured Invitation Code",
   );
+  await expect(
+    page.getByRole("heading", { name: "Configured Invitation Code" }),
+  ).toHaveCount(1);
   await expect(page.locator(".reference-code-field-label")).toHaveText(
     "Provider invitation digits",
   );
