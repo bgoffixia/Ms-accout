@@ -9581,19 +9581,29 @@ html[data-portal-button-placement="right"]
   line-height: 1.45;
 }
 
-/* Keep form labels available to assistive technology without showing extra copy. */
-.category-entry-screen .entry-field > .entry-field-label.sr-only {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  margin: -1px !important;
+/* Provider identity and code fields keep their labels visible in production. */
+.category-entry-screen .entry-field-label {
+  display: block;
+}
+
+.category-entry-screen.entry-reference-code-stage
+  .reference-code-field
+  > .reference-code-field-label {
+  position: static !important;
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  margin: 0;
   padding: 0 !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  clip-path: inset(50%) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-  pointer-events: none !important;
+  overflow: visible !important;
+  color: currentColor !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  text-align: center;
+  white-space: normal !important;
+  clip: auto !important;
+  clip-path: none !important;
 }
 
 /* Use light input text over provider artwork, but dark text over the white screen. */

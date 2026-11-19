@@ -868,6 +868,7 @@ test("opens provider entry after contact details without repeating them", async 
       description: "Enter information linked to the selected account provider.",
       nameLabel: "Account holder name",
       namePlaceholder: "Enter the account holder name",
+      nicknameLabel: "",
     },
   };
   await page.setViewportSize({ width: 390, height: 568 });
@@ -949,6 +950,7 @@ test("opens provider entry after contact details without repeating them", async 
   await expectNoApplicantContactFieldsInProviderForm(page);
   await page.getByTestId("input-entry-name").fill("Jordan");
   await page.getByTestId("input-entry-nickname").fill("Jo");
+  await expect(page.getByText("Nickname", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Account holder name")).toBeVisible();
   await expect(page.getByLabel("Account holder name")).toHaveJSProperty(
     "placeholder",
@@ -969,9 +971,10 @@ test("opens provider entry after contact details without repeating them", async 
   );
   await expect(page.locator(".entry-form-description")).toHaveCount(0);
   await expect(page.locator(".entry-field-helper")).toHaveCount(0);
+  await expect(page.locator(".entry-field-label")).toHaveCount(2);
   for (const fieldLabel of await page.locator(".entry-field-label").all()) {
-    await expect(fieldLabel).toHaveCSS("width", "1px");
-    await expect(fieldLabel).toHaveCSS("clip-path", "inset(50%)");
+    await expect(fieldLabel).toBeVisible();
+    await expect(fieldLabel).toHaveText(/.+/);
   }
   await expect(page.getByTestId("input-entry-name")).toHaveJSProperty(
     "placeholder",
@@ -997,7 +1000,7 @@ test("opens provider entry after contact details without repeating them", async 
   await expect(page.locator(".reference-code-entry-explanation")).toHaveCount(
     0,
   );
-  await expect(page.locator(".reference-code-field > span")).toHaveCount(0);
+  await expect(page.locator(".reference-code-field-label")).toBeVisible();
   await expect(page.getByTestId("text-invitation-code-status")).toHaveCSS(
     "clip-path",
     "inset(50%)",
@@ -1092,6 +1095,8 @@ test("keeps every guest category entry and Reference Code screen within one phon
     await expect(page.getByTestId("provider-entry-contact-fields")).toHaveCount(
       0,
     );
+    await expect(page.locator(".entry-field-label").first()).toBeVisible();
+    await expect(page.locator(".entry-field-label").first()).toHaveText(/.+/);
     await page.getByTestId("input-entry-name").fill("Jordan");
     expect(
       await page
@@ -1109,6 +1114,10 @@ test("keeps every guest category entry and Reference Code screen within one phon
         /entry-reference-code-stage/,
       );
       await expectNoDocumentOverflow(page);
+      await expect(page.locator(".entry-field-label").first()).toBeVisible();
+      await expect(page.locator(".entry-field-label").first()).toHaveText(
+        "Surname",
+      );
       await page.getByTestId("input-entry-surname").fill("Applicant");
       await page.locator("form button[type=submit]").first().click();
     }
@@ -1121,10 +1130,8 @@ test("keeps every guest category entry and Reference Code screen within one phon
     expect(await field.getAttribute("type")).toBe("password");
     await expect(page.locator(".invitation-code-keypad")).toBeVisible();
     await expect(page.locator("#reference-code-heading")).toBeVisible();
-    for (const fieldLabel of await page.locator(".entry-field-label").all()) {
-      await expect(fieldLabel).toHaveCSS("width", "1px");
-      await expect(fieldLabel).toHaveCSS("clip-path", "inset(50%)");
-    }
+    await expect(page.locator(".reference-code-field-label")).toBeVisible();
+    await expect(page.locator(".reference-code-field-label")).toHaveText(/.+/);
     await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
     const box = await field.boundingBox();
     expect(
@@ -1462,6 +1469,8 @@ test("lets guests continue with incomplete details and an optional Invitation Co
   await expect(page.getByTestId("input-entry-nickname")).not.toHaveAttribute(
     "placeholder",
   );
+  await expect(page.getByText("Configured entry name")).toBeVisible();
+  await expect(page.getByText("Configured entry nickname")).toBeVisible();
   await expectNoDocumentOverflow(page);
 
   await page.locator("form button[type=submit]").click();

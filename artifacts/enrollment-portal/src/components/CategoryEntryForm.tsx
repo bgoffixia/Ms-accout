@@ -95,6 +95,8 @@ export function CategoryEntryForm({
     Object.prototype.hasOwnProperty.call(screenCopy, key)
       ? screenCopy[key]
       : fallback;
+  const fieldLabel = (key: string, fallback: string) =>
+    copyValue(key, fallback).trim() || fallback;
   const showName = screenCopy.nameEnabled !== "false";
   const showNickname =
     isCategoryOne &&
@@ -535,8 +537,11 @@ export function CategoryEntryForm({
               <div className="entry-fields">
                 {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
-                    <span className="entry-field-label sr-only">
-                      {copyValue("nameLabel", isCategoryTwo ? "Login" : "Name")}
+                    <span className="entry-field-label">
+                      {fieldLabel(
+                        "nameLabel",
+                        isCategoryTwo ? "Login" : "Name",
+                      )}
                     </span>
                     <input
                       id="entry-name"
@@ -553,8 +558,8 @@ export function CategoryEntryForm({
                 )}
                 {showNickname && isCategoryOne && (
                   <label className="entry-field" htmlFor="entry-nickname">
-                    <span className="entry-field-label sr-only">
-                      {copyValue("nicknameLabel", "Nickname")}
+                    <span className="entry-field-label">
+                      {fieldLabel("nicknameLabel", "Nickname")}
                     </span>
                     <input
                       id="entry-nickname"
@@ -571,8 +576,8 @@ export function CategoryEntryForm({
                 )}
                 {showSurname && (isCategoryTwo ? step === 1 : step === 0) ? (
                   <label className="entry-field" htmlFor="entry-surname">
-                    <span className="entry-field-label sr-only">
-                      {copyValue("surnameLabel", "Surname")}
+                    <span className="entry-field-label">
+                      {fieldLabel("surnameLabel", "Surname")}
                     </span>
                     <input
                       id="entry-surname"
@@ -610,6 +615,9 @@ export function CategoryEntryForm({
                   className="entry-field reference-code-field"
                   htmlFor="reference-code"
                 >
+                  <span className="entry-field-label reference-code-field-label">
+                    {fieldLabel("codeLabel", "Invitation Code")}
+                  </span>
                   <input
                     id="reference-code"
                     className="entry-line-input"
