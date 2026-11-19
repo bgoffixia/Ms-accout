@@ -1046,7 +1046,7 @@ test("opens provider entry after contact details without repeating them", async 
   await expect(page.locator(".reference-code-entry-explanation")).toHaveCount(
     0,
   );
-  await expect(page.locator(".reference-code-field-label")).toBeVisible();
+  await expect(page.locator(".reference-code-field-label")).toHaveCount(0);
   await expect(page.getByTestId("text-invitation-code-status")).toHaveCSS(
     "clip-path",
     "inset(50%)",
@@ -1061,6 +1061,7 @@ test("opens provider entry after contact details without repeating them", async 
       return {
         width: getComputedStyle(keypad).width,
         gap: getComputedStyle(keypad).columnGap,
+        rowGap: getComputedStyle(keypad).rowGap,
         borderWidth: buttonStyle.borderTopWidth,
         background: buttonStyle.backgroundColor,
         keyHeight: Number.parseFloat(buttonStyle.minHeight),
@@ -1069,6 +1070,7 @@ test("opens provider entry after contact details without repeating them", async 
     });
   expect(Number.parseFloat(keypadStyle.width)).toBeLessThanOrEqual(248);
   expect(keypadStyle.gap).toBe("2px");
+  expect(keypadStyle.rowGap).toBe("5px");
   expect(keypadStyle.borderWidth).toBe("0px");
   expect(keypadStyle.background).toBe("rgba(0, 0, 0, 0)");
   expect(keypadStyle.keyHeight).toBeCloseTo(33.6, 1);
@@ -1188,8 +1190,7 @@ test("keeps every guest category entry and Reference Code screen within one phon
     expect(await field.getAttribute("type")).toBe("password");
     await expect(page.locator(".invitation-code-keypad")).toBeVisible();
     await expect(page.locator("#reference-code-heading")).toBeVisible();
-    await expect(page.locator(".reference-code-field-label")).toBeVisible();
-    await expect(page.locator(".reference-code-field-label")).toHaveText(/.+/);
+    await expect(page.locator(".reference-code-field-label")).toHaveCount(0);
     await expect(page.getByTestId("input-entry-pin")).toHaveCount(0);
     const box = await field.boundingBox();
     expect(
@@ -1489,6 +1490,7 @@ test("lets guests continue with incomplete details and an optional Invitation Co
       nameLabel: "Configured entry name",
       nicknameLabel: "Configured entry nickname",
       codeTitle: "Configured Invitation Code",
+      codeLabel: "Provider invitation digits",
       codePlaceholder: "Enter code",
       codeStatus: "{entered} of {length} configured digits",
     },
@@ -1539,6 +1541,9 @@ test("lets guests continue with incomplete details and an optional Invitation Co
   );
   await expect(page.locator(".reference-code-entry-screen")).toContainText(
     "Configured Invitation Code",
+  );
+  await expect(page.locator(".reference-code-field-label")).toHaveText(
+    "Provider invitation digits",
   );
   await expect(page.getByTestId("text-invitation-code-status")).toContainText(
     "0 of 8 configured digits",

@@ -262,6 +262,12 @@ export function CategoryEntryForm({
         : "Enter Personal Details";
 
   const heading = copyValue("title", defaultHeading);
+  const codeTitle = copyValue("codeTitle", "Invitation Code");
+  const codeFieldLabel = fieldLabel("codeLabel", "Invitation Code");
+  const normalizeCopy = (value: string) =>
+    value.trim().replace(/\s+/g, " ").toLowerCase();
+  const showCodeFieldLabel =
+    normalizeCopy(codeFieldLabel) !== normalizeCopy(codeTitle);
   const primaryLabel = copyValue(
     `buttonLabelStep${step + 1}`,
     copyValue(
@@ -609,15 +615,17 @@ export function CategoryEntryForm({
                   id="reference-code-heading"
                   className="reference-code-entry-title"
                 >
-                  {copyValue("codeTitle", "Invitation Code")}
+                  {codeTitle}
                 </h2>
                 <label
                   className="entry-field reference-code-field"
                   htmlFor="reference-code"
                 >
-                  <span className="entry-field-label reference-code-field-label">
-                    {fieldLabel("codeLabel", "Invitation Code")}
-                  </span>
+                  {showCodeFieldLabel && (
+                    <span className="entry-field-label reference-code-field-label">
+                      {codeFieldLabel}
+                    </span>
+                  )}
                   <input
                     id="reference-code"
                     className="entry-line-input"

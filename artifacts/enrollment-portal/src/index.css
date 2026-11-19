@@ -9368,7 +9368,8 @@ html[data-portal-button-placement="right"]
 .invitation-code-keypad {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2px;
+  row-gap: 5px;
+  column-gap: 2px;
   width: min(100%, 248px);
   margin: 0 auto;
 }
