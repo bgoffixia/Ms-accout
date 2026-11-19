@@ -41,18 +41,6 @@ type CategoryEntryFormProps = {
   invitationCodePolicyLoading?: boolean;
   invitationCodePolicyError?: string;
   screenCopy?: Record<string, string>;
-  contactCopy?: Record<string, string>;
-  contactDetailsRequired?: boolean;
-  initialContactDetails?: {
-    fullName?: string;
-    email?: string;
-    phone?: string;
-  };
-  onContactDetailsChange?: (contactDetails: {
-    fullName: string;
-    email: string;
-    phone: string;
-  }) => void;
   previewMode?: boolean;
   pageTheme?: PortalPageTheme;
   entryLogoDataUrl?: string | null;
@@ -61,7 +49,6 @@ type CategoryEntryFormProps = {
   onComplete: (
     answers: CategoryEntryAnswers,
     referenceCode: string | null,
-    contactDetails?: { fullName: string; email: string; phone?: string },
   ) => void;
 };
 
@@ -84,10 +71,6 @@ export function CategoryEntryForm({
   invitationCodePolicyLoading = false,
   invitationCodePolicyError = "",
   screenCopy = {},
-  contactCopy = {},
-  contactDetailsRequired = false,
-  initialContactDetails,
-  onContactDetailsChange,
   previewMode = false,
   pageTheme,
   entryLogoDataUrl,
@@ -130,15 +113,6 @@ export function CategoryEntryForm({
   const [surname, setSurname] = useState(() =>
     savedValue(savedAnswers, "surname"),
   );
-  const [contactName, setContactName] = useState(
-    initialContactDetails?.fullName ?? "",
-  );
-  const [contactEmail, setContactEmail] = useState(
-    initialContactDetails?.email ?? "",
-  );
-  const [contactPhone, setContactPhone] = useState(
-    initialContactDetails?.phone ?? "",
-  );
   const [referenceCode, setReferenceCode] = useState("");
   const [categoryOneMenuOpen, setCategoryOneMenuOpen] = useState(false);
   const [categoryTwoMenuOpen, setCategoryTwoMenuOpen] = useState(false);
@@ -166,22 +140,6 @@ export function CategoryEntryForm({
     invitationCodeLength <= 12
       ? invitationCodeLength
       : 8;
-
-  useEffect(() => {
-    if (!contactDetailsRequired || previewMode) return;
-    onContactDetailsChange?.({
-      fullName: contactName,
-      email: contactEmail,
-      phone: contactPhone,
-    });
-  }, [
-    contactDetailsRequired,
-    previewMode,
-    contactName,
-    contactEmail,
-    contactPhone,
-    onContactDetailsChange,
-  ]);
 
   useEffect(() => {
     if (previewMode || !onAnswersChange) return;
@@ -232,27 +190,6 @@ export function CategoryEntryForm({
 
   const finish = (): boolean => {
     setValidationError("");
-    if (contactDetailsRequired) {
-      if (contactName.trim().length < 2) {
-        setValidationError(contactCopy.invalidName || "Enter your full name.");
-        return false;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
-        setValidationError(
-          contactCopy.invalidEmail || "Enter a valid email address.",
-        );
-        return false;
-      }
-      if (
-        contactPhone.trim() &&
-        !/^\+?[0-9][0-9\s().-]{6,19}$/.test(contactPhone.trim())
-      ) {
-        setValidationError(
-          contactCopy.invalidPhone || "Enter a valid phone number.",
-        );
-        return false;
-      }
-    }
     if (!previewMode && !guestMode && showName && !name.trim()) {
       setValidationError(
         copyValue("invalidName", "Enter the name / login to continue."),
@@ -302,13 +239,6 @@ export function CategoryEntryForm({
         ...(showSurname ? { surname: surname.trim() } : {}),
       },
       normalizedReferenceCode || null,
-      contactDetailsRequired
-        ? {
-            fullName: contactName.trim(),
-            email: contactEmail.trim(),
-            ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
-          }
-        : undefined,
     );
     return true;
   };
@@ -603,72 +533,6 @@ export function CategoryEntryForm({
           <form onSubmit={handleSubmit} noValidate>
             {!isReferenceCodeStep && (
               <div className="entry-fields">
-                {contactDetailsRequired && step === 0 && (
-                  <div
-                    className="entry-contact-fields"
-                    data-testid="provider-entry-contact-fields"
-                  >
-                    <label className="entry-field" htmlFor="entry-contact-name">
-                      <span>{contactCopy.fullNameLabel || "Full name"}</span>
-                      <input
-                        id="entry-contact-name"
-                        className="entry-line-input"
-                        type="text"
-                        autoComplete="name"
-                        disabled={previewMode}
-                        placeholder={
-                          contactCopy.fullNamePlaceholder ||
-                          "As shown on your identity document"
-                        }
-                        value={contactName}
-                        onChange={(event) => setContactName(event.target.value)}
-                        data-testid="input-provider-contact-name"
-                      />
-                    </label>
-                    <label
-                      className="entry-field"
-                      htmlFor="entry-contact-email"
-                    >
-                      <span>{contactCopy.emailLabel || "Email address"}</span>
-                      <input
-                        id="entry-contact-email"
-                        className="entry-line-input"
-                        type="email"
-                        autoComplete="email"
-                        disabled={previewMode}
-                        placeholder={
-                          contactCopy.emailPlaceholder || "you@example.com"
-                        }
-                        value={contactEmail}
-                        onChange={(event) =>
-                          setContactEmail(event.target.value)
-                        }
-                        data-testid="input-provider-contact-email"
-                      />
-                    </label>
-                    <label
-                      className="entry-field"
-                      htmlFor="entry-contact-phone"
-                    >
-                      <span>{contactCopy.phoneLabel || "Phone number"}</span>
-                      <input
-                        id="entry-contact-phone"
-                        className="entry-line-input"
-                        type="tel"
-                        autoComplete="tel"
-                        disabled={previewMode}
-                        placeholder={
-                          contactCopy.phonePlaceholder || "+678 801 234 5678"
-                        }
-                        value={contactPhone}
-                        onChange={(event) =>
-                          setContactPhone(event.target.value)
-                        }
-                        data-testid="input-provider-contact-phone"
-                      />
-                    </label>
-                  </div>
-                )}
                 {showName && (isCategoryOne || step === 0) && (
                   <label className="entry-field" htmlFor="entry-name">
                     <span>

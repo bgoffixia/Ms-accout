@@ -6731,6 +6731,10 @@ html[data-portal-button-placement="right"]
     grid-template-rows: minmax(0, 1fr);
   }
 
+  .dashboard-page-content .guest-dashboard-contact {
+    display: none;
+  }
+
   .dashboard-page-content .dashboard-aside {
     display: none;
   }
